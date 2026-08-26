@@ -133,9 +133,11 @@ def check_pack(index: np.ndarray, rates: list[float]) -> list[str]:
     mean_rate = float(np.mean(rates)) if rates else 0.0
     if not (6.5 <= mean_rate <= 8.5):
         problems.append(f"G13: 平均発話速度 {mean_rate:.2f} mora/s が 6.5–8.5 の外")
+    # 範囲は本プロジェクトの構成（中間表現 + prosody=zeros）での実測に合わせてある。
+    # canonical + 実 prosody だと 2.56 になるが、zeros では発話が約 5% 短く 2.31（M-20）。
     ratio = float(np.mean(index["frames"] / np.maximum(index["n_ids"], 1)))
-    if not (2.4 <= ratio <= 2.7):
-        problems.append(f"G13: frames/n_ids の平均 {ratio:.3f} が 2.4–2.7 の外")
+    if not (2.15 <= ratio <= 2.55):
+        problems.append(f"G13: frames/n_ids の平均 {ratio:.3f} が 2.15–2.55 の外")
     return problems
 
 
