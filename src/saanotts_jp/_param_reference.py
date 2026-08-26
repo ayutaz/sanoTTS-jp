@@ -55,7 +55,10 @@ class Acoustic(nn.Module):
         h = s.emb(x).transpose(1, 2)
         for b in s.token: h = b(h)              # <- token block はここまで
         h = torch.repeat_interleave(h, d[0].long(), dim=2)        # length regulator (0 params)
-        idx = torch.cat([torch.arange(int(n)) for n in d[0]]).clamp(max=s.pos.num_embeddings-1)
+        # device を h から取る。torch.arange を既定 (CPU) で作ると MPS/CUDA で
+        # "Placeholder storage has not been allocated" になる
+        idx = torch.cat([torch.arange(int(n), device=h.device) for n in d[0]]
+                        ).clamp(max=s.pos.num_embeddings-1)
         h = h + s.pos(idx).t().unsqueeze(0)
         for b in s.frame: h = b(h)              # <- frame block はここから
         return s.out(h)
