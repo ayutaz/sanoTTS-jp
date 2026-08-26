@@ -1,0 +1,670 @@
+{
+ "task": "A-1 ラベル生成経路の統一可否",
+ "generated_at": "2026-08-26T17:49:20+0900",
+ "paths": {
+  "a": "text_to_phoneme_ids_and_prosody(language='ja', language_id_map=lim)",
+  "b": "JapanesePhonemizer -> [#正規化] -> phonemes_to_intermediate -> intermediate_to_tokens -> intermediate_to_phonemes -> PiperEncoder"
+ },
+ "variants": {
+  "base": "現行 mora テーブル (116) / 正規化なし",
+  "ext": "外来音モーラ +41 と `ん` 異音規則 +2 (kw/gw) を足した / 正規化なし",
+  "ext_norm": "拡張テーブル + 規則 + `#` の mora 内挿入を正規化"
+ },
+ "summary": {
+  "heldout": {
+   "n": 2325,
+   "base": {
+    "mora_table_entries": 116,
+    "mora_table_bytes": 951,
+    "n_allophone_rules": 18,
+    "hash_normalized": false,
+    "ids_equal_vs_a": 1854,
+    "ids_equal_vs_a_pct": 79.742,
+    "ids_equal_vs_a_normalized": 1854,
+    "ids_equal_vs_a_normalized_pct": 79.742,
+    "prosody_equal_vs_a": 1854,
+    "representable": 1993,
+    "representable_pct": 85.72,
+    "kinds": {
+     "equal": 1854,
+     "segment_length_differs": 120,
+     "not_representable": 332,
+     "segment_content_differs": 19
+    },
+    "routing_in_a": {
+     "ja": 2172,
+     "zh": 130,
+     "en+ja": 20,
+     "ja+zh": 3
+    },
+    "misrouting_examples": [],
+    "rows_routed_nonja_in_a": 153,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 2.6
+   },
+   "ext": {
+    "mora_table_entries": 159,
+    "mora_table_bytes": 1413,
+    "n_allophone_rules": 20,
+    "hash_normalized": false,
+    "ids_equal_vs_a": 2019,
+    "ids_equal_vs_a_pct": 86.839,
+    "ids_equal_vs_a_normalized": 2019,
+    "ids_equal_vs_a_normalized_pct": 86.839,
+    "prosody_equal_vs_a": 2019,
+    "representable": 2158,
+    "representable_pct": 92.817,
+    "kinds": {
+     "equal": 2019,
+     "segment_length_differs": 120,
+     "not_representable": 167,
+     "segment_content_differs": 19
+    },
+    "routing_in_a": {
+     "ja": 2172,
+     "zh": 130,
+     "en+ja": 20,
+     "ja+zh": 3
+    },
+    "misrouting_examples": [],
+    "rows_routed_nonja_in_a": 153,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 1.0
+   },
+   "ext_norm": {
+    "mora_table_entries": 159,
+    "mora_table_bytes": 1413,
+    "n_allophone_rules": 20,
+    "hash_normalized": true,
+    "ids_equal_vs_a": 2019,
+    "ids_equal_vs_a_pct": 86.839,
+    "ids_equal_vs_a_normalized": 2172,
+    "ids_equal_vs_a_normalized_pct": 93.419,
+    "prosody_equal_vs_a": 2019,
+    "representable": 2325,
+    "representable_pct": 100.0,
+    "kinds": {
+     "equal": 2019,
+     "segment_length_differs": 126,
+     "accent_marks_only": 153,
+     "segment_content_differs": 27
+    },
+    "routing_in_a": {
+     "ja": 2172,
+     "zh": 130,
+     "en+ja": 20,
+     "ja+zh": 3
+    },
+    "misrouting_examples": [
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "tɕʰ i tone2 y_vowel tone4 ɕ iɛn tone4 tʂ ɻ̩ tone4 f u tone4 ʂ ɻ̩ tone4",
+      "ph_b": "s a [ i t a m a ] k e N_n ch I [ ch i b u ] sh i",
+      "intermediate": "さ[いたま]けんち°[ちぶ]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "tʂ aŋ tone3 tɕʰ i tone2 ɕ iɛn tone4 u tone2 t aʊ tone3 ʂ ɻ̩ tone4",
+      "ph_b": "n a [ g a s a k i ] k e N_ng g o [ sh i m a ] sh i",
+      "intermediate": "な[がさき]けんご[しま]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "en",
+       "ja"
+      ],
+      "ph_a": "h e [ r i k o ] p U t a a n o p a ] [ i r o cl t",
+      "ph_b": "h e [ r i k o ] p U t a a n o p a ] [ i r o cl t",
+      "intermediate": "へ[りこ]ぷ°たあのぱ][いろっとも_て[んもんがく]しゃも_な][さも"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "f u tone2 k aŋ tone1 ɕ iɛn tone4 ɕ in tone1 k uŋ tone1 tʰ iŋ tone1",
+      "ph_b": "f U [ k u o k a ] k e N_uvular sh i [ N_ng g u ] u m a ch i",
+      "intermediate": "ふ°[くおか]けんし[んぐ]うまち"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "aɪ tone4 tʂ ɻ̩ tone1 ɕ iɛn tone4 iɛn tone2 tsʰ aŋ tone1 ʂ ɻ̩ tone4",
+      "ph_b": "a [ i ch i ] k e N_uvular i [ w a k u r a ] sh i",
+      "intermediate": "あ[いち]けんい[わくら]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "t uŋ tone1 tɕ iŋ tone1 t u tone1 l i tone2 t aʊ tone3 tɕʰ y_vowel tone1",
+      "ph_b": "t o [ o ky o ] o t o t o [ sh i m a ] k u",
+      "intermediate": "と[おきょ]おとと[しま]く"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "t uŋ tone1 tɕ iŋ tone1 t u tone1 l iɛn tone4 m a tone3 tɕʰ y_vowel tone1",
+      "ph_b": "t o [ o ky o ] o t o n e [ r i m a ] k u",
+      "intermediate": "と[おきょ]おとね[りま]く"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "t uŋ tone1 tɕ iŋ tone1 t u tone1 s an tone1 iŋ tone1 ʂ ɻ̩ tone4",
+      "ph_b": "t o [ o ky o ] o t o m i [ t a k a ] sh i",
+      "intermediate": "と[おきょ]おとみ[たか]し"
+     }
+    ],
+    "rows_routed_nonja_in_a": 153,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 1.1
+   }
+  },
+  "embedded": {
+   "n": 183,
+   "base": {
+    "mora_table_entries": 116,
+    "mora_table_bytes": 951,
+    "n_allophone_rules": 18,
+    "hash_normalized": false,
+    "ids_equal_vs_a": 165,
+    "ids_equal_vs_a_pct": 90.164,
+    "ids_equal_vs_a_normalized": 165,
+    "ids_equal_vs_a_normalized_pct": 90.164,
+    "prosody_equal_vs_a": 165,
+    "representable": 181,
+    "representable_pct": 98.907,
+    "kinds": {
+     "equal": 165,
+     "segment_length_differs": 16,
+     "not_representable": 2
+    },
+    "routing_in_a": {
+     "ja": 166,
+     "ja+zh": 8,
+     "en+ja": 9
+    },
+    "misrouting_examples": [],
+    "rows_routed_nonja_in_a": 17,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 0.1
+   },
+   "ext": {
+    "mora_table_entries": 159,
+    "mora_table_bytes": 1413,
+    "n_allophone_rules": 20,
+    "hash_normalized": false,
+    "ids_equal_vs_a": 165,
+    "ids_equal_vs_a_pct": 90.164,
+    "ids_equal_vs_a_normalized": 165,
+    "ids_equal_vs_a_normalized_pct": 90.164,
+    "prosody_equal_vs_a": 165,
+    "representable": 181,
+    "representable_pct": 98.907,
+    "kinds": {
+     "equal": 165,
+     "segment_length_differs": 16,
+     "not_representable": 2
+    },
+    "routing_in_a": {
+     "ja": 166,
+     "ja+zh": 8,
+     "en+ja": 9
+    },
+    "misrouting_examples": [],
+    "rows_routed_nonja_in_a": 17,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 0.0
+   },
+   "ext_norm": {
+    "mora_table_entries": 159,
+    "mora_table_bytes": 1413,
+    "n_allophone_rules": 20,
+    "hash_normalized": true,
+    "ids_equal_vs_a": 165,
+    "ids_equal_vs_a_pct": 90.164,
+    "ids_equal_vs_a_normalized": 166,
+    "ids_equal_vs_a_normalized_pct": 90.71,
+    "prosody_equal_vs_a": 165,
+    "representable": 183,
+    "representable_pct": 100.0,
+    "kinds": {
+     "equal": 165,
+     "segment_length_differs": 17,
+     "accent_marks_only": 1
+    },
+    "routing_in_a": {
+     "ja": 166,
+     "ja+zh": 8,
+     "en+ja": 9
+    },
+    "misrouting_examples": [
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "tɕ iŋ tone1 k uo tone4 ʂ ɻ̩ tone2 tɕ iɛn tone1 z e ] [ r o ʂ ɻ̩ tone2 tɕ iɛn tone1",
+      "ph_b": "k e [ e k a j i ] k a N_uvular _ z e [ r o j i ] k a N_uvular",
+      "intermediate": "け[えかじ]かん_ぜ[ろじ]かんぜ[ろ]ふんじゅ[うに][びょお"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "aɪ tone4 tʂ ɻ̩ tone1 ɕ iɛn tone4 m iŋ tone2 k u tone3 u tone1 ʂ ɻ̩ tone4 tʂ uŋ tone1 tsʰ uən",
+      "ph_b": "a [ i ch i ] k e N_n n a [ g o y a ] sh i n a [ k a",
+      "intermediate": "あ[いち]けんな[ごや]しな[かむら]くめ][ええきよ[んちょ]おめ"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "ʂ ɻ̩ tone2 tʂʰ uan tone1 ɕ iɛn tone4 tɕ in tone1 ts ɤ tone2 ʂ ɻ̩ tone4 tɕ iɛn tone1 l iou tone4",
+      "ph_b": "i [ sh I k a w a ] k e N_ng k a [ n a z a w a ] sh I",
+      "intermediate": "い[し°かわ]けんか[なざわ]し°け[んろく]まち"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "k uaŋ tone2 t aʊ tone3 ɕ iɛn tone4 k uaŋ tone2 t aʊ tone3 ʂ ɻ̩ tone4 tʂ uŋ tone1 tɕʰ y_vowel tone1",
+      "ph_b": "h i [ r o sh i m a ] k e N_uvular h i [ r o sh i m a ] sh",
+      "intermediate": "ひ[ろしま]けんひ[ろしま]しな[か]く°か[み]やちょお"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "k uŋ tone1 tʂʰ əŋ tone2 ɕ iɛn tone4 ɕ iɛn tone1 tʰ aɪ tone2 ʂ ɻ̩ tone4 tɕʰ iŋ tone1 iɛ tone4 tɕʰ",
+      "ph_b": "m i [ y a g i ] k e N_uvular s e [ N_n d a i ] sh i a [ o",
+      "intermediate": "み[やぎ]けんせ[んだい]しあ[おば]くい[ちば]んちょお"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "l u tone4 ɚ tone2 t aʊ tone3 ɕ iɛn tone4 u tone4 t aʊ tone3 ʂ ɻ̩ tone4 k uo tone2 f ən",
+      "ph_b": "k a [ g o sh i m a ] k e N_ng k i [ r i sh i m a ] sh",
+      "intermediate": "か[ごしま]けんき[りしま]し°こ[くぶちゅ]うおお"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "tɕʰ iou tone1 tʰ iɛn tone2 ɕ iɛn tone4 x əŋ tone2 ʂ oʊ tone3 ʂ ɻ̩ tone4 ʂ ɻ̩ tone2 uən tone2 ts",
+      "ph_b": "a [ k I t a ] k e N_uvular y o [ k o t e ] sh i j u [ u",
+      "intermediate": "あ[き°た]けんよ[こて]しじゅ[うもんじ]まち"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "ja",
+       "zh"
+      ],
+      "ph_a": "tɕʰ yn tone2 m a tone3 ɕ iɛn tone4 tɕʰ iɛn tone2 tɕʰ iaʊ tone2 ʂ ɻ̩ tone4",
+      "ph_b": "g u [ N_m m a ] k e N_m m a [ e b a sh i ] sh i",
+      "intermediate": "ぐ[んま]けんま[えばし]し"
+     }
+    ],
+    "rows_routed_nonja_in_a": 17,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 0.0
+   }
+  },
+  "train": {
+   "n": 20946,
+   "base": {
+    "mora_table_entries": 116,
+    "mora_table_bytes": 951,
+    "n_allophone_rules": 18,
+    "hash_normalized": false,
+    "ids_equal_vs_a": 16813,
+    "ids_equal_vs_a_pct": 80.268,
+    "ids_equal_vs_a_normalized": 16813,
+    "ids_equal_vs_a_normalized_pct": 80.268,
+    "prosody_equal_vs_a": 16813,
+    "representable": 17840,
+    "representable_pct": 85.171,
+    "kinds": {
+     "equal": 16813,
+     "segment_length_differs": 858,
+     "segment_content_differs": 169,
+     "not_representable": 3106
+    },
+    "routing_in_a": {
+     "ja": 19852,
+     "zh": 979,
+     "en+ja": 89,
+     "ja+zh": 26
+    },
+    "misrouting_examples": [],
+    "rows_routed_nonja_in_a": 1094,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 8.1
+   },
+   "ext": {
+    "mora_table_entries": 159,
+    "mora_table_bytes": 1413,
+    "n_allophone_rules": 20,
+    "hash_normalized": false,
+    "ids_equal_vs_a": 18363,
+    "ids_equal_vs_a_pct": 87.668,
+    "ids_equal_vs_a_normalized": 18363,
+    "ids_equal_vs_a_normalized_pct": 87.668,
+    "prosody_equal_vs_a": 18363,
+    "representable": 19390,
+    "representable_pct": 92.571,
+    "kinds": {
+     "equal": 18363,
+     "segment_length_differs": 858,
+     "segment_content_differs": 169,
+     "not_representable": 1556
+    },
+    "routing_in_a": {
+     "ja": 19852,
+     "zh": 979,
+     "en+ja": 89,
+     "ja+zh": 26
+    },
+    "misrouting_examples": [],
+    "rows_routed_nonja_in_a": 1094,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 8.5
+   },
+   "ext_norm": {
+    "mora_table_entries": 159,
+    "mora_table_bytes": 1413,
+    "n_allophone_rules": 20,
+    "hash_normalized": true,
+    "ids_equal_vs_a": 18363,
+    "ids_equal_vs_a_pct": 87.668,
+    "ids_equal_vs_a_normalized": 19852,
+    "ids_equal_vs_a_normalized_pct": 94.777,
+    "prosody_equal_vs_a": 18363,
+    "representable": 20946,
+    "representable_pct": 100.0,
+    "kinds": {
+     "equal": 18363,
+     "segment_length_differs": 885,
+     "segment_content_differs": 209,
+     "accent_marks_only": 1489
+    },
+    "routing_in_a": {
+     "ja": 19852,
+     "zh": 979,
+     "en+ja": 89,
+     "ja+zh": 26
+    },
+    "misrouting_examples": [
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "t a tone4 p an tone2 f u tone3 p a tone1 ueɪ tone3 ʂ ɻ̩ tone4",
+      "ph_b": "o [ o s a k a ] f u y a [ o ] sh i",
+      "intermediate": "お[おさか]ふや[お]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "tʂ aŋ tone2 iɛ tone3 ɕ iɛn tone4 ts uo tone2 tɕ iou tone3 ʂ ɻ̩ tone4",
+      "ph_b": "n a [ g a n o ] k e N_uvular s a [ k u ] sh i",
+      "intermediate": "な[がの]けんさ[く]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "l u tone4 ɚ tone2 t aʊ tone3 ɕ iɛn tone4 tʂ ɻ̩ tone4 p u tone2 tʂ ɻ̩ tone4 ʂ ɻ̩ tone4",
+      "ph_b": "k a [ g o sh i m a ] k e N_uvular sh i [ b u sh i ] sh i",
+      "intermediate": "か[ごしま]けんし[ぶし]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "t a tone4 p an tone3 ʂ ɻ̩ tone4 f u tone2 t aʊ tone3 tɕʰ y_vowel tone1",
+      "ph_b": "o [ o s a k a ] sh I f u [ k U sh i m a ] k u",
+      "intermediate": "お[おさか]し°ふ[く°しま]く"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "n aɪ tone4 l iaŋ tone2 ɕ iɛn tone4 k aʊ tone1 tɕʰ y_vowel tone3 tʰ iŋ tone1",
+      "ph_b": "n a [ r a ] k e N_n t a [ k a t o r i ] m a ch i",
+      "intermediate": "な[ら]けんた[かとり]まち"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "f u tone2 k aŋ tone1 ɕ iɛn tone4 tʂ u tone4 x oʊ tone4 ʂ ɻ̩ tone4",
+      "ph_b": "f U [ k u o k a ] k e N_n ch I [ k u g o ] sh i",
+      "intermediate": "ふ°[くおか]けんち°[くご]し"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "tʂ aŋ tone2 iɛ tone3 ɕ iɛn tone4 tʂ uŋ tone1 tʂʰ uan tone1 tsʰ uən tone1",
+      "ph_b": "n a [ g a n o ] k e N_n n a [ k a g a w a m u r a",
+      "intermediate": "な[がの]けんな[かがわむら"
+     },
+     {
+      "text": "<redacted: corpus text>",
+      "langs_a": [
+       "zh"
+      ],
+      "ph_a": "tɕ iŋ tone1 t u tone1 f u tone2 y_vowel tone3 tʂ ɻ̩ tone4 tʰ iɛn tone2 yɛn tone2 tʰ iŋ tone1",
+      "ph_b": "ky o [ o t o ] f u u ] [ j i t a [ w a r a ] m a",
+      "intermediate": "きょ[おと]ふう][じた[わら]まち"
+     }
+    ],
+    "rows_routed_nonja_in_a": 1094,
+    "rows_routed_nonja_and_ids_equal": 0,
+    "elapsed_s": 9.2
+   }
+  }
+ },
+ "teacher_check": {
+  "sentences_requested": 200,
+  "checked": 200,
+  "ids_equal": 171,
+  "audio_bit_equal": 171,
+  "zT_bit_equal": 171,
+  "dT_bit_equal": 171,
+  "audio_bit_equal_pct": 85.5,
+  "frame_delta_when_audio_differs": [
+   -22,
+   -13,
+   1,
+   31,
+   -17,
+   -32,
+   -28,
+   -28,
+   1,
+   -32,
+   -34,
+   -15,
+   -28,
+   -4,
+   -42,
+   -24,
+   -23,
+   -7,
+   -5,
+   -15,
+   -51,
+   -15,
+   -30,
+   -22,
+   -21,
+   -3,
+   -5,
+   -39,
+   -26
+  ],
+  "mismatch_examples": [
+   {
+    "id": "sentence_collector_04975",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 131,
+    "frames_b": 109,
+    "intermediate": "さ[いたま]けんち°[ちぶ]し"
+   },
+   {
+    "id": "sentence_collector_09057",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 135,
+    "frames_b": 122,
+    "intermediate": "な[がさき]けんご[しま]し"
+   },
+   {
+    "id": "sentence_collector_01369",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 179,
+    "frames_b": 180,
+    "intermediate": "じゃ#お[れわ_こ[のひ[ととお[なじで"
+   },
+   {
+    "id": "sentence_collector_03275",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 272,
+    "frames_b": 303,
+    "intermediate": "へ[りこ]ぷ°たあのぱ][いろっとも_て[んもんがく]しゃも_な][さも"
+   },
+   {
+    "id": "sentence_collector_07897",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 141,
+    "frames_b": 124,
+    "intermediate": "ふ°[くおか]けんし[んぐ]うまち"
+   },
+   {
+    "id": "sentence_collector_06104",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 136,
+    "frames_b": 104,
+    "intermediate": "あ[いち]けんい[わくら]し"
+   },
+   {
+    "id": "sentence_collector_06884",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 141,
+    "frames_b": 113,
+    "intermediate": "と[おきょ]おとと[しま]く"
+   },
+   {
+    "id": "sentence_collector_06878",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 140,
+    "frames_b": 112,
+    "intermediate": "と[おきょ]おとね[りま]く"
+   },
+   {
+    "id": "sentence_collector_00913",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 216,
+    "frames_b": 217,
+    "intermediate": "こ[のに[んしょおし]す°てむ_と][おす°き#な][いだろ"
+   },
+   {
+    "id": "sentence_collector_06838",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 138,
+    "frames_b": 106,
+    "intermediate": "と[おきょ]おとみ[たか]し"
+   },
+   {
+    "id": "sentence_collector_04855",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 151,
+    "frames_b": 117,
+    "intermediate": "わ[かやま]けんい[わで]し"
+   },
+   {
+    "id": "sentence_collector_04006",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 138,
+    "frames_b": 123,
+    "intermediate": "せ[んだい]しわ[かばやし]く"
+   },
+   {
+    "id": "sentence_collector_04854",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 152,
+    "frames_b": 124,
+    "intermediate": "わ[かやま]けんた[いじ]まち"
+   },
+   {
+    "id": "sentence_collector_09076",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 139,
+    "frames_b": 135,
+    "intermediate": "な[がさき]けんな[がさき]し"
+   },
+   {
+    "id": "sentence_collector_07201",
+    "text": "<redacted: corpus text>",
+    "ids_equal": false,
+    "frames_a": 142,
+    "frames_b": 100,
+    "intermediate": "し[が]けんく°[さつ]し"
+   }
+  ],
+  "elapsed_s": 50.5
+ }
+}

@@ -1,0 +1,23 @@
+{
+ "stage_a_corpus": {
+  "rows": 23454,
+  "unique_id_sequences": 23452,
+  "duplicate_groups": 2,
+  "duplicate_rows": 4,
+  "duplicate_groups_with_prosody_conflict": 0,
+  "token_counts": {
+   "hash_7": 3935,
+   "rise_8": 139296,
+   "fall_9": 96027
+  },
+  "accent_phrases": {
+   "phrases": 142722,
+   "with_fall": 96027,
+   "no_fall": 46695,
+   "no_fall_odaka": 45116,
+   "no_fall_other": 1114,
+   "no_fall_heiban": 465
+  },
+  "rows_with_heiban_odaka_ambiguity": 19017
+ }
+}
