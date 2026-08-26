@@ -5,6 +5,12 @@
 - 教師モデル供給元: [`/Users/s19447/Documents/piper-plus`](file:///Users/s19447/Documents/piper-plus) (piper-plus v2.0.0)
 - 論文の公式リポジトリ `https://github.com/Ampixa/saanotts` は **2026-08-26 時点で 404**（非公開または未公開）。**参照実装は入手できない前提で計画する。**
 
+> **⚠️ 本書は初期調査（着手判断のための資料）。** その後の実測でいくつかの結論が
+> 更新されている（特に §3.1 の G2P と §4 の決定事項）。
+> **現在地は [`../README.md`](../README.md)、確定事項は [`../decisions.md`](../decisions.md)、
+> 数値は [`../measurements.md`](../measurements.md) が正。**
+> 本書は「論文の全数値」と「piper-plus の資産棚卸し」の参照元として使う。
+
 ---
 
 ## 0. 結論（先に要点）
@@ -15,7 +21,7 @@
 | piper-plus を教師にできるか | **できる。ただし ONNX ではなく `.ckpt` + PyTorch が必須** | `SynthesizerTrn.infer()` が蒸留に必要な `(audio, attn, y_mask, (z, z_p, m_p, logs_p), durations)` をそのまま返す。ONNX export は `output` と `durations` しか出さず **潜在変数 z が取れない** |
 | 潜在インターフェースの互換性 | **完全に一致する** | 教師 `inter_channels = 192`（論文の「192チャネル教師潜在」と同一）、hop 256 / 22.05 kHz → **86 frames/s** も論文の decoder と同一 |
 | 学習用の音声データ | **不要**。テキストのみで足りる | 蒸留ラベル（`dT`, `zT`, `yT`）はすべて教師の決定的推論から生成される |
-| 最大の障壁 | **日本語 G2P（OpenJTalk 辞書 102 MB）が MCU に載らない** | 英語は on-chip eSpeak が成立するが、日本語には等価物が無い。§3.1 参照 |
+| ~~最大の障壁~~ **解消済み** | 日本語 G2P（OpenJTalk 辞書 102 MB）が MCU に載らない問題は、**入力仕様の変更で解決した** | 辞書枝刈りは 40 MiB 必要で不成立（B-0）。「ひらがな + アクセント記号 + 無声化マーク」に変更し端末側 **951 B** に（D-010 / D-011）。§3.1 は当時の分析として残す |
 | 教師 `.ckpt` | **確保済み**: `ayousanz/piper-plus-zero-shot-tsukuyomi` (private) の `epoch=499-step=22000.ckpt` | 単一話者日本語、公開 canonical と `config.json` 一致。§2.4 参照 |
 | 教師コーパスのライセンス | **本プロジェクトでは非ブロッカー**（検証目的・非配布、2026-08-26 ユーザー判断） | 公開時には再確認が必要。§6 参照 |
 
@@ -204,7 +210,7 @@ outputs: output, durations
 | 話者条件 | 単一話者 | multi-speaker（CAM++ 192-dim / 旧 export は 256-dim）+ `gin_channels=512` | ⚠️ ラベル生成時に固定すれば良い |
 | 言語条件 | 無し | `lid` テンソル（ja=0, en=1, zh=2, es=3, fr=4, pt=5） | ⚠️ `lid=0` 固定 |
 | 韻律条件 | 無し | **`prosody_dim=16`（A1/A2/A3 を duration predictor に注入）** | ⚠️ **日本語固有・§3.2** |
-| フロントエンド | eSpeak NG | **OpenJTalk / NAIST-JDIC** | ❌ **最大の障壁・§3.1** |
+| フロントエンド | eSpeak NG | **OpenJTalk / NAIST-JDIC**（ホスト側のみ） | ✅ 入力仕様の変更で解決。端末側は mora テーブル 951 B（D-010 / D-011） |
 | 音素数 | — | 173（公開 ckpt, `symbol_set_version` 1.0）/ 185（現行コード 1.1） | ⚠️ FT 時は ckpt 側の `phoneme_id_map` を使うこと |
 
 ### 2.4 教師モデル候補
@@ -319,7 +325,17 @@ audio / z ともに二回実行で bit 完全一致（決定的）
 
 ## 3. 日本語固有の課題（本調査の中心）
 
-### 3.1 【最重要】G2P フロントエンドが MCU に載らない
+### 3.1 G2P フロントエンドが MCU に載らない ✅ 解決済み
+
+> **この節は初期調査時の分析。結論は変わったが、分析自体は正しかった。**
+>
+> - **確定した対応**: 入力を「ひらがな + アクセント記号 + 無声化マーク」に変更し、
+>   端末側 G2P を **mora テーブル 951 B + `ん` の異音規則 18 件**にした（D-010 / D-011）
+> - **実測**: held-out で表現可能 96.40% / 往復一致 **100%** / 教師出力と **bit 完全一致**
+> - **辞書枝刈り路線は不成立**と実測で確定（B-0）。文単位 95% には 40 MiB 必要で
+>   32 MB ボードにも入らない。詳細は [`b0-g2p-footprint.md`](b0-g2p-footprint.md)
+> - 以下の案 A〜D の比較表は当時のもの。**実際には「案 B: かな入力限定」に着地した**
+
 
 論文は G2P を**システム境界の外**に置いている:
 
@@ -475,16 +491,20 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 
 ---
 
-## 4. アーキテクチャ設計上の決定事項（着手前に決めるべきこと）
+## 4. アーキテクチャ設計上の決定事項 ✅ すべて決着済み
 
-| # | 決定事項 | 選択肢 | 推奨 |
+> 本節は初期調査時の「これから決めること」リスト。**すべて決着したので結果を併記する。**
+> 決定の理由と経緯は [`../decisions.md`](../decisions.md) が正。
+
+| # | 決定事項 | 初期の推奨 | **確定した結論** |
 |---|---|---|---|
-| D1 | ターゲット tier | ① MCU embedded (567 K, SCOREQ 2.54 相当) / ② quality (1.4 M, ブラウザ) / ③ 両方 | **③ だが ② を先に**。567 K は品質的にデモ用。1.4 M で日本語が成立することを先に示すほうが検証サイクルが速い |
-| D2 | 教師モデル | Tsukuyomi FT / CSS10 ja / base からの単一話者 FT | **単一話者日本語 ckpt を確保する**（§2.4 のアクションアイテム） |
-| D3 | 入力境界 | 音素ID / テキスト | **音素ID**（論文と同じ境界）。テキスト入力はホスト側 or WASM tier で |
-| D4 | 韻律条件 | アクセント記号のみ / A1A2A3 も生徒に入力 | **アクセント記号のみで開始**、評価で足りなければ追加（§3.2） |
-| D5 | latent 幅 | c-line 40ch / z-line 192ch | **両方作る**。40ch が MCU、192ch が quality tier。論文も同じ二本立て |
-| D6 | piper-plus の版 | v2.0.0 (dev) / v1.13.0 | 公開 base ckpt を使うなら **v1.13.0**（Issue #616 の size mismatch） |
+| D1 | ターゲット tier | ③ 両方だが ② を先に | **567 K のみが成果物**。ブラウザは piper-plus の WASM で解決済みなので対象外。1.4 M は検証用の足場（D-007） |
+| D2 | 教師モデル | 単一話者日本語 ckpt を確保 | **`piper-plus-zero-shot-tsukuyomi/epoch=499-step=22000.ckpt`**（D-002） |
+| D3 | 入力境界 | 音素ID | **ひらがな + アクセント記号 + 無声化マーク**。端末側 G2P は 951 B（D-010 / D-011） |
+| D4 | 韻律条件 | アクセント記号のみで開始 | **アクセント記号のみで確定**。記号は音素IDそのもので、位置を変えると F0 が 42.8 Hz 変わる。`prosody_features` は duration にしか効かないので、ピッチ目的で生徒に足す必要は無い（M-13） |
+| D5 | latent 幅 | 両方作る | **変更なし**。40ch が成果物、192ch は足場 |
+| D6 | piper-plus の版 | v1.13.0 | **v2.0 HEAD をそのまま使う**。checkout 不要（D-003） |
+| D7 | 実行環境 | （初期調査時は未検討） | **Python は `uv`、学習は vast.ai**（D-012） |
 
 ---
 
@@ -545,7 +565,8 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 | リスク | 深刻度 | 内容 / 対応 |
 |---|---|---|
 | **教師コーパスのライセンス** | **本プロジェクトでは非ブロッカー** | 検証目的・生成物を配布しないため着手を止めない（2026-08-26 ユーザー判断）。**公開する段になったら要再確認**: `data-sources.yml` によると つくよみちゃんコーパスは `CC-BY-4.0 / verified: false`（規約は [tyc.rei-yumesaki.net/about/terms/](https://tyc.rei-yumesaki.net/about/terms/)）、MOE-Speech (20 speakers) は `CC-BY-SA-4.0 / verified: false` で、**CC-BY-SA は蒸留物への継承の議論がある** |
-| **日本語 G2P が MCU に載らない** | **高** | §3.1。scope の切り方で回避（音素ID入力にする） |
+| ~~**日本語 G2P が MCU に載らない**~~ | **解消済み** | 辞書枝刈りは 40 MiB 必要で不成立だったが、入力を「ひらがな + アクセント記号 + 無声化マーク」に変更して**端末側 951 B** で解決した（D-009 〜 D-011、`scripts/kana_g2p.py`） |
+| ~~ESP32 のメモリ~~ | **中止材料なし** | I2S 逐次出力なら arena 約 96 KB（SRAM 512 KB のうち 416 KB が残る）。実機測定は C99 コアが出来てから（M-16） |
 | 参照実装が入手できない | 中 | `github.com/Ampixa/saanotts` が 404。論文の数値からの再実装になる。`λ₂, λ_n, λ_Δ, λ_s` など**論文に書かれていないハイパーパラメータがある** |
 | **G2P の言語誤ルーティング** | **高** | `MultilingualPhonemizer` がかなを文全体で判定するため、かなを含まない行が丸ごと中国語音素になる。コーパスの **5.36% (1,247行)** が該当し、**例外も警告も出ない**。計画書 §2 B-1 |
 | **`prosody_features` の無警告ズレ** | **高** | `PiperEncoder._convert_prosody` が長さを強制的に揃えるため `strict=True` が発火しない。ラテン混じり文で prosody がずれたまま通る。prosody は総フレームを 8〜9% 動かす実効入力。計画書 §2 B-2 |

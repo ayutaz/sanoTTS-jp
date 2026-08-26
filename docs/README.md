@@ -9,10 +9,11 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録（何を・なぜ・いつ決めたか）と**訂正履歴** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース**。全数値に再現コマンド付き | 実測のたび |
-| 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-11 の検証タスクと Phase 0〜6 | フェーズ移行時 |
-| 4 | [`research/saanotts-jp-feasibility.md`](research/saanotts-jp-feasibility.md) | 初期調査レポート。論文の全数値と piper-plus の資産棚卸し | ほぼ固定 |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-012 と**訂正履歴 C-001〜C-011** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-16。全数値に再現コマンド付き | 実測のたび |
+| 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画。B-1〜B-11 の検証タスクと Phase 2〜6 の見取り図。⚠️ B-0 より前に書かれた部分を含む | フェーズ移行時 |
+| 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
+| 5 | [`research/saanotts-jp-feasibility.md`](research/saanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。他のドキュメントは
 そこからの引用または解釈として扱う。
@@ -63,12 +64,21 @@ saanoTTS-jp/
 │   ├── decisions.md                       決定記録 + 訂正履歴
 │   ├── measurements.md                    実測値の一次ソース
 │   ├── plan/phase0-1-implementation-plan.md
-│   └── research/saanotts-jp-feasibility.md
+│   └── research/
+│       ├── b0-g2p-footprint.md            B-0 の結論
+│       └── saanotts-jp-feasibility.md     初期調査
 ├── pyproject.toml / uv.lock               uv 環境定義
+├── .claude/
+│   ├── settings.json                      permissions.deny + PreToolUse hook
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制（33 ケースのテスト付き）
+│   └── skills/                            recording-measurements / teacher-inference
+├── reports/                               B-0 の一次データ (JSON)
 └── scripts/
     ├── phase0_verify_teacher.py           教師の決定的推論を検証（6 チェック）
     ├── kana_g2p.py                        中間表現 ⇄ 音素列の変換器
-    └── esp32_memory_budget.py             ESP32-S3 のメモリ収支見積もり
+    ├── esp32_memory_budget.py             ESP32-S3 のメモリ収支見積もり
+    ├── dump_naist_jdic.py                 sys.dic のエントリ列挙
+    └── b0/                                B-0 の測定スクリプト（記録用）
 ```
 
 ## 実行方法

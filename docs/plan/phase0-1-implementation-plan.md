@@ -12,8 +12,26 @@
 
 ### 1.1 一言で
 
-**教師は完全に手元にあり、決定的推論も再現できている。ブロッカーはモデル側ではなく「テキスト → 音素 + 韻律」の入力経路にある。**
-教師 ckpt は DL 済み・ロード済み・bit 決定的推論を実測済み。一方で、その教師に文字列を渡す canonical な経路（`MultilingualPhonemizer` → `PiperEncoder`）には、**日本語文が無警告で中国語音素になる欠陥**と、**韻律特徴が無警告でズレる欠陥**が実在する。Phase 1 のラベル一括生成に入る前に、この 2 つを塞ぐのが最優先。
+> **⚠️ この計画書は B-0 より前に書かれた部分を多く含む。** その後
+> スコープ（D-007）・入力仕様（D-010 / D-011）・環境（D-012）が確定し、
+> 辞書枝刈りは実装対象から外れた。**現在地の要約は
+> [`../README.md`](../README.md)、確定事項は [`../decisions.md`](../decisions.md) が正。**
+> 本書は B-1 以降の検証タスクと Phase 2〜6 の見取り図として使う。
+
+**教師は完全に手元にあり、決定的推論も再現できている。入力仕様も確定した。
+残るブロッカーは「テキスト → 音素 + 韻律」の canonical 経路にある 2 つの無警告な欠陥。**
+
+- 教師 ckpt は DL 済み・ロード済み・bit 決定的推論を実測済み（Phase 0 完了）
+- 入力は**ひらがな + アクセント記号 + 無声化マーク**に確定。端末側 G2P は 951 B
+  （D-010 / D-011、`scripts/kana_g2p.py`）
+- ESP32 のメモリは I2S 逐次出力で約 96 KB。**中止材料は無い**（M-16）
+- 一方で `MultilingualPhonemizer` → `PiperEncoder` には
+  **日本語文が無警告で中国語音素になる欠陥**（B-1）と
+  **韻律特徴が無警告でズレる欠陥**（B-2）が実在する。
+  Phase 1 のラベル一括生成に入る前に、この 2 つを塞ぐのが最優先
+
+> **B-1 は入力仕様の変更で消えている可能性がある。** 中間表現の生成は
+> ホスト側でオフラインに行うので、そこがどの経路を通るかを先に確認すること。
 
 ### 1.2 実測で確定した事項（採用してよい）
 
@@ -21,7 +39,7 @@
 |---|---|---|
 | piper-plus の git ref | **HEAD (`0f3b1a62`, dev) をそのまま使う。checkout も worktree も不要** | 学習時コード `95e74cb2` と HEAD の `vits/` 差分は推論数値に無影響（`mb_istft.py` は完全同一） |
 | `v1.13.0` への checkout | **してはいけない** | ckpt は post-FiLM（`dec.cond.weight (512,512,1)` + `cond_layers`）。v1.13.0 では size mismatch |
-| `import piper_train` の解決先 | **`PYTHONPATH=/Users/s19447/Documents/piper-plus/src/python` を先頭に置く**（後述の反証あり） | `.venv` の `site-packages/piper_train/` は v1.13.0 相当の stale コピー |
+| `import piper_train` の解決先 | **`uv run` を使う**（D-012 で解決）。uv の独立 venv には stale なコピーが存在しない | 旧: `PYTHONPATH` を先頭に置く必要があった。`.venv` の `site-packages/piper_train/` は v1.13.0 相当の stale コピー |
 | 教師 ckpt | `~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/c3f236e068b95356b871842b4ae7cec2a86c50ea/epoch=499-step=22000.ckpt` (927,048,022 B) | DL 完了済み |
 | `hyper_parameters` | `num_symbols=173` / `num_speakers=1` / `num_languages=6` / `inter_channels=192` / `gin_channels=512` / `prosody_dim=16` / `sample_rate=22050` / `hop_length=256` / `use_sdp=True` / **`freeze_dp=True`** / **`max_phoneme_ids=400`** / **`max_spec_length=700`** | `torch.load` 実測 |
 | 話者埋め込み | **`speaker_embeddings=None` で呼ぶ。`spk_tsukuyomi.npy` は渡しても bit 完全に無視される** | `spk_proj` / `emb_g` が state_dict に 0 件。None / npy / ランダム 192次元 の 3 通りで `audio`/`z`/`durations` が bit 一致 |
@@ -38,6 +56,9 @@
 | 生徒パラメータ逆算 | `Eρ = 192→64→40` の pointwise 2 層 = **14,952（代数的に一意）**。`Aβ` 非埋め込み部 = **192,000 ちょうど**、埋め込み次元 **48**（「30 エントリで +1,440」から直接） | 実測・全探索 |
 
 ### 1.3 CLAUDE.md / feasibility.md の要訂正箇所（Phase 0 の成果物）
+
+> **✅ この表の訂正はすべて反映済み**（2026-08-26）。
+> `docs/decisions.md` の C-001〜C-009 として恒久化してある。以下は経緯の記録。
 
 | 場所 | 現状の記述 | 訂正内容 |
 |---|---|---|
@@ -65,9 +86,25 @@
 | オンデバイス G2P | 「音素ID入力に割り切る」で回避 | **回避不可。成立しなければプロジェクトが無意味** |
 | D0（tier 決定） | 未解決ブロッカー | **決着済み** |
 
-### B-0 【新設・最優先】オンデバイス日本語 G2P のフットプリント ⚠️ 未検証
+### B-0 オンデバイス日本語 G2P のフットプリント ✅ 測定完了 (2026-08-26)
 
-**蒸留の実装より先にこの spike をやること。** 蒸留が全部成功しても G2P が載らなければ成果が出ない。
+**結論: 辞書枝刈り路線は不成立。入力仕様を変更して解決した。**
+
+| 測定 | 結果 |
+|---|---|
+| 16 MB ボードに収まる最大辞書 | 60k表層 11.57 MB → 文単位一致 **73.0%** |
+| 文単位 95% に必要な辞書 | **40.05 MiB** — 32 MB ボードにも入らない |
+| C 実装のみ（Python 後処理層なし） | フル 103 MB 辞書でも音素列 95.4% / アクセント 84.0% |
+
+→ **入力を「ひらがな + アクセント記号 + 無声化マーク」に変更**（D-010 / D-011）。
+端末側 G2P は **mora テーブル 951 B + `ん` 異音規則 18 件**になり、
+held-out で表現可能 96.40% / 往復一致 **100%** / 教師出力と **bit 完全一致**。
+
+詳細: [`../research/b0-g2p-footprint.md`](../research/b0-g2p-footprint.md) /
+[`../decisions.md`](../decisions.md) D-009〜D-011 /
+実装: `scripts/kana_g2p.py`
+
+**以下は測定時の記録**（辞書枝刈りは実装対象から外したので、再実行の予定は無い）。
 
 実測済みの内訳（`build/share/open_jtalk/dic/`）:
 
@@ -107,6 +144,8 @@ TTS 特化辞書が載る**。⚠️ ただし darts trie は語数に線形に�
 - 収まらない → **入力境界の再定義が必要**。かな入力限定 / 定型文プリコンパイル /
   ホスト側 G2P のいずれかに落とすか、プロジェクト自体を見直す
 
+**→ 実際に「収まらない」となり、かな入力限定（D-010 / D-011）に着地した。**
+
 ---
 
 ## 2. ⚠️ 着手前に実測で潰す不確定事項
@@ -140,8 +179,7 @@ FT の 100 文はすべてかな入りなので両者一致するが、蒸留用
 **検証タスク**:
 ```bash
 export PP=/Users/s19447/Documents/piper-plus
-export PYTHONPATH=$PP/src/python:$PP/src/python/g2p
-$PP/.venv/bin/python scripts/b1_probe_g2p_routing.py --pool data/interim/pool.tsv --out reports/b1_routing.json
+uv run python scripts/b1_probe_g2p_routing.py --pool data/interim/pool.tsv --out reports/b1_routing.json
 ```
 **完了条件**:
 1. `reports/b1_routing.json` に `{"ml_ja_divergent": N, "non_ja_token_rows": M}` が出る
@@ -279,13 +317,15 @@ pool 23,271 行を通しても日本語 65 エントリのうち **`A E O a: i: 
 **採用しない**: `cd piper-plus && .venv/bin/pip install -e src/python`。
 **反証**: editable install は既に `2026-08-24 16:27` 付で入っているのに効いていない。setuptools の finder が `sys.meta_path` に **append**（insert でなく）されるため標準 `PathFinder` が先に `site-packages/piper_train/` を拾い、しかもその実体は**別ディストリビューション `piper_plus_workspace 1.12.0` の所有物**（`grep -l "piper_train/vits/models.py" */RECORD`）なので `piper-train 2.0.0` を入れ直しても消えない。
 
-**採用する**: **`PYTHONPATH` / `sys.path.insert` のみ**（実測で効くことを確認済み）。piper-plus を書き換えないという制約とも整合する。
+**採用する**: **`uv` の独立 venv**（D-012）。piper-plus を `[tool.uv.sources]` の
+path 依存 (editable) で参照するので、stale なコピーが最初から存在しない。
+旧案の `PYTHONPATH` / `sys.path.insert` も効くが、`uv run` を使えば不要
+（既存スクリプトの `sys.path.insert` は冗長だが害はない）。
 
 **完了条件**（全スクリプトの冒頭でこれを assert する）:
 ```bash
 export PP=/Users/s19447/Documents/piper-plus
-export PYTHONPATH=$PP/src/python:$PP/src/python/g2p
-$PP/.venv/bin/python - <<'EOF'
+uv run python - <<'EOF'
 import piper_train.vits.models as M, inspect
 import piper_train.vits.mb_istft as m, piper_train.vits.commons as c
 assert M.__file__.startswith("/Users/s19447/Documents/piper-plus/src/python/"), M.__file__
@@ -308,8 +348,7 @@ piper-plus は**読み取り専用**（`checkout` / `commit` / ファイル編�
 ```bash
 # ラベル生成側（piper-plus venv を read-only 起動）
 export PP=/Users/s19447/Documents/piper-plus
-export PYTHONPATH=$PP/src/python:$PP/src/python/g2p
-alias ppy="$PP/.venv/bin/python"
+alias ppy="uv run python"   # D-012: Python は uv 経由
 
 # 評価側（完全に別 venv）
 python3.12 -m venv /Users/s19447/Desktop/saanoTTS-jp/.venv-eval
@@ -613,15 +652,29 @@ python scripts/verify_packs.py data/packs/train_23k/ --strict
 
 ## 5. Phase 2 以降の見取り図
 
-### D0: ターゲット tier の決定（最優先の未解決ブロッカー）
+### D0: ターゲット tier ✅ 決着済み (2026-08-26)
 
-| tier | Params | 論文 SCOREQ | 用途 |
+**成果物は 567 K embedded c-line のみ**（D-007）。ブラウザは piper-plus の
+WebAssembly で解決済みなので対象外。
+
+| tier | Params | 論文 SCOREQ | 本プロジェクトでの位置づけ |
 |---|---:|---:|---|
-| embedded c-line | 0.567 M | 2.54 | MCU。**実用品質ではない。デモ／実証向け** |
-| quality z-line | 1.396 M | 4.09 (β=0) / 3.92 (β=6) | ブラウザ／デスクトップ |
+| **embedded c-line** | **0.567 M** | 2.54 | **唯一の成果物**（ESP32） |
+| quality z-line | 1.396 M | 4.09 (β=0) / 3.92 (β=6) | **検証用の足場**。日本語でレシピが効くかを速く測り、567 K との差分を出すためだけに作る |
 
-**推奨: 1.4 M (z-line) を先にやる。** 検証サイクルが速く、c-line 特有の `Eρ` / 40ch ボトルネックを後回しにできる。ただし z-line は hinge adversary（式4）が追加になる。
-**判断を先送りできる分割**: `zT` / `dT` は EMA 非依存で bit 一致するので、**c-line / z-line ターゲットを先に固め、`yT`（EMA の有無で SNR 12.53 dB 差）の方針を後回しにする**進め方が取れる。
+順序としては **1.4 M を先に**作る。検証サイクルが速く、c-line 特有の `Eρ` / 40ch
+ボトルネックを後回しにできるため（z-line は hinge adversary（式4）が追加になる）。
+ただし**成果物は 567 K** であることを見失わないこと。
+
+**判断を先送りできる分割**: `zT` / `dT` は EMA 非依存で bit 一致するので、
+c-line / z-line ターゲットを先に固め、`yT`（EMA の有無で SNR 12.53 dB 差）の
+方針を後回しにする進め方が取れる。
+
+### D0-b: メモリ ✅ 見積もり完了 (2026-08-26)
+
+I2S 逐次出力なら arena **約 96 KB**（SRAM 512 KB のうち 416 KB が残る）。
+フラッシュは重み 664 KB + G2P 951 B。**メモリを理由に中止する材料は無い**（M-16）。
+実機測定は C99 コアと量子化済み生徒が出来てから。
 
 ### Phase 2: Duration `Dα`
 
@@ -999,5 +1052,7 @@ VOWEL     = {"a","i","u","e","o","a:","i:","u:","e:","o:"}
 ### 9.3 環境上の落とし穴（記録）
 
 - **zsh**: `git show $t:src/python/...` は `$t:s...` がパラメータ修飾子として解釈されパスが壊れる。**`git show "${t}:src/python/..."` と括る**。
-- **piper-plus は読み取り専用**。`checkout` / `commit` / ファイル編集の禁止。`pip install` も禁止（stale install の解決は `PYTHONPATH` のみ）。作業後は必ず `git status --porcelain` が 0 行、`HEAD` が `0f3b1a62`、`.git/worktrees` 不在を確認する。
+- **piper-plus は読み取り専用**。`checkout` / `commit` / ファイル編集の禁止。作業後は必ず `git status --porcelain` が 0 行、`.git/worktrees` 不在を確認する。
+  **これは `.claude/hooks/guard_bash.py` が PreToolUse で機械的に強制する**（`permissions.deny` は Edit/Write しか止められないので、シェル経由をこれでカバーする）。
+- **Python は `uv` 経由**（D-012）。依存追加は `uv add`。hook が `pip install` を deny し、uv を経由しない python を ask にする。
 - **教師 ckpt の再ダウンロード禁止**。既にキャッシュにある。

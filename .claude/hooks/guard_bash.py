@@ -21,6 +21,15 @@ import sys
 
 PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
 
+# コマンド位置 = 行頭 / シェル区切りの直後 / sudo・env 等のラッパの直後。
+# ここに限定しないと `grep "pip install"` のような引用符内の文字列を誤検知する。
+#
+# バッククォートによるコマンド置換は**意図的に含めない**。レガシー記法である一方、
+# このプロジェクトは日本語ドキュメントを heredoc で書くことが多く、
+# Markdown のコードスパン `pip install` を誤検知してしまう（実際に踏んだ）。
+# 現代的な $(...) だけを見る。
+CMD_POS = r"(?:^|[;&|]\s*|\$\(\s*|(?:sudo|env|time|nohup|xargs)\s+)"
+
 # 書き込み・変更を伴うコマンド。読み取り (cat/grep/ls/find/git log …) は素通しする。
 WRITE_COMMANDS = (
     "rm", "mv", "cp", "touch", "mkdir", "rmdir", "ln", "chmod", "chown",
@@ -69,9 +78,12 @@ def check_piper_plus_write(cmd: str) -> None:
             f"成果物は saanoTTS-jp 側に書いてください。"
         )
 
-    # 破壊的コマンド + piper-plus パス
+    # 破壊的コマンド + piper-plus パス。
+    # **コマンド位置**（行頭 or シェル区切りの直後）でのみ照合する。
+    # 任意の空白の後ろで照合すると `grep "rm /path/..."` のような
+    # 引用符の中の文字列まで拾ってしまう（実際に誤検知した）。
     for word in WRITE_COMMANDS:
-        if re.search(rf"(^|[;&|]\s*|\s){re.escape(word)}\s+[^;&|]*{re.escape(PIPER_PLUS)}", cmd):
+        if re.search(rf"{CMD_POS}{re.escape(word)}\s+[^;&|]*{re.escape(PIPER_PLUS)}", cmd):
             deny(
                 f"`{word}` が piper-plus のパスを対象にしています。\n"
                 f"{PIPER_PLUS} は**読み取り専用の依存**です（docs/decisions.md D-003）。\n"
@@ -91,7 +103,7 @@ def check_piper_plus_write(cmd: str) -> None:
 
 def check_pip(cmd: str) -> None:
     """pip install を止めて uv add に誘導する。"""
-    if re.search(r"(^|[;&|]\s*|\s)(pip|pip3)\s+install\b", cmd):
+    if re.search(CMD_POS + r"(pip|pip3)\s+install\b", cmd):
         # uv 自身が内部で pip を使う形 (`uv pip install`) は許す
         if re.search(r"\buv\s+pip\s+install\b", cmd):
             return
@@ -115,11 +127,14 @@ def check_python_invocation(cmd: str) -> None:
             "両環境の比較が目的なら意図的な使用なので続行して構いません。"
         )
 
-    # プロジェクトの scripts/ を uv 抜きで実行している
-    if re.search(r"(^|[;&|]\s*)(python|python3)\s+[^;&|]*scripts/", cmd):
+    # uv を経由せずに .py ファイルを実行している。
+    # `-c` / `- <<EOF` のワンライナーも対象にする ―― 使い捨てのつもりでも
+    # 教師を読む処理が混ざれば stale piper_train を掴む（M-1.1）。
+    if re.search(CMD_POS + r"(python|python3)\s+(?![^;&|]*\buv\b)", cmd):
         ask(
-            "`uv run` を経由せずに scripts/ を実行しようとしています。\n"
-            "**`uv run python scripts/...`** を使ってください（D-012）。"
+            "`uv run` を経由しない python を実行しようとしています。\n"
+            "本プロジェクトは **`uv run python`** が正です（D-012）。\n"
+            "`pip install` を使わないのと同じ理由で、環境を uv.lock に固定しておく必要があります。"
         )
 
 
