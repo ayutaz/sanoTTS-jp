@@ -330,11 +330,33 @@ def phonemes_to_intermediate(
     return out
 
 
+#: 入力の正規化表。**同じに見えて別のコードポイントである記号**を教師が扱える側に寄せる。
+#: 揃えないと**例外も警告も出ずに約物が丸ごと落ちる**（未知語が無音で消えるのと同じ壊れ方）。
+INPUT_NORMALIZE: dict[str, str] = {
+    "\u301c": "\uff5e",   # 〜 WAVE DASH → ～ FULLWIDTH TILDE
+    "\u2212": "\uff0d",   # − MINUS SIGN → － FULLWIDTH HYPHEN-MINUS
+    "\u00a0": " ",        # NO-BREAK SPACE
+}
+
+
+def normalize_input(text: str) -> str:
+    """ホスト G2P に渡す前の記号正規化。
+
+    実測: `まじで？〜`（U+301C WAVE DASH）は疑問 EOS `?~` にならず、
+    **約物が黙って消える**。`？～`（U+FF5E）だと `?~` になる。
+    日本語では U+301C のほうが普通に使われるので、ここで寄せる。
+    """
+    for a, b in INPUT_NORMALIZE.items():
+        text = text.replace(a, b)
+    return text
+
+
 def text_to_intermediate(text: str, table: dict[str, list[str]]) -> list[str]:
     """漢字かな交じり文 → 中間表現。**ホスト側専用**（OpenJTalk を使う）。"""
     from piper_plus_g2p.japanese import JapanesePhonemizer
 
-    return phonemes_to_intermediate(JapanesePhonemizer().phonemize(text), table)
+    return phonemes_to_intermediate(
+        JapanesePhonemizer().phonemize(normalize_input(text)), table)
 
 
 # --- セルフテスト -----------------------------------------------------------

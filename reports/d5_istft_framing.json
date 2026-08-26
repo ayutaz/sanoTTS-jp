@@ -1,0 +1,803 @@
+{
+ "task": "D5 iSTFT のフレーミング規約を確定する",
+ "decision": {
+  "verdict": "**center=True のまま `length = T*256` を渡す。** Decoder は今までどおり T フレームぶんの mag/cos/sin を出せばよく、 出力はちょうど 256T サンプルになる。教師の規約（center=False の素の OLA を T*hop に切る）をそのまま真似るのは採らない。",
+  "criterion": "生徒が T フレームの c から教師と同じ 256*T サンプルを出せること",
+  "why_not_teacher_center_false": [
+   "torch.istft(center=False) は hann(1024)/hop=256 で **必ず** RuntimeError ('window overlap add min: 1')。length を何に指定しても回避できない（step2、T=10/37/100 で全滅）。 使うなら F.fold / conv_transpose1d で自前 OLA を書くことになる",
+   "自前 OLA にしても先頭 640 サンプルで包絡 Σw² が 1.5 → 0 に落ちる。 真の包絡で割ると decoder の出力誤差が最大 1103 倍に増幅され（sample 63 で env=0.00136）、 sample 0 では env がちょうど 0 で復元不能。219 サンプルが 10 倍超の増幅域に入る",
+   "定数で割る（教師 stft_onnx.py の方式）と先頭が最大 60 dB 減衰する。 しかも教師の定数式 wss = Σw²·hop/n_fft = 3·hop/8 は正しい定常包絡 3·n_fft/(8·hop) と hop² == n_fft のときしか一致しない。教師 (n_fft=16, hop=4) はちょうどその条件を満たす偶然で、 生徒の 1024/256 では 96 vs 1.5 と 64 倍ずれる（往復 SNR 0.14 dB で実測、variant d2）",
+   "教師の z フレーム t は音声 [256t, 256t+256) を担当する。center=False だと c フレーム t のエネルギー重心が +390.5 サンプル (17.7 ms) ずれる。 center=True なら -121.5 サンプル (5.5 ms) で済む（step8 実測）"
+  ],
+  "why_not_T_plus_1_frames": "center=True で T+1 フレーム出せば包絡の最小は 1.25（最悪 1.20 倍）ともっと素直だが、 c[40,T] から T+1 フレームを出すには c を 1 フレーム水増しする必要がある。 採用案の包絡最小 0.2531（最悪 5.93 倍、2 倍超は 128 サンプルだけ）は その 128 サンプルが発話末尾＝実質無音（末尾 256 サンプルのエネルギー比 平均 0.0%、 最大 1e-6%、ピーク比 平均 0.011%）なので実害が無い",
+  "diff_param_reference_py": {
+   "file": "src/saanotts_jp/_param_reference.py",
+   "symbol": "Decoder.istft (86-90 行)",
+   "before": "    @staticmethod\n    def istft(mag, cos, sin):\n        S = torch.complex(mag * cos, mag * sin)\n        return torch.istft(S, n_fft=1024, hop_length=256, win_length=1024,\n                           window=torch.hann_window(1024, device=S.device), center=True)\n",
+   "after": "    @staticmethod\n    def istft(mag, cos, sin):\n        \"\"\"T フレーム → ちょうど 256*T サンプル。教師の y_lengths 規約に一致させる。\n\n        `length` を省くと torch.istft は 256*(T-1) しか返さない（1 フレーム不足）。\n        length=T*256 は内部バッファ n_fft + hop*(T-1) = 256T+768 から\n        start=n_fft//2 で 256T 分を **切り出す** だけでゼロ埋めではない\n        （ゼロ埋めになるのは length > 256T+768 のときで PyTorch が warn する）。D5 実測。\n        \"\"\"\n        S = torch.complex(mag * cos, mag * sin)\n        T = mag.shape[-1]\n        return torch.istft(S, n_fft=1024, hop_length=256, win_length=1024,\n                           window=torch.hann_window(1024, device=S.device),\n                           center=True, length=T * 256)\n",
+   "verified": "step4.recommended_istft — T=10/37/100/779 で out==256T、警告 0、勾配 finite、実物の Decoder に通しても 256T"
+  },
+  "diff_train_student_py": {
+   "file": "scripts/train_student.py",
+   "lines": [
+    186,
+    229
+   ],
+   "before": "        y_hat = F.pad(y_hat, (0, max(0, y.shape[-1] - y_hat.shape[-1])))[:, : y.shape[-1]]",
+   "after": "        assert y_hat.shape[-1] == y.shape[-1], (y_hat.shape, y.shape)",
+   "why": "現状は足りない 256 サンプルを末尾ゼロで埋めている。**完璧な decoder でも SNR の上限が 95.03 ± 0.55 dB（n=209, min 79.71）に張り付く**（variant e）。 生徒が到達しうる SNR より遥かに高いので学習は壊れないが、 最後の 1 フレームぶんの勾配が常に「無音を出せ」になるのは正しくない"
+  },
+  "device_note": "ESP32 の C99 実装では center=True の半窓パディングを自前で持つ必要がある: 出力サンプル n は frame floor(n/256)-1 .. floor(n/256)+2 の寄与を受けるので 2 フレーム先読み（+23 ms）が要る。center=False なら先読み 0 で済むので、**デバイス側だけは center=False + 先頭 768 サンプルの包絡補正テーブル (768 × 4 B = 3 KB) に切り替える選択肢がある。ただしそれは学習と規約が変わるので別タスクとして測ること（未測定）。**",
+  "residual_risk": "採用案でも c フレーム t のエネルギー重心は教師のブロック中心から -121.5 サンプル (5.5 ms) ずれる。decoder の受容野は depthwise k=7 × 5 段 = 31 フレーム ≒ 7936 サンプル なので学習で吸収できるはずだが、**吸収されることは未検証**（本学習の後に 教師 yT と生徒 ŷ の相互相関ピーク位置で確かめること）。"
+ },
+ "date": "2026-08-27",
+ "repro": "cd /Users/s19447/Desktop/saanoTTS-jp && uv run python scripts/d5_istft_framing.py",
+ "environment": {
+  "python": "3.14.0",
+  "torch": "2.13.0",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+  "device": "cpu",
+  "git_commit": "bb5e8758a738dd87d622d323a42b096d1adc2742"
+ },
+ "pack": {
+  "path": "/Users/s19447/Desktop/saanoTTS-jp/data/pack_sibdense",
+  "manifest_n_utterances": 209
+ },
+ "teacher_convention_source": {
+  "models.py:1052-1053": "w_ceil = ceil(w); y_lengths = clamp_min(sum(w_ceil),1)",
+  "mb_istft.py:308-310": "expected_sub_T = T_frames * self.hop_length; subbands_signal = subbands_signal[..., :expected_sub_T]  ← 明示的に切る",
+  "stft_onnx.py:8": "\"The inverse basis absorbs the Hann window and OLA normalisation so that no post-processing is needed (center=False, no trimming).\"",
+  "stft_onnx.py:60-62": "F.conv_transpose1d(combined, inverse_basis, stride=hop) → 出力長 (T-1)*hop + n_fft、その後 T*hop に切る"
+ },
+ "step1_pack_frame_sample_relation": {
+  "n_utterances": 209,
+  "rule": "sum(ceil(dT)) * 256 == len(yT)  かつ  sum(ceil(dT)) == zT frames",
+  "n_violations": 0,
+  "violations": [],
+  "samples_per_frame_unique": [
+   256.0
+  ],
+  "frames": {
+   "min": 63,
+   "max": 779,
+   "sum": 81475,
+   "mean": 389.83
+  },
+  "shard_byte_check": [
+   {
+    "shard": 0,
+    "n_utt": 64,
+    "sum_frames": 33189,
+    "yt_bytes_expected": 16992768,
+    "yt_bytes_actual": 16992768,
+    "yt_ok": true,
+    "zt_bytes_expected": 12744576,
+    "zt_bytes_actual": 12744576,
+    "zt_ok": true,
+    "yt_offsets_contiguous": true
+   },
+   {
+    "shard": 1,
+    "n_utt": 64,
+    "sum_frames": 23676,
+    "yt_bytes_expected": 12122112,
+    "yt_bytes_actual": 12122112,
+    "yt_ok": true,
+    "zt_bytes_expected": 9091584,
+    "zt_bytes_actual": 9091584,
+    "zt_ok": true,
+    "yt_offsets_contiguous": true
+   },
+   {
+    "shard": 2,
+    "n_utt": 64,
+    "sum_frames": 19657,
+    "yt_bytes_expected": 10064384,
+    "yt_bytes_actual": 10064384,
+    "yt_ok": true,
+    "zt_bytes_expected": 7548288,
+    "zt_bytes_actual": 7548288,
+    "zt_ok": true,
+    "yt_offsets_contiguous": true
+   },
+   {
+    "shard": 3,
+    "n_utt": 17,
+    "sum_frames": 4953,
+    "yt_bytes_expected": 2535936,
+    "yt_bytes_actual": 2535936,
+    "yt_ok": true,
+    "zt_bytes_expected": 1901952,
+    "zt_bytes_actual": 1901952,
+    "zt_ok": true,
+    "yt_offsets_contiguous": true
+   }
+  ],
+  "all_shards_ok": true
+ },
+ "step2_torch_istft_length_table": {
+  "istft_output_lengths": [
+   {
+    "T": 10,
+    "center": true,
+    "length_arg": "None",
+    "n_samples": 2304,
+    "n_samples_div_256": 9.0
+   },
+   {
+    "T": 10,
+    "center": true,
+    "length_arg": "256*T",
+    "n_samples": 2560,
+    "n_samples_div_256": 10.0
+   },
+   {
+    "T": 10,
+    "center": true,
+    "length_arg": "256*(T-1)",
+    "n_samples": 2304,
+    "n_samples_div_256": 9.0
+   },
+   {
+    "T": 10,
+    "center": true,
+    "length_arg": "256*T+768",
+    "n_samples": 3328,
+    "n_samples_div_256": 13.0
+   },
+   {
+    "T": 10,
+    "center": false,
+    "length_arg": "None",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 10], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=None, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 10,
+    "center": false,
+    "length_arg": "256*T",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 10], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=2560, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 10,
+    "center": false,
+    "length_arg": "256*(T-1)",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 10], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=2304, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 10,
+    "center": false,
+    "length_arg": "256*T+768",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 10], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=3328, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 37,
+    "center": true,
+    "length_arg": "None",
+    "n_samples": 9216,
+    "n_samples_div_256": 36.0
+   },
+   {
+    "T": 37,
+    "center": true,
+    "length_arg": "256*T",
+    "n_samples": 9472,
+    "n_samples_div_256": 37.0
+   },
+   {
+    "T": 37,
+    "center": true,
+    "length_arg": "256*(T-1)",
+    "n_samples": 9216,
+    "n_samples_div_256": 36.0
+   },
+   {
+    "T": 37,
+    "center": true,
+    "length_arg": "256*T+768",
+    "n_samples": 10240,
+    "n_samples_div_256": 40.0
+   },
+   {
+    "T": 37,
+    "center": false,
+    "length_arg": "None",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 37], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=None, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 37,
+    "center": false,
+    "length_arg": "256*T",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 37], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=9472, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 37,
+    "center": false,
+    "length_arg": "256*(T-1)",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 37], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=9216, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 37,
+    "center": false,
+    "length_arg": "256*T+768",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 37], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=10240, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 100,
+    "center": true,
+    "length_arg": "None",
+    "n_samples": 25344,
+    "n_samples_div_256": 99.0
+   },
+   {
+    "T": 100,
+    "center": true,
+    "length_arg": "256*T",
+    "n_samples": 25600,
+    "n_samples_div_256": 100.0
+   },
+   {
+    "T": 100,
+    "center": true,
+    "length_arg": "256*(T-1)",
+    "n_samples": 25344,
+    "n_samples_div_256": 99.0
+   },
+   {
+    "T": 100,
+    "center": true,
+    "length_arg": "256*T+768",
+    "n_samples": 26368,
+    "n_samples_div_256": 103.0
+   },
+   {
+    "T": 100,
+    "center": false,
+    "length_arg": "None",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 100], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=None, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 100,
+    "center": false,
+    "length_arg": "256*T",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 100], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=25600, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 100,
+    "center": false,
+    "length_arg": "256*(T-1)",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 100], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=25344, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   {
+    "T": 100,
+    "center": false,
+    "length_arg": "256*T+768",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 100], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=26368, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   }
+  ],
+  "stft_frame_counts": [
+   {
+    "T_target": 10,
+    "signal_samples": 2560,
+    "center": true,
+    "stft_frames": 11,
+    "frames_minus_T": 1
+   },
+   {
+    "T_target": 10,
+    "signal_samples": 2560,
+    "center": false,
+    "stft_frames": 7,
+    "frames_minus_T": -3
+   },
+   {
+    "T_target": 37,
+    "signal_samples": 9472,
+    "center": true,
+    "stft_frames": 38,
+    "frames_minus_T": 1
+   },
+   {
+    "T_target": 37,
+    "signal_samples": 9472,
+    "center": false,
+    "stft_frames": 34,
+    "frames_minus_T": -3
+   },
+   {
+    "T_target": 100,
+    "signal_samples": 25600,
+    "center": true,
+    "stft_frames": 101,
+    "frames_minus_T": 1
+   },
+   {
+    "T_target": 100,
+    "signal_samples": 25600,
+    "center": false,
+    "stft_frames": 97,
+    "frames_minus_T": -3
+   }
+  ],
+  "length_arg_zero_pads": {
+   "T": 37,
+   "natural_len": 9216,
+   "len_with_length_256T": 9472,
+   "extra_samples": 256,
+   "extra_is_all_zero": false,
+   "prefix_identical": true,
+   "extra_rms_over_signal_rms": 0.945,
+   "note": "**ゼロ埋めではない。** center=True の内部バッファは n_fft + hop*(T-1) = 256T+768 サンプルあり、length=256T は start=n_fft//2 から 256T 分を「切り出す」だけ。余分な 256 サンプルは最後のフレームの窓の裾を不完全な包絡で割った値で、無音でも正しい信号でもない。 ただし length が内部バッファ長を超えると本当にゼロ埋めされ、 PyTorch が UserWarning を出す（本スクリプトの 256*T+768 行）。",
+   "length_256T_plus_768_len": 10240,
+   "length_256T_plus_768_trailing_zeros": 512
+  },
+  "formulas_confirmed": {
+   "istft center=True,  length=None": "hop*(T-1)",
+   "istft center=False, length=None": "n_fft + hop*(T-1)",
+   "stft  center=True  of L samples": "floor(L/hop)+1",
+   "stft  center=False of L samples": "floor((L-n_fft)/hop)+1"
+  }
+ },
+ "step3_roundtrip_snr": {
+  "n_utterances_measured": 209,
+  "CAVEAT": "**往復 SNR はフレーミング規約の優劣を判定しない。** 解析窓 → 完全 IFFT → 合成窓 を通すと各フレームはそのサンプルにちょうど w²·y を寄与するので、包絡 Σw² で割れば env>0 の所はフレームの部分集合でも厳密に復元する。実測でも (a)/(c)/(f) が 139.009 dB で完全に並ぶ。この測定が示すのは (i) 出力サンプル数が 256T になるか、(ii) torch.istft がそもそも動くか、(iii) 包絡が 0 に近い所で fp32 が壊れるか、の 3 点だけ。 規約の選択は step6（包絡の最小値）とフレーム数の要求で決める。",
+  "const_divisor_from_teacher_formula": 96.0,
+  "true_steady_state_envelope_3N_over_8H": 1.5,
+  "note_on_teacher_constant": "教師の wss = Σw²·hop/n_fft は 3·hop/8、正しい定常包絡は 3·n_fft/(8·hop)。 両者が一致するのは hop² == n_fft のときだけで、教師の設定 (n_fft=16, hop=4) はちょうどそれに当たる偶然。生徒の 1024/256 では一致しない (96.0 vs 1.5) ので定数をそのまま流用してはいけない。",
+  "variants": {
+   "a_center_true_len": {
+    "description": "stft(center=True) → T+1 frames → istft(center=True, length=256T)",
+    "stft_frames_vs_T": [
+     64,
+     116,
+     128
+    ],
+    "n_output_length_equals_256T": 209,
+    "snr_db_full": {
+     "n": 209,
+     "mean": 139.0088,
+     "sd": 0.132,
+     "ci95_halfwidth": 0.0179,
+     "min": 138.6035,
+     "p05": 138.7953,
+     "median": 139.0008,
+     "max": 139.3684
+    },
+    "snr_db_excluding_first_768_samples": {
+     "n": 209,
+     "mean": 139.0088,
+     "sd": 0.132,
+     "ci95_halfwidth": 0.0179,
+     "min": 138.6035,
+     "p05": 138.7953,
+     "median": 139.0008,
+     "max": 139.3684
+    }
+   },
+   "b_center_false": {
+    "description": "stft(center=False) → T-3 frames → istft(center=False)",
+    "error": "RuntimeError: istft(CPUComplexFloatType[513, 60], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=None, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+   },
+   "c_center_true_natural": {
+    "description": "stft(center=True) → T+1 frames → istft(center=True) 素（length 無し）",
+    "stft_frames_vs_T": [
+     64,
+     116,
+     128
+    ],
+    "n_output_length_equals_256T": 209,
+    "snr_db_full": {
+     "n": 209,
+     "mean": 139.0088,
+     "sd": 0.132,
+     "ci95_halfwidth": 0.0179,
+     "min": 138.6035,
+     "p05": 138.7953,
+     "median": 139.0008,
+     "max": 139.3684
+    },
+    "snr_db_excluding_first_768_samples": {
+     "n": 209,
+     "mean": 139.0088,
+     "sd": 0.132,
+     "ci95_halfwidth": 0.0179,
+     "min": 138.6035,
+     "p05": 138.7953,
+     "median": 139.0008,
+     "max": 139.3684
+    }
+   },
+   "d1_teacher_T_env": {
+    "description": "教師規約 T frames (frame t = y[256t:256t+1024]) + 真の Σw² 包絡で除算 + 先頭 256T に切る",
+    "stft_frames_vs_T": [
+     63,
+     115,
+     127
+    ],
+    "n_output_length_equals_256T": 209,
+    "snr_db_full": {
+     "n": 209,
+     "mean": 115.0727,
+     "sd": 7.4181,
+     "ci95_halfwidth": 1.0057,
+     "min": 87.2963,
+     "p05": 107.8156,
+     "median": 114.6088,
+     "max": 138.6674
+    },
+    "snr_db_excluding_first_768_samples": {
+     "n": 209,
+     "mean": 138.8088,
+     "sd": 0.1391,
+     "ci95_halfwidth": 0.0189,
+     "min": 138.4232,
+     "p05": 138.6139,
+     "median": 138.7943,
+     "max": 139.2231
+    }
+   },
+   "d2_teacher_T_const": {
+    "description": "同上だが教師 stft_onnx.py の定数 wss=96.0000 で除算",
+    "stft_frames_vs_T": [
+     63,
+     115,
+     127
+    ],
+    "n_output_length_equals_256T": 209,
+    "snr_db_full": {
+     "n": 209,
+     "mean": 0.1368,
+     "sd": 0.0,
+     "ci95_halfwidth": 0.0,
+     "min": 0.1368,
+     "p05": 0.1368,
+     "median": 0.1368,
+     "max": 0.1368
+    },
+    "snr_db_excluding_first_768_samples": {
+     "n": 209,
+     "mean": 0.1368,
+     "sd": 0.0,
+     "ci95_halfwidth": 0.0,
+     "min": 0.1368,
+     "p05": 0.1368,
+     "median": 0.1368,
+     "max": 0.1368
+    }
+   },
+   "e_current_code_path": {
+    "description": "現状 train_student.py:186 の経路。center=True 規約の T frames を istft(center=True) して 256(T-1) サンプルを得、F.pad で末尾に 256 サンプルのゼロを足す。**完璧な decoder でもこの SNR が上限**",
+    "stft_frames_vs_T": [
+     63,
+     115,
+     127
+    ],
+    "n_output_length_equals_256T": 209,
+    "snr_db_full": {
+     "n": 209,
+     "mean": 95.0285,
+     "sd": 4.0679,
+     "ci95_halfwidth": 0.5515,
+     "min": 79.7146,
+     "p05": 88.3023,
+     "median": 95.2897,
+     "max": 102.4522
+    },
+    "snr_db_excluding_first_768_samples": {
+     "n": 209,
+     "mean": 95.0285,
+     "sd": 4.0679,
+     "ci95_halfwidth": 0.5515,
+     "min": 79.7146,
+     "p05": 88.3023,
+     "median": 95.2897,
+     "max": 102.4522
+    }
+   },
+   "f_center_true_T_frames_length": {
+    "description": "center=True の T frames に length=256T を渡し torch に 長さを合わせさせる。ゼロ埋めではなく最後のフレームの裾が 不完全な包絡で出てくる",
+    "stft_frames_vs_T": [
+     63,
+     115,
+     127
+    ],
+    "n_output_length_equals_256T": 209,
+    "snr_db_full": {
+     "n": 209,
+     "mean": 139.0088,
+     "sd": 0.132,
+     "ci95_halfwidth": 0.0179,
+     "min": 138.6035,
+     "p05": 138.7953,
+     "median": 139.0008,
+     "max": 139.3684
+    },
+    "snr_db_excluding_first_768_samples": {
+     "n": 209,
+     "mean": 139.0088,
+     "sd": 0.132,
+     "ci95_halfwidth": 0.0179,
+     "min": 138.6035,
+     "p05": 138.7953,
+     "median": 139.0008,
+     "max": 139.3684
+    }
+   }
+  },
+  "errors": {
+   "b_center_false": "RuntimeError: istft(CPUComplexFloatType[513, 60], n_fft=1024, hop_length=256, win_length=1024, window=torch.FloatTensor{[1024]}, center=0, normalized=0, onesided=None, length=None, return_complex=0) window overlap add min: 1\n[ CPUBoolType{} ]"
+  }
+ },
+ "step4_proposed_implementation": {
+  "recommended_istft": {
+   "what": "Decoder.istft に length=T*256 を足すだけ（center=True のまま）",
+   "output_shapes": [
+    {
+     "T": 10,
+     "batch": 2,
+     "out_samples": 2560,
+     "equals_256T": true,
+     "n_warnings": 0,
+     "warnings": []
+    },
+    {
+     "T": 37,
+     "batch": 2,
+     "out_samples": 9472,
+     "equals_256T": true,
+     "n_warnings": 0,
+     "warnings": []
+    },
+    {
+     "T": 100,
+     "batch": 2,
+     "out_samples": 25600,
+     "equals_256T": true,
+     "n_warnings": 0,
+     "warnings": []
+    },
+    {
+     "T": 779,
+     "batch": 2,
+     "out_samples": 199424,
+     "equals_256T": true,
+     "n_warnings": 0,
+     "warnings": []
+    }
+   ],
+   "all_equal_256T": true,
+   "zero_pad_warning_count": 0,
+   "differentiable": true,
+   "through_real_Decoder": [
+    {
+     "T": 10,
+     "c_shape": [
+      1,
+      40,
+      10
+     ],
+     "mag_frames": 10,
+     "current_istft_samples": 2304,
+     "current_shortfall_vs_256T": 256,
+     "recommended_istft_samples": 2560,
+     "recommended_equals_256T": true
+    },
+    {
+     "T": 37,
+     "c_shape": [
+      1,
+      40,
+      37
+     ],
+     "mag_frames": 37,
+     "current_istft_samples": 9216,
+     "current_shortfall_vs_256T": 256,
+     "recommended_istft_samples": 9472,
+     "recommended_equals_256T": true
+    },
+    {
+     "T": 100,
+     "c_shape": [
+      1,
+      40,
+      100
+     ],
+     "mag_frames": 100,
+     "current_istft_samples": 25344,
+     "current_shortfall_vs_256T": 256,
+     "recommended_istft_samples": 25600,
+     "recommended_equals_256T": true
+    }
+   ],
+   "speed_cpu_ms_per_call_batch8x128frames": 2.964
+  },
+  "alternative_teacher_center_false_ola": {
+   "what": "教師 stft_onnx.py と同じ素の OLA を F.fold で書いた版（採用しないが実測は残す）",
+   "output_shapes": [
+    {
+     "T": 10,
+     "batch": 2,
+     "out_samples": 2560,
+     "equals_256T": true
+    },
+    {
+     "T": 37,
+     "batch": 2,
+     "out_samples": 9472,
+     "equals_256T": true
+    },
+    {
+     "T": 100,
+     "batch": 2,
+     "out_samples": 25600,
+     "equals_256T": true
+    }
+   ],
+   "all_equal_256T": true,
+   "differentiable": true,
+   "grad_norm_mag": 16.85113,
+   "snr_vs_variant_d1_db": 89.34,
+   "snr_vs_variant_d1_is_inf": false,
+   "speed_cpu_ms_per_call_batch8x128frames": {
+    "proposed_fold_ola": 4.328,
+    "current_torch_istft_center_true": 2.58,
+    "ratio": 1.68
+   }
+  }
+ },
+ "step5_cola": {
+  "window": "torch.hann_window(1024)  (periodic=True)",
+  "hop": 256,
+  "overlap_factor": 4,
+  "steady_state_envelope_sum_w2": 1.5,
+  "analytic_3N_over_8H": 1.5,
+  "cola_satisfied_in_steady_state": true,
+  "max_abs_deviation_in_steady_region": 2.384185791015625e-07,
+  "incomplete_head_samples": 768,
+  "incomplete_head_ms": 34.83,
+  "envelope_at_sample": {
+   "0": 0.0,
+   "1": 0.0,
+   "63": 0.00136123,
+   "127": 0.02081784,
+   "255": 0.24694148,
+   "256": 0.25,
+   "383": 0.74566126,
+   "511": 1.24692261,
+   "512": 1.25,
+   "639": 1.47791123,
+   "767": 1.5,
+   "768": 1.5,
+   "1023": 1.5
+  },
+  "attenuation_db_at_sample": {
+   "0": -603.522,
+   "1": -204.564,
+   "63": -60.843,
+   "127": -37.153,
+   "255": -15.67,
+   "256": -15.563,
+   "383": -6.071,
+   "511": -1.605,
+   "512": -1.584,
+   "639": -0.129,
+   "767": 0.0,
+   "768": null,
+   "1023": null
+  },
+  "worst_attenuation_db_in_head": -603.522,
+  "mean_attenuation_db_over_head_768": -18.201,
+  "n_head_samples_attenuated_more_than": {
+   "0.1dB": 648,
+   "1dB": 544,
+   "6dB": 385,
+   "20dB": 219,
+   "40dB": 117
+  },
+  "head_ms_attenuated_more_than_1dB": 24.67,
+  "sample0_envelope_is_exactly_zero": true,
+  "note": "periodic hann は w[0]=0 なので sample 0 の包絡はちょうど 0。 center=False では sample 0 の情報が解析段で消える（復元不能な 1 サンプル）。 末尾は 256T に切るので 4 重オーバーラップが揃っており減衰しない。"
+ },
+ "step6_envelope_per_convention": {
+  "center_true_T_plus_1_frames": {
+   "frames_required": 65,
+   "returned_samples": 16384,
+   "env_min": 1.25,
+   "env_max": 1.5,
+   "env_min_position": 0,
+   "worst_gain_vs_steady": 1.2,
+   "worst_gain_is_unbounded": false,
+   "n_samples_gain_over_2x": 0,
+   "n_samples_gain_over_10x": 0,
+   "n_samples_env_below_1pct_of_steady": 0
+  },
+  "center_true_T_frames_length_256T": {
+   "frames_required": 64,
+   "returned_samples": 16384,
+   "env_min": 0.2530773878,
+   "env_max": 1.5,
+   "env_min_position": 16383,
+   "worst_gain_vs_steady": 5.93,
+   "worst_gain_is_unbounded": false,
+   "n_samples_gain_over_2x": 128,
+   "n_samples_gain_over_10x": 0,
+   "n_samples_env_below_1pct_of_steady": 0
+  },
+  "teacher_center_false_T_frames": {
+   "frames_required": 64,
+   "returned_samples": 16384,
+   "env_min": 0.0,
+   "env_max": 1.5,
+   "env_min_position": 0,
+   "worst_gain_vs_steady": null,
+   "worst_gain_is_unbounded": true,
+   "n_samples_gain_over_2x": 384,
+   "n_samples_gain_over_10x": 219,
+   "n_samples_env_below_1pct_of_steady": 117
+  },
+  "_interpretation": "center_true_T_plus_1: 包絡の最小 1.25（先頭と末尾で -1.58 dB のみ）。数値的に安全だが decoder が T+1 フレーム出す必要がある。 center_true_T_frames_length_256T: 同じく最小 1.25 だが末尾 256 サンプルが フレーム T-1 の窓の裾だけで作られる（復元は厳密でも decoder の出力誤差がそこに集中する）。 teacher_center_false: T フレームで 256T サンプルが出る唯一の規約だが、先頭 640 サンプルで包絡が 1.5 → 0 に落ち、sample 0 では厳密に 0 になる。"
+ },
+ "step7_edge_energy": {
+  "n": 209,
+  "energy_fraction_first_768_samples": {
+   "mean_pct": 6e-05,
+   "median_pct": 0.0,
+   "max_pct": 0.003372
+  },
+  "energy_fraction_first_256_samples": {
+   "mean_pct": 3e-06,
+   "median_pct": 0.0,
+   "max_pct": 0.000174
+  },
+  "energy_fraction_last_512_samples": {
+   "mean_pct": 1e-06,
+   "median_pct": 0.0,
+   "max_pct": 1.5e-05
+  },
+  "energy_fraction_last_256_samples": {
+   "mean_pct": 0.0,
+   "median_pct": 0.0,
+   "max_pct": 1e-06
+  },
+  "peak_ratio_first_768_vs_utterance": {
+   "mean": 0.00244,
+   "median": 0.00048,
+   "max": 0.05775
+  },
+  "peak_ratio_last_256_vs_utterance": {
+   "mean": 0.00011,
+   "median": 9e-05,
+   "max": 0.00076
+  },
+  "note": "教師は決定的推論なので発話の前後がほぼ無音になる。 端の包絡が悪い規約でも、そこに乗っている信号自体が小さければ実害は小さい。"
+ },
+ "step8_frame_alignment": {
+  "probe_frame_index": 12,
+  "T": 32,
+  "teacher_z_frame_maps_to": {
+   "owns_samples": [
+    3072,
+    3327
+   ],
+   "block_center": 3199.5
+  },
+  "recommended_center_true": {
+   "support_first_rel1e-3": 2570,
+   "support_last_rel1e-3": 3567,
+   "support_len": 998,
+   "energy_center_of_mass": 3078.0,
+   "peak_at": 3157,
+   "offset_of_com_vs_teacher_block_center": -121.5
+  },
+  "alternative_center_false_fold": {
+   "support_first_rel1e-3": 3082,
+   "support_last_rel1e-3": 4079,
+   "support_len": 998,
+   "energy_center_of_mass": 3590.0,
+   "peak_at": 3669,
+   "offset_of_com_vs_teacher_block_center": 390.5
+  },
+  "note": "どちらも定数オフセットで、decoder の受容野（depthwise k=7 × 5 段 = 31 フレーム ≒ 7936 サンプル）に比べれば十分小さいので学習で吸収できる。 ただし center=True のほうがズレが小さい。"
+ },
+ "elapsed_sec": 6.98
+}

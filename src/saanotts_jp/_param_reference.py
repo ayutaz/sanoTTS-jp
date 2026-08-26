@@ -3,7 +3,19 @@
    D 36,164 / A 199,536 / G 331,308 / 合計 567,008 / E_rho 14,952 すべて delta 0。"""
 import torch, torch.nn as nn, torch.nn.functional as F
 N = lambda m: sum(p.numel() for p in m.parameters())
-VOCAB = 157   # 論文: deployed acoustic vocabulary has 157 entries
+# 論文（英語）の deployed acoustic vocabulary は 157 entries。
+# **日本語は 57。** `kana_g2p` の mora テーブル 195 エントリと `ん` の異音規則から
+# 原理的に出せる音素の閉包が 57 で、コーパス 23,454 行の出現 51 を厳密に含む（B-9）。
+# 157 → 57 で Dα −3,200 / Aβ −4,800 / 合計 567,008 → **559,008**。
+# ⚠️ **MMAC は 1 も減らない**（埋め込みは表引きで 0 MAC）。浮くのは flash 8 KB だけ。
+try:                                        # パッケージとして import されたとき
+    from .vocab import V as VOCAB           # = 57。B-9 で凍結
+except ImportError:                         # このファイルを直接実行したとき
+    import os
+    import sys
+    sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    from saanotts_jp.vocab import V as VOCAB
+VOCAB_PAPER_EN = 157   # 論文 Table I の再現用（下の __main__ が両方で検算する）
 
 # ---------- E_rho : 学習専用 z(192ch) -> c(40ch)   14,952  (一意解) ----------
 class Erho(nn.Module):
@@ -85,18 +97,42 @@ class Decoder(nn.Module):
         return mag, cos, sin
     @staticmethod
     def istft(mag, cos, sin):
+        """T フレーム → **ちょうど 256*T サンプル**。教師の `y_lengths` 規約に合わせる。
+
+        教師は `y_lengths = sum(ceil(w))` フレームから hop 256 でアップサンプルするので
+        `len(yT) == 256 * T`（`data/pack_sibdense` 209 発話すべてで成立、D5）。
+        一方 `torch.istft` は `length` を省くと **256*(T-1)** しか返さない（1 フレーム不足）。
+        `center=False` は hann(1024)/hop=256 では `window overlap add min: 1` で
+        必ず RuntimeError になるので使えない。
+
+        `length=T*256` は内部バッファ `n_fft + hop*(T-1)` から `start=n_fft//2` で
+        256T 分を**切り出す**だけでゼロ埋めではない。往復 SNR 139.0 ± 0.02 dB (n=209)。
+        """
         S = torch.complex(mag * cos, mag * sin)
+        T = mag.shape[-1]
         return torch.istft(S, n_fft=1024, hop_length=256, win_length=1024,
-                           window=torch.hann_window(1024, device=S.device), center=True)
+                           window=torch.hann_window(1024, device=S.device),
+                           center=True, length=T * 256)
 
 if __name__ == "__main__":
+    # (1) 論文 Table I（英語・VOCAB=157）の再現。層構成の逆算が正しいことの検算
     tg = {"E_rho": 14952, "D_alpha": 36164, "A_beta": 199536, "G_gamma": 331308}
-    ms = {"E_rho": Erho(), "D_alpha": Duration(), "A_beta": Acoustic(), "G_gamma": Decoder()}
+    en = {"E_rho": Erho(), "D_alpha": Duration(V=VOCAB_PAPER_EN),
+          "A_beta": Acoustic(V=VOCAB_PAPER_EN), "G_gamma": Decoder()}
     tot = 0
-    for k, m in ms.items():
+    for k, m in en.items():
         n = N(m); print("%-9s %8d  target %8d  delta %+d" % (k, n, tg[k], n - tg[k]))
         if k != "E_rho": tot += n
-    print("deployed total %d  target 567008  match=%s" % (tot, tot == 567008))
+    print("paper(EN, V=157) deployed total %d  target 567008  match=%s"
+          % (tot, tot == 567008))
+
+    # (2) 日本語の実語彙 V=57 での実数
+    ms = {"E_rho": Erho(), "D_alpha": Duration(), "A_beta": Acoustic(),
+          "G_gamma": Decoder()}
+    tot_ja = sum(N(m) for k, m in ms.items() if k != "E_rho")
+    print("ja   (V=%d)   deployed total %d  (paper 567008 との差 %+d)"
+          % (VOCAB, tot_ja, tot_ja - 567008))
+    assert tot_ja == 559008, tot_ja
     x = torch.randint(0, VOCAB, (1, 4)); d = torch.tensor([[3, 4, 2, 5]])
     c = ms["A_beta"](x, d); print("c:", tuple(c.shape))
     m_, co, si = ms["G_gamma"](c); y = Decoder.istft(m_, co, si)

@@ -19,13 +19,15 @@ LAMBDA_A = 0.025   # LSGAN
 LAMBDA_F = 0.25    # feature matching
 LAMBDA_C = 0.5     # joint の c アンカー（式6）
 
-# ⚠️ 論文に値が無い。暫定値であってチューニング対象（Phase C）
-LAMBDA_2 = 1.0     # L2 項
-LAMBDA_N = 1.0     # チャネル正規化項
-LAMBDA_D = 1.0     # 一次差分項
-LAMBDA_STAT = 1.0  # 統計項
+# ⚠️ 論文に値が無い。**「全部 1.0」は実測で明確に誤り**だったので、
+# `data/pack_sibdense` の実 zT に対する**勾配ノルムを l1 項に揃える値**に置き換えた（C-1）。
+# 依然としてチューニング対象だが、出発点は 1.0 ではない。
+LAMBDA_2 = 0.40    # L2 項。⚠️ 下記 `lambda_2_from_residual()` で実行時に出すのが正しい
+LAMBDA_N = 0.272   # チャネル正規化項。⚠️ σ_T 依存。`ChannelStats.lambda_n` を使うこと
+LAMBDA_D = 0.86    # 一次差分項。生徒の残差は時間的に滑らかなので白色雑音仮定の 0.77 より上
+LAMBDA_STAT = 0.19 # 統計項
 
-LAMBDA_T = 1.0     # 発話長保存項（式2）。これも論文に値が無い
+LAMBDA_T = 0.27    # 発話長保存項（式2）。これも論文に値が無い
 
 # 論文 §II-B: FFT {512, 1024, 2048} × hop {128, 256, 512}
 STFT_RESOLUTIONS: tuple[tuple[int, int], ...] = ((512, 128), (1024, 256), (2048, 512))
@@ -38,6 +40,7 @@ def duration_loss(
     d_target: torch.Tensor,
     mask: torch.Tensor | None = None,
     lambda_t: float = LAMBDA_T,
+    length_target: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, dict]:
     """式2: `L_d = Huber_0.25(l̂, log dT) + λ_T [log Σ r_i − log Σ dT_i]²`
 
@@ -49,6 +52,9 @@ def duration_loss(
     log_d_hat : [B, L]  生徒の出力（log duration）
     d_target  : [B, L]  教師の `dT`（**log ではない**）
     mask      : [B, L]  1 = 有効
+    length_target : [B] 発話長保存項のターゲットを明示する場合。省略すると
+        `Σ max(1, dT)`（`r` と同じ関数を教師にも掛けた自己整合な値）を使う。
+        デプロイの展開規則を `ceil` にするなら `Σ ceil(dT)` を渡すこと。
     """
     log_d_t = torch.log(d_target.clamp_min(1e-5))
     if mask is None:
@@ -60,7 +66,17 @@ def duration_loss(
     # r_i = max(1, exp(l̂_i))。論文のデプロイ式と揃える
     r = torch.clamp(torch.exp(log_d_hat), min=1.0) * mask
     sum_r = r.sum(dim=1).clamp_min(1e-5)
-    sum_d = (d_target * mask).sum(dim=1).clamp_min(1e-5)
+
+    # ⚠️ **ターゲットを `Σ dT` にしてはいけない**（論文の字面はそうなっている）。
+    # 教師の `dT` は 18.06% のトークンが 1 未満で、`r` の側だけ max(1,·) が掛かるため
+    # `Σ max(1, dT) / Σ dT = 1.044`。**完璧な生徒でも length 項が 0 にならず**、
+    # λ_T > 0 が発話を 4.41% 短くする定常バイアスになる（C-1 の実測）。
+    # `r` と同じ関数を教師にも掛けて自己整合させる。
+    if length_target is None:
+        sum_d = (torch.clamp(d_target, min=1.0) * mask).sum(dim=1)
+    else:
+        sum_d = length_target          # 例: 教師の実フレーム数 Σceil(dT)
+    sum_d = sum_d.clamp_min(1e-5)
     length_term = ((torch.log(sum_r) - torch.log(sum_d)) ** 2).mean()
 
     total = huber + lambda_t * length_term
@@ -78,19 +94,37 @@ class ChannelStats:
         """`N_T(u) = (u − μ_T) / σ_T`。x は [B, C, T]。"""
         return (x - self.mu[None, :, None]) / self.sigma[None, :, None].clamp_min(1e-5)
 
+    @property
+    def lambda_n(self) -> float:
+        """`λ_n` の閉形式 `1/√(mean(1/σ_k²))`（σ の調和二乗平均）。
+
+        正規化項の勾配は要素ごとに `1/σ_k` なので、`‖grad‖₂` を l1 項の `√N` に
+        揃えると λ_n がこれになる。**σ に依存するのでパックごとに変わる**
+        （z-line で 0.2717、c-line や別パックでは 0.37〜0.46 倍ずれた）。
+        **定数で焼かずにここから取ること**（C-1）。
+        """
+        sig = self.sigma.clamp_min(1e-5)
+        return float(1.0 / torch.sqrt(torch.mean(1.0 / sig**2)))
+
 
 def latent_loss(
     c_hat: torch.Tensor,
     c_target: torch.Tensor,
     stats: ChannelStats,
     mask: torch.Tensor | None = None,
+    lambda_2: float | None = None,
+    lambda_n: float | None = None,
 ) -> tuple[torch.Tensor, dict]:
     """式3: `L_c = ‖ĉ−cT‖₁ + λ₂‖·‖₂² + λ_n‖N_T(ĉ)−N_T(cT)‖₁ + λ_Δ‖Δĉ−ΔcT‖₁ + λ_s L_stat`
 
     チャネル正規化項の役割は**高分散チャネルが目的関数を支配するのを防ぐ**こと。
     教師の潜在はチャネルごとに σ が 0.042〜10.14（比 241.8 倍）と大きく偏っている（A-3）。
 
-    ⚠️ `λ₂, λ_n, λ_Δ, λ_s` は論文に値が無い。**チューニング対象**。
+    ⚠️ `λ₂, λ_n, λ_Δ, λ_s` は論文に値が無い。**「全部 1.0」は誤り**で、
+    実 zT に対する勾配ノルムを l1 項に揃えると λ₂≈0.40（初期）/ λ_n=0.272 /
+    λ_Δ=0.86 / λ_s=0.19 になる（C-1）。うち **λ_n と λ₂ は閉形式があるので
+    探索不要**（λ_n は σ_T から、λ₂ は残差 RMS から実行時に出す）。
+    残る探索対象は λ_Δ と λ_s。
     """
     if mask is None:
         mask = torch.ones_like(c_hat[:, :1, :])
@@ -117,10 +151,22 @@ def latent_loss(
     l_stat = (((mu_h - mu_t) / sig).abs().mean()
               + ((var_h.sqrt() - var_t.sqrt()) / sig).abs().mean())
 
-    total = l1 + LAMBDA_2 * l2 + LAMBDA_N * ln + LAMBDA_D * ld + LAMBDA_STAT * l_stat
+    # λ₂ は**固定値にしない**。勾配を l1 に揃える値は `1/(2·RMS(残差))` で、
+    # 学習が進んで残差が小さくなるほど**大きく**なる（C-1 の照合で符号が確定）。
+    # 実行時に残差から出すと `λ₂·‖·‖₂² = ½·RMS(残差)` になり、L2 が実質 RMS 項になる。
+    # `lambda_2` を明示すればその固定値を使う（探索用）。
+    if lambda_2 is None:
+        lam2 = 0.5 / l2.detach().clamp_min(1e-12).sqrt()
+    else:
+        lam2 = torch.as_tensor(float(lambda_2), device=l2.device, dtype=l2.dtype)
+    lam_n = stats.lambda_n if lambda_n is None else float(lambda_n)
+
+    total = l1 + lam2 * l2 + lam_n * ln + LAMBDA_D * ld + LAMBDA_STAT * l_stat
     return total, {
         "lat/l1": l1.detach(), "lat/l2": l2.detach(), "lat/norm": ln.detach(),
         "lat/delta": ld.detach(), "lat/stat": l_stat.detach(),
+        "lat/lambda_2": lam2.detach(),
+        "lat/lambda_n": torch.as_tensor(lam_n),
     }
 
 

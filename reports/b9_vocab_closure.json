@@ -1,0 +1,748 @@
+{
+  "task": "B-9 closure: デプロイ語彙を mora テーブルの閉包で凍結する",
+  "repro": "uv run python scripts/b9_vocab_closure.py --out reports/b9_vocab_closure.json",
+  "method": "kana_g2p.build_mora_table() を作り、intermediate_to_phonemes() を 全 mora × {素, °, +ー, ん+後続, 記号} で実行して出力トークンを集める。データ構造からの静的列挙とも突き合わせる。",
+  "mora_table": {
+    "entries": 195,
+    "bytes": 1786,
+    "n_allophone_rules": 21
+  },
+  "closure": {
+    "n": 57,
+    "tokens": [
+      "#",
+      "$",
+      "?",
+      "?!",
+      "?.",
+      "?~",
+      "A",
+      "E",
+      "I",
+      "N_m",
+      "N_n",
+      "N_ng",
+      "N_uvular",
+      "O",
+      "U",
+      "[",
+      "]",
+      "^",
+      "_",
+      "a",
+      "b",
+      "by",
+      "ch",
+      "cl",
+      "d",
+      "dy",
+      "e",
+      "f",
+      "g",
+      "gw",
+      "gy",
+      "h",
+      "hy",
+      "i",
+      "j",
+      "k",
+      "kw",
+      "ky",
+      "m",
+      "my",
+      "n",
+      "ny",
+      "o",
+      "p",
+      "py",
+      "r",
+      "ry",
+      "s",
+      "sh",
+      "t",
+      "ts",
+      "ty",
+      "u",
+      "v",
+      "w",
+      "y",
+      "z"
+    ],
+    "executable_vs_static_diff": {
+      "exec_only": [],
+      "static_only": []
+    },
+    "missing_in_teacher_phoneme_id_map": []
+  },
+  "teacher": {
+    "num_symbols": 173,
+    "phoneme_id_map_entries": 185,
+    "snapshot": "c3f236e068b95356b871842b4ae7cec2a86c50ea"
+  },
+  "corpus": {
+    "source": "reports/b9_vocab.json",
+    "n_rows": 23454,
+    "n_ok": 23399,
+    "n_rejected": 55,
+    "n_used": 51
+  },
+  "diff": {
+    "closure_only": [
+      {
+        "tok": "?!",
+        "id": 4,
+        "seen_via": [
+          "記号 ?!",
+          "ん+記号?!+か"
+        ]
+      },
+      {
+        "tok": "?.",
+        "id": 5,
+        "seen_via": [
+          "記号 ?.",
+          "ん+記号?.+か"
+        ]
+      },
+      {
+        "tok": "?~",
+        "id": 6,
+        "seen_via": [
+          "記号 ?~",
+          "ん+記号?~+か"
+        ]
+      },
+      {
+        "tok": "A",
+        "id": 15,
+        "seen_via": [
+          "mora あ°",
+          "ん+あ°",
+          "mora いぁ°"
+        ]
+      },
+      {
+        "tok": "E",
+        "id": 18,
+        "seen_via": [
+          "mora いぇ°",
+          "ん+いぇ°",
+          "mora うぇ°"
+        ]
+      },
+      {
+        "tok": "O",
+        "id": 19,
+        "seen_via": [
+          "mora いぉ°",
+          "ん+いぉ°",
+          "mora うぉ°"
+        ]
+      }
+    ],
+    "corpus_only_BUG_IF_NONEMPTY": [],
+    "closure_only_host_reachability": {
+      "n_probes": 29,
+      "eos_probes": [
+        "本当ですか?",
+        "本当ですか?!",
+        "本当ですか?.",
+        "本当ですか?~",
+        "そうなの?!",
+        "えっ!?"
+      ],
+      "devoiced_aeo_probes": [
+        "かかし",
+        "ほかほか",
+        "ここ",
+        "はかせ",
+        "かっこ",
+        "ぽかぽか",
+        "そこ",
+        "かたかた",
+        "はっか",
+        "各国",
+        "確固",
+        "刻苦",
+        "北海道",
+        "博士",
+        "保管庫",
+        "ホッケー",
+        "カッター",
+        "家庭",
+        "こそこそ",
+        "ぱさぱさ",
+        "かさかさ",
+        "ほくほく",
+        "そこそこ"
+      ],
+      "emitted": {
+        "?!": [
+          "本当ですか?!",
+          "そうなの?!"
+        ],
+        "?.": [
+          "本当ですか?."
+        ],
+        "?~": [
+          "本当ですか?~"
+        ]
+      },
+      "not_emitted": [
+        "A",
+        "E",
+        "O"
+      ]
+    },
+    "closure_only_verdict": "閉包のみの 6 個は全部『コーパスに無かっただけ』。?! ?. ?~ はホスト G2P が実際に出す（原文に該当の約物があれば）。A/E/O はプローブ 23 語では出なかったが、中間表現に `°` を書けばデバイスは必ず出す（か° -> k A）。**語彙には入れる。ただし埋め込み行が未学習のままになるので、コーパスに?! ?. ?~ を含む行を足す必要がある**（CLAUDE.md の多様性軸に『4 種の EOS』が挙がっているのに現行 23,454 行には 1 つも無い）"
+  },
+  "final_vocab": {
+    "V": 57,
+    "definition": "閉包 ∪ コーパス出現（教師の先頭 173 に存在するものだけ）",
+    "teacher_id_gaps": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      31,
+      52
+    ],
+    "teacher_id_gaps_note": "生徒の埋め込みは教師IDでは引けない（穴がある）。teacher_id -> student_index の写像表を重みと一緒に凍結すること。穴は長音記号 a: i: u: e: o:（ー は直前母音の複製にしている）、素の N（異音 4 種に分解している）、q、zy（じゃ行は j に落ちる）",
+    "teacher_id_to_student_index": {
+      "0": 0,
+      "1": 1,
+      "2": 2,
+      "3": 3,
+      "4": 4,
+      "5": 5,
+      "6": 6,
+      "7": 7,
+      "8": 8,
+      "9": 9,
+      "10": 10,
+      "11": 11,
+      "12": 12,
+      "13": 13,
+      "14": 14,
+      "15": 15,
+      "16": 16,
+      "17": 17,
+      "18": 18,
+      "19": 19,
+      "26": 20,
+      "27": 21,
+      "28": 22,
+      "29": 23,
+      "30": 24,
+      "32": 25,
+      "33": 26,
+      "34": 27,
+      "35": 28,
+      "36": 29,
+      "37": 30,
+      "38": 31,
+      "39": 32,
+      "40": 33,
+      "41": 34,
+      "42": 35,
+      "43": 36,
+      "44": 37,
+      "45": 38,
+      "46": 39,
+      "47": 40,
+      "48": 41,
+      "49": 42,
+      "50": 43,
+      "51": 44,
+      "53": 45,
+      "54": 46,
+      "55": 47,
+      "56": 48,
+      "57": 49,
+      "58": 50,
+      "59": 51,
+      "60": 52,
+      "61": 53,
+      "62": 54,
+      "63": 55,
+      "64": 56
+    },
+    "tokens": [
+      {
+        "student_index": 0,
+        "tok": "_",
+        "teacher_id": 0,
+        "corpus_n": 1532868
+      },
+      {
+        "student_index": 1,
+        "tok": "^",
+        "teacher_id": 1,
+        "corpus_n": 23399
+      },
+      {
+        "student_index": 2,
+        "tok": "$",
+        "teacher_id": 2,
+        "corpus_n": 23399
+      },
+      {
+        "student_index": 3,
+        "tok": "?",
+        "teacher_id": 3,
+        "corpus_n": 392
+      },
+      {
+        "student_index": 4,
+        "tok": "?!",
+        "teacher_id": 4,
+        "corpus_n": 0
+      },
+      {
+        "student_index": 5,
+        "tok": "?.",
+        "teacher_id": 5,
+        "corpus_n": 0
+      },
+      {
+        "student_index": 6,
+        "tok": "?~",
+        "teacher_id": 6,
+        "corpus_n": 0
+      },
+      {
+        "student_index": 7,
+        "tok": "#",
+        "teacher_id": 7,
+        "corpus_n": 3927
+      },
+      {
+        "student_index": 8,
+        "tok": "[",
+        "teacher_id": 8,
+        "corpus_n": 141633
+      },
+      {
+        "student_index": 9,
+        "tok": "]",
+        "teacher_id": 9,
+        "corpus_n": 98305
+      },
+      {
+        "student_index": 10,
+        "tok": "a",
+        "teacher_id": 10,
+        "corpus_n": 180321
+      },
+      {
+        "student_index": 11,
+        "tok": "i",
+        "teacher_id": 11,
+        "corpus_n": 115305
+      },
+      {
+        "student_index": 12,
+        "tok": "u",
+        "teacher_id": 12,
+        "corpus_n": 81816
+      },
+      {
+        "student_index": 13,
+        "tok": "e",
+        "teacher_id": 13,
+        "corpus_n": 89784
+      },
+      {
+        "student_index": 14,
+        "tok": "o",
+        "teacher_id": 14,
+        "corpus_n": 157941
+      },
+      {
+        "student_index": 15,
+        "tok": "A",
+        "teacher_id": 15,
+        "corpus_n": 0
+      },
+      {
+        "student_index": 16,
+        "tok": "I",
+        "teacher_id": 16,
+        "corpus_n": 16072
+      },
+      {
+        "student_index": 17,
+        "tok": "U",
+        "teacher_id": 17,
+        "corpus_n": 15153
+      },
+      {
+        "student_index": 18,
+        "tok": "E",
+        "teacher_id": 18,
+        "corpus_n": 0
+      },
+      {
+        "student_index": 19,
+        "tok": "O",
+        "teacher_id": 19,
+        "corpus_n": 0
+      },
+      {
+        "student_index": 20,
+        "tok": "N_m",
+        "teacher_id": 26,
+        "corpus_n": 2327
+      },
+      {
+        "student_index": 21,
+        "tok": "N_n",
+        "teacher_id": 27,
+        "corpus_n": 12044
+      },
+      {
+        "student_index": 22,
+        "tok": "N_ng",
+        "teacher_id": 28,
+        "corpus_n": 5533
+      },
+      {
+        "student_index": 23,
+        "tok": "N_uvular",
+        "teacher_id": 29,
+        "corpus_n": 10756
+      },
+      {
+        "student_index": 24,
+        "tok": "cl",
+        "teacher_id": 30,
+        "corpus_n": 14749
+      },
+      {
+        "student_index": 25,
+        "tok": "k",
+        "teacher_id": 32,
+        "corpus_n": 80078
+      },
+      {
+        "student_index": 26,
+        "tok": "ky",
+        "teacher_id": 33,
+        "corpus_n": 2974
+      },
+      {
+        "student_index": 27,
+        "tok": "kw",
+        "teacher_id": 34,
+        "corpus_n": 197
+      },
+      {
+        "student_index": 28,
+        "tok": "g",
+        "teacher_id": 35,
+        "corpus_n": 25567
+      },
+      {
+        "student_index": 29,
+        "tok": "gy",
+        "teacher_id": 36,
+        "corpus_n": 948
+      },
+      {
+        "student_index": 30,
+        "tok": "gw",
+        "teacher_id": 37,
+        "corpus_n": 165
+      },
+      {
+        "student_index": 31,
+        "tok": "t",
+        "teacher_id": 38,
+        "corpus_n": 66402
+      },
+      {
+        "student_index": 32,
+        "tok": "ty",
+        "teacher_id": 39,
+        "corpus_n": 168
+      },
+      {
+        "student_index": 33,
+        "tok": "d",
+        "teacher_id": 40,
+        "corpus_n": 28652
+      },
+      {
+        "student_index": 34,
+        "tok": "dy",
+        "teacher_id": 41,
+        "corpus_n": 276
+      },
+      {
+        "student_index": 35,
+        "tok": "p",
+        "teacher_id": 42,
+        "corpus_n": 4124
+      },
+      {
+        "student_index": 36,
+        "tok": "py",
+        "teacher_id": 43,
+        "corpus_n": 355
+      },
+      {
+        "student_index": 37,
+        "tok": "b",
+        "teacher_id": 44,
+        "corpus_n": 13036
+      },
+      {
+        "student_index": 38,
+        "tok": "by",
+        "teacher_id": 45,
+        "corpus_n": 504
+      },
+      {
+        "student_index": 39,
+        "tok": "ch",
+        "teacher_id": 46,
+        "corpus_n": 9549
+      },
+      {
+        "student_index": 40,
+        "tok": "ts",
+        "teacher_id": 47,
+        "corpus_n": 11561
+      },
+      {
+        "student_index": 41,
+        "tok": "s",
+        "teacher_id": 48,
+        "corpus_n": 34275
+      },
+      {
+        "student_index": 42,
+        "tok": "sh",
+        "teacher_id": 49,
+        "corpus_n": 30475
+      },
+      {
+        "student_index": 43,
+        "tok": "z",
+        "teacher_id": 50,
+        "corpus_n": 6843
+      },
+      {
+        "student_index": 44,
+        "tok": "j",
+        "teacher_id": 51,
+        "corpus_n": 10739
+      },
+      {
+        "student_index": 45,
+        "tok": "f",
+        "teacher_id": 53,
+        "corpus_n": 4074
+      },
+      {
+        "student_index": 46,
+        "tok": "h",
+        "teacher_id": 54,
+        "corpus_n": 12474
+      },
+      {
+        "student_index": 47,
+        "tok": "hy",
+        "teacher_id": 55,
+        "corpus_n": 943
+      },
+      {
+        "student_index": 48,
+        "tok": "v",
+        "teacher_id": 56,
+        "corpus_n": 526
+      },
+      {
+        "student_index": 49,
+        "tok": "n",
+        "teacher_id": 57,
+        "corpus_n": 65364
+      },
+      {
+        "student_index": 50,
+        "tok": "ny",
+        "teacher_id": 58,
+        "corpus_n": 808
+      },
+      {
+        "student_index": 51,
+        "tok": "m",
+        "teacher_id": 59,
+        "corpus_n": 37750
+      },
+      {
+        "student_index": 52,
+        "tok": "my",
+        "teacher_id": 60,
+        "corpus_n": 441
+      },
+      {
+        "student_index": 53,
+        "tok": "r",
+        "teacher_id": 61,
+        "corpus_n": 54362
+      },
+      {
+        "student_index": 54,
+        "tok": "ry",
+        "teacher_id": 62,
+        "corpus_n": 1605
+      },
+      {
+        "student_index": 55,
+        "tok": "w",
+        "teacher_id": 63,
+        "corpus_n": 20654
+      },
+      {
+        "student_index": 56,
+        "tok": "y",
+        "teacher_id": 64,
+        "corpus_n": 12464
+      }
+    ],
+    "zero_count_in_corpus": [
+      "?!",
+      "?.",
+      "?~",
+      "A",
+      "E",
+      "O"
+    ]
+  },
+  "param_impact": {
+    "paper_VOCAB": 157,
+    "measured_V": 57,
+    "formula": {
+      "D_alpha": "V*32 + 30*32^2 + 13*32 + 4",
+      "A_beta": "V*48 + 80*48^2 + 160*48",
+      "G_gamma": "V に依存しない"
+    },
+    "baseline": {
+      "D": 36164,
+      "A": 199536,
+      "G": 331308,
+      "total": 567008
+    },
+    "with_measured_V": {
+      "D": 32964,
+      "A": 194736,
+      "G": 331308,
+      "total": 559008
+    },
+    "delta": {
+      "D_alpha": -3200,
+      "A_beta": -4800,
+      "G_gamma": 0,
+      "total": -8000,
+      "check_(157-V)*80": -8000
+    },
+    "int8_blob": {
+      "paper_bytes": 679832,
+      "paper_bytes_note": "論文値。567,008 params に対し +112,824 B あり、内訳は論文に無い（未検証。scale/zero-point と int32 bias が疑わしいが未測定）",
+      "delta_bytes": -8000,
+      "delta_assumption": "埋め込み行は 1 param = 1 B の int8 重み",
+      "estimated_bytes": 671832
+    }
+  },
+  "mmac": {
+    "baseline": {
+      "acoustic_frame_MAC_per_frame": 117120,
+      "decoder_MAC_per_frame": 327300,
+      "duration_MAC_per_token": 30752,
+      "acoustic_token_MAC_per_token": 69120,
+      "frame_rate_MMAC": 38.278,
+      "token_rate_MMAC": 3.576,
+      "istft_MMAC_estimate": 1.764,
+      "total_MMAC_per_audio_second": 43.618
+    },
+    "paper_claim_MMAC_per_audio_second": 45,
+    "L_over_T_measured": 0.4157,
+    "L_over_T_source": "data/pack_sibdense の 209 発話（ids 総数 ÷ zT 総フレーム）",
+    "note": "自前計算。論文の 45 MMAC/audio-second に対し 43.618 で、`_param_reference.py` の層構成が論文の compute とも整合することの傍証。**埋め込みは表引きなので 0 MAC = 語彙を 157→57 にしても MMAC は 1 も減らない**（減るのは flash だけ）。iSTFT 分は radix-2 の概算で未測定"
+  },
+  "width_options": [
+    {
+      "name": "O0 浮かせたまま（推奨）",
+      "D_width": 32,
+      "A_width": 48,
+      "decoder_overrides": "default (W=76,E=304,R=12,r=48)",
+      "D_alpha": 32964,
+      "A_beta": 194736,
+      "G_gamma": 331308,
+      "total": 559008,
+      "vs_567008": -8000,
+      "MMAC_per_audio_second": 43.618,
+      "MMAC_delta_vs_O0": 0.0,
+      "simd_16lane_aligned": true,
+      "note": "埋め込みを 57 行にするだけ。8,000 params / 約 8,000 B の flash が浮く。MMAC は 1 も減らない（埋め込みは表引き）。ESP32-S3 で逼迫するのは flash ではなく実時間（論文 0.22x RT）なので、浮いた分を計算に変えると割が悪い"
+    },
+    {
+      "name": "O1 Aβ の幅を 48→49",
+      "D_width": 32,
+      "A_width": 49,
+      "decoder_overrides": "default (W=76,E=304,R=12,r=48)",
+      "D_alpha": 32964,
+      "A_beta": 202713,
+      "G_gamma": 331308,
+      "total": 566985,
+      "vs_567008": -23,
+      "MMAC_per_audio_second": 44.143,
+      "MMAC_delta_vs_O0": 0.525,
+      "simd_16lane_aligned": false,
+      "note": "浮いた 8,000 をほぼ使い切って acoustic の frame block を 4.2% 厚くする。ただし 49 は 16 レーンの PIE int8 に割り切れず、実効スループットは落ちる可能性"
+    },
+    {
+      "name": "O2 decoder の条件付けランク R を 12→16",
+      "D_width": 32,
+      "A_width": 48,
+      "decoder_overrides": {
+        "R": 16
+      },
+      "D_alpha": 32964,
+      "A_beta": 194736,
+      "G_gamma": 333648,
+      "total": 561348,
+      "vs_567008": -5660,
+      "MMAC_per_audio_second": 43.817,
+      "MMAC_delta_vs_O0": 0.199,
+      "simd_16lane_aligned": true,
+      "note": "16 の倍数を保ったまま入る唯一の増強。c-line から decoder への FiLM 経路を33% 広げる。40ch の c を 12 に絞る箇所がボトルネックなら効く"
+    },
+    {
+      "name": "O3 Dα の幅を 32→35",
+      "D_width": 35,
+      "A_width": 48,
+      "decoder_overrides": "default (W=76,E=304,R=12,r=48)",
+      "D_alpha": 39204,
+      "A_beta": 194736,
+      "G_gamma": 331308,
+      "total": 565248,
+      "vs_567008": -1760,
+      "MMAC_per_audio_second": 43.834,
+      "MMAC_delta_vs_O0": 0.216,
+      "simd_16lane_aligned": false,
+      "note": "duration はトークンレート（L/T = 0.416 実測）なので MMAC への効き目が最小。アクセント型ミニマルペアが duration で決まるなら投資先として妥当"
+    }
+  ],
+  "caveats": [
+    "閉包は kana_g2p.py の現行実装に対するもの。mora テーブルや N_ALLOPHONE / FOREIGN_MORA を変えたら測り直しが要る",
+    "コーパス側の数値は reports/b9_vocab.json（23,454 行）をそのまま使った",
+    "int8 blob の内訳は論文に無く、削減分の仮定は未検証",
+    "`fy` は閉包に入らない。mora テーブルに ふゅ が無く、教師の phoneme_id_map にも fy が無い。55 行はホスト側 phonemes_to_intermediate の逆引きで落ちる（デバイス側の問題ではない）",
+    "width 再配分案のパラメータ数は式で出し、`_param_reference.py` の torch モジュールと一致することを確認済み。ただし**品質への効果は未測定**（どこに配ると効くかは学習しないと分からない）",
+    "SIMD アライメントの可否は ESP32-S3 PIE の 128bit = int8 16 レーンから判断したもので、実機カーネルでの実効スループットは未測定"
+  ]
+}

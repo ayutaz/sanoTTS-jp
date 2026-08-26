@@ -3077,6 +3077,7 @@ eval = [
     { name = "jiwer" },
     { name = "matplotlib" },
     { name = "pyworld" },
+    { name = "scoreq" },
     { name = "torchaudio" },
 ]
 
@@ -3089,6 +3090,7 @@ requires-dist = [
     { name = "numpy", specifier = "<2.5" },
     { name = "piper-train", extras = ["train"], editable = "../../Documents/piper-plus/src/python" },
     { name = "pyworld", marker = "extra == 'eval'", specifier = ">=0.3.4" },
+    { name = "scoreq", marker = "extra == 'eval'", specifier = ">=1.0.1" },
     { name = "soundfile", specifier = ">=0.14.0" },
     { name = "torch", specifier = ">=2.11.0" },
     { name = "torchaudio", marker = "extra == 'eval'", specifier = ">=2.11.0" },
@@ -3321,6 +3323,23 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/cf/d9/135be205d9de8783193aff9cc3bf483a03a38e4b29432c954e8cb66ac14e/scipy-1.18.1-cp315-cp315t-musllinux_1_2_x86_64.whl", hash = "sha256:179ce34a8d0fe273d8883ba59e17e052247d08973dfcb743ca52bb1cce2d60b0", size = 37521946, upload-time = "2026-08-21T23:28:35.245Z" },
     { url = "https://files.pythonhosted.org/packages/5c/a2/5b7d5270621ab7cfa3f7766067bf95dc360b5efb6394694e8143b4156e2b/scipy-1.18.1-cp315-cp315t-win_amd64.whl", hash = "sha256:5632e3ae3d09197c446310cd5187de63e28448ce22f0f67b2b93d97503c0c230", size = 37408295, upload-time = "2026-08-21T23:28:40.724Z" },
     { url = "https://files.pythonhosted.org/packages/63/ad/741c19fcb66755ff953daf9243af8480e4bf3d7fbe57583c178c7d2b6b51/scipy-1.18.1-cp315-cp315t-win_arm64.whl", hash = "sha256:eda632a7981f69730d6281f451db9c1c370993a2c0d7ddb43e2a809a2862b83a", size = 25319710, upload-time = "2026-08-21T23:28:45.713Z" },
+]
+
+[[package]]
+name = "scoreq"
+version = "1.0.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "numpy" },
+    { name = "onnxruntime" },
+    { name = "soundfile" },
+    { name = "torchaudio" },
+    { name = "tqdm" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/4a/7e/04f5c20c8b6af62b36200edf640c8225706c5cf59ae00919934fe909a86c/scoreq-1.0.1.tar.gz", hash = "sha256:21beeeb829ac2aa370058d714b249ef45f67e8696a7a0a918c79cad1e2595a2b", size = 11685, upload-time = "2025-06-27T11:40:17.142Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/ed/602c79310489137f7d4a5ad3fc61d7cc5a882d71c507cd5b2438aad92006/scoreq-1.0.1-py3-none-any.whl", hash = "sha256:7ff775833c859d21366c1a533666fa8e6f7183022725e6ef9cdb444540692cd1", size = 8646, upload-time = "2025-06-27T11:40:15.604Z" },
 ]
 
 [[package]]

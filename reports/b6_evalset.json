@@ -1,0 +1,81 @@
+{
+  "split": "heldout",
+  "target_per_class": 420,
+  "n_sentences": 221,
+  "n_excluded_contaminated": 10,
+  "n_ids": 36167,
+  "phonemes_per_class": {
+    "fricative": 1082,
+    "vowel": 7200,
+    "nasal": 1471,
+    "stop": 2743,
+    "approximant": 926,
+    "affricate": 524,
+    "devoiced": 495,
+    "geminate": 420
+  },
+  "classes_below_target": [],
+  "class_map": {
+    "vowel": [
+      "a",
+      "i",
+      "u",
+      "e",
+      "o"
+    ],
+    "devoiced": [
+      "I",
+      "U"
+    ],
+    "nasal": [
+      "m",
+      "n",
+      "ny",
+      "my",
+      "N_m",
+      "N_n",
+      "N_ng",
+      "N_uvular"
+    ],
+    "stop": [
+      "p",
+      "t",
+      "k",
+      "b",
+      "d",
+      "g",
+      "py",
+      "ty",
+      "ky",
+      "by",
+      "dy",
+      "gy",
+      "kw",
+      "gw"
+    ],
+    "fricative": [
+      "s",
+      "sh",
+      "h",
+      "hy",
+      "f",
+      "z",
+      "v"
+    ],
+    "affricate": [
+      "ts",
+      "ch",
+      "j"
+    ],
+    "approximant": [
+      "r",
+      "ry",
+      "w",
+      "y"
+    ],
+    "geminate": [
+      "cl"
+    ]
+  },
+  "note": "1 音素 >= 1 フレーム（ceil(dT)）なので音素数はフレーム数の下限"
+}

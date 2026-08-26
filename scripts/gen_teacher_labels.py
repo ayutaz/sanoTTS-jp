@@ -88,7 +88,13 @@ def build_teacher(ckpt: dict) -> SynthesizerTrn:
     res = model.load_state_dict(sd, strict=False)
     assert not res.missing_keys and not res.unexpected_keys
     model.eval()
-    apply_ema_shadow_params(model.dec, ckpt["ema_generator_state"]["shadow_params"])
+    shadow = ckpt["ema_generator_state"]["shadow_params"]
+    applied, skipped = apply_ema_shadow_params(model.dec, shadow)
+    # ⚠️ 「applied > 0」では通ってしまう。**remove_weight_norm の後に呼ぶと
+    # 53 個中 23 個だけ当たり、EMA が半分載った第三の重みになる**（D6 の実測）。
+    assert applied == len(shadow) and skipped == 0, (
+        f"EMA が全部当たっていない: applied={applied}/{len(shadow)} skipped={skipped}。"
+        "remove_weight_norm() より前に呼んでいるか確認すること")
     model.dec.remove_weight_norm()
     return model
 
@@ -122,11 +128,27 @@ def encode_intermediate(tokens: list[str], pim: dict, eos: str = "$") -> list[in
 
 ENCODE_TABLE: dict[str, list[str]] = {}
 
+EXCLUSIONS = "data/splits/exclusions_teacher_ft.txt"
+
+
+def load_exclusions(path: str = EXCLUSIONS) -> set[str]:
+    """教師の FT テキストと重複する uid（B-10）。**評価すると教師の丸暗記を測ることになる。**
+
+    `jsut/voiceactress100` と `jsut/repeat500` は本文が 98/100 共通で、
+    その VOICEACTRESS100 が教師（つくよみちゃんコーパス）の FT テキストそのもの。
+    1 文字違いなので NFKC 重複排除では併合されない。**両サブセットを丸ごと除外する。**
+    """
+    import os
+    if not os.path.exists(path):
+        raise SystemExit(f"{path} が無い。uv run python scripts/b10_write_exclusions.py で作る")
+    return {l.split("\t")[0] for l in open(path)
+            if l.strip() and not l.startswith("#")}
+
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--split", default="heldout",
-                    choices=["train", "heldout", "embedded"])
+                    help="data/splits/corpus_<split>.tsv を読む")
     ap.add_argument("--limit", type=int, default=0, help="0 = 全件")
     ap.add_argument("--out", required=True)
     ap.add_argument("--utts-per-shard", type=int, default=128)
@@ -146,11 +168,20 @@ def main() -> int:
     print("教師を構築（EMA 適用）…")
     teacher = build_teacher(ckpt)
 
+    # ⚠️ ヘッダ行 (`source\tid\ttext`) を飛ばす。飛ばさないと **seq=0 が
+    # uid="id" / text="text" という架空の発話になる**（B-10 の検査で発覚）。
     rows = [r for r in csv.reader(
-        open(f"data/splits/corpus_{args.split}.tsv"), delimiter="\t") if r and r[-1]]
+        open(f"data/splits/corpus_{args.split}.tsv"), delimiter="\t")
+        if r and r[-1] and r[0] != "source"]
+    excluded = load_exclusions()
+    n_before = len(rows)
+    rows = [r for r in rows if r[1] not in excluded]
+    n_excluded = n_before - len(rows)
     if args.limit:
         rows = rows[: args.limit]
-    print(f"{args.split}: {len(rows):,} 行")
+    print(f"{args.split}: {len(rows):,} 行"
+          f"（教師 FT テキストとの重複 {n_excluded:,} 行を除外, B-10"
+          + (f" / --limit {args.limit} で打ち切り" if args.limit else "") + "）")
 
     writer = PackWriter(args.out, utts_per_shard=args.utts_per_shard)
     rejected: list[dict] = []
@@ -169,10 +200,11 @@ def main() -> int:
             rejected.append({"uid": uid, "text": text, "stage": "g2p", "why": str(exc)})
             continue
 
-        # prosody は中間表現が持たないので、A-2 の決定に従い**教師には実値を渡す**。
-        # ⚠️ A-2 は反証を通っていない（phase-a-decisions.md §3）。
-        # 中間表現から A1/A2/A3 は復元できないので、ここではゼロを渡す。
-        # 実 prosody を使う場合は漢字文から別途取る必要がある（B-c で決着させる）。
+        # prosody はゼロ（A-2 / D-014 で決着）。デバイスは A1/A2/A3 を供給できないので
+        # 教師と生徒の条件を揃える。held-out 24 文の UTMOS は実 prosody 1.730 /
+        # zeros 1.740 で **有意差なし (p=0.72)**。
+        # ⚠️ ゼロは「prosody 無し」ではない。`prosody_proj(0) = bias` が concat される
+        # 第 3 の条件であって、それで一貫させるという決定（M-20）。
         prosody = torch.zeros(1, len(ids), 3)
 
         with torch.no_grad():
@@ -221,7 +253,7 @@ def main() -> int:
             "snapshot": snap.rstrip("/").split("/")[-1],
             "ema_applied": True, "speaker_embeddings": None, "lid": 0,
             "noise_scale": 0.0, "noise_scale_w": 0.0, "length_scale": 1.0,
-            "prosody": "zeros (A-2 未決着。B-c で決める)",
+            "prosody": "zeros (A-2 / D-014 で決着)",
         },
         "corpus": {"split": args.split, "rows_read": len(rows),
                    "mora_table_entries": len(ENCODE_TABLE)},

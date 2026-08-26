@@ -23,6 +23,7 @@ eval = [
     "jiwer>=3.0", # CER
     "matplotlib>=3.9", # dT ヒストグラム等
     "torchaudio>=2.11.0",
+    "scoreq>=1.0.1",
 ]
 
 [build-system]

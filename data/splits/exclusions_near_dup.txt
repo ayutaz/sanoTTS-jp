@@ -1,0 +1,16 @@
+# tier3: train との近重複（eval のみ推奨除外）
+# 生成: uv run python scripts/b10_write_exclusions.py / 出典: reports/b10_overlap.json
+# uid	source
+PRECEDENT130_102	jsut/precedent130
+TRAVEL1000_0022	jsut/travel1000
+TRAVEL1000_0314	jsut/travel1000
+TRAVEL1000_0600	jsut/travel1000
+TRAVEL1000_0760	jsut/travel1000
+TRAVEL1000_0955	jsut/travel1000
+sentence_collector_03136	cv/sentence_collector
+sentence_collector_03278	cv/sentence_collector
+sentence_collector_03603	cv/sentence_collector
+sentence_collector_03626	cv/sentence_collector
+sentence_collector_04664	cv/sentence_collector
+sentence_collector_07749	cv/sentence_collector
+sentence_collector_07753	cv/sentence_collector

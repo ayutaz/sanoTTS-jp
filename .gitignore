@@ -9,9 +9,13 @@
 !/data/splits/corpus_embedded.tsv
 !/data/splits/corpus_stats.json
 !/data/splits/corpus_charstats.json
+# 除外 uid のリスト（本文は含めない）。再現に要るので追跡する
+!/data/splits/exclusions_*.txt
 /labels/
 
-# reports/ は B-0 等の一次データ (JSON、数百 KB) なので追跡する
+# reports/ は B-0 等の一次データ (JSON、数百 KB) なので追跡する。
+# ただし **全コーパス行のダンプは追跡しない**（本文の再配布になる）
+/reports/durations/
 *.wav
 /reports/b5_teacher_wav/
 *.npz

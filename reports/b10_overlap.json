@@ -1,0 +1,5564 @@
+{
+ "task": "B-10 教師の学習テキストとの重複検査",
+ "repro": "uv run python scripts/b10_overlap.py",
+ "generated_at_utc": "2026-08-26T16:45:21Z",
+ "inputs": {
+  "corpus_train.tsv": {
+   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_train.tsv",
+   "rows": 20946,
+   "sha256": "1e5954e0d24d4769e0776ddb0329d76a8bfb7780600dd1a3c70f5d5d4c78d6fe"
+  },
+  "corpus_heldout.tsv": {
+   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_heldout.tsv",
+   "rows": 2325,
+   "sha256": "b77635f1a2e4c6e09dabca90e4bfafd45215651e8f1f3a2e9705bfe47b5fa953"
+  },
+  "corpus_embedded.tsv": {
+   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_embedded.tsv",
+   "rows": 183,
+   "sha256": "5269ad5428ea87cd5fa0247b23098e29d0beacb0b2c84384cb67c45962ed8465"
+  },
+  "corpus_sibdense.tsv": {
+   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_sibdense.tsv",
+   "rows": 209,
+   "sha256": "00fe201fe748280169657670954169be1d2a018cafed242b6e3a81830b8a19e8"
+  }
+ },
+ "source_breakdown": {
+  "train": {
+   "rows": 20946,
+   "by_source": {
+    "cv/sentence_collector": 8522,
+    "jsut/basic5000": 4495,
+    "rohan4600": 4140,
+    "cv/yumie-text-1": 1421,
+    "jsut/travel1000": 900,
+    "jsut/utparaphrase512": 460,
+    "ita/recitation324": 292,
+    "jsut/onomatopee300": 270,
+    "jsut/precedent130": 117,
+    "jsut/loanword128": 115,
+    "jsut/repeat500": 90,
+    "ita/emotion100": 88,
+    "jsut/countersuffix26": 23,
+    "cv/singleword-benchmark": 11,
+    "jsut/voiceactress100": 2
+   }
+  },
+  "heldout": {
+   "rows": 2325,
+   "by_source": {
+    "cv/sentence_collector": 947,
+    "jsut/basic5000": 500,
+    "rohan4600": 460,
+    "cv/yumie-text-1": 158,
+    "jsut/travel1000": 96,
+    "jsut/utparaphrase512": 52,
+    "ita/recitation324": 32,
+    "jsut/onomatopee300": 30,
+    "jsut/loanword128": 13,
+    "jsut/precedent130": 13,
+    "ita/emotion100": 10,
+    "jsut/repeat500": 10,
+    "jsut/countersuffix26": 3,
+    "cv/singleword-benchmark": 1
+   }
+  },
+  "embedded": {
+   "rows": 183,
+   "by_source": {
+    "embedded/counter": 32,
+    "embedded/notification": 22,
+    "embedded/time": 18,
+    "embedded/placename": 18,
+    "embedded/unit": 18,
+    "embedded/numstring": 18,
+    "embedded/date": 15,
+    "embedded/money": 15,
+    "embedded/personname": 15,
+    "embedded/question": 12
+   }
+  },
+  "sibdense": {
+   "rows": 209,
+   "by_source": {
+    "cv/sentence_collector": 82,
+    "jsut/basic5000": 48,
+    "cv/yumie-text-1": 29,
+    "rohan4600": 27,
+    "jsut/onomatopee300": 11,
+    "jsut/travel1000": 4,
+    "jsut/repeat500": 4,
+    "jsut/countersuffix26": 2,
+    "ita/recitation324": 1,
+    "ita/emotion100": 1
+   }
+  }
+ },
+ "split_relations": {
+  "train_cap_heldout_by_id": 0,
+  "sibdense_cap_heldout_by_id": 209,
+  "sibdense_cap_train_by_id": 0,
+  "embedded_cap_train_by_id": 0,
+  "embedded_cap_heldout_by_id": 0,
+  "note": "sibdense は heldout の部分集合。sibdense の汚染は heldout の汚染と同じ行を指す。"
+ },
+ "ft_contamination": {
+  "why_these_sources": "教師の FT コーパス = つくよみちゃんコーパス。data-sources.yml に utterances: 100 / used_only_in: tsukuyomi-6lang-v2 とあり、HF キャッシュ datasets--ayousanz--tsukuyomi-chan-ljspeech の wav が VOICEACTRESS100_NNN.wav という命名なので本文は JSUT voiceactress100。JSUT repeat500 set1 は voiceactress100 とほぼ同一本文なので同じ扱いにする。",
+  "flagged_sources": [
+   "jsut/voiceactress100",
+   "jsut/repeat500"
+  ],
+  "jsut_raw_text_available": true,
+  "jsut_raw_text": {
+   "paths": {
+    "voiceactress100": "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/jsut_text/jsut_ver1.1__voiceactress100__transcript_utf8.txt",
+    "repeat500": "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/jsut_text/jsut_ver1.1__repeat500__transcript_utf8.txt"
+   },
+   "sha256": {
+    "voiceactress100": "26019d87876fc73786d98c459f08f24c1e04eae41105f88afc57f2a910befd90",
+    "repeat500": "20f27d8fe573940604032e2fe70047855b2db467db374dd8f4e748d43b1916a1"
+   }
+  },
+  "voiceactress100_vs_repeat500_set1": {
+   "voiceactress100_unique_norm": 100,
+   "repeat500_set1_unique_norm": 100,
+   "common": 98,
+   "only_in_voiceactress100": 2,
+   "only_in_repeat500_set1": 2,
+   "note": "NFKC+空白除去後の本文集合。共通分は完全一致で併合できる。"
+  },
+  "ft_text_set_size": 102,
+  "repeat500_all_unique_norm": 100,
+  "hits": {
+   "train": {
+    "by_source_label": 92,
+    "by_source_label_breakdown": {
+     "jsut/repeat500": 90,
+     "jsut/voiceactress100": 2
+    },
+    "by_source_label_pct": 0.439,
+    "by_text_match": 92,
+    "text_match_not_caught_by_label": [],
+    "label_not_caught_by_text_match": []
+   },
+   "heldout": {
+    "by_source_label": 10,
+    "by_source_label_breakdown": {
+     "jsut/repeat500": 10
+    },
+    "by_source_label_pct": 0.43,
+    "by_text_match": 10,
+    "text_match_not_caught_by_label": [],
+    "label_not_caught_by_text_match": []
+   },
+   "embedded": {
+    "by_source_label": 0,
+    "by_source_label_breakdown": {},
+    "by_source_label_pct": 0.0,
+    "by_text_match": 0,
+    "text_match_not_caught_by_label": [],
+    "label_not_caught_by_text_match": []
+   },
+   "sibdense": {
+    "by_source_label": 4,
+    "by_source_label_breakdown": {
+     "jsut/repeat500": 4
+    },
+    "by_source_label_pct": 1.914,
+    "by_text_match": 4,
+    "text_match_not_caught_by_label": [],
+    "label_not_caught_by_text_match": []
+   }
+  },
+  "verdict": "重大: heldout に jsut/repeat500 が 10 行残っている（うち 4 行は sibdense = 生成済みラベルパックにも入っている）。",
+  "rows": {
+   "train": [
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_001",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_003",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_004",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_005",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_006",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_007",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_008",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_009",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_010",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_011",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_012",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_013",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_014",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_015",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_016",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_017",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_018",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_019",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_020",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_021",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_022",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_023",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_024",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_028",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_029",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_030",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_031",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_032",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_033",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_034",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_035",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_036",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_037",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_038",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_039",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_041",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_043",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_044",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_045",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_046",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_047",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_048",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_049",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_050",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_051",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_052",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_053",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_054",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_055",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_056",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_057",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_058",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_059",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_060",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_061",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_063",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_064",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_065",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_066",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_067",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_068",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_069",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_070",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_071",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_073",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_074",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_075",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_076",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_077",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_078",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_079",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_080",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_081",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_082",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_083",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_084",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_085",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_086",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_087",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_088",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_089",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_090",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_091",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_092",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_093",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_094",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_096",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_097",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_098",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_099",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/voiceactress100",
+     "id": "VOICEACTRESS100_004",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "train",
+     "source": "jsut/voiceactress100",
+     "id": "VOICEACTRESS100_067",
+     "text": "<redacted: corpus text>"
+    }
+   ],
+   "heldout": [
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_002",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_025",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_026",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_027",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_040",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_042",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_062",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_072",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_095",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_100",
+     "text": "<redacted: corpus text>"
+    }
+   ],
+   "embedded": [],
+   "sibdense": [
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_027",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_040",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_062",
+     "text": "<redacted: corpus text>"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_072",
+     "text": "<redacted: corpus text>"
+    }
+   ]
+  }
+ },
+ "leakage": {
+  "heldout_vs_train": {
+   "n_query_rows": 2325,
+   "exact_match_nfkc_nospace": {
+    "count": 0,
+    "pairs": []
+   },
+   "exact_match_after_punct_strip_only": {
+    "count": 0,
+    "pairs": []
+   },
+   "jaccard5gram": {
+    "max": 0.6875,
+    "n_ge_0.70": 0,
+    "n_ge_0.50": 9,
+    "n_ge_0.30": 70,
+    "top": [
+     {
+      "jaccard5gram": 0.6875,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0314",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0169",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.6562,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04664",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06233",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.6364,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07749",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07743",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.6111,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0600",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0379",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.6098,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03626",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03625",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.5417,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03278",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03279",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.5385,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07753",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01280",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.52,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0955",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0691",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.5,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03136",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02815",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4643,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06986",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06982",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4545,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06544",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05064",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4444,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03603",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06980",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4444,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08851",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "ita/recitation324",
+       "id": "RECITATION324_121",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4444,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0091",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0268",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.434,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03854",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04647",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4286,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02046",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04360",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4231,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0590",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1772",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4211,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0047",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0939",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4118,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01223",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08279",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4118,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0345",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0095",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4118,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0371",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0268",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.4048,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03952",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02157",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3929,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_071",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_105",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3846,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08161",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01530",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3846,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0022",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01087",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3846,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0233",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0689",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3784,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08823",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08824",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.375,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06314",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01534",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.375,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04132",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08279",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3684,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0868",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "ita/emotion100",
+       "id": "EMOTION100_057",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3673,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07737",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04715",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3571,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05065",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07977",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3571,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03467",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_00816",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3542,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08948",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07454",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3529,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04137",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04138",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3529,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0821",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0347",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3529,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0599",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0354",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.35,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0300",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1996",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3488,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07830",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01772",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3438,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08561",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04221",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_09301",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01600",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05586",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05587",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04387",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0624",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0722",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0555",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_088",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_110",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0760",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02669",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0386",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0689",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0147",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0263",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/utparaphrase512",
+       "id": "UT-PARAPHRASE-sent223-phrase1",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/utparaphrase512",
+       "id": "UT-PARAPHRASE-sent097-phrase1",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "heldout",
+       "source": "jsut/utparaphrase512",
+       "id": "UT-PARAPHRASE-sent223-phrase2",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/utparaphrase512",
+       "id": "UT-PARAPHRASE-sent097-phrase2",
+       "text": "<redacted: corpus text>"
+      }
+     }
+    ]
+   },
+   "substring_containment": {
+    "count": 17,
+    "min_len_chars": 5,
+    "meaningful_min_contained_len": 8,
+    "count_meaningful": 12,
+    "pairs": [
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03626",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03625",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 45,
+      "len_b": 29,
+      "contained_len": 29,
+      "meaningful": true
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04664",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06233",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 36,
+      "len_b": 25,
+      "contained_len": 25,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07753",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06185",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 18,
+      "len_b": 38,
+      "contained_len": 18,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07753",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01280",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 18,
+      "len_b": 30,
+      "contained_len": 18,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07753",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06273",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 18,
+      "len_b": 41,
+      "contained_len": 18,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03603",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06980",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 17,
+      "len_b": 36,
+      "contained_len": 17,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_102",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_039",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 10,
+      "len_b": 23,
+      "contained_len": 10,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_102",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_123",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 10,
+      "len_b": 23,
+      "contained_len": 10,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_102",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_030",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 10,
+      "len_b": 23,
+      "contained_len": 10,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_102",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/precedent130",
+       "id": "PRECEDENT130_105",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 10,
+      "len_b": 24,
+      "contained_len": 10,
+      "meaningful": true
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0022",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01087",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 17,
+      "len_b": 9,
+      "contained_len": 9,
+      "meaningful": true
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "heldout",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0760",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02669",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 19,
+      "len_b": 9,
+      "contained_len": 9,
+      "meaningful": true
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06184",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08020",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 7,
+      "len_b": 31,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02628",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05087",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 7,
+      "len_b": 18,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "query_in_train",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02628",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_00212",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 7,
+      "len_b": 17,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "heldout",
+       "source": "rohan4600",
+       "id": "ROHAN4600_1656",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "ita/emotion100",
+       "id": "EMOTION100_098",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 26,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "heldout",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05091",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01370",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 10,
+      "len_b": 5,
+      "contained_len": 5,
+      "meaningful": false
+     }
+    ]
+   }
+  },
+  "embedded_vs_train": {
+   "n_query_rows": 183,
+   "exact_match_nfkc_nospace": {
+    "count": 0,
+    "pairs": []
+   },
+   "exact_match_after_punct_strip_only": {
+    "count": 0,
+    "pairs": []
+   },
+   "jaccard5gram": {
+    "max": 0.4286,
+    "n_ge_0.70": 0,
+    "n_ge_0.50": 0,
+    "n_ge_0.30": 7,
+    "top": [
+     {
+      "jaccard5gram": 0.4286,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_014",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_09457",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3636,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/question",
+       "id": "EMB_question_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0067",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_015",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0011",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_005",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0789",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_028",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0682",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_008",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07134",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_016",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03537",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2857,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_001",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06870",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2727,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06096",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2632,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/numstring",
+       "id": "EMB_numstring_015",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_4216",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2143,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/question",
+       "id": "EMB_question_010",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1481",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_003",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06817",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1905,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/personname",
+       "id": "EMB_personname_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0288",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1875,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/question",
+       "id": "EMB_question_002",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0067",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1739,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/time",
+       "id": "EMB_time_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2718",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1667,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01990",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1579,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_001",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1024",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1579,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/numstring",
+       "id": "EMB_numstring_011",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0790",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.15,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/money",
+       "id": "EMB_money_006",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0790",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.15,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_006",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03240",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1481,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/money",
+       "id": "EMB_money_008",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2260",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1429,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_031",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0454",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1429,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_011",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05746",
+       "text": "広島市中区"
+      }
+     },
+     {
+      "jaccard5gram": 0.1429,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/question",
+       "id": "EMB_question_005",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0966",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1379,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/time",
+       "id": "EMB_time_003",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2718",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/numstring",
+       "id": "EMB_numstring_010",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01351",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/numstring",
+       "id": "EMB_numstring_012",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02007",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1333,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/question",
+       "id": "EMB_question_012",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0063",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.125,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_003",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04009",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.125,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_004",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06933",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1176,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/money",
+       "id": "EMB_money_003",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03749",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1111,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_012",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04009",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1053,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_010",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1957",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1053,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_005",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03804",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0952,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_022",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_1601",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0952,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_026",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1957",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0909,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_008",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0069",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.087,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/time",
+       "id": "EMB_time_017",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_2644",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.087,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_013",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01351",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0833,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_002",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05151",
+       "text": "大阪市北区"
+      }
+     },
+     {
+      "jaccard5gram": 0.0833,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/numstring",
+       "id": "EMB_numstring_014",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0162",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0769,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/notification",
+       "id": "EMB_notification_009",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2813",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.069,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_030",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_3013",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0667,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_020",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0170",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0667,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/unit",
+       "id": "EMB_unit_002",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0186",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0667,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/unit",
+       "id": "EMB_unit_018",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_2471",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0667,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/question",
+       "id": "EMB_question_004",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0352",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0625,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/time",
+       "id": "EMB_time_006",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0995",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0625,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_003",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07063",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.0625,
+      "a": {
+       "split": "embedded",
+       "source": "embedded/counter",
+       "id": "EMB_counter_014",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1922",
+       "text": "<redacted: corpus text>"
+      }
+     }
+    ]
+   },
+   "substring_containment": {
+    "count": 12,
+    "min_len_chars": 5,
+    "meaningful_min_contained_len": 8,
+    "count_meaningful": 0,
+    "pairs": [
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06096",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 15,
+      "len_b": 7,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_007",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04756",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 15,
+      "len_b": 7,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_014",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_09457",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 11,
+      "len_b": 7,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_016",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03537",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 14,
+      "len_b": 7,
+      "contained_len": 7,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_001",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06870",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 11,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_003",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06817",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 14,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_004",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06933",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 20,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_005",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03804",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 23,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_005",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03795",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 23,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_008",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07134",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 10,
+      "len_b": 6,
+      "contained_len": 6,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_002",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05151",
+       "text": "大阪市北区"
+      },
+      "len_a": 16,
+      "len_b": 5,
+      "contained_len": 5,
+      "meaningful": false
+     },
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "embedded",
+       "source": "embedded/placename",
+       "id": "EMB_placename_011",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05746",
+       "text": "広島市中区"
+      },
+      "len_a": 11,
+      "len_b": 5,
+      "contained_len": 5,
+      "meaningful": false
+     }
+    ]
+   }
+  },
+  "sibdense_vs_train": {
+   "n_query_rows": 209,
+   "exact_match_nfkc_nospace": {
+    "count": 0,
+    "pairs": []
+   },
+   "exact_match_after_punct_strip_only": {
+    "count": 0,
+    "pairs": []
+   },
+   "jaccard5gram": {
+    "max": 0.6098,
+    "n_ge_0.70": 0,
+    "n_ge_0.50": 1,
+    "n_ge_0.30": 7,
+    "top": [
+     {
+      "jaccard5gram": 0.6098,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03626",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03625",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3784,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08823",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08824",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3571,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05065",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07977",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3488,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07830",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01772",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.3256,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05061",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05064",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.325,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06199",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08214",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.32,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03628",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08954",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2941,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08556",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06286",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2941,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08197",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07532",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2903,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06252",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04115",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2821,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01235",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06292",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2692,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04915",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_00417",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2667,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01286",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04238",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2615,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03647",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03646",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2593,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01219",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03623",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2273,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2887",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1604",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2258,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05710",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04653",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2222,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0418",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0634",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2222,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07499",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01291",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2174,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02285",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01647",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2143,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/onomatopee300",
+       "id": "ONOMATOPEE300_157",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04518",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2093,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01269",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07833",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.2,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03644",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06233",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.193,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08552",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08551",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1923,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0163",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0893",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1875,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02646",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04085",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1852,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02283",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0168",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1714,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02149",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03708",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1667,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03869",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04450",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1667,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_04559",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_00335",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1667,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2196",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_4785",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1642,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06681",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05919",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1613,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08701",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07239",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1609,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/yumie-text-1",
+       "id": "yumie-text-1_00835",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/yumie-text-1",
+       "id": "yumie-text-1_00838",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1489,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07519",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03888",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1471,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2899",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1606",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1429,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2150",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2530",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1392,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07436",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07446",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1364,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_05470",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_08913",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1333,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0680",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/travel1000",
+       "id": "TRAVEL1000_0179",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1304,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07615",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07614",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1304,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0620",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_07405",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.129,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_4688",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0329",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.129,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02171",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_02172",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1286,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_06431",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_01763",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.125,
+      "a": {
+       "split": "sibdense",
+       "source": "rohan4600",
+       "id": "ROHAN4600_3665",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_1035",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.125,
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03165",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03164",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.119,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_1953",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "rohan4600",
+       "id": "ROHAN4600_4110",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1154,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_2069",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_4823",
+       "text": "<redacted: corpus text>"
+      }
+     },
+     {
+      "jaccard5gram": 0.1154,
+      "a": {
+       "split": "sibdense",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0451",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "jsut/basic5000",
+       "id": "BASIC5000_0721",
+       "text": "<redacted: corpus text>"
+      }
+     }
+    ]
+   },
+   "substring_containment": {
+    "count": 1,
+    "min_len_chars": 5,
+    "meaningful_min_contained_len": 8,
+    "count_meaningful": 1,
+    "pairs": [
+     {
+      "direction": "train_in_query",
+      "a": {
+       "split": "sibdense",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03626",
+       "text": "<redacted: corpus text>"
+      },
+      "b": {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_03625",
+       "text": "<redacted: corpus text>"
+      },
+      "len_a": 45,
+      "len_b": 29,
+      "contained_len": 29,
+      "meaningful": true
+     }
+    ]
+   }
+  }
+ },
+ "teacher_text_check": {
+  "checked_and_confirmed": [
+   {
+    "what": "FT コーパス (つくよみちゃんコーパス) の本文同定",
+    "evidence": [
+     "piper-plus/data-sources.yml: id=tsukuyomi-chan-corpus, languages=[ja], speakers=1, utterances=100, used_only_in=[tsukuyomi-6lang-v2, tsukuyomi-mb-istft]",
+     "HF キャッシュ /Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech の snapshot に wav が 24 個あり、すべて VOICEACTRESS100_NNN.wav 形式 (例: VOICEACTRESS100_001.wav)",
+     "→ FT の本文は JSUT voiceactress100 の 100 文と同定した"
+    ],
+    "caveat": "ローカルキャッシュは 24/100 wav の部分キャッシュ。残り 76 件のファイル名は未確認 (新規ダウンロードはしていない)。100 件という数は data-sources.yml の記載による。"
+   },
+   {
+    "what": "評価テキスト piper-plus/scripts/evaluation/evaluation_texts_ja.txt",
+    "evidence": [
+     "52 行。学習データではなく手書きの評価文。下記 evaluation_texts_ja で照合した"
+    ]
+   }
+  ],
+  "not_checked": [
+   {
+    "what": "教師の事前学習テキスト (6 言語 497,519 発話) の日本語部分",
+    "why": "MOE-Speech 20speakers (data-sources.yml: utterances=60,148) の書き起こしがローカルに無い。HF キャッシュにも datasets--ayousanz--moe-speech-* は無い。新規ダウンロードは禁止のため **未検査**。",
+    "risk": "MOE-Speech は音声コーパスで、書き起こしが JSUT / ITA / ROHAN 由来の朗読文である可能性は否定できない。本 split の 23,271 行のうちどれだけが教師の事前学習に見られているかは不明。"
+   },
+   {
+    "what": "他 5 言語 (en/zh/es/fr/pt) の学習テキスト",
+    "why": "日本語 split と本文が重なることは無いので検査不要と判断した"
+   }
+  ],
+  "evaluation_texts_ja": {
+   "path": "/Users/s19447/Documents/piper-plus/scripts/evaluation/evaluation_texts_ja.txt",
+   "sha256": "d0706f0d222442a82dacbdf71bb5e72162dc4540a1305c8713c21b81397722b8",
+   "unique_lines": 31,
+   "hits": {
+    "train": {
+     "count": 1,
+     "rows": [
+      {
+       "split": "train",
+       "source": "cv/sentence_collector",
+       "id": "sentence_collector_00412",
+       "text": "<redacted: corpus text>"
+      }
+     ]
+    },
+    "heldout": {
+     "count": 0,
+     "rows": []
+    },
+    "embedded": {
+     "count": 1,
+     "rows": [
+      {
+       "split": "embedded",
+       "source": "embedded/numstring",
+       "id": "EMB_numstring_004",
+       "text": "<redacted: corpus text>"
+      }
+     ]
+    },
+    "sibdense": {
+     "count": 0,
+     "rows": []
+    }
+   }
+  }
+ },
+ "existing_report_check": {
+  "b5_teacher_baseline": {
+   "path": "/Users/s19447/Desktop/saanoTTS-jp/reports/b5_teacher_baseline.json",
+   "n_utterances": 24,
+   "n_from_teacher_ft_text": 0,
+   "n_found_in_train": 0,
+   "n_found_in_heldout": 24,
+   "verdict": "教師ベースライン UTMOS は FT テキストを含まない"
+  },
+  "b5_human_control": {
+   "note": "人間音声の分母 (n=24, UTMOS mean 2.3047) は tsukuyomi-chan-ljspeech の VOICEACTRESS100 wav。これは教師の FT コーパスそのもの。D-013 の設計どおりで汚染ではないが、**教師ベースラインの合成文とは別のテキスト**であることに注意 (人間 24 文 != 教師 24 文)。"
+  }
+ },
+ "labelpack_impact": {
+  "path": "/Users/s19447/Desktop/saanoTTS-jp/data/pack_sibdense",
+  "utterances_in_pack": 209,
+  "contaminated_uids_in_pack": [
+   "REPEAT500_set1_027",
+   "REPEAT500_set1_040",
+   "REPEAT500_set1_062",
+   "REPEAT500_set1_072"
+  ],
+  "contaminated_pct": 1.91,
+  "unexpected_uids_in_pack": [
+   "id"
+  ],
+  "sibdense_rows_missing_from_pack": [
+   "COUNTERSUFFIX26_05"
+  ],
+  "note": "B-10 の範囲外だが検査中に見つかった別件: pack の seq=0 が TSV の ヘッダ行 (uid='id', text='text') を発話として取り込んでいる。 scripts/gen_teacher_labels.py:149 の csv.reader がヘッダを skip していないため。--limit / utts の数え方が 1 ずれ、 実データ 1 行 (COUNTERSUFFIX26_05) が落ちている。"
+ },
+ "exclusion_list": {
+  "tiers": {
+   "tier1_teacher_ft_text": {
+    "severity": "must_exclude",
+    "applies_to": "eval からは必須。train からも両サブセット丸ごと落とすのが正しい運用。",
+    "count": 106,
+    "by_split": {
+     "train": 92,
+     "heldout": 10,
+     "sibdense": 4
+    },
+    "rows": [
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_001",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_003",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_004",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_005",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_006",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_007",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_008",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_009",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_010",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_011",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_012",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_013",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_014",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_015",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_016",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_017",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_018",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_019",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_020",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_021",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_022",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_023",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_024",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_028",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_029",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_030",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_031",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_032",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_033",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_034",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_035",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_036",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_037",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_038",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_039",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_041",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_043",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_044",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_045",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_046",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_047",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_048",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_049",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_050",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_051",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_052",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_053",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_054",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_055",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_056",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_057",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_058",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_059",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_060",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_061",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_063",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_064",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_065",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_066",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_067",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_068",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_069",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_070",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_071",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_073",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_074",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_075",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_076",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_077",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_078",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_079",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_080",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_081",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_082",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_083",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_084",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_085",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_086",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_087",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_088",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_089",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_090",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_091",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_092",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_093",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_094",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_096",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_097",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_098",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_099",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/voiceactress100",
+      "id": "VOICEACTRESS100_004",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "train",
+      "source": "jsut/voiceactress100",
+      "id": "VOICEACTRESS100_067",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_002",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_025",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_026",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_027",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_040",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_042",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_062",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_072",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_095",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_100",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "sibdense",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_027",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "sibdense",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_040",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "sibdense",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_062",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     },
+     {
+      "split": "sibdense",
+      "source": "jsut/repeat500",
+      "id": "REPEAT500_set1_072",
+      "text": "<redacted: corpus text>",
+      "reason": "teacher_ft_text(voiceactress100/repeat500)"
+     }
+    ]
+   },
+   "tier2_exact_dup_with_train": {
+    "severity": "must_exclude",
+    "count": 0,
+    "rows": []
+   },
+   "tier3_near_dup_or_substring_with_train": {
+    "severity": "recommended_exclude",
+    "applies_to": "eval split のみ。train 側は残してよい。",
+    "thresholds": {
+     "jaccard5gram": 0.5,
+     "substring_min_contained_len_chars": 8
+    },
+    "count": 14,
+    "by_split": {
+     "heldout": 13,
+     "sibdense": 1
+    },
+    "rows": [
+     {
+      "split": "heldout",
+      "source": "jsut/travel1000",
+      "id": "TRAVEL1000_0314",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.6875"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_04664",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.6562"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_07749",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.6364"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/travel1000",
+      "id": "TRAVEL1000_0600",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.6111"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_03626",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.6098"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_03278",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.5417"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_07753",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.5385"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/travel1000",
+      "id": "TRAVEL1000_0955",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.52"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_03136",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.5"
+     },
+     {
+      "split": "heldout",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_03603",
+      "text": "<redacted: corpus text>",
+      "reason": "substring_query_in_train_with_sentence_collector_06980_len17"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/precedent130",
+      "id": "PRECEDENT130_102",
+      "text": "<redacted: corpus text>",
+      "reason": "substring_query_in_train_with_PRECEDENT130_039_len10"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/travel1000",
+      "id": "TRAVEL1000_0022",
+      "text": "<redacted: corpus text>",
+      "reason": "substring_train_in_query_with_sentence_collector_01087_len9"
+     },
+     {
+      "split": "heldout",
+      "source": "jsut/travel1000",
+      "id": "TRAVEL1000_0760",
+      "text": "<redacted: corpus text>",
+      "reason": "substring_train_in_query_with_sentence_collector_02669_len9"
+     },
+     {
+      "split": "sibdense",
+      "source": "cv/sentence_collector",
+      "id": "sentence_collector_03626",
+      "text": "<redacted: corpus text>",
+      "reason": "near_dup_with_train_jaccard5gram=0.6098"
+     }
+    ]
+   }
+  },
+  "union": {
+   "count": 120,
+   "by_split": {
+    "train": 92,
+    "heldout": 23,
+    "sibdense": 5
+   },
+   "rows": [
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_001",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_003",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_004",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_005",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_006",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_007",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_008",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_009",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_010",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_011",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_012",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_013",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_014",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_015",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_016",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_017",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_018",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_019",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_020",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_021",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_022",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_023",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_024",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_028",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_029",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_030",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_031",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_032",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_033",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_034",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_035",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_036",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_037",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_038",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_039",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_041",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_043",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_044",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_045",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_046",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_047",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_048",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_049",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_050",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_051",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_052",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_053",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_054",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_055",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_056",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_057",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_058",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_059",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_060",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_061",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_063",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_064",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_065",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_066",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_067",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_068",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_069",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_070",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_071",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_073",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_074",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_075",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_076",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_077",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_078",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_079",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_080",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_081",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_082",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_083",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_084",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_085",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_086",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_087",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_088",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_089",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_090",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_091",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_092",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_093",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_094",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_096",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_097",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_098",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_099",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/voiceactress100",
+     "id": "VOICEACTRESS100_004",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "train",
+     "source": "jsut/voiceactress100",
+     "id": "VOICEACTRESS100_067",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_002",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_025",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_026",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_027",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_040",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_042",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_062",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_072",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_095",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_100",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_027",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_040",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_062",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "sibdense",
+     "source": "jsut/repeat500",
+     "id": "REPEAT500_set1_072",
+     "text": "<redacted: corpus text>",
+     "reason": "teacher_ft_text(voiceactress100/repeat500)"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/travel1000",
+     "id": "TRAVEL1000_0314",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.6875"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_04664",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.6562"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_07749",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.6364"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/travel1000",
+     "id": "TRAVEL1000_0600",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.6111"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_03626",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.6098"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_03278",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.5417"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_07753",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.5385"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/travel1000",
+     "id": "TRAVEL1000_0955",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.52"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_03136",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.5"
+    },
+    {
+     "split": "heldout",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_03603",
+     "text": "<redacted: corpus text>",
+     "reason": "substring_query_in_train_with_sentence_collector_06980_len17"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/precedent130",
+     "id": "PRECEDENT130_102",
+     "text": "<redacted: corpus text>",
+     "reason": "substring_query_in_train_with_PRECEDENT130_039_len10"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/travel1000",
+     "id": "TRAVEL1000_0022",
+     "text": "<redacted: corpus text>",
+     "reason": "substring_train_in_query_with_sentence_collector_01087_len9"
+    },
+    {
+     "split": "heldout",
+     "source": "jsut/travel1000",
+     "id": "TRAVEL1000_0760",
+     "text": "<redacted: corpus text>",
+     "reason": "substring_train_in_query_with_sentence_collector_02669_len9"
+    },
+    {
+     "split": "sibdense",
+     "source": "cv/sentence_collector",
+     "id": "sentence_collector_03626",
+     "text": "<redacted: corpus text>",
+     "reason": "near_dup_with_train_jaccard5gram=0.6098"
+    }
+   ]
+  },
+  "heldout_after_exclusion": 2302,
+  "heldout_must_exclude_only": 10,
+  "sibdense_ids_to_drop": [
+   "REPEAT500_set1_027",
+   "REPEAT500_set1_040",
+   "REPEAT500_set1_062",
+   "REPEAT500_set1_072",
+   "sentence_collector_03626"
+  ]
+ },
+ "caveats": [
+  "部分文字列検査は 5-gram 転置インデックスを候補生成に使うので、包含される側が 5 文字未満のペアは構造上見つからない (MEANINGFUL_SUB_LEN=8 なので除外リストには影響しない)。",
+  "Jaccard は句読点・長音記号・括弧を落とした文字 5-gram の集合 Jaccard。split 構築時 (scripts/b0/build_corpus.py) が J>=0.70 の heldout 行をすでに train へ移しているため、本検査で J>=0.70 が 0 件なのは想定内であり、「リークが無い」ことの証明ではない。",
+  "教師の事前学習テキスト (MOE-Speech 20speakers 60,148 発話ほか) との重複は**未検査**。書き起こしが手元に無く、新規ダウンロードが禁止のため。この 23,271 行のうち教師が事前学習で見た文の割合は不明。",
+  "つくよみちゃんコーパスの HF キャッシュは 24/100 wav の部分キャッシュ。残り 76 件のファイル名は未確認。100 件という総数は data-sources.yml の記載による。"
+ ],
+ "elapsed_sec": 0.25
+}

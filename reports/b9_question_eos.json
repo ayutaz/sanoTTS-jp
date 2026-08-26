@@ -1,0 +1,16 @@
+{
+  "task": "疑問 EOS 4 種をコーパスに追加（D-016）",
+  "n_sentences": 47,
+  "by_eos": {
+    "?": 15,
+    "?!": 12,
+    "?.": 10,
+    "?~": 10
+  },
+  "to_train": 39,
+  "to_heldout": 8,
+  "source_tag": "curated/question_eos",
+  "repro": "uv run python scripts/b9_add_question_eos.py --apply",
+  "note": "`?~` は U+301C WAVE DASH でも通るように kana_g2p.normalize_input() を足してある（U+FF5E に寄せる）",
+  "applied": true
+}

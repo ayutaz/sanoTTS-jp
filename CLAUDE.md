@@ -38,7 +38,10 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
                 width 32              width 48, 40ch出力         width 76, 1024pt iSTFT/hop 256
 ```
 
-- 合計 567,008 params / int8 blob 2個 679,832 B / 45 MMAC per audio-second
+- 論文（英語・語彙 157）で 567,008 params / int8 blob 2個 679,832 B / 45 MMAC per audio-second
+- **日本語は語彙 57 なので 559,008 params**（D-016）。⚠️ **MMAC は 1 も減らない**
+  （埋め込みは表引き）。生徒は教師の音素IDを直接使えないので
+  `src/saanotts_jp/vocab.py` の `TEACHER_TO_STUDENT` を通すこと
 - 学習専用の `z→c` エンコーダ `Eρ` (14,952) は**デプロイ時に実行されない**
   （acoustic が c を直接出す）。パラメータ数の勘定に入れないこと
 - z-line 版（1.4 M 級, quality tier）は `Eρ` を省き 192ch の z を直接ターゲットにし、
@@ -151,6 +154,22 @@ S_ja = {s, sh, ts, ch, z, j, h, hy, f, I, U}
 
 `β` は聴取で決める（論文も同様）。**音素クラス別スペクトル平坦度プローブは
 最初から評価パイプラインに入れること** — 集約スコアだけでは検出できない。
+設定は `src/saanotts_jp/flatness.py` に凍結済み
+（`n_fft=1024 / hop=256 / guard=0 / power=1`、教師ベースライン付き）。
+`devoiced (I,U) vs vowel` は AUC 0.8466 (n=495) で、`S_ja` に `I` `U` を入れる判断を支える。
+⚠️ **SFM は必ず帯域内 RMS と併記する。** `geminate` の基準値は閉鎖区間の
+int16 量子化床を測っていて、教師の性質ではない（M-27）。
+
+**評価の主指標は SCOREQ synthetic/nr、UTMOS を併記する（D-020）。**
+`scoreq==1.0.1` は PyPI にあり導入済み。ラッパは `src/saanotts_jp/scoreq_metric.py`
+を通すこと（`scoreq.Scoreq` を直接呼ぶと torchaudio 2.13 が torchcodec を要求して落ちる）。
+⚠️ **`data_domain="natural"` は使わない** — 伝送劣化モデルで、合成音声を実人間より
+高く採点し UTMOS と無相関になる。
+
+| 指標 | 教師 | 実人間 | 教師/人間 |
+|---|---:|---:|---:|
+| SCOREQ synthetic/nr | 2.0488 | 2.4983 | **0.820** |
+| UTMOS | 1.7479 | 2.3047 | **0.758** |
 
 **評価は「教師比」と「人間音声比」の両方で報告する（D-013）。**
 UTMOS は日本語でスケールが圧縮されており、**実人間の日本語音声ですら 2.305 しか出ない**。
@@ -245,7 +264,7 @@ uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する
 | MB-iSTFT decoder | `src/python/piper_train/vits/mb_istft.py` |
 | 日本語音素表 | `src/python_run/piper_plus/phonemize/jp_id_map.py` |
 | 音素→PUA マップ（C++ と一致必須） | `src/python/jp_phoneme_map.py` |
-| UTMOS22 / Whisper WER / PESQ / STOI | `scripts/audio_quality_metrics.py` （**SCOREQ は未実装、追加が必要**） |
+| UTMOS22 / Whisper WER / PESQ / STOI | `scripts/audio_quality_metrics.py` （SCOREQ は本リポジトリの `src/saanotts_jp/scoreq_metric.py`） |
 | MOS リスニング調査 | `tools/benchmark/` (`docs/benchmark-mos.md`) |
 | 日本語評価文のシード | `scripts/evaluation/evaluation_texts_ja.txt` |
 | データセットのライセンス台帳 | `data-sources.yml` |
@@ -412,20 +431,31 @@ intersperse padding が入る**（`len(ids) ≒ 2*tokens + 3`）。これを飛�
 **この経路にしたことで、旧 B-1（かな無し行 5.36% が中国語音素になる問題）と
 旧 B-2（prosody の無警告ズレ）は構造的に消えた。**
 
+4. **教師の FT テキスト 102 uid を除外する** — `data/splits/exclusions_teacher_ft.txt`。
+   `jsut/voiceactress100` と `jsut/repeat500` は教師の学習テキストそのもの（D-024）
+5. **長さは `max_spec_length=700`（8.13 秒）で切る** — 4.31% が該当。
+   `max_phoneme_ids=400` は 0.11% しか効かない（D-017）
+
 ⚠️ **入力サニタイズは別途必要。** 未知語は誤読ではなく無音で脱落する（下記）。
+記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
+`kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
 ## 未解決のブロッカー（優先順）
 
-**Phase A / B / C の実装は完了。** 現在地は [`docs/README.md`](docs/README.md)。
+**Phase A / B / C の実装と、検証タスク B-0 〜 B-11 はすべて決着した。**
+設計値は D-016 〜 D-025 として凍結してある。現在地は [`docs/README.md`](docs/README.md)。
 
-1. **【本学習の前】論文に値が無いハイパーパラメータ。**
-   `λ₂ / λ_n / λ_Δ / λ_s`（式3）と `λ_T`（式2）は暫定 1.0。判別器の構造も推測
-2. **【vast.ai】本番のラベル一括生成と本学習。**
-   先に `scripts/b4_device_parity.py --device cuda` を走らせること（D-015）
-3. **567 K で日本語が実用に足るか。** 英語実績 SCOREQ 2.54 / WER 14.8%。
-   日本語 CER は未知。**1.4 M を先に作って上限を測り、差分で判断する**
-4. **SCOREQ が未導入。** 論文の主指標。UTMOS だけで判断しないこと
-5. **ESP32 実機の RAM とレイテンシ。** 解析では余裕（I2S 逐次出力で 96 KB、M-16）だが、
+1. **【次】vast.ai での本番ラベル生成と本学習。** 手順は
+   [`docs/vastai-runbook.md`](docs/vastai-runbook.md)。
+   **先に `scripts/b4_device_parity.py --device cuda` を通すこと**（D-015）。
+   ⚠️ `pyproject.toml` の piper-plus 依存は**ローカル絶対パス**なので、
+   リモートでは `deploy/retarget_sources.py` で向け直す必要がある
+2. **学習ステップ数 / lr スケジュール / バッチサイズが論文に無い。**
+   `λ_Δ / λ_s / λ_T` も探索対象（初期値は勾配整合で決めた、D-021）
+3. **567 K で日本語が実用に足るか。** 目標は SCOREQ **1.112** / UTMOS 1.107
+   （論文の英語 embedded の教師比 0.5427 を当てはめた値、D-020）。
+   **1.4 M を先に作って上限を測り、差分で判断する**
+4. **ESP32 実機の RAM とレイテンシ。** 解析では余裕（I2S 逐次出力で 96 KB、M-16）だが、
    C99 コアと量子化済み生徒が出来るまで測れない
 
 ## ⚠️ 未知語は誤読ではなく「無音で消える」

@@ -16,10 +16,10 @@ description: Use when running the piper-plus teacher model in saanoTTS-jp — ge
 | # | 間違い | 結果 | 正しく |
 |---|---|---|---|
 | 1 | `sys.path` を通さず import | v1.13.0 相当の **stale な `piper_train`** を掴む | `uv run` を使う。スクリプトは `__file__` を assert |
-| 2 | EMA を適用しない | `yT` の SNR が **12.53 dB** しかない | `apply_ema_shadow_params()` を **`remove_weight_norm()` の前に** |
+| 2 | EMA を適用しない | `yT` の SNR が **14.5 dB** しかない（`zT`/`dT` は bit 一致） | `apply_ema_shadow_params()` を **`remove_weight_norm()` の前に**。戻り値を `applied == len(shadow) and skipped == 0` で assert する |
 | 3 | `speaker_embeddings=<npy>` を渡す | **bit 完全に無視される**（`spk_proj` が無い） | `None` を渡す |
 | 4 | `lid` を省略 | 総フレーム数が変わり `z` が別物 | `lid=torch.tensor([0])`（ja） |
-| 5 | `prosody_features=None` / ゼロ | `prosody_proj(0)=bias` が concat され**総フレームが 3 通り変わる** | 実 A1/A2/A3 を渡す |
+| 5 | prosody の条件を**混ぜる** | `prosody_proj(0)=bias` が concat され**None / ゼロ / 実値で総フレームが 3 通り変わる** | 本プロジェクトは**ゼロで統一**（D-014）。デバイスが A1/A2/A3 を供給できないため。UTMOS に有意差なし (p=0.72) |
 | 6 | 自前で音素→ID 変換 | intersperse padding が抜け **2.4 倍速** | `text_to_phoneme_ids_and_prosody` に `language_id_map` を渡す |
 
 ## 最小の正しい呼び出し
@@ -40,7 +40,11 @@ result = model.load_state_dict(sd, strict=False)
 assert not result.missing_keys and not result.unexpected_keys   # 0 / 0 になるはず
 model.eval()
 
-apply_ema_shadow_params(model.dec, ckpt["ema_generator_state"]["shadow_params"])  # ← 順序が命
+shadow = ckpt["ema_generator_state"]["shadow_params"]
+applied, skipped = apply_ema_shadow_params(model.dec, shadow)   # ← 順序が命
+# ⚠️ **「applied > 0」では通ってしまう。** remove_weight_norm() の後に呼ぶと
+# 53 個中 23 個だけ当たり、EMA が半分載った「第三の重み」になる（D6 の実測）
+assert applied == len(shadow) and skipped == 0, (applied, len(shadow), skipped)
 model.dec.remove_weight_norm()
 
 ids, prosody = text_to_phoneme_ids_and_prosody(

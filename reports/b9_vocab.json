@@ -1,0 +1,1115 @@
+{
+ "n_rows": 23501,
+ "n_ok": 23446,
+ "n_rejected": 55,
+ "num_symbols": 173,
+ "n_used": 54,
+ "n_unused": 119,
+ "used": [
+  {
+   "id": 0,
+   "tok": "_",
+   "n": 1534786,
+   "share": 0.5002656503936516
+  },
+  {
+   "id": 10,
+   "tok": "a",
+   "n": 180561,
+   "share": 0.058854111322834655
+  },
+  {
+   "id": 14,
+   "tok": "o",
+   "n": 158129,
+   "share": 0.0515423694450547
+  },
+  {
+   "id": 8,
+   "tok": "[",
+   "n": 141808,
+   "share": 0.04622251659255618
+  },
+  {
+   "id": 11,
+   "tok": "i",
+   "n": 115439,
+   "share": 0.037627504040167646
+  },
+  {
+   "id": 9,
+   "tok": "]",
+   "n": 98428,
+   "share": 0.032082744719424294
+  },
+  {
+   "id": 13,
+   "tok": "e",
+   "n": 89902,
+   "share": 0.029303683055285922
+  },
+  {
+   "id": 12,
+   "tok": "u",
+   "n": 81883,
+   "share": 0.026689878752597016
+  },
+  {
+   "id": 32,
+   "tok": "k",
+   "n": 80186,
+   "share": 0.02613673922127602
+  },
+  {
+   "id": 38,
+   "tok": "t",
+   "n": 66473,
+   "share": 0.021666967628462337
+  },
+  {
+   "id": 57,
+   "tok": "n",
+   "n": 65454,
+   "share": 0.021334823148547136
+  },
+  {
+   "id": 61,
+   "tok": "r",
+   "n": 54407,
+   "share": 0.01773403799680698
+  },
+  {
+   "id": 59,
+   "tok": "m",
+   "n": 37798,
+   "share": 0.01232031114017149
+  },
+  {
+   "id": 48,
+   "tok": "s",
+   "n": 34334,
+   "share": 0.01119121547930176
+  },
+  {
+   "id": 49,
+   "tok": "sh",
+   "n": 30518,
+   "share": 0.009947384924486838
+  },
+  {
+   "id": 40,
+   "tok": "d",
+   "n": 28709,
+   "share": 0.009357738836001463
+  },
+  {
+   "id": 35,
+   "tok": "g",
+   "n": 25580,
+   "share": 0.008337836895221617
+  },
+  {
+   "id": 1,
+   "tok": "^",
+   "n": 23446,
+   "share": 0.007642256600678891
+  },
+  {
+   "id": 2,
+   "tok": "$",
+   "n": 23446,
+   "share": 0.007642256600678891
+  },
+  {
+   "id": 63,
+   "tok": "w",
+   "n": 20676,
+   "share": 0.006739371213667012
+  },
+  {
+   "id": 16,
+   "tok": "I",
+   "n": 16093,
+   "share": 0.005245535932556744
+  },
+  {
+   "id": 17,
+   "tok": "U",
+   "n": 15173,
+   "share": 0.004945660641563628
+  },
+  {
+   "id": 30,
+   "tok": "cl",
+   "n": 14770,
+   "share": 0.004814302226052513
+  },
+  {
+   "id": 44,
+   "tok": "b",
+   "n": 13049,
+   "share": 0.004253339861053436
+  },
+  {
+   "id": 54,
+   "tok": "h",
+   "n": 12489,
+   "share": 0.00407080707523154
+  },
+  {
+   "id": 64,
+   "tok": "y",
+   "n": 12474,
+   "share": 0.004065917804182739
+  },
+  {
+   "id": 27,
+   "tok": "N_n",
+   "n": 12070,
+   "share": 0.0039342334372683705
+  },
+  {
+   "id": 47,
+   "tok": "ts",
+   "n": 11567,
+   "share": 0.0037702798814319175
+  },
+  {
+   "id": 29,
+   "tok": "N_uvular",
+   "n": 10769,
+   "share": 0.0035101706616357154
+  },
+  {
+   "id": 51,
+   "tok": "j",
+   "n": 10758,
+   "share": 0.0035065851961999283
+  },
+  {
+   "id": 46,
+   "tok": "ch",
+   "n": 9560,
+   "share": 0.0031160954151023715
+  },
+  {
+   "id": 50,
+   "tok": "z",
+   "n": 6848,
+   "share": 0.002232115209479188
+  },
+  {
+   "id": 28,
+   "tok": "N_ng",
+   "n": 5538,
+   "share": 0.0018051188712172525
+  },
+  {
+   "id": 42,
+   "tok": "p",
+   "n": 4127,
+   "share": 0.0013452014412267247
+  },
+  {
+   "id": 53,
+   "tok": "f",
+   "n": 4076,
+   "share": 0.001328577919660802
+  },
+  {
+   "id": 7,
+   "tok": "#",
+   "n": 3927,
+   "share": 0.0012800111605760474
+  },
+  {
+   "id": 33,
+   "tok": "ky",
+   "n": 2976,
+   "share": 0.0009700313760820772
+  },
+  {
+   "id": 26,
+   "tok": "N_m",
+   "n": 2336,
+   "share": 0.00076142247799991
+  },
+  {
+   "id": 62,
+   "tok": "ry",
+   "n": 1607,
+   "share": 0.0005238039050281916
+  },
+  {
+   "id": 36,
+   "tok": "gy",
+   "n": 949,
+   "share": 0.00030932788168746346
+  },
+  {
+   "id": 55,
+   "tok": "hy",
+   "n": 944,
+   "share": 0.0003076981246711965
+  },
+  {
+   "id": 58,
+   "tok": "ny",
+   "n": 808,
+   "share": 0.000263368733828736
+  },
+  {
+   "id": 56,
+   "tok": "v",
+   "n": 526,
+   "share": 0.0001714504381112811
+  },
+  {
+   "id": 45,
+   "tok": "by",
+   "n": 504,
+   "share": 0.00016427950723970662
+  },
+  {
+   "id": 60,
+   "tok": "my",
+   "n": 441,
+   "share": 0.0001437445688347433
+  },
+  {
+   "id": 3,
+   "tok": "?",
+   "n": 407,
+   "share": 0.00013266222112412817
+  },
+  {
+   "id": 43,
+   "tok": "py",
+   "n": 355,
+   "share": 0.00011571274815495209
+  },
+  {
+   "id": 41,
+   "tok": "dy",
+   "n": 276,
+   "share": 8.996258729793457e-05
+  },
+  {
+   "id": 34,
+   "tok": "kw",
+   "n": 197,
+   "share": 6.421242644091707e-05
+  },
+  {
+   "id": 39,
+   "tok": "ty",
+   "n": 168,
+   "share": 5.475983574656887e-05
+  },
+  {
+   "id": 37,
+   "tok": "gw",
+   "n": 165,
+   "share": 5.378198153680871e-05
+  },
+  {
+   "id": 4,
+   "tok": "?!",
+   "n": 12,
+   "share": 3.911416839040634e-06
+  },
+  {
+   "id": 5,
+   "tok": "?.",
+   "n": 10,
+   "share": 3.2595140325338615e-06
+  },
+  {
+   "id": 6,
+   "tok": "?~",
+   "n": 10,
+   "share": 3.2595140325338615e-06
+  }
+ ],
+ "unused": [
+  {
+   "id": 15,
+   "tok": "A"
+  },
+  {
+   "id": 18,
+   "tok": "E"
+  },
+  {
+   "id": 19,
+   "tok": "O"
+  },
+  {
+   "id": 20,
+   "tok": "a:"
+  },
+  {
+   "id": 21,
+   "tok": "i:"
+  },
+  {
+   "id": 22,
+   "tok": "u:"
+  },
+  {
+   "id": 23,
+   "tok": "e:"
+  },
+  {
+   "id": 24,
+   "tok": "o:"
+  },
+  {
+   "id": 25,
+   "tok": "N"
+  },
+  {
+   "id": 31,
+   "tok": "q"
+  },
+  {
+   "id": 52,
+   "tok": "zy"
+  },
+  {
+   "id": 65,
+   "tok": "ɪ"
+  },
+  {
+   "id": 66,
+   "tok": "ʊ"
+  },
+  {
+   "id": 67,
+   "tok": "ɛ"
+  },
+  {
+   "id": 68,
+   "tok": "ɔ"
+  },
+  {
+   "id": 69,
+   "tok": "æ"
+  },
+  {
+   "id": 70,
+   "tok": "ɑ"
+  },
+  {
+   "id": 71,
+   "tok": "ʌ"
+  },
+  {
+   "id": 72,
+   "tok": "ə"
+  },
+  {
+   "id": 73,
+   "tok": "ɜ"
+  },
+  {
+   "id": 74,
+   "tok": "ɹ"
+  },
+  {
+   "id": 75,
+   "tok": "ɝ"
+  },
+  {
+   "id": 76,
+   "tok": "ɫ"
+  },
+  {
+   "id": 77,
+   "tok": "ð"
+  },
+  {
+   "id": 78,
+   "tok": "θ"
+  },
+  {
+   "id": 79,
+   "tok": "ŋ"
+  },
+  {
+   "id": 80,
+   "tok": "ʃ"
+  },
+  {
+   "id": 81,
+   "tok": "ʒ"
+  },
+  {
+   "id": 82,
+   "tok": "dʒ"
+  },
+  {
+   "id": 83,
+   "tok": "tʃ"
+  },
+  {
+   "id": 84,
+   "tok": "l"
+  },
+  {
+   "id": 85,
+   "tok": "ɡ"
+  },
+  {
+   "id": 86,
+   "tok": "x"
+  },
+  {
+   "id": 87,
+   "tok": "ˈ"
+  },
+  {
+   "id": 88,
+   "tok": "ˌ"
+  },
+  {
+   "id": 89,
+   "tok": "ː"
+  },
+  {
+   "id": 90,
+   "tok": "aɪ"
+  },
+  {
+   "id": 91,
+   "tok": "aʊ"
+  },
+  {
+   "id": 92,
+   "tok": "eɪ"
+  },
+  {
+   "id": 93,
+   "tok": "oʊ"
+  },
+  {
+   "id": 94,
+   "tok": "ɔɪ"
+  },
+  {
+   "id": 95,
+   "tok": "tone1"
+  },
+  {
+   "id": 96,
+   "tok": "tone2"
+  },
+  {
+   "id": 97,
+   "tok": "tone3"
+  },
+  {
+   "id": 98,
+   "tok": "tone4"
+  },
+  {
+   "id": 99,
+   "tok": "tone5"
+  },
+  {
+   "id": 100,
+   "tok": "an"
+  },
+  {
+   "id": 101,
+   "tok": "aŋ"
+  },
+  {
+   "id": 102,
+   "tok": "ia"
+  },
+  {
+   "id": 103,
+   "tok": "iaŋ"
+  },
+  {
+   "id": 104,
+   "tok": "iaʊ"
+  },
+  {
+   "id": 105,
+   "tok": "in"
+  },
+  {
+   "id": 106,
+   "tok": "iou"
+  },
+  {
+   "id": 107,
+   "tok": "iuŋ"
+  },
+  {
+   "id": 108,
+   "tok": "iŋ"
+  },
+  {
+   "id": 109,
+   "tok": "iɛ"
+  },
+  {
+   "id": 110,
+   "tok": "iɛn"
+  },
+  {
+   "id": 111,
+   "tok": "ua"
+  },
+  {
+   "id": 112,
+   "tok": "uan"
+  },
+  {
+   "id": 113,
+   "tok": "uaŋ"
+  },
+  {
+   "id": 114,
+   "tok": "uaɪ"
+  },
+  {
+   "id": 115,
+   "tok": "ueɪ"
+  },
+  {
+   "id": 116,
+   "tok": "uo"
+  },
+  {
+   "id": 117,
+   "tok": "uŋ"
+  },
+  {
+   "id": 118,
+   "tok": "uən"
+  },
+  {
+   "id": 119,
+   "tok": "y_vowel"
+  },
+  {
+   "id": 120,
+   "tok": "yn"
+  },
+  {
+   "id": 121,
+   "tok": "yɛ"
+  },
+  {
+   "id": 122,
+   "tok": "yɛn"
+  },
+  {
+   "id": 123,
+   "tok": "ən"
+  },
+  {
+   "id": 124,
+   "tok": "əŋ"
+  },
+  {
+   "id": 125,
+   "tok": "ɻ̩"
+  },
+  {
+   "id": 126,
+   "tok": "ɕ"
+  },
+  {
+   "id": 127,
+   "tok": "ɚ"
+  },
+  {
+   "id": 128,
+   "tok": "ɤ"
+  },
+  {
+   "id": 129,
+   "tok": "ɨ"
+  },
+  {
+   "id": 130,
+   "tok": "ɻ"
+  },
+  {
+   "id": 131,
+   "tok": "ʂ"
+  },
+  {
+   "id": 132,
+   "tok": "kʰ"
+  },
+  {
+   "id": 133,
+   "tok": "pʰ"
+  },
+  {
+   "id": 134,
+   "tok": "tʰ"
+  },
+  {
+   "id": 135,
+   "tok": "tsʰ"
+  },
+  {
+   "id": 136,
+   "tok": "tɕ"
+  },
+  {
+   "id": 137,
+   "tok": "tɕʰ"
+  },
+  {
+   "id": 138,
+   "tok": "tʂ"
+  },
+  {
+   "id": 139,
+   "tok": "tʂʰ"
+  },
+  {
+   "id": 140,
+   "tok": "rr"
+  },
+  {
+   "id": 141,
+   "tok": "ɲ"
+  },
+  {
+   "id": 142,
+   "tok": "ʎ"
+  },
+  {
+   "id": 143,
+   "tok": "β"
+  },
+  {
+   "id": 144,
+   "tok": "ɣ"
+  },
+  {
+   "id": 145,
+   "tok": "ʁ"
+  },
+  {
+   "id": 146,
+   "tok": "ɑ̃"
+  },
+  {
+   "id": 147,
+   "tok": "ɔ̃"
+  },
+  {
+   "id": 148,
+   "tok": "ɛ̃"
+  },
+  {
+   "id": 149,
+   "tok": "œ̃"
+  },
+  {
+   "id": 150,
+   "tok": "ø"
+  },
+  {
+   "id": 151,
+   "tok": "œ"
+  },
+  {
+   "id": 152,
+   "tok": "ɐ"
+  },
+  {
+   "id": 153,
+   "tok": "ɐ̃"
+  },
+  {
+   "id": 154,
+   "tok": "ẽ"
+  },
+  {
+   "id": 155,
+   "tok": "ĩ"
+  },
+  {
+   "id": 156,
+   "tok": "õ"
+  },
+  {
+   "id": 157,
+   "tok": "ũ"
+  },
+  {
+   "id": 158,
+   "tok": "p͈"
+  },
+  {
+   "id": 159,
+   "tok": "t͈"
+  },
+  {
+   "id": 160,
+   "tok": "k͈"
+  },
+  {
+   "id": 161,
+   "tok": "s͈"
+  },
+  {
+   "id": 162,
+   "tok": "t͈ɕ"
+  },
+  {
+   "id": 163,
+   "tok": "k̚"
+  },
+  {
+   "id": 164,
+   "tok": "t̚"
+  },
+  {
+   "id": 165,
+   "tok": "p̚"
+  },
+  {
+   "id": 166,
+   "tok": "ɯ"
+  },
+  {
+   "id": 167,
+   "tok": "ɾ"
+  },
+  {
+   "id": 168,
+   "tok": "ɰ"
+  },
+  {
+   "id": 169,
+   "tok": "ɖ"
+  },
+  {
+   "id": 170,
+   "tok": "ʈ"
+  },
+  {
+   "id": 171,
+   "tok": "ɳ"
+  },
+  {
+   "id": 172,
+   "tok": "ɭ"
+  }
+ ],
+ "rejected_sample": [
+  {
+   "split": "train",
+   "uid": "sentence_collector_07570",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "LOANWORD128_109",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2557",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3427",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2489",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3547",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3000",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1146",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_4060",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0189",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0090",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_4367",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0497",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_4273",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2789",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3021",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2841",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2679",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3651",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1226",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1348",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0760",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_4470",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0080",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3780",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0167",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2864",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1796",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1902",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1535",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3257",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_4191",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0172",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1433",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0303",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1041",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0212",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2015",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3881",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0437",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_2317",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0943",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3346",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0885",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_4536",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3671",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_0618",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3915",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_1018",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  },
+  {
+   "split": "train",
+   "uid": "ROHAN4600_3103",
+   "text": "<redacted: corpus text>",
+   "why": "\"逆引きできない音素: 'fy'\""
+  }
+ ],
+ "path": "kanji -> intermediate (kana_g2p) -> phoneme ids (A-1 / D-014)"
+}

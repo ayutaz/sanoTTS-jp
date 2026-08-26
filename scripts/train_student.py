@@ -32,7 +32,11 @@ import torch.nn.functional as F
 
 sys.path.insert(0, "src")
 from saanotts_jp._param_reference import Acoustic, Decoder, Duration, Erho  # noqa: E402
+from saanotts_jp.discriminator import (  # noqa: E402
+    FirstDifferenceDiscriminator, count_parameters,
+)
 from saanotts_jp.labelpack import HOP, PackReader  # noqa: E402
+from saanotts_jp.vocab import map_ids  # noqa: E402
 from saanotts_jp.losses import (  # noqa: E402
     ChannelStats, discriminator_loss, duration_loss, generator_loss, joint_loss,
     latent_loss,
@@ -40,31 +44,6 @@ from saanotts_jp.losses import (  # noqa: E402
 
 SEGMENT_FRAMES = 32          # 8192 sample = 0.372 s。piper-plus の train config と同じ
 SEGMENT_SAMPLES = SEGMENT_FRAMES * HOP
-
-
-class DiffDiscriminator(nn.Module):
-    """一次差分に対する判別器（論文 §II-B）。
-
-    ⚠️ **論文は構造を明示していない。** 「first-difference discriminator」としか
-    書かれていないので、HiFi-GAN の MSD を小さくしたものを置いている。**推測**。
-    """
-
-    def __init__(self, channels: tuple[int, ...] = (16, 64, 128, 128)) -> None:
-        super().__init__()
-        layers, cin = [], 1
-        for cout in channels:
-            layers.append(nn.Conv1d(cin, cout, 15, stride=4, padding=7))
-            cin = cout
-        self.convs = nn.ModuleList(layers)
-        self.post = nn.Conv1d(cin, 1, 3, padding=1)
-
-    def forward(self, wav: torch.Tensor) -> tuple[torch.Tensor, list[torch.Tensor]]:
-        feats = []
-        h = torch.diff(wav, dim=-1).unsqueeze(1)   # ← 一次差分
-        for conv in self.convs:
-            h = F.leaky_relu(conv(h), 0.1)
-            feats.append(h)
-        return self.post(h), feats
 
 
 class Batcher:
@@ -96,8 +75,19 @@ class Batcher:
                 torch.from_numpy(np.stack(ys)).float())
 
     def utterances(self) -> list[dict]:
-        """発話まるごと。duration / acoustic の学習用（長さ展開が要るため）。"""
-        return [self.pack[int(i)] for i in self.rng.choice(self.usable, self.batch)]
+        """発話まるごと。duration / acoustic の学習用（長さ展開が要るため）。
+
+        **音素IDは教師の ID 空間から生徒の埋め込みインデックスに写す。**
+        教師は 0〜173 の飛び飛びだが生徒の語彙は 57（B-9）。写さずに渡すと
+        `IndexError` か、悪くすると別の音素の行を引く。
+        """
+        out = []
+        for i in self.rng.choice(self.usable, self.batch):
+            d = dict(self.pack[int(i)])
+            d["ids_teacher"] = d["ids"]
+            d["ids"] = map_ids(d["ids"])
+            out.append(d)
+        return out
 
 
 def pad_stack(arrays: list[np.ndarray], dtype=torch.float32) -> tuple[torch.Tensor, torch.Tensor]:
@@ -170,7 +160,7 @@ def train_acoustic(pack, batcher, steps, lr, device, log_every) -> dict:
 def train_decoder(pack, batcher, steps, lr, device, log_every) -> dict:
     """Stage 3: 式5。教師の contract を 40ch に落として decoder に入れる。"""
     erho, decoder = Erho().to(device), Decoder().to(device)
-    disc = DiffDiscriminator().to(device)
+    disc = FirstDifferenceDiscriminator().to(device)
     opt_g = torch.optim.AdamW(
         list(erho.parameters()) + list(decoder.parameters()), lr=lr)
     opt_d = torch.optim.AdamW(disc.parameters(), lr=lr)
@@ -183,7 +173,10 @@ def train_decoder(pack, batcher, steps, lr, device, log_every) -> dict:
         c = erho(z)
         mag, cos, sin = decoder(c)
         y_hat = Decoder.istft(mag, cos, sin)
-        y_hat = F.pad(y_hat, (0, max(0, y.shape[-1] - y_hat.shape[-1])))[:, : y.shape[-1]]
+        # D5: `Decoder.istft` が length=T*256 を渡すので長さは一致する。
+        # 以前の `F.pad` によるゼロ埋めは末尾 256 サンプルの勾配経路を切り、
+        # 32 フレームセグメントでは SNR 上限を 33.6 dB に固定していた。
+        assert y_hat.shape[-1] == y.shape[-1], (y_hat.shape, y.shape)
 
         d_fake, f_fake = disc(y_hat)
         with torch.no_grad():
@@ -212,7 +205,7 @@ def train_decoder(pack, batcher, steps, lr, device, log_every) -> dict:
 def train_joint(pack, batcher, steps, lr, device, log_every) -> dict:
     """Stage 4: 式6。acoustic と decoder を同時更新し、c をアンカーで固定する。"""
     erho, decoder = Erho().to(device), Decoder().to(device)
-    disc = DiffDiscriminator().to(device)
+    disc = FirstDifferenceDiscriminator().to(device)
     opt_g = torch.optim.AdamW(
         list(erho.parameters()) + list(decoder.parameters()), lr=lr)
     opt_d = torch.optim.AdamW(disc.parameters(), lr=lr)
@@ -226,7 +219,10 @@ def train_joint(pack, batcher, steps, lr, device, log_every) -> dict:
         c_h = c_t + torch.randn_like(c_t) * 0.1
         mag, cos, sin = decoder(c_h)
         y_hat = Decoder.istft(mag, cos, sin)
-        y_hat = F.pad(y_hat, (0, max(0, y.shape[-1] - y_hat.shape[-1])))[:, : y.shape[-1]]
+        # D5: `Decoder.istft` が length=T*256 を渡すので長さは一致する。
+        # 以前の `F.pad` によるゼロ埋めは末尾 256 サンプルの勾配経路を切り、
+        # 32 フレームセグメントでは SNR 上限を 33.6 dB に固定していた。
+        assert y_hat.shape[-1] == y.shape[-1], (y_hat.shape, y.shape)
 
         d_fake, f_fake = disc(y_hat)
         with torch.no_grad():

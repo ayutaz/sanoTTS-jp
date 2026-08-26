@@ -1,0 +1,48 @@
+{
+  "n_utterances": 23297,
+  "n_tokens": 3046407,
+  "s_v": {
+    "solved": 1.2186712622642517,
+    "criterion": "コーパス全体で sum(clip_[1,80](round(s_v*dT))) == sum(ceil(dT))",
+    "total_teacher_frames": 7277292.0,
+    "total_student_frames_at_solved": 7277293.0,
+    "total_student_frames_at_1.0": 5927451.0
+  },
+  "ratio_at_sv_1.0": {
+    "mean": 0.8134515439889376,
+    "sd": 0.023864585930678847,
+    "min": 0.7014218009478673,
+    "max": 0.9428571428571428,
+    "p5": 0.7737531282388331,
+    "p95": 0.8518641769889691
+  },
+  "ratio_at_solved_sv": {
+    "mean": 0.9983502221690421,
+    "sd": 0.020643614730879504,
+    "min": 0.9161290322580645,
+    "max": 1.1428571428571428,
+    "p5": 0.9641255605381166,
+    "p95": 1.03125
+  },
+  "rounding_convention": {
+    "teacher_ceil_total": 7277292.0,
+    "student_round_clip_total_at_sv1": 5927451.0,
+    "ratio_ceil_over_round": 1.2277270617673601,
+    "note": "教師は ceil、生徒は round+clip。s_v はまずこの差を吸収する"
+  },
+  "clip_bounds": {
+    "tokens_below_1": 563181,
+    "tokens_below_1_share": 0.1848672879231173,
+    "tokens_below_1_that_are_PAD": 272489,
+    "tokens_below_1_that_are_real": 290692,
+    "utterances_with_a_token_below_1": 23287,
+    "utterances_with_a_token_below_1_share": 0.9995707601837146,
+    "tokens_above_80": 0,
+    "max_dT": 29.224897384643555,
+    "max_ceil_dT": 30,
+    "verdict_upper_bound": "上限 80 は飽和しない"
+  },
+  "seconds_per_frame": 0.011609977324263039,
+  "repro": "uv run python scripts/b7_sv_calibration.py --out reports/b7_sv.json",
+  "caveat": "r_i に生徒の予測ではなく dT を代入している（完璧な生徒の仮定）。測れているのは量子化由来のズレだけで、学習後に解き直しが要る。"
+}

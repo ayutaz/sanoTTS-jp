@@ -1,0 +1,435 @@
+{
+ "task": "C-2: 一次差分判別器の実装と構造の凍結",
+ "repro": "cd /Users/s19447/Desktop/saanoTTS-jp && uv run python scripts/test_discriminator.py",
+ "environment": {
+  "python": "3.14.0",
+  "torch": "2.13.0",
+  "numpy": "2.4.6",
+  "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+  "git_commit": "bb5e8758a738dd87d622d323a42b096d1adc2742"
+ },
+ "files": {
+  "module": "src/saanotts_jp/discriminator.py",
+  "test": "scripts/test_discriminator.py"
+ },
+ "paper_specifies": [
+  "P1: 判別器の入力は波形の一次差分 Δy[t] = y[t] - y[t-1]（これだけ）",
+  "P2: L_adv は LSGAN (Mao et al. 2017)",
+  "P3: λ_A = 0.025 / λ_F = 0.25（feature matching のほうが 10 倍重い）"
+ ],
+ "assumptions_not_in_paper": [
+  {
+   "id": "A1",
+   "item": "マルチスケール構成",
+   "choice": "HiFi-GAN MSD 相当。AvgPool1d(4, stride=2) で 1 段ずつ。既定 3 スケール",
+   "why": "波形 GAN の標準。単一スケールだと低域の周期性を見ない"
+  },
+  {
+   "id": "A2",
+   "item": "サブ判別器の層構成",
+   "choice": "grouped conv 4 層 + 出力 conv 1 層。(k,stride,groups,mult) = ((15, 1, 1, 1), (41, 4, 4, 2), (41, 4, 16, 4), (5, 1, 1, 4))",
+   "why": "HiFi-GAN の 6 層 (15,41,41,41,41,5) を 4 層に詰めた縮小版"
+  },
+  {
+   "id": "A3",
+   "item": "チャネル幅",
+   "choice": "base_channels=16（既定）。判別器全体 94,755 params",
+   "why": "生徒が 567,008 params。既定 small は 94,755 = 生徒の 0.167 倍（実測）。層構成は HiFi-GAN MSD 由来だがチャネル幅を大きく削った。⚠️ HiFi-GAN 本家 MSD のパラメータ数は本プロジェクトでは未測定なので倍率比較はしない"
+  },
+  {
+   "id": "A4",
+   "item": "正規化",
+   "choice": "spectral_norm（全スケール）。norm= で weight / none に切替可",
+   "why": "Lipschitz を抑えて D が生徒を追い越すのを防ぐ + L_FM の特徴量スケールを有界に保つ。⚠️ この利点は未測定。コストだけ実測（下記 norm_comparison）"
+  },
+  {
+   "id": "A5",
+   "item": "活性化",
+   "choice": "LeakyReLU(0.1)",
+   "why": "HiFi-GAN と同じ"
+  },
+  {
+   "id": "A6",
+   "item": "出力の集約",
+   "choice": "全スケールを平坦化して 1 本のテンソルに連結",
+   "why": "losses.generator_loss / discriminator_loss が単一テンソルを取る形になっているため。⚠️ 副作用として LSGAN の平均が要素数比でスケールに重み付く（実測 57.1 / 28.5 / 14.4 %）。等重みにしたい場合は forward_scales() を使う"
+  },
+  {
+   "id": "A7",
+   "item": "feature matching に返す特徴",
+   "choice": "全スケールの全隠れ層の活性化後（出力 conv は含まない）。3×4 = 12 本",
+   "why": "HiFi-GAN と同じ流儀。出力層は L_adv 側で使うので二重に数えない"
+  },
+  {
+   "id": "A8",
+   "item": "差分による長さ減",
+   "choice": "8192 -> 8191。パディングで戻さない",
+   "why": "端を捏造しない。real / fake で同じ長さになるので損失には影響しない"
+  },
+  {
+   "id": "A9",
+   "item": "差分を取る場所",
+   "choice": "モジュール内。呼び出し側は生波形 [B,T] / [B,1,T] を渡す",
+   "why": "real と fake で差分の取り方がずれる事故を構造的に防ぐ"
+  }
+ ],
+ "config": {
+  "small_default": {
+   "scales": 3,
+   "base_channels": 16,
+   "norm": "spectral",
+   "lrelu_slope": 0.1,
+   "pool": [
+    4,
+    2
+   ],
+   "layer_plan_k_stride_groups_mult": [
+    [
+     15,
+     1,
+     1,
+     1
+    ],
+    [
+     41,
+     4,
+     4,
+     2
+    ],
+    [
+     41,
+     4,
+     16,
+     4
+    ],
+    [
+     5,
+     1,
+     1,
+     4
+    ]
+   ]
+  },
+  "large": {
+   "scales": 4,
+   "base_channels": 32,
+   "norm": "spectral"
+  }
+ },
+ "shapes_and_params": {
+  "small": {
+   "params": 94755,
+   "params_per_scale": 31585,
+   "out_shape_B2_T8192": [
+    2,
+    897
+   ],
+   "n_feats": 12,
+   "feat_shapes": [
+    [
+     2,
+     16,
+     8191
+    ],
+    [
+     2,
+     32,
+     2048
+    ],
+    [
+     2,
+     64,
+     512
+    ],
+    [
+     2,
+     64,
+     512
+    ],
+    [
+     2,
+     16,
+     4096
+    ],
+    [
+     2,
+     32,
+     1024
+    ],
+    [
+     2,
+     64,
+     256
+    ],
+    [
+     2,
+     64,
+     256
+    ],
+    [
+     2,
+     16,
+     2049
+    ],
+    [
+     2,
+     32,
+     513
+    ],
+    [
+     2,
+     64,
+     129
+    ],
+    [
+     2,
+     64,
+     129
+    ]
+   ],
+   "per_scale_out_len": [
+    512,
+    256,
+    129
+   ],
+   "per_scale_weight_in_concat": [
+    0.5708,
+    0.2854,
+    0.1438
+   ]
+  },
+  "large": {
+   "params": 500484,
+   "params_per_scale": 125121,
+   "out_shape_B2_T8192": [
+    2,
+    962
+   ],
+   "n_feats": 16,
+   "feat_shapes": [
+    [
+     2,
+     32,
+     8191
+    ],
+    [
+     2,
+     64,
+     2048
+    ],
+    [
+     2,
+     128,
+     512
+    ],
+    [
+     2,
+     128,
+     512
+    ],
+    [
+     2,
+     32,
+     4096
+    ],
+    [
+     2,
+     64,
+     1024
+    ],
+    [
+     2,
+     128,
+     256
+    ],
+    [
+     2,
+     128,
+     256
+    ],
+    [
+     2,
+     32,
+     2049
+    ],
+    [
+     2,
+     64,
+     513
+    ],
+    [
+     2,
+     128,
+     129
+    ],
+    [
+     2,
+     128,
+     129
+    ],
+    [
+     2,
+     32,
+     1025
+    ],
+    [
+     2,
+     64,
+     257
+    ],
+    [
+     2,
+     128,
+     65
+    ],
+    [
+     2,
+     128,
+     65
+    ]
+   ],
+   "per_scale_out_len": [
+    512,
+    256,
+    129,
+    65
+   ],
+   "per_scale_weight_in_concat": [
+    0.5322,
+    0.2661,
+    0.1341,
+    0.0676
+   ]
+  }
+ },
+ "param_budget_note": "判別器は学習専用でデプロイされない。生徒 567,008 params の勘定には入らない。small は生徒の 0.167 倍",
+ "norm_comparison": {
+  "what": "教師パック data/pack_sibdense の実波形 vs RMS 一致白色雑音。D だけ 200 step (AdamW lr=1e-3, batch 8, 8192 sample) 更新し、学習に使っていない held-out 24 発話で D(real)-D(noise) を測る。生徒は 1 度も更新していない",
+  "n_seeds": 5,
+  "signal_rms": {
+   "yT": 0.05332,
+   "delta_y": 0.01277,
+   "ratio": 0.2395,
+   "delta_y_absmax": 0.17801
+  },
+  "results": {
+   "spectral": {
+    "gaps": [
+     0.4479,
+     0.5843,
+     0.6395,
+     0.545,
+     0.4977
+    ],
+    "mean": 0.5429,
+    "sd": 0.0744
+   },
+   "weight": {
+    "gaps": [
+     0.6039,
+     0.665,
+     0.7049,
+     0.6157,
+     0.5859
+    ],
+    "mean": 0.6351,
+    "sd": 0.0488
+   },
+   "none": {
+    "gaps": [
+     0.6013,
+     0.6639,
+     0.7062,
+     0.59,
+     0.5965
+    ],
+    "mean": 0.6316,
+    "sd": 0.0512
+   }
+  },
+  "welch_spectral_vs_weight": {
+   "t": -2.318,
+   "p": 0.0541,
+   "df_approx": 6.9
+  },
+  "welch_weight_vs_none": {
+   "t": 0.111,
+   "p": 0.9147
+  },
+  "verdict": "3 種とも 200 step で分離する。spectral は weight より mean gap が 0.092 (14.5%) 小さいが n=5 で p=0.054 なので有意とは言えない。weight と none は区別できない (p=0.91)",
+  "warmup": "60 step では 3 種とも gap < 0.03。立ち上がりに 100-200 step かかるのは norm によらず共通（lr=1e-3）。lr=2e-4 だと 200 step でも gap 0.14-0.45 にとどまる",
+  "unmeasured": "spectral_norm を選んだ理由（本学習での安定性 / L_FM のスケール定常性）は未測定。生徒との敵対学習を回さないと測れない"
+ },
+ "timing": {
+  "what": "batch 8 x 8192 sample。d_step_ms = D(real)+D(fake.detach())+backward+AdamW.step。g_side_ms = D(fake) grad あり + D(real) no_grad + generator_loss backward（判別器が生成器ステップに追加するコスト）",
+  "warmup_iters": 5,
+  "measured_iters": 20,
+  "results": {
+   "cpu/small": {
+    "params": 94755,
+    "d_step_ms": 125.5,
+    "g_side_ms": 112.4
+   },
+   "cpu/large": {
+    "params": 500484,
+    "d_step_ms": 215.3,
+    "g_side_ms": 169.6
+   },
+   "mps/small": {
+    "params": 94755,
+    "d_step_ms": 17.2,
+    "g_side_ms": 12.3
+   },
+   "mps/large": {
+    "params": 500484,
+    "d_step_ms": 26.3,
+    "g_side_ms": 22.7
+   }
+  },
+  "note": "MPS。train_student.py の smoke では stage3 が 44 ms/step、stage4 が 12 ms/step（reports/c_smoke.json、判別器は旧プレースホルダ）。small を入れると生成器ステップに +12.3 ms 乗る"
+ },
+ "test_results": {
+  "script": "scripts/test_discriminator.py",
+  "checks": 23,
+  "failures": 0,
+  "first_difference_evidence": {
+   "dc_offset_invariance_max_abs_delta": 5.49e-08,
+   "sign_flip_max_abs_delta": 0.00748,
+   "ratio": 136057,
+   "note": "定数オフセット +0.5 / -3.0 で出力・全中間特徴が不変（eval モード）。DC 以外には反応する"
+  },
+  "feature_matching_identical_input": 0.0,
+  "separation_probe": {
+   "init": {
+    "D_real": -0.033,
+    "D_noise": -0.033,
+    "gap": 0.0,
+    "acc": 0.5,
+    "acc_wilson95": [
+     0.36,
+     0.64
+    ],
+    "n": 48
+   },
+   "after_200_steps": {
+    "D_real": 0.859,
+    "D_real_sd": 0.033,
+    "D_noise": 0.214,
+    "D_noise_sd": 0.262,
+    "gap": 0.645,
+    "acc": 0.917,
+    "acc_wilson95": [
+     0.8,
+     0.97
+    ],
+    "n": 48
+   }
+  }
+ },
+ "open_items": [
+  "scripts/train_student.py にプレースホルダの DiffDiscriminator が残っている（channels=(16,64,128,128) の単一スケール、55,585 params 相当）。FirstDifferenceDiscriminator に差し替えるのは親の統合作業。本タスクでは train_student.py を触っていない",
+  "λ_A=0.025 / λ_F=0.25 は論文値だが、判別器の構造が違えば最適値も違う可能性がある。未検証",
+  "スケール間の重み（A6 の 57/29/14%）が適切かは未検証。forward_scales() で等重みにする選択肢を残してある",
+  "spectral_norm の利点は本学習を回すまで測れない"
+ ]
+}

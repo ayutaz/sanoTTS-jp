@@ -71,6 +71,39 @@ def main() -> int:
     check("Δ 項は定数オフセットに反応しない", lc["lat/delta"].item() < 1e-6,
           f"delta={lc['lat/delta'].item():.2e}")
 
+    # 発話長保存項は **r と同じ max(1,·) を教師にも掛ける**ので、完璧な生徒で 0 になる
+    d_short = torch.rand(4, 20) * 1.5          # 18% ほどが 1 未満になる分布
+    _, lg0 = duration_loss(torch.log(d_short), d_short)
+    check("dT<1 があっても完璧な生徒で length=0", lg0["dur/length"].item() < 1e-10,
+          f"length={lg0['dur/length'].item():.2e} "
+          f"(dT<1 が {(d_short < 1).float().mean()*100:.0f}%)")
+    _, lgt = duration_loss(torch.log(d_short), d_short,
+                           length_target=torch.ceil(d_short).sum(dim=1))
+    check("length_target を渡すとそちらを使う", lgt["dur/length"].item() > 0,
+          f"Σceil を渡すと length={lgt['dur/length'].item():.5f}")
+
+    print("\n=== C-1 λ の実行時算出 ===")
+    st_hi = ChannelStats(mu=torch.zeros(C), sigma=torch.full((C,), 4.0))
+    st_lo = ChannelStats(mu=torch.zeros(C), sigma=torch.full((C,), 0.5))
+    check("λ_n = σ（一様なら σ そのもの）",
+          abs(st_hi.lambda_n - 4.0) < 1e-4 and abs(st_lo.lambda_n - 0.5) < 1e-4,
+          f"{st_hi.lambda_n:.4f} / {st_lo.lambda_n:.4f}")
+    check("λ_n はパックごとに変わる（定数で焼けない）",
+          st_hi.lambda_n != st_lo.lambda_n)
+
+    # 適応 λ₂: 残差が小さいほど λ₂ は大きくなる（C-1 の照合で符号が確定）
+    _, la_big = latent_loss(c + 0.4, c, stats)
+    _, la_small = latent_loss(c + 0.05, c, stats)
+    check("λ₂ は残差が小さいほど大きい",
+          la_small["lat/lambda_2"] > la_big["lat/lambda_2"],
+          f"残差0.05→{la_small['lat/lambda_2']:.2f} / 0.4→{la_big['lat/lambda_2']:.2f}")
+    check("λ₂·‖·‖₂² = ½·RMS(残差)",
+          abs((la_big["lat/lambda_2"] * la_big["lat/l2"]).item()
+              - 0.5 * la_big["lat/l2"].sqrt().item()) < 1e-5)
+    _, la_fix = latent_loss(c + 0.4, c, stats, lambda_2=0.40)
+    check("lambda_2 を明示すれば固定値を使う",
+          abs(la_fix["lat/lambda_2"].item() - 0.40) < 1e-6)
+
     print("\n=== 式5 generator ===")
     y = torch.randn(3, 8192) * 0.1
     perfect, _ = generator_loss(y, y)

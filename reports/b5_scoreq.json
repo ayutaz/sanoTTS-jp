@@ -1,0 +1,1172 @@
+{
+ "task": "B-5 続き: SCOREQ ベースライン（教師 / 実人間）",
+ "date": "2026-08-27",
+ "sets": {
+  "teacher": {
+   "n": 24,
+   "wavs": [
+    "reports/b5_teacher_wav/t00.wav",
+    "reports/b5_teacher_wav/t01.wav",
+    "reports/b5_teacher_wav/t02.wav",
+    "reports/b5_teacher_wav/t03.wav",
+    "reports/b5_teacher_wav/t04.wav",
+    "reports/b5_teacher_wav/t05.wav",
+    "reports/b5_teacher_wav/t06.wav",
+    "reports/b5_teacher_wav/t07.wav",
+    "reports/b5_teacher_wav/t08.wav",
+    "reports/b5_teacher_wav/t09.wav",
+    "reports/b5_teacher_wav/t10.wav",
+    "reports/b5_teacher_wav/t11.wav",
+    "reports/b5_teacher_wav/t12.wav",
+    "reports/b5_teacher_wav/t13.wav",
+    "reports/b5_teacher_wav/t14.wav",
+    "reports/b5_teacher_wav/t15.wav",
+    "reports/b5_teacher_wav/t16.wav",
+    "reports/b5_teacher_wav/t17.wav",
+    "reports/b5_teacher_wav/t18.wav",
+    "reports/b5_teacher_wav/t19.wav",
+    "reports/b5_teacher_wav/t20.wav",
+    "reports/b5_teacher_wav/t21.wav",
+    "reports/b5_teacher_wav/t22.wav",
+    "reports/b5_teacher_wav/t23.wav"
+   ],
+   "source": "reports/b5_teacher_baseline.json",
+   "pad_sec": 0.3
+  },
+  "human": {
+   "n": 24,
+   "wavs": [
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_001.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_002.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_003.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_004.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_005.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_006.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_007.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_008.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_009.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_010.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_011.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_012.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_013.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_014.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_015.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_016.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_017.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_018.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_019.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_020.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_021.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_022.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_023.wav",
+    "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_024.wav"
+   ],
+   "source": "HF datasets ayousanz/tsukuyomi-chan-ljspeech (VOICEACTRESS100_001..024)",
+   "identified_by": "mean_sec が b5_human_control.json と完全一致 (6.217823129251701)",
+   "pad_sec": 0.0
+  },
+  "paired": false,
+  "paired_note": "教師と実人間はテキストが違う独立 2 標本。対応検定は使えない"
+ },
+ "per_file": {
+  "teacher": {
+   "sec": [
+    3.425,
+    3.379,
+    4.272,
+    3.402,
+    3.785,
+    4.075,
+    3.889,
+    3.878,
+    4.667,
+    4.481,
+    3.657,
+    4.331,
+    5.074,
+    5.12,
+    5.155,
+    5.364,
+    4.969,
+    5.747,
+    6.49,
+    7.198,
+    7.732,
+    7.639,
+    7.152,
+    9.044
+   ],
+   "utmos": [
+    2.1502,
+    2.0087,
+    1.779,
+    1.5831,
+    1.9484,
+    1.4334,
+    2.1234,
+    2.0854,
+    1.9274,
+    2.3204,
+    1.4255,
+    1.8723,
+    1.6721,
+    1.5734,
+    1.8115,
+    1.5415,
+    1.4923,
+    1.5176,
+    1.4188,
+    1.7862,
+    1.7303,
+    1.4894,
+    1.5441,
+    1.7141
+   ],
+   "scoreq_synthetic_nr": [
+    2.010910749435425,
+    2.4916861057281494,
+    2.1462273597717285,
+    2.1031737327575684,
+    1.8968749046325684,
+    1.7247989177703857,
+    2.4173662662506104,
+    2.110565185546875,
+    2.262662172317505,
+    2.5782337188720703,
+    1.569892406463623,
+    1.8287341594696045,
+    2.1357831954956055,
+    1.752227783203125,
+    2.0754215717315674,
+    2.1360740661621094,
+    2.0215559005737305,
+    1.7735934257507324,
+    1.7503323554992676,
+    2.1759822368621826,
+    2.0899040699005127,
+    1.6729435920715332,
+    2.130702257156372,
+    2.3151650428771973
+   ],
+   "scoreq_natural_nr": [
+    3.891172409057617,
+    3.825913429260254,
+    3.5686235427856445,
+    3.434095859527588,
+    3.3276467323303223,
+    3.1405961513519287,
+    3.5980896949768066,
+    3.701436996459961,
+    3.523444652557373,
+    3.587233543395996,
+    3.2964234352111816,
+    3.659679412841797,
+    3.6730213165283203,
+    3.275313377380371,
+    3.747465133666992,
+    3.3389129638671875,
+    3.461273670196533,
+    3.436091423034668,
+    3.0811429023742676,
+    3.528390884399414,
+    3.267859935760498,
+    3.477673053741455,
+    3.742086410522461,
+    3.607402801513672
+   ],
+   "scoreq_synthetic_ref": [
+    0.5006729364395142,
+    0.4495881497859955,
+    0.42280590534210205,
+    0.41636720299720764,
+    0.5324060320854187,
+    0.5964784026145935,
+    0.4889160692691803,
+    0.4894541800022125,
+    0.42183130979537964,
+    0.4509739577770233,
+    0.5767066478729248,
+    0.5412120819091797,
+    0.45789700746536255,
+    0.5241783857345581,
+    0.49392154812812805,
+    0.415859580039978,
+    0.40792420506477356,
+    0.5702716112136841,
+    0.6549378633499146,
+    0.4600793421268463,
+    0.549855649471283,
+    0.5651568174362183,
+    0.5266435742378235,
+    0.43063533306121826
+   ],
+   "scoreq_natural_ref": [
+    0.4937693178653717,
+    0.4409167468547821,
+    0.3852618634700775,
+    0.36803990602493286,
+    0.40193870663642883,
+    0.4268498718738556,
+    0.42088502645492554,
+    0.47729989886283875,
+    0.39527225494384766,
+    0.38132306933403015,
+    0.4058563709259033,
+    0.366392582654953,
+    0.3887130618095398,
+    0.37753865122795105,
+    0.4481191337108612,
+    0.3432202637195587,
+    0.3970186412334442,
+    0.3579373359680176,
+    0.5100080370903015,
+    0.37568044662475586,
+    0.40839293599128723,
+    0.39866000413894653,
+    0.45982515811920166,
+    0.389720618724823
+   ]
+  },
+  "human": {
+   "sec": [
+    6.909931972789115,
+    7.500589569160998,
+    4.809659863945578,
+    5.448798185941043,
+    10.55374149659864,
+    3.7234013605442176,
+    7.673696145124716,
+    7.27374149659864,
+    5.734331065759637,
+    4.25092970521542,
+    6.131428571428572,
+    5.1775056689342405,
+    4.889795918367347,
+    2.2434013605442176,
+    4.224625850340136,
+    4.910249433106576,
+    5.000181405895692,
+    6.138458049886621,
+    7.371609977324263,
+    6.234195011337868,
+    6.062358276643991,
+    12.46408163265306,
+    6.666984126984127,
+    7.8340589569161
+   ],
+   "utmos": [
+    2.0304548740386963,
+    2.103546380996704,
+    2.040745496749878,
+    2.180650472640991,
+    2.297236919403076,
+    2.311936378479004,
+    2.0110254287719727,
+    2.343926191329956,
+    2.3274378776550293,
+    2.0379281044006348,
+    1.749763011932373,
+    2.616281270980835,
+    2.4351511001586914,
+    2.2103829383850098,
+    2.2669060230255127,
+    2.5442991256713867,
+    2.6758785247802734,
+    2.578843355178833,
+    2.4508211612701416,
+    2.434079647064209,
+    2.3788833618164062,
+    2.4061713218688965,
+    2.5181562900543213,
+    2.361402988433838
+   ],
+   "scoreq_synthetic_nr": [
+    2.4009475708007812,
+    2.307178258895874,
+    2.316118001937866,
+    2.3234119415283203,
+    2.3801426887512207,
+    2.4652793407440186,
+    2.258291721343994,
+    2.380528688430786,
+    2.63312029838562,
+    2.128696918487549,
+    2.1384217739105225,
+    2.5328197479248047,
+    2.4269604682922363,
+    2.587376832962036,
+    2.8904993534088135,
+    2.4846532344818115,
+    2.8808422088623047,
+    2.73537015914917,
+    2.641047477722168,
+    2.591437578201294,
+    2.769685745239258,
+    2.597970962524414,
+    2.4728312492370605,
+    2.615770101547241
+   ],
+   "scoreq_natural_nr": [
+    3.4151034355163574,
+    3.533085823059082,
+    2.9431281089782715,
+    2.9438304901123047,
+    3.1993825435638428,
+    3.5140490531921387,
+    3.1426777839660645,
+    3.640035629272461,
+    3.3980112075805664,
+    2.932070255279541,
+    3.1222779750823975,
+    3.207106590270996,
+    3.2406845092773438,
+    3.6361804008483887,
+    3.241441249847412,
+    3.1296143531799316,
+    3.826235771179199,
+    3.8701424598693848,
+    3.681957244873047,
+    3.6505484580993652,
+    3.519803524017334,
+    3.2364673614501953,
+    3.4981303215026855,
+    3.485316276550293
+   ],
+   "scoreq_synthetic_ref": [
+    0.0,
+    0.4060576260089874,
+    0.4887557327747345,
+    0.41701388359069824,
+    0.43725812435150146,
+    0.43732282519340515,
+    0.443585067987442,
+    0.42943066358566284,
+    0.33707836270332336,
+    0.4417460858821869,
+    0.49790096282958984,
+    0.4187743067741394,
+    0.48356738686561584,
+    0.49695947766304016,
+    0.4011040925979614,
+    0.4179271459579468,
+    0.42025452852249146,
+    0.45801404118537903,
+    0.39724743366241455,
+    0.3745088577270508,
+    0.3862704932689667,
+    0.429252564907074,
+    0.43247318267822266,
+    0.3728361427783966
+   ],
+   "scoreq_natural_ref": [
+    0.0,
+    0.38650721311569214,
+    0.5034208297729492,
+    0.44326052069664,
+    0.4102592468261719,
+    0.39763760566711426,
+    0.41037654876708984,
+    0.3694230616092682,
+    0.416174054145813,
+    0.4149131774902344,
+    0.35123541951179504,
+    0.40220433473587036,
+    0.40858983993530273,
+    0.46272608637809753,
+    0.42351171374320984,
+    0.39456456899642944,
+    0.3429269790649414,
+    0.4334331452846527,
+    0.40943774580955505,
+    0.4502737820148468,
+    0.354383647441864,
+    0.34524402022361755,
+    0.3557542860507965,
+    0.33819419145584106
+   ]
+  }
+ },
+ "summary": {
+  "utmos": {
+   "teacher": {
+    "name": "utmos",
+    "n": 24,
+    "mean": 1.7479,
+    "sd": 0.2598,
+    "median": 1.7222,
+    "min": 1.4188,
+    "max": 2.3204,
+    "ci95_mean": [
+     1.6382,
+     1.8576
+    ]
+   },
+   "human": {
+    "name": "utmos",
+    "n": 24,
+    "mean": 2.3047,
+    "sd": 0.2251,
+    "median": 2.3357,
+    "min": 1.7498,
+    "max": 2.6759,
+    "ci95_mean": [
+     2.2096,
+     2.3997
+    ]
+   },
+   "mannwhitney_teacher_vs_human": {
+    "U": 35.0,
+    "p": 1.92e-07,
+    "auc_a_gt_b": 0.0608,
+    "n1": 24,
+    "n2": 24
+   },
+   "cohens_d_human_minus_teacher": {
+    "d": 2.2907,
+    "ci95": [
+     1.6146,
+     3.3412
+    ]
+   }
+  },
+  "scoreq_synthetic_nr": {
+   "teacher": {
+    "name": "scoreq_synthetic_nr",
+    "n": 24,
+    "mean": 2.0488,
+    "sd": 0.2627,
+    "median": 2.0965,
+    "min": 1.5699,
+    "max": 2.5782,
+    "ci95_mean": [
+     1.9378,
+     2.1597
+    ]
+   },
+   "human": {
+    "name": "scoreq_synthetic_nr",
+    "n": 24,
+    "mean": 2.4983,
+    "sd": 0.2063,
+    "median": 2.4787,
+    "min": 2.1287,
+    "max": 2.8905,
+    "ci95_mean": [
+     2.4112,
+     2.5854
+    ]
+   },
+   "mannwhitney_teacher_vs_human": {
+    "U": 50.0,
+    "p": 9.72e-07,
+    "auc_a_gt_b": 0.0868,
+    "n1": 24,
+    "n2": 24
+   },
+   "cohens_d_human_minus_teacher": {
+    "d": 1.9032,
+    "ci95": [
+     1.3389,
+     2.7117
+    ]
+   }
+  },
+  "scoreq_natural_nr": {
+   "teacher": {
+    "name": "scoreq_natural_nr",
+    "n": 24,
+    "mean": 3.508,
+    "sd": 0.2111,
+    "median": 3.5259,
+    "min": 3.0811,
+    "max": 3.8912,
+    "ci95_mean": [
+     3.4188,
+     3.5971
+    ]
+   },
+   "human": {
+    "name": "scoreq_natural_nr",
+    "n": 24,
+    "mean": 3.3753,
+    "sd": 0.2729,
+    "median": 3.4066,
+    "min": 2.9321,
+    "max": 3.8701,
+    "ci95_mean": [
+     3.2601,
+     3.4905
+    ]
+   },
+   "mannwhitney_teacher_vs_human": {
+    "U": 375.0,
+    "p": 0.0745,
+    "auc_a_gt_b": 0.651,
+    "n1": 24,
+    "n2": 24
+   },
+   "cohens_d_human_minus_teacher": {
+    "d": -0.5437,
+    "ci95": [
+     -1.1803,
+     0.0065
+    ]
+   }
+  },
+  "scoreq_synthetic_ref": {
+   "teacher": {
+    "name": "scoreq_synthetic_ref",
+    "n": 24,
+    "mean": 0.4977,
+    "sd": 0.0669,
+    "median": 0.4917,
+    "min": 0.4079,
+    "max": 0.6549,
+    "ci95_mean": [
+     0.4695,
+     0.5259
+    ]
+   },
+   "human": {
+    "name": "scoreq_synthetic_ref",
+    "n": 23,
+    "mean": 0.4272,
+    "sd": 0.0407,
+    "median": 0.4293,
+    "min": 0.3371,
+    "max": 0.4979,
+    "ci95_mean": [
+     0.4096,
+     0.4448
+    ]
+   },
+   "mannwhitney_teacher_vs_human": {
+    "U": 445.0,
+    "p": 0.000336,
+    "auc_a_gt_b": 0.8062,
+    "n1": 24,
+    "n2": 23
+   },
+   "cohens_d_human_minus_teacher": {
+    "d": -1.2744,
+    "ci95": [
+     -1.9184,
+     -0.7824
+    ]
+   }
+  },
+  "scoreq_natural_ref": {
+   "teacher": {
+    "name": "scoreq_natural_ref",
+    "n": 24,
+    "mean": 0.4091,
+    "sd": 0.0431,
+    "median": 0.3978,
+    "min": 0.3432,
+    "max": 0.51,
+    "ci95_mean": [
+     0.3909,
+     0.4273
+    ]
+   },
+   "human": {
+    "name": "scoreq_natural_ref",
+    "n": 23,
+    "mean": 0.4011,
+    "sd": 0.0422,
+    "median": 0.4086,
+    "min": 0.3382,
+    "max": 0.5034,
+    "ci95_mean": [
+     0.3828,
+     0.4193
+    ]
+   },
+   "mannwhitney_teacher_vs_human": {
+    "U": 286.0,
+    "p": 0.84,
+    "auc_a_gt_b": 0.5181,
+    "n1": 24,
+    "n2": 23
+   },
+   "cohens_d_human_minus_teacher": {
+    "d": -0.1886,
+    "ci95": [
+     -0.7666,
+     0.3957
+    ]
+   }
+  }
+ },
+ "teacher_over_human": {
+  "utmos": {
+   "ratio": 0.7584,
+   "ci95": [
+    0.7077,
+    0.8136
+   ],
+   "n_num": 24,
+   "n_den": 24,
+   "n_boot": 20000,
+   "seed": 0,
+   "higher_is_better": true
+  },
+  "scoreq_synthetic_nr": {
+   "ratio": 0.8201,
+   "ci95": [
+    0.773,
+    0.8696
+   ],
+   "n_num": 24,
+   "n_den": 24,
+   "n_boot": 20000,
+   "seed": 0,
+   "higher_is_better": true
+  },
+  "scoreq_natural_nr": {
+   "ratio": 1.0393,
+   "ci95": [
+    0.999,
+    1.0818
+   ],
+   "n_num": 24,
+   "n_den": 24,
+   "n_boot": 20000,
+   "seed": 0,
+   "higher_is_better": true
+  },
+  "scoreq_synthetic_ref": {
+   "ratio": 1.1651,
+   "ci95": [
+    1.0918,
+    1.2427
+   ],
+   "n_num": 24,
+   "n_den": 23,
+   "n_boot": 20000,
+   "seed": 0,
+   "higher_is_better": false
+  },
+  "scoreq_natural_ref": {
+   "ratio": 1.0201,
+   "ci95": [
+    0.9618,
+    1.0832
+   ],
+   "n_num": 24,
+   "n_den": 23,
+   "n_boot": 20000,
+   "seed": 0,
+   "higher_is_better": false
+  }
+ },
+ "correlation": {
+  "pooled_utmos_vs_scoreq_synthetic_nr": {
+   "n": 48,
+   "pearson_r": 0.8502,
+   "pearson_p": 2.09e-14,
+   "pearson_ci95": [
+    0.7463,
+    0.9136
+   ],
+   "spearman_rho": 0.8528,
+   "spearman_p": 1.43e-14,
+   "spearman_ci95": [
+    0.7445,
+    0.9142
+   ]
+  },
+  "teacher_utmos_vs_scoreq_synthetic_nr": {
+   "n": 24,
+   "pearson_r": 0.6794,
+   "pearson_p": 0.000261,
+   "pearson_ci95": [
+    0.3802,
+    0.8499
+   ],
+   "spearman_rho": 0.6278,
+   "spearman_p": 0.00102,
+   "spearman_ci95": [
+    0.2235,
+    0.8629
+   ]
+  },
+  "human_utmos_vs_scoreq_synthetic_nr": {
+   "n": 24,
+   "pearson_r": 0.7014,
+   "pearson_p": 0.000134,
+   "pearson_ci95": [
+    0.4157,
+    0.8612
+   ],
+   "spearman_rho": 0.673,
+   "spearman_p": 0.000313,
+   "spearman_ci95": [
+    0.307,
+    0.876
+   ]
+  },
+  "teacher_sec_vs_scoreq_synthetic_nr": {
+   "n": 24,
+   "pearson_r": -0.037,
+   "pearson_p": 0.864,
+   "pearson_ci95": [
+    -0.4339,
+    0.372
+   ],
+   "spearman_rho": -0.027,
+   "spearman_p": 0.9,
+   "spearman_ci95": [
+    -0.4609,
+    0.4191
+   ]
+  },
+  "human_sec_vs_scoreq_synthetic_nr": {
+   "n": 24,
+   "pearson_r": -0.0737,
+   "pearson_p": 0.732,
+   "pearson_ci95": [
+    -0.4633,
+    0.3398
+   ],
+   "spearman_rho": -0.0704,
+   "spearman_p": 0.744,
+   "spearman_ci95": [
+    -0.4738,
+    0.3476
+   ]
+  },
+  "pooled_utmos_vs_scoreq_natural_nr": {
+   "n": 48,
+   "pearson_r": 0.1415,
+   "pearson_p": 0.337,
+   "pearson_ci95": [
+    -0.1486,
+    0.4092
+   ],
+   "spearman_rho": 0.1465,
+   "spearman_p": 0.32,
+   "spearman_ci95": [
+    -0.1454,
+    0.4259
+   ]
+  },
+  "teacher_utmos_vs_scoreq_natural_nr": {
+   "n": 24,
+   "pearson_r": 0.6135,
+   "pearson_p": 0.00143,
+   "pearson_ci95": [
+    0.2792,
+    0.8152
+   ],
+   "spearman_rho": 0.6287,
+   "spearman_p": 0.001,
+   "spearman_ci95": [
+    0.2884,
+    0.837
+   ]
+  },
+  "human_utmos_vs_scoreq_natural_nr": {
+   "n": 24,
+   "pearson_r": 0.5161,
+   "pearson_p": 0.00983,
+   "pearson_ci95": [
+    0.1423,
+    0.7611
+   ],
+   "spearman_rho": 0.4939,
+   "spearman_p": 0.0142,
+   "spearman_ci95": [
+    0.0547,
+    0.7835
+   ]
+  },
+  "teacher_sec_vs_scoreq_natural_nr": {
+   "n": 24,
+   "pearson_r": -0.1528,
+   "pearson_p": 0.476,
+   "pearson_ci95": [
+    -0.5239,
+    0.267
+   ],
+   "spearman_rho": -0.1791,
+   "spearman_p": 0.402,
+   "spearman_ci95": [
+    -0.5823,
+    0.2722
+   ]
+  },
+  "human_sec_vs_scoreq_natural_nr": {
+   "n": 24,
+   "pearson_r": -0.0072,
+   "pearson_p": 0.973,
+   "pearson_ci95": [
+    -0.4094,
+    0.3974
+   ],
+   "spearman_rho": 0.1548,
+   "spearman_p": 0.47,
+   "spearman_ci95": [
+    -0.257,
+    0.5488
+   ]
+  },
+  "pooled_utmos_vs_scoreq_synthetic_ref": {
+   "n": 47,
+   "pearson_r": -0.6114,
+   "pearson_p": 4.98e-06,
+   "pearson_ci95": [
+    -0.7644,
+    -0.3933
+   ],
+   "spearman_rho": -0.5456,
+   "spearman_p": 7.31e-05,
+   "spearman_ci95": [
+    -0.7577,
+    -0.2744
+   ]
+  },
+  "teacher_utmos_vs_scoreq_synthetic_ref": {
+   "n": 24,
+   "pearson_r": -0.3625,
+   "pearson_p": 0.0817,
+   "pearson_ci95": [
+    -0.6682,
+    0.048
+   ],
+   "spearman_rho": -0.3478,
+   "spearman_p": 0.0958,
+   "spearman_ci95": [
+    -0.7325,
+    0.1744
+   ]
+  },
+  "human_utmos_vs_scoreq_synthetic_ref": {
+   "n": 23,
+   "pearson_r": -0.3712,
+   "pearson_p": 0.0812,
+   "pearson_ci95": [
+    -0.6795,
+    0.0484
+   ],
+   "spearman_rho": -0.3093,
+   "spearman_p": 0.151,
+   "spearman_ci95": [
+    -0.6658,
+    0.1333
+   ]
+  },
+  "teacher_sec_vs_scoreq_synthetic_ref": {
+   "n": 24,
+   "pearson_r": 0.1421,
+   "pearson_p": 0.508,
+   "pearson_ci95": [
+    -0.2772,
+    0.5159
+   ],
+   "spearman_rho": 0.1417,
+   "spearman_p": 0.509,
+   "spearman_ci95": [
+    -0.285,
+    0.5289
+   ]
+  },
+  "human_sec_vs_scoreq_synthetic_ref": {
+   "n": 23,
+   "pearson_r": -0.2182,
+   "pearson_p": 0.317,
+   "pearson_ci95": [
+    -0.5784,
+    0.2132
+   ],
+   "spearman_rho": -0.2777,
+   "spearman_p": 0.2,
+   "spearman_ci95": [
+    -0.6233,
+    0.1321
+   ]
+  },
+  "pooled_utmos_vs_scoreq_natural_ref": {
+   "n": 47,
+   "pearson_r": -0.0747,
+   "pearson_p": 0.618,
+   "pearson_ci95": [
+    -0.3543,
+    0.2171
+   ],
+   "spearman_rho": -0.0459,
+   "spearman_p": 0.759,
+   "spearman_ci95": [
+    -0.3448,
+    0.2715
+   ]
+  },
+  "teacher_utmos_vs_scoreq_natural_ref": {
+   "n": 24,
+   "pearson_r": 0.1657,
+   "pearson_p": 0.439,
+   "pearson_ci95": [
+    -0.2547,
+    0.5334
+   ],
+   "spearman_rho": 0.0983,
+   "spearman_p": 0.648,
+   "spearman_ci95": [
+    -0.3658,
+    0.5564
+   ]
+  },
+  "human_utmos_vs_scoreq_natural_ref": {
+   "n": 23,
+   "pearson_r": -0.2105,
+   "pearson_p": 0.335,
+   "pearson_ci95": [
+    -0.573,
+    0.2208
+   ],
+   "spearman_rho": -0.2964,
+   "spearman_p": 0.17,
+   "spearman_ci95": [
+    -0.6649,
+    0.1514
+   ]
+  },
+  "teacher_sec_vs_scoreq_natural_ref": {
+   "n": 24,
+   "pearson_r": -0.0825,
+   "pearson_p": 0.701,
+   "pearson_ci95": [
+    -0.4703,
+    0.3319
+   ],
+   "spearman_rho": -0.1722,
+   "spearman_p": 0.421,
+   "spearman_ci95": [
+    -0.5853,
+    0.2491
+   ]
+  },
+  "human_sec_vs_scoreq_natural_ref": {
+   "n": 23,
+   "pearson_r": -0.4298,
+   "pearson_p": 0.0407,
+   "pearson_ci95": [
+    -0.7153,
+    -0.0214
+   ],
+   "spearman_rho": -0.4032,
+   "spearman_p": 0.0565,
+   "spearman_ci95": [
+    -0.7052,
+    0.009
+   ]
+  },
+  "teacher_sec_vs_utmos": {
+   "n": 24,
+   "pearson_r": -0.3723,
+   "pearson_p": 0.0732,
+   "pearson_ci95": [
+    -0.6744,
+    0.0366
+   ],
+   "spearman_rho": -0.393,
+   "spearman_p": 0.0574,
+   "spearman_ci95": [
+    -0.7188,
+    0.0319
+   ]
+  },
+  "human_sec_vs_utmos": {
+   "n": 24,
+   "pearson_r": 0.0261,
+   "pearson_p": 0.903,
+   "pearson_ci95": [
+    -0.3813,
+    0.4251
+   ],
+   "spearman_rho": 0.0087,
+   "spearman_p": 0.968,
+   "spearman_ci95": [
+    -0.3739,
+    0.3842
+   ]
+  }
+ },
+ "padding_confound": {
+  "pad_sec": 0.3,
+  "means": {
+   "human_padded": {
+    "utmos": 2.3423,
+    "scoreq_synthetic_nr": 2.5504
+   },
+   "teacher_trimmed": {
+    "utmos": 1.7395,
+    "scoreq_synthetic_nr": 2.0279
+   }
+  },
+  "ratio_both_padded": {
+   "utmos": {
+    "ratio": 0.7462,
+    "ci95": [
+     0.6961,
+     0.8007
+    ],
+    "n_num": 24,
+    "n_den": 24,
+    "n_boot": 20000,
+    "seed": 0
+   },
+   "scoreq_synthetic_nr": {
+    "ratio": 0.8033,
+    "ci95": [
+     0.757,
+     0.852
+    ],
+    "n_num": 24,
+    "n_den": 24,
+    "n_boot": 20000,
+    "seed": 0
+   }
+  },
+  "ratio_both_unpadded": {
+   "utmos": {
+    "ratio": 0.7548,
+    "ci95": [
+     0.7056,
+     0.8081
+    ],
+    "n_num": 24,
+    "n_den": 24,
+    "n_boot": 20000,
+    "seed": 0
+   },
+   "scoreq_synthetic_nr": {
+    "ratio": 0.8117,
+    "ci95": [
+     0.7645,
+     0.861
+    ],
+    "n_num": 24,
+    "n_den": 24,
+    "n_boot": 20000,
+    "seed": 0
+   }
+  },
+  "note": "教師 wav のみ前後 0.3 秒の無音が入っている非対称を実測した。両方パディングあり／両方なしに揃えた比も出してある。主表の比（教師=パディングあり / 実人間=なし）との差が交絡の大きさ"
+ },
+ "scoreq_ref_note": "主系列の NMR = /Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_001.wav（実人間 1 本目を固定）。参照自身は距離 0 になるので human 側の集計・相関から除外し n=23 とした。NMR を 3 本振った感度は scoreq_ref_nmr_sensitivity を参照。",
+ "scoreq_ref_nmr_sensitivity": {
+  "synthetic_nmr00": {
+   "nmr": "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_001.wav",
+   "teacher_mean": 0.4977,
+   "human_mean_excl_self": 0.4272,
+   "ratio_teacher_over_human": 1.1651,
+   "self_distance": 0.0
+  },
+  "synthetic_nmr08": {
+   "nmr": "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_009.wav",
+   "teacher_mean": 0.4666,
+   "human_mean_excl_self": 0.4188,
+   "ratio_teacher_over_human": 1.1141,
+   "self_distance": 0.0
+  },
+  "synthetic_nmr16": {
+   "nmr": "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_017.wav",
+   "teacher_mean": 0.5591,
+   "human_mean_excl_self": 0.4242,
+   "ratio_teacher_over_human": 1.3181,
+   "self_distance": 0.0
+  },
+  "natural_nmr00": {
+   "nmr": "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_001.wav",
+   "teacher_mean": 0.4091,
+   "human_mean_excl_self": 0.4011,
+   "ratio_teacher_over_human": 1.0201,
+   "self_distance": 0.0
+  },
+  "natural_nmr08": {
+   "nmr": "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_009.wav",
+   "teacher_mean": 0.4907,
+   "human_mean_excl_self": 0.4744,
+   "ratio_teacher_over_human": 1.0344,
+   "self_distance": 0.0
+  },
+  "natural_nmr16": {
+   "nmr": "/Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech/snapshots/b90c1e125903863739970d36d35836683278e7a9/wavs/VOICEACTRESS100_017.wav",
+   "teacher_mean": 0.3829,
+   "human_mean_excl_self": 0.3827,
+   "ratio_teacher_over_human": 1.0004,
+   "self_distance": 0.0
+  }
+ },
+ "scoreq_ref_excluded_index": {
+  "scoreq_synthetic_ref": 0,
+  "scoreq_natural_ref": 0
+ },
+ "utmos_reproduced": {
+  "human_mean_now": 2.304663,
+  "human_mean_stored": 2.304662843545278,
+  "abs_delta": 0.0
+ },
+ "worst_teacher_utterances": {
+  "utmos": [
+   {
+    "idx": 18,
+    "value": 1.4188,
+    "sec": 6.49,
+    "text": "<redacted: corpus text>",
+    "wav": "reports/b5_teacher_wav/t18.wav"
+   },
+   {
+    "idx": 10,
+    "value": 1.4255,
+    "sec": 3.657,
+    "text": "<redacted: corpus text>",
+    "wav": "reports/b5_teacher_wav/t10.wav"
+   },
+   {
+    "idx": 5,
+    "value": 1.4334,
+    "sec": 4.075,
+    "text": "<redacted: corpus text>",
+    "wav": "reports/b5_teacher_wav/t05.wav"
+   }
+  ],
+  "scoreq_synthetic_nr": [
+   {
+    "idx": 10,
+    "value": 1.5699,
+    "sec": 3.657,
+    "text": "<redacted: corpus text>",
+    "wav": "reports/b5_teacher_wav/t10.wav"
+   },
+   {
+    "idx": 21,
+    "value": 1.6729,
+    "sec": 7.639,
+    "text": "<redacted: corpus text>",
+    "wav": "reports/b5_teacher_wav/t21.wav"
+   },
+   {
+    "idx": 5,
+    "value": 1.7248,
+    "sec": 4.075,
+    "text": "<redacted: corpus text>",
+    "wav": "reports/b5_teacher_wav/t05.wav"
+   }
+  ]
+ },
+ "runtime_cost": {
+  "wall_sec": 148.1,
+  "peak_rss_bytes": 5423579136,
+  "note": "UTMOS + SCOREQ 4 モデルを 1 プロセスに常駐させた場合。SCOREQ の ONNX は 1 本 378 MB で、4 設定すべて測ると 4 本載る。生徒の評価を回すマシンのメモリ見積りに使うこと。macOS では ru_maxrss はバイト単位"
+ },
+ "pipeline_integration": {
+  "new_script": "scripts/eval_metrics.py — 任意の wav 群に UTMOS と SCOREQ 4 設定を並べて出す。統計ヘルパ (summarize / ratio_ci / corr_ci / cohens_d / mannwhitney) も同居。生徒の評価はこれを使う",
+  "existing_script_untouched": "scripts/b5_measure_mos.py は変更していない",
+  "existing_script_now_broken": "⚠️ ただし scoreq を入れたことで scripts/b5_measure_mos.py:measure_scoreq は ImportError('TorchCodec is required for load_with_torchcodec') で落ちるようになった。scoreq 内部の torchaudio.load を呼ぶ前に src/saanotts_jp/scoreq_metric.py の soundfile shim を通していないため。以前は ImportError で None を返してスキップしていたので気づかない。UTMOS 計測の後・JSON 書き出しの前で落ちるので reports/b5_teacher_baseline.json は壊れないが、docs/measurements.md M-10 の再現コマンドは現状こける。修正は measure_scoreq の中身を `from saanotts_jp.scoreq_metric import score_files` 経由にする 1 箇所"
+ },
+ "calibration_warning": "UTMOS / SCOREQ はいずれも日本語では較正されていない。UTMOS の学習データは VoiceMOS 2022 main=BVCC(英語) / OOD=BC2019(中国語)。SCOREQ は同梱 README (scoreq-1.0.1.dist-info/METADATA) の表によると synthetic = VoiceMOS 22 Train Set (= 同チャレンジ main track の BVCC。英語)、natural = NISQA TRAIN SIM (符号化・雑音・パケットロスの伝送劣化シミュレーション)。どちらの学習セットにも日本語 TTS は入っていない。日本語の絶対値を論文の英語スコア (教師 4.68 / embedded 2.54) と直接比較してはいけない。教師比・人間音声比で報告すること (D-013)。【出典の区別】学習セット名は同梱 README の記載（本タスクで確認済み）、「BVCC が英語」は VoiceMOS 2022 の公表内容であって本タスクの実測ではない。実測で言えるのは「実人間の日本語スタジオ録音でも SCOREQ synthetic/nr は 2.498 (n=24) しか出ない」という圧縮の事実のほう。",
+ "natural_domain_warning": "SCOREQ の data_domain='natural' は NISQA TRAIN SIM（符号化・背景雑音・パケットロスの伝送劣化シミュレーション）で学習したモデルで、ONNX 名も adapt_nr_telephone.onnx / fixed_nmr_telephone.onnx。伝送品質の推定器であり TTS の品質評価用ではない。主指標は synthetic/nr を使うこと",
+ "repro": "uv run --extra eval python scripts/b5_scoreq_baseline.py   # 教師 wav は reports/b5_teacher_wav/（b5_teacher_baseline.py が生成）、実人間 wav は HF datasets--ayousanz--tsukuyomi-chan-ljspeech の 24 本"
+}

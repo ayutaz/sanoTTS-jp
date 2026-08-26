@@ -65,13 +65,24 @@ def measure_utmos(paths: list[str]) -> list[float]:
 
 
 def measure_scoreq(paths: list[str]) -> list[float] | None:
-    """SCOREQ。未インストールなら None を返す（必須にはしない）。"""
+    """SCOREQ（論文の主指標）。未インストールなら None を返す。
+
+    ⚠️ **`scoreq.Scoreq` を直接呼んではいけない。** 内部が `torchaudio.load` を使い、
+    torchaudio 2.13 はそこで torchcodec を要求するので `ImportError` で落ちる。
+    `saanotts_jp.scoreq_metric` の soundfile shim を必ず通すこと。
+
+    ⚠️ **`data_domain="natural"` は使わない。** 実体は NISQA TRAIN SIM（伝送劣化）
+    モデルで、実測では合成音声を実人間より高く採点し（教師 3.508 > 実人間 3.375）、
+    UTMOS と無相関 (r=+0.141)。TTS の劣化軸を見ていない（B-5 続き）。
+    """
+    import sys as _sys  # noqa: PLC0415
+    _sys.path.insert(0, "src")
     try:
-        import scoreq  # noqa: PLC0415
+        from saanotts_jp.scoreq_metric import score_files  # noqa: PLC0415
     except ImportError:
         return None
-    model = scoreq.Scoreq(data_domain="synthetic", mode="nr")
-    return [float(model.predict(test_path=p, ref_path=None)) for p in paths]
+    scored = score_files(paths, domain="synthetic", mode="nr")
+    return [scored[str(p)] for p in paths]
 
 
 def summarize(name: str, values: list[float], secs: list[float]) -> dict:
