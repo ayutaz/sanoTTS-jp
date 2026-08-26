@@ -1,0 +1,102 @@
+{
+ "probe_texts": [
+  "今日は良い天気ですね。",
+  "電源を入れてください。",
+  "橋を渡る。",
+  "箸を持つ。",
+  "本日の会議は午後三時からです。",
+  "バッテリー残量は十五パーセントです。",
+  "コンピューターを再起動します。",
+  "中世のイングランドでは、町という町のすべてが賑わっていた。"
+ ],
+ "environment": {
+  "python": "3.14.0",
+  "torch": "2.13.0",
+  "platform": "macOS-26.2-arm64-arm-64bit-Mach-O",
+  "cuda": null
+ },
+ "results": [
+  {
+   "pair": "cpu(1回目)_vs_cpu(2回目)",
+   "bit_equal": 8,
+   "n": 8,
+   "snr_db_min": null,
+   "snr_db_mean": null,
+   "int16_differing_samples": 0
+  },
+  {
+   "pair": "cpu_vs_mps",
+   "bit_equal": 0,
+   "n": 8,
+   "snr_db_min": 97.00127866173693,
+   "snr_db_mean": 102.55479007158759,
+   "int16_differing_samples": 2295
+  }
+ ],
+ "cpu_reference": [
+  {
+   "text": "今日は良い天気ですね。",
+   "n_ids": 53,
+   "frames": 108,
+   "audio": "08de3f43944ed9be",
+   "zT": "c5b43bc27063af30",
+   "dT": "97aff18961583ab1"
+  },
+  {
+   "text": "電源を入れてください。",
+   "n_ids": 47,
+   "frames": 116,
+   "audio": "54c7539eb285f30b",
+   "zT": "5107c96516438fa9",
+   "dT": "e861f7b692c95856"
+  },
+  {
+   "text": "橋を渡る。",
+   "n_ids": 31,
+   "frames": 80,
+   "audio": "c6a0fd6ac5eb74a8",
+   "zT": "34b3d3095b4491a9",
+   "dT": "4f29716cf10094d3"
+  },
+  {
+   "text": "箸を持つ。",
+   "n_ids": 29,
+   "frames": 69,
+   "audio": "1fadfbad8bd9ee7f",
+   "zT": "85ad654aee2cd6e2",
+   "dT": "00fe61e038bd2b27"
+  },
+  {
+   "text": "本日の会議は午後三時からです。",
+   "n_ids": 85,
+   "frames": 172,
+   "audio": "5e85638c1fcbbbde",
+   "zT": "9adad1dfb2e156ed",
+   "dT": "e6a194cdab5de017"
+  },
+  {
+   "text": "バッテリー残量は十五パーセントです。",
+   "n_ids": 79,
+   "frames": 188,
+   "audio": "341971e310ce5491",
+   "zT": "cdbdcb09b8dd7278",
+   "dT": "f47f1c881697a400"
+  },
+  {
+   "text": "コンピューターを再起動します。",
+   "n_ids": 59,
+   "frames": 124,
+   "audio": "f88dbea043044059",
+   "zT": "9140ce1adb51aaa4",
+   "dT": "5ad4df11c4b41a48"
+  },
+  {
+   "text": "中世のイングランドでは、町という町のすべてが賑わっていた。",
+   "n_ids": 140,
+   "frames": 330,
+   "audio": "d9712fbcbbde9b2c",
+   "zT": "d4272484b83b34d3",
+   "dT": "580c731e3d752fac"
+  }
+ ]
+}
