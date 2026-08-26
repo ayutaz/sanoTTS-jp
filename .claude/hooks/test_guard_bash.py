@@ -60,6 +60,16 @@ CASES: list[tuple[str, str, str]] = [
     # heredoc で日本語ドキュメントを書くときに踏んだ誤検知
     ("allow", "uv run python - <<'EOF'\ns='`pip install` も禁止'\nEOF", "コードスパン内の pip install"),
     ("allow", "uv run python - <<'EOF'\ns='`rm -rf` は危険'\nEOF", "コードスパン内の rm"),
+    ("allow", f"uv run python - <<'EOF'\ns='{PP}/.venv/bin/python は使わない'\nEOF",
+     "heredoc 内の piper-plus venv パス（C-011 の再発を防ぐ）"),
+    ("allow", f'grep -rn "{PP}/.venv/bin/python" docs/', "grep で venv パスを探す"),
+    # heredoc の本文はデータ。コマンドとして走査してはいけない（C-011 / C-015）
+    ("allow", "git commit -F - <<'EOF'\npip install は禁止\npython3 x.py も禁止\nEOF",
+     "コミットメッセージ内の危険な文字列"),
+    ("allow", f"uv run python - <<'PY'\ns='rm {PP}/dic'\nPY", "heredoc 内の rm + piper-plus"),
+    ("allow", "cat <<'EOF' > note.md\n| a | python3 b.py |\nEOF", "heredoc 内の表"),
+    # heredoc の**外**は今までどおり見る
+    ("deny", "cat <<'EOF' > a.txt\nhello\nEOF\npip install x", "heredoc の後ろの pip install"),
 ]
 
 

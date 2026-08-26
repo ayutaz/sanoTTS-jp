@@ -28,7 +28,9 @@ PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
 # このプロジェクトは日本語ドキュメントを heredoc で書くことが多く、
 # Markdown のコードスパン `pip install` を誤検知してしまう（実際に踏んだ）。
 # 現代的な $(...) だけを見る。
-CMD_POS = r"(?:^|[;&|]\s*|\$\(\s*|(?:sudo|env|time|nohup|xargs)\s+)"
+# `\n` も区切りに含める。シェルでは改行がコマンド区切りなので、
+# 2 行目以降の先頭を見落とすと heredoc の後ろに書いた危険なコマンドを素通しする。
+CMD_POS = r"(?:^|[;&|\n]\s*|\$\(\s*|(?:sudo|env|time|nohup|xargs)\s+)"
 
 # 書き込み・変更を伴うコマンド。読み取り (cat/grep/ls/find/git log …) は素通しする。
 WRITE_COMMANDS = (
@@ -117,7 +119,9 @@ def check_python_invocation(cmd: str) -> None:
     確認が挟まり作業のたびに止まる。「uv を経由しない python はそもそもあり得ない」
     のがプロジェクトの方針（D-012）なので、`pip install` と同じく機械的に塞ぐ。
     """
-    if f"{PIPER_PLUS}/.venv/bin/python" in cmd:
+    # ⚠️ **コマンド位置に固定すること。** 素の部分文字列一致にすると、
+    # heredoc で docs を書くときにこのパスを含む文字列で誤検知する（C-011 の再発）。
+    if re.search(CMD_POS + re.escape(f"{PIPER_PLUS}/.venv/bin/python"), cmd):
         deny(
             "piper-plus の venv の python を直接使おうとしています。\n"
             "本プロジェクトは **`uv run python`** が正です（D-012）。\n"
@@ -134,15 +138,43 @@ def check_python_invocation(cmd: str) -> None:
         )
 
 
+_HEREDOC_START = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
+
+
+def strip_heredoc_bodies(cmd: str) -> str:
+    """heredoc の本文を取り除く。**本文はデータであってコマンドではない。**
+
+    このプロジェクトは日本語ドキュメントを heredoc で書くことが多く、
+    本文に `pip install` や piper-plus のパスが**話題として**登場する。
+    生のコマンド文字列をそのまま走査すると、それを実行だと誤認する
+    （C-011 で 2 回、その後さらに 1 回踏んだ）。
+
+    区切り語の行だけを残し、本文は捨てる。ネストは扱わない（実用上不要）。
+    """
+    lines = cmd.split("\n")
+    out: list[str] = []
+    pending: list[str] = []   # まだ閉じていない区切り語
+    for line in lines:
+        if pending:
+            if line.strip() == pending[0]:
+                pending.pop(0)
+            continue          # 本文は捨てる
+        out.append(line)
+        for m in _HEREDOC_START.finditer(line):
+            pending.append(m.group(2))
+    return "\n".join(out)
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
     except (json.JSONDecodeError, ValueError):
         return 0  # 解釈できない入力でツールを止めない
 
-    cmd = (payload.get("tool_input") or {}).get("command") or ""
-    if not cmd:
+    raw = (payload.get("tool_input") or {}).get("command") or ""
+    if not raw:
         return 0
+    cmd = strip_heredoc_bodies(raw)
 
     check_piper_plus_write(cmd)
     check_pip(cmd)

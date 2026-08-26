@@ -12,7 +12,14 @@
 
 * `text_to_intermediate()` — **ホスト側**。OpenJTalk を使う。オフラインで一度だけ実行
 * `intermediate_to_phonemes()` — **端末側**。mora テーブルと ん の異音規則だけ。
-  ここが C99 に移植される部分で、必要なデータは 954 B + 18 規則
+  ここが C99 に移植される部分。必要なデータは **mora テーブル 1,786 B + `ん` 異音規則 21 件**
+
+コーパス 23,457 行での実測（A-1 / Phase B-a）:
+
+    表現可能 99.77%   往復一致 100.00%
+
+表現できない 0.23%（55 行）は **`fy` を含む行**で、これは中間表現の問題ではなく
+**教師の音素表に `fy` が無い**（`phoneme_id_map` に存在しない）。ラベル生成から除外する。
 
 実行するとセルフテストが走る:
 
@@ -67,6 +74,46 @@ PARTICLE_KANA = {"は": ["h", "a"], "へ": ["h", "e"], "を": ["o"]}
 """助詞として読まれうる仮名。どんなキャリアに入れても文脈次第で `wa`/`e` になるため、
 表音としての値をここで固定する。中間表現は表音なので、助詞の「は」は `わ` と書かれる。"""
 
+# 子音 → その子音を表すかな（拗音は「かな + 小書き」で綴る）
+_CONSONANT_KANA = {
+    "ts": "つ", "v": "ゔ", "f": "ふ", "sh": "し", "j": "じ", "ch": "ち",
+    "ky": "き", "gy": "ぎ", "ny": "に", "hy": "ひ", "by": "び", "py": "ぴ",
+    "my": "み", "ry": "り", "ty": "て", "dy": "で", "kw": "く", "gw": "ぐ",
+    "s": "す", "z": "ず", "t": "と", "d": "ど", "y": "い", "w": "う",
+}
+# 母音 → 小書きかな
+_SMALL_VOWEL = {"a": "ぁ", "i": "ぃ", "u": "ぅ", "e": "ぇ", "o": "ぉ"}
+# 拗音の子音は「小書きのヤ行」で綴るのが標準（きゃ きゅ きょ）。
+# 非標準の母音（きぇ 等）は小書き母音で綴る。
+_YOUON_VOWEL = {"a": "ゃ", "u": "ゅ", "o": "ょ"}
+_YOUON = {"ky", "gy", "ny", "hy", "by", "py", "my", "ry", "ty", "dy", "sh", "j", "ch"}
+
+
+def _build_foreign_mora() -> dict[str, list[str]]:
+    """外来語・非標準の (子音, 母音) 組み合わせを**規則で**生成する。
+
+    キャリア法（`build_mora_table`）では導出できない。`まつぁま` のような文字列は
+    実在語にならず OpenJTalk が別の読みに割るため、音素を実測で取れない。
+
+    個別に列挙するとコーパスを走査するたびに漏れが出る（実際に 2 回漏らした）ので、
+    **子音 × 母音の直積を張る**。表音としての値なので機械的に決まる。
+    """
+    table: dict[str, list[str]] = {}
+    for cons, kana in _CONSONANT_KANA.items():
+        for vowel, small in _SMALL_VOWEL.items():
+            if cons in _YOUON and vowel in _YOUON_VOWEL:
+                mora = kana + _YOUON_VOWEL[vowel]      # きゃ きゅ きょ
+            else:
+                mora = kana + small                     # きぇ つぁ ゔぃ くゎ
+            table.setdefault(mora, [cons, vowel])
+    table["いぇ"] = ["y", "e"]
+    return table
+
+
+FOREIGN_MORA = _build_foreign_mora()
+"""規則生成した拡張モーラ。`piper_plus_g2p` の音素表に無い組み合わせは
+`build_mora_table` 側で ID に落ちないだけなので、多めに張っても害はない。"""
+
 
 def build_mora_table() -> dict[str, list[str]]:
     """かな → 音素列のテーブルを piper-plus の phonemizer から導出する。
@@ -111,6 +158,11 @@ def build_mora_table() -> dict[str, list[str]]:
             # `す → ['s','U']`）ので、ここで必ず戻す。
             table[mora] = [DEVOICE.get(p, p) for p in phonemes[2:-2]]
     table.update(PARTICLE_KANA)
+    table.update(FOREIGN_MORA)
+    # `ん` の異音は後続子音から決まるので、外来音の子音も規則に足す
+    N_ALLOPHONE.setdefault("kw", "N_ng")
+    N_ALLOPHONE.setdefault("gw", "N_ng")
+    N_ALLOPHONE.setdefault("v", "N_m")   # 唇歯音。両唇音に寄せる
     return table
 
 
@@ -204,10 +256,51 @@ def intermediate_to_tokens(text: str, table: dict[str, list[str]]) -> list[str]:
 # --- ホスト側の変換（オフラインで一度だけ）----------------------------------
 
 
+def normalize_mid_mora_marks(phonemes: list[str]) -> list[str]:
+    """子音と母音の間に入り込んだアクセント記号をモーラ境界へ寄せる。
+
+    OpenJTalk は稀に `... t # a ...` のようにモーラの内部で句境界を切る。
+    中間表現はモーラ単位なので、このままでは表現できない（A-1 で全走査した結果、
+    `n #` `g #` `w #` など 20 種以上・計 1,000 回超が該当した）。
+
+    子音の直後の記号を、その子音の**前**へ移す。モーラを割らない位置に寄せるだけで、
+    記号そのものは消さない。
+
+    ⚠️ **これが出力を「良くする」のか「変える」だけなのかは未測定**（Phase A §5）。
+    機構としては OpenJTalk 側のフレージングの粗さを吸収しているように見えるが、
+    教師音声への影響は確認していない。
+    """
+    vowels = set("aiueoAIUEO")
+    out: list[str] = []
+    i = 0
+    while i < len(phonemes):
+        p = phonemes[i]
+        # 子音 + 記号 + 母音 の並びなら、記号を子音の前へ
+        if (
+            p not in MARKS
+            and p not in vowels
+            and i + 2 < len(phonemes)
+            and phonemes[i + 1] in ACCENT_MARKS
+            and phonemes[i + 2] in vowels
+        ):
+            out.append(phonemes[i + 1])
+            out.append(p)
+            i += 2
+            continue
+        out.append(p)
+        i += 1
+    return out
+
+
 def phonemes_to_intermediate(
-    phonemes: list[str], table: dict[str, list[str]]
+    phonemes: list[str], table: dict[str, list[str]], normalize: bool = True
 ) -> list[str]:
-    """音素列 → 中間表現。ホスト側で使う逆変換。"""
+    """音素列 → 中間表現。ホスト側で使う逆変換。
+
+    `normalize=True` でモーラ内部のアクセント記号を境界へ寄せる（A-1 の決定）。
+    """
+    if normalize:
+        phonemes = normalize_mid_mora_marks(phonemes)
     reverse: dict[tuple[str, ...], str] = {}
     for mora, ph in table.items():
         reverse.setdefault(tuple(ph), mora)
