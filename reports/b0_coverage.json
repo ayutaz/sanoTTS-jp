@@ -1,0 +1,7367 @@
+{
+ "what_this_measures": "フル NAIST-JDIC (piper-plus の build/share/open_jtalk/dic, lexsize=788,923) の pyopenjtalk 出力を正解とみなし、枝刈り辞書の出力とどれだけ一致するかを held-out で測った。『正しく読めるか』ではなく『フル辞書と同じ結果になるか』であることに注意 (フル辞書自身の誤読は測っていない)。",
+ "measured_or_estimated": "measured — 全水準で実際に mecab-dict-index でバイナリを作り、pyopenjtalk で音素化した。推定値は 1 つも無い。",
+ "provenance": {
+  "teacher_dict": "/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic (sys.dic 103,082,017 B, lexsize 788,923)",
+  "warning": "piper-plus の Python G2P が実行時に引くのは pyopenjtalk 同梱の別リビジョン (.venv/.../pyopenjtalk/dictionary/sys.dic, 103,094,645 B, lexsize 789,024)。本測定は OPEN_JTALK_DICT_DIR で piper-plus 側に固定してある。",
+  "vocab_source": "data/splits/corpus_train.tsv 20,946 行のみ (held-out は語彙構築に一切使っていない)",
+  "train_token_stats": {
+   "lines": 20946,
+   "distinct_surfaces": 30350,
+   "tokens": 343023,
+   "surfaces_also_in_dict": 29277,
+   "corpus_surfaces_not_in_dict": 1073
+  },
+  "ranking": "コーパス頻度降順 → コーパス外の辞書見出し語を min(wcost) 昇順で補充。選ばれた表層形に属するエントリは全部残す。",
+  "feature_variants": {
+   "full": "feature 11 フィールドをそのまま",
+   "noread": "『読み』(index 7) だけ * 化。build_dict.md §4.2(b) で安全と実測された唯一のフィールド",
+   "guard": "full feature + 『名詞,数』『*,接尾』『記号,*』の全表層 2,705 語を強制追加 (下記 digit_defect の対策)"
+  },
+  "build": "scratchpad/b0/mecab-dict-index (open_jtalk 1.11 同梱 mecab)。全水準で stderr 0 行、pyopenjtalk 例外 0 件。matrix.bin は使用 context id に再割当して圧縮済み (出力不変を既に実証)。",
+  "eval_sets": {
+   "heldout": "data/splits/corpus_heldout.tsv 2,325 文 (in-domain, train と 5-gram Jaccard>=0.7 が 0 行)",
+   "embedded": "data/splits/corpus_embedded.tsv 183 文 (ESP32 実運用想定のドメイン外・手書き。62% の行が数字を含む)"
+  }
+ },
+ "metric_definitions": {
+  "phoneme_sentence_agreement_pct": "extract_fullcontext の P3 列 (piper-plus japanese.py:30 と同じ正規表現) が完全一致した文の割合。本命指標",
+  "phoneme_error_rate_pct": "P3 列の Levenshtein 誤り率",
+  "accent_phrase_sentence_agreement_pct": "run_frontend を chain_flag でアクセント句に切った (アクセント型, モーラ数) 列が完全一致した文の割合",
+  "a123_sentence_agreement_pct": "/A:a1+a2+a3/ 列が完全一致した文の割合。教師 duration predictor の prosody 入力そのもの",
+  "phoneme_ok_but_accent_wrong": "音素列は合っているのにアクセント句が違う文の数 (橋/箸/端 型の欠陥)",
+  "token_coverage_pct": "フル辞書での token 表層が枝刈り語彙に入っている割合 (実ビルド不要の代替指標)",
+  "sentence_full_coverage_pct": "全 token が語彙に入っている文の割合 = 音素列一致率の保守的な下界"
+ },
+ "rows": [
+  {
+   "surfaces": 5000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 2174012,
+   "dict_bytes": {
+    "sys.dic": 1018710,
+    "matrix.bin": 887116,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 2174012
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 10.383,
+   "phoneme_error_rate_pct": 29.5193,
+   "accent_phrase_sentence_agreement_pct": 10.383,
+   "a123_sentence_agreement_pct": 10.383,
+   "a123_error_rate_pct": 62.5947,
+   "phoneme_ok_but_accent_wrong": 1,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 86.299,
+   "sentence_full_coverage_pct": 28.962,
+   "tokens_total": 1759,
+   "tokens_oov": 241
+  },
+  {
+   "surfaces": 10000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 3293283,
+   "dict_bytes": {
+    "sys.dic": 1878995,
+    "matrix.bin": 1146102,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 3293283
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 18.033,
+   "phoneme_error_rate_pct": 23.3619,
+   "accent_phrase_sentence_agreement_pct": 17.486,
+   "a123_sentence_agreement_pct": 16.94,
+   "a123_error_rate_pct": 52.0909,
+   "phoneme_ok_but_accent_wrong": 4,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 90.961,
+   "sentence_full_coverage_pct": 41.53,
+   "tokens_total": 1759,
+   "tokens_oov": 159
+  },
+  {
+   "surfaces": 20000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 5361922,
+   "dict_bytes": {
+    "sys.dic": 3600740,
+    "matrix.bin": 1492996,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 5361922
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 25.137,
+   "phoneme_error_rate_pct": 19.8057,
+   "accent_phrase_sentence_agreement_pct": 22.404,
+   "a123_sentence_agreement_pct": 22.404,
+   "a123_error_rate_pct": 46.6579,
+   "phoneme_ok_but_accent_wrong": 7,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 93.69,
+   "sentence_full_coverage_pct": 54.645,
+   "tokens_total": 1759,
+   "tokens_oov": 111
+  },
+  {
+   "surfaces": 30000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 7128586,
+   "dict_bytes": {
+    "sys.dic": 5247588,
+    "matrix.bin": 1612812,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 7128586
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 28.962,
+   "phoneme_error_rate_pct": 18.2252,
+   "accent_phrase_sentence_agreement_pct": 26.776,
+   "a123_sentence_agreement_pct": 26.23,
+   "a123_error_rate_pct": 44.5176,
+   "phoneme_ok_but_accent_wrong": 7,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 95.566,
+   "sentence_full_coverage_pct": 65.574,
+   "tokens_total": 1759,
+   "tokens_oov": 78
+  },
+  {
+   "surfaces": 60000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 12133873,
+   "dict_bytes": {
+    "sys.dic": 10014795,
+    "matrix.bin": 1850892,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 12133873
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 79.781,
+   "phoneme_error_rate_pct": 3.836,
+   "accent_phrase_sentence_agreement_pct": 73.77,
+   "a123_sentence_agreement_pct": 73.224,
+   "a123_error_rate_pct": 12.5453,
+   "phoneme_ok_but_accent_wrong": 15,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 96.589,
+   "sentence_full_coverage_pct": 72.131,
+   "tokens_total": 1759,
+   "tokens_oov": 60
+  },
+  {
+   "surfaces": 100000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 18774250,
+   "dict_bytes": {
+    "sys.dic": 16347018,
+    "matrix.bin": 2159046,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 18774250
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 89.617,
+   "phoneme_error_rate_pct": 1.2842,
+   "accent_phrase_sentence_agreement_pct": 82.514,
+   "a123_sentence_agreement_pct": 82.514,
+   "a123_error_rate_pct": 7.244,
+   "phoneme_ok_but_accent_wrong": 15,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 97.499,
+   "sentence_full_coverage_pct": 78.142,
+   "tokens_total": 1759,
+   "tokens_oov": 44
+  },
+  {
+   "surfaces": 200000,
+   "feature_variant": "full",
+   "evalset": "embedded",
+   "dict_bytes_total": 34798824,
+   "dict_bytes": {
+    "sys.dic": 31871816,
+    "matrix.bin": 2658822,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 34798824
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 93.443,
+   "phoneme_error_rate_pct": 0.8232,
+   "accent_phrase_sentence_agreement_pct": 87.432,
+   "a123_sentence_agreement_pct": 87.432,
+   "a123_error_rate_pct": 5.4988,
+   "phoneme_ok_but_accent_wrong": 13,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 98.067,
+   "sentence_full_coverage_pct": 82.514,
+   "tokens_total": 1759,
+   "tokens_oov": 34
+  },
+  {
+   "surfaces": 10000,
+   "feature_variant": "guard",
+   "evalset": "embedded",
+   "dict_bytes_total": 3945872,
+   "dict_bytes": {
+    "sys.dic": 2219050,
+    "matrix.bin": 1458636,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 3945872
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 58.47,
+   "phoneme_error_rate_pct": 7.6391,
+   "accent_phrase_sentence_agreement_pct": 54.098,
+   "a123_sentence_agreement_pct": 53.552,
+   "a123_error_rate_pct": 19.8057,
+   "phoneme_ok_but_accent_wrong": 11,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 92.041,
+   "sentence_full_coverage_pct": 46.448,
+   "tokens_total": 1759,
+   "tokens_oov": 140
+  },
+  {
+   "surfaces": 20000,
+   "feature_variant": "guard",
+   "evalset": "embedded",
+   "dict_bytes_total": 5934597,
+   "dict_bytes": {
+    "sys.dic": 3895445,
+    "matrix.bin": 1770966,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 5934597
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 72.678,
+   "phoneme_error_rate_pct": 4.3135,
+   "accent_phrase_sentence_agreement_pct": 66.667,
+   "a123_sentence_agreement_pct": 66.667,
+   "a123_error_rate_pct": 13.2203,
+   "phoneme_ok_but_accent_wrong": 13,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 94.713,
+   "sentence_full_coverage_pct": 60.656,
+   "tokens_total": 1759,
+   "tokens_oov": 93
+  },
+  {
+   "surfaces": 30000,
+   "feature_variant": "guard",
+   "evalset": "embedded",
+   "dict_bytes_total": 7661348,
+   "dict_bytes": {
+    "sys.dic": 5511358,
+    "matrix.bin": 1881804,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 7661348
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 80.874,
+   "phoneme_error_rate_pct": 2.9635,
+   "accent_phrase_sentence_agreement_pct": 75.956,
+   "a123_sentence_agreement_pct": 75.41,
+   "a123_error_rate_pct": 9.5324,
+   "phoneme_ok_but_accent_wrong": 12,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 96.362,
+   "sentence_full_coverage_pct": 70.492,
+   "tokens_total": 1759,
+   "tokens_oov": 64
+  },
+  {
+   "surfaces": 60000,
+   "feature_variant": "guard",
+   "evalset": "embedded",
+   "dict_bytes_total": 12512461,
+   "dict_bytes": {
+    "sys.dic": 10236263,
+    "matrix.bin": 2008012,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 12512461
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 85.792,
+   "phoneme_error_rate_pct": 1.9427,
+   "accent_phrase_sentence_agreement_pct": 81.421,
+   "a123_sentence_agreement_pct": 80.874,
+   "a123_error_rate_pct": 7.9519,
+   "phoneme_ok_but_accent_wrong": 12,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 97.157,
+   "sentence_full_coverage_pct": 76.503,
+   "tokens_total": 1759,
+   "tokens_oov": 50
+  },
+  {
+   "surfaces": 5000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 2097607,
+   "dict_bytes": {
+    "sys.dic": 942305,
+    "matrix.bin": 887116,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 2097607
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 10.383,
+   "phoneme_error_rate_pct": 29.5193,
+   "accent_phrase_sentence_agreement_pct": 10.383,
+   "a123_sentence_agreement_pct": 10.383,
+   "a123_error_rate_pct": 62.5947,
+   "phoneme_ok_but_accent_wrong": 1,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 86.299,
+   "sentence_full_coverage_pct": 28.962,
+   "tokens_total": 1759,
+   "tokens_oov": 241
+  },
+  {
+   "surfaces": 10000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 3144070,
+   "dict_bytes": {
+    "sys.dic": 1729782,
+    "matrix.bin": 1146102,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 3144070
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 18.033,
+   "phoneme_error_rate_pct": 23.3619,
+   "accent_phrase_sentence_agreement_pct": 17.486,
+   "a123_sentence_agreement_pct": 16.94,
+   "a123_error_rate_pct": 52.0909,
+   "phoneme_ok_but_accent_wrong": 4,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 90.961,
+   "sentence_full_coverage_pct": 41.53,
+   "tokens_total": 1759,
+   "tokens_oov": 159
+  },
+  {
+   "surfaces": 20000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 5061423,
+   "dict_bytes": {
+    "sys.dic": 3300241,
+    "matrix.bin": 1492996,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 5061423
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 25.137,
+   "phoneme_error_rate_pct": 19.8057,
+   "accent_phrase_sentence_agreement_pct": 22.404,
+   "a123_sentence_agreement_pct": 22.404,
+   "a123_error_rate_pct": 46.6579,
+   "phoneme_ok_but_accent_wrong": 7,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 93.69,
+   "sentence_full_coverage_pct": 54.645,
+   "tokens_total": 1759,
+   "tokens_oov": 111
+  },
+  {
+   "surfaces": 30000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 6672610,
+   "dict_bytes": {
+    "sys.dic": 4791612,
+    "matrix.bin": 1612812,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 6672610
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 28.962,
+   "phoneme_error_rate_pct": 18.2252,
+   "accent_phrase_sentence_agreement_pct": 26.776,
+   "a123_sentence_agreement_pct": 26.23,
+   "a123_error_rate_pct": 44.5176,
+   "phoneme_ok_but_accent_wrong": 7,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 95.566,
+   "sentence_full_coverage_pct": 65.574,
+   "tokens_total": 1759,
+   "tokens_oov": 78
+  },
+  {
+   "surfaces": 60000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 11207779,
+   "dict_bytes": {
+    "sys.dic": 9088701,
+    "matrix.bin": 1850892,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 11207779
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 79.781,
+   "phoneme_error_rate_pct": 3.836,
+   "accent_phrase_sentence_agreement_pct": 73.77,
+   "a123_sentence_agreement_pct": 73.224,
+   "a123_error_rate_pct": 12.5453,
+   "phoneme_ok_but_accent_wrong": 15,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 96.589,
+   "sentence_full_coverage_pct": 72.131,
+   "tokens_total": 1759,
+   "tokens_oov": 60
+  },
+  {
+   "surfaces": 100000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 17204366,
+   "dict_bytes": {
+    "sys.dic": 14777134,
+    "matrix.bin": 2159046,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 17204366
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 89.617,
+   "phoneme_error_rate_pct": 1.2842,
+   "accent_phrase_sentence_agreement_pct": 82.514,
+   "a123_sentence_agreement_pct": 82.514,
+   "a123_error_rate_pct": 7.244,
+   "phoneme_ok_but_accent_wrong": 15,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 97.499,
+   "sentence_full_coverage_pct": 78.142,
+   "tokens_total": 1759,
+   "tokens_oov": 44
+  },
+  {
+   "surfaces": 200000,
+   "feature_variant": "noread",
+   "evalset": "embedded",
+   "dict_bytes_total": 31655712,
+   "dict_bytes": {
+    "sys.dic": 28728704,
+    "matrix.bin": 2658822,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 31655712
+   },
+   "sentences": 183,
+   "phoneme_sentence_agreement_pct": 93.443,
+   "phoneme_error_rate_pct": 0.8232,
+   "accent_phrase_sentence_agreement_pct": 87.432,
+   "a123_sentence_agreement_pct": 87.432,
+   "a123_error_rate_pct": 5.4988,
+   "phoneme_ok_but_accent_wrong": 13,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 98.067,
+   "sentence_full_coverage_pct": 82.514,
+   "tokens_total": 1759,
+   "tokens_oov": 34
+  },
+  {
+   "surfaces": 5000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 2174012,
+   "dict_bytes": {
+    "sys.dic": 1018710,
+    "matrix.bin": 887116,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 2174012
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 31.828,
+   "phoneme_error_rate_pct": 10.2986,
+   "accent_phrase_sentence_agreement_pct": 21.978,
+   "a123_sentence_agreement_pct": 21.763,
+   "a123_error_rate_pct": 35.0705,
+   "phoneme_ok_but_accent_wrong": 241,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 87.045,
+   "sentence_full_coverage_pct": 18.839,
+   "tokens_total": 38101,
+   "tokens_oov": 4936
+  },
+  {
+   "surfaces": 10000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 3293283,
+   "dict_bytes": {
+    "sys.dic": 1878995,
+    "matrix.bin": 1146102,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 3293283
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 45.505,
+   "phoneme_error_rate_pct": 6.8418,
+   "accent_phrase_sentence_agreement_pct": 34.366,
+   "a123_sentence_agreement_pct": 33.978,
+   "a123_error_rate_pct": 25.2208,
+   "phoneme_ok_but_accent_wrong": 284,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 90.73,
+   "sentence_full_coverage_pct": 29.978,
+   "tokens_total": 38101,
+   "tokens_oov": 3532
+  },
+  {
+   "surfaces": 20000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 5361922,
+   "dict_bytes": {
+    "sys.dic": 3600740,
+    "matrix.bin": 1492996,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 5361922
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 58.237,
+   "phoneme_error_rate_pct": 4.5326,
+   "accent_phrase_sentence_agreement_pct": 46.667,
+   "a123_sentence_agreement_pct": 46.28,
+   "a123_error_rate_pct": 18.1305,
+   "phoneme_ok_but_accent_wrong": 295,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 93.255,
+   "sentence_full_coverage_pct": 41.075,
+   "tokens_total": 38101,
+   "tokens_oov": 2570
+  },
+  {
+   "surfaces": 30000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 7128586,
+   "dict_bytes": {
+    "sys.dic": 5247588,
+    "matrix.bin": 1612812,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 7128586
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 67.656,
+   "phoneme_error_rate_pct": 3.1227,
+   "accent_phrase_sentence_agreement_pct": 56.344,
+   "a123_sentence_agreement_pct": 55.871,
+   "a123_error_rate_pct": 13.3846,
+   "phoneme_ok_but_accent_wrong": 295,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 94.979,
+   "sentence_full_coverage_pct": 49.978,
+   "tokens_total": 38101,
+   "tokens_oov": 1913
+  },
+  {
+   "surfaces": 60000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 12133873,
+   "dict_bytes": {
+    "sys.dic": 10014795,
+    "matrix.bin": 1850892,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 12133873
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 72.344,
+   "phoneme_error_rate_pct": 2.4682,
+   "accent_phrase_sentence_agreement_pct": 62.667,
+   "a123_sentence_agreement_pct": 62.194,
+   "a123_error_rate_pct": 10.6304,
+   "phoneme_ok_but_accent_wrong": 259,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 95.777,
+   "sentence_full_coverage_pct": 54.71,
+   "tokens_total": 38101,
+   "tokens_oov": 1609
+  },
+  {
+   "surfaces": 100000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 18774250,
+   "dict_bytes": {
+    "sys.dic": 16347018,
+    "matrix.bin": 2159046,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 18774250
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 78.968,
+   "phoneme_error_rate_pct": 1.5912,
+   "accent_phrase_sentence_agreement_pct": 69.505,
+   "a123_sentence_agreement_pct": 69.247,
+   "a123_error_rate_pct": 8.0973,
+   "phoneme_ok_but_accent_wrong": 249,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 96.656,
+   "sentence_full_coverage_pct": 61.204,
+   "tokens_total": 38101,
+   "tokens_oov": 1274
+  },
+  {
+   "surfaces": 200000,
+   "feature_variant": "full",
+   "evalset": "heldout",
+   "dict_bytes_total": 34798824,
+   "dict_bytes": {
+    "sys.dic": 31871816,
+    "matrix.bin": 2658822,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 34798824
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 90.968,
+   "phoneme_error_rate_pct": 0.5413,
+   "accent_phrase_sentence_agreement_pct": 81.419,
+   "a123_sentence_agreement_pct": 81.419,
+   "a123_error_rate_pct": 4.5556,
+   "phoneme_ok_but_accent_wrong": 233,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 97.979,
+   "sentence_full_coverage_pct": 73.591,
+   "tokens_total": 38101,
+   "tokens_oov": 770
+  },
+  {
+   "surfaces": 10000,
+   "feature_variant": "guard",
+   "evalset": "heldout",
+   "dict_bytes_total": 3945872,
+   "dict_bytes": {
+    "sys.dic": 2219050,
+    "matrix.bin": 1458636,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 3945872
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 48.086,
+   "phoneme_error_rate_pct": 6.1284,
+   "accent_phrase_sentence_agreement_pct": 36.215,
+   "a123_sentence_agreement_pct": 35.656,
+   "a123_error_rate_pct": 23.911,
+   "phoneme_ok_but_accent_wrong": 305,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 90.919,
+   "sentence_full_coverage_pct": 30.409,
+   "tokens_total": 38101,
+   "tokens_oov": 3460
+  },
+  {
+   "surfaces": 20000,
+   "feature_variant": "guard",
+   "evalset": "heldout",
+   "dict_bytes_total": 5934597,
+   "dict_bytes": {
+    "sys.dic": 3895445,
+    "matrix.bin": 1770966,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 5934597
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 60.258,
+   "phoneme_error_rate_pct": 4.0907,
+   "accent_phrase_sentence_agreement_pct": 48.258,
+   "a123_sentence_agreement_pct": 47.785,
+   "a123_error_rate_pct": 17.2512,
+   "phoneme_ok_but_accent_wrong": 307,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 93.339,
+   "sentence_full_coverage_pct": 41.333,
+   "tokens_total": 38101,
+   "tokens_oov": 2538
+  },
+  {
+   "surfaces": 30000,
+   "feature_variant": "guard",
+   "evalset": "heldout",
+   "dict_bytes_total": 7661348,
+   "dict_bytes": {
+    "sys.dic": 5511358,
+    "matrix.bin": 1881804,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 7661348
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 69.72,
+   "phoneme_error_rate_pct": 2.7878,
+   "accent_phrase_sentence_agreement_pct": 58.022,
+   "a123_sentence_agreement_pct": 57.505,
+   "a123_error_rate_pct": 12.675,
+   "phoneme_ok_but_accent_wrong": 304,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 95.019,
+   "sentence_full_coverage_pct": 50.065,
+   "tokens_total": 38101,
+   "tokens_oov": 1898
+  },
+  {
+   "surfaces": 60000,
+   "feature_variant": "guard",
+   "evalset": "heldout",
+   "dict_bytes_total": 12512461,
+   "dict_bytes": {
+    "sys.dic": 10236263,
+    "matrix.bin": 2008012,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 12512461
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 73.118,
+   "phoneme_error_rate_pct": 2.3611,
+   "accent_phrase_sentence_agreement_pct": 63.183,
+   "a123_sentence_agreement_pct": 62.667,
+   "a123_error_rate_pct": 10.427,
+   "phoneme_ok_but_accent_wrong": 265,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 95.814,
+   "sentence_full_coverage_pct": 54.839,
+   "tokens_total": 38101,
+   "tokens_oov": 1595
+  },
+  {
+   "surfaces": 5000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 2097607,
+   "dict_bytes": {
+    "sys.dic": 942305,
+    "matrix.bin": 887116,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 2097607
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 31.828,
+   "phoneme_error_rate_pct": 10.3032,
+   "accent_phrase_sentence_agreement_pct": 21.978,
+   "a123_sentence_agreement_pct": 21.763,
+   "a123_error_rate_pct": 35.0705,
+   "phoneme_ok_but_accent_wrong": 241,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 87.045,
+   "sentence_full_coverage_pct": 18.839,
+   "tokens_total": 38101,
+   "tokens_oov": 4936
+  },
+  {
+   "surfaces": 10000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 3144070,
+   "dict_bytes": {
+    "sys.dic": 1729782,
+    "matrix.bin": 1146102,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 3144070
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 45.419,
+   "phoneme_error_rate_pct": 6.8448,
+   "accent_phrase_sentence_agreement_pct": 34.366,
+   "a123_sentence_agreement_pct": 33.978,
+   "a123_error_rate_pct": 25.2215,
+   "phoneme_ok_but_accent_wrong": 282,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 90.73,
+   "sentence_full_coverage_pct": 29.978,
+   "tokens_total": 38101,
+   "tokens_oov": 3532
+  },
+  {
+   "surfaces": 20000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 5061423,
+   "dict_bytes": {
+    "sys.dic": 3300241,
+    "matrix.bin": 1492996,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 5061423
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 58.151,
+   "phoneme_error_rate_pct": 4.5357,
+   "accent_phrase_sentence_agreement_pct": 46.667,
+   "a123_sentence_agreement_pct": 46.237,
+   "a123_error_rate_pct": 18.1313,
+   "phoneme_ok_but_accent_wrong": 294,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 93.255,
+   "sentence_full_coverage_pct": 41.075,
+   "tokens_total": 38101,
+   "tokens_oov": 2570
+  },
+  {
+   "surfaces": 30000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 6672610,
+   "dict_bytes": {
+    "sys.dic": 4791612,
+    "matrix.bin": 1612812,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 6672610
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 67.527,
+   "phoneme_error_rate_pct": 3.125,
+   "accent_phrase_sentence_agreement_pct": 56.344,
+   "a123_sentence_agreement_pct": 55.828,
+   "a123_error_rate_pct": 13.3838,
+   "phoneme_ok_but_accent_wrong": 293,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 94.979,
+   "sentence_full_coverage_pct": 49.978,
+   "tokens_total": 38101,
+   "tokens_oov": 1913
+  },
+  {
+   "surfaces": 60000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 11207779,
+   "dict_bytes": {
+    "sys.dic": 9088701,
+    "matrix.bin": 1850892,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 11207779
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 72.258,
+   "phoneme_error_rate_pct": 2.472,
+   "accent_phrase_sentence_agreement_pct": 62.667,
+   "a123_sentence_agreement_pct": 62.151,
+   "a123_error_rate_pct": 10.6312,
+   "phoneme_ok_but_accent_wrong": 258,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 95.777,
+   "sentence_full_coverage_pct": 54.71,
+   "tokens_total": 38101,
+   "tokens_oov": 1609
+  },
+  {
+   "surfaces": 100000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 17204366,
+   "dict_bytes": {
+    "sys.dic": 14777134,
+    "matrix.bin": 2159046,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 17204366
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 78.882,
+   "phoneme_error_rate_pct": 1.595,
+   "accent_phrase_sentence_agreement_pct": 69.505,
+   "a123_sentence_agreement_pct": 69.204,
+   "a123_error_rate_pct": 8.098,
+   "phoneme_ok_but_accent_wrong": 248,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 96.656,
+   "sentence_full_coverage_pct": 61.204,
+   "tokens_total": 38101,
+   "tokens_oov": 1274
+  },
+  {
+   "surfaces": 200000,
+   "feature_variant": "noread",
+   "evalset": "heldout",
+   "dict_bytes_total": 31655712,
+   "dict_bytes": {
+    "sys.dic": 28728704,
+    "matrix.bin": 2658822,
+    "char.bin": 262496,
+    "unk.dic": 5690,
+    "total": 31655712
+   },
+   "sentences": 2325,
+   "phoneme_sentence_agreement_pct": 90.882,
+   "phoneme_error_rate_pct": 0.5452,
+   "accent_phrase_sentence_agreement_pct": 81.419,
+   "a123_sentence_agreement_pct": 81.376,
+   "a123_error_rate_pct": 4.5563,
+   "phoneme_ok_but_accent_wrong": 232,
+   "hyp_exceptions": 0,
+   "token_coverage_pct": 97.979,
+   "sentence_full_coverage_pct": 73.591,
+   "tokens_total": 38101,
+   "tokens_oov": 770
+  }
+ ],
+ "size_index": {
+  "100000_full": {
+   "sys.dic": 16347018,
+   "matrix.bin": 2159046,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 18774250
+  },
+  "100000_noread": {
+   "sys.dic": 14777134,
+   "matrix.bin": 2159046,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 17204366
+  },
+  "10000_full": {
+   "sys.dic": 1878995,
+   "matrix.bin": 1146102,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 3293283
+  },
+  "10000_guard": {
+   "sys.dic": 2219050,
+   "matrix.bin": 1458636,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 3945872
+  },
+  "10000_noread": {
+   "sys.dic": 1729782,
+   "matrix.bin": 1146102,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 3144070
+  },
+  "200000_full": {
+   "sys.dic": 31871816,
+   "matrix.bin": 2658822,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 34798824
+  },
+  "200000_noread": {
+   "sys.dic": 28728704,
+   "matrix.bin": 2658822,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 31655712
+  },
+  "20000_full": {
+   "sys.dic": 3600740,
+   "matrix.bin": 1492996,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 5361922
+  },
+  "20000_guard": {
+   "sys.dic": 3895445,
+   "matrix.bin": 1770966,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 5934597
+  },
+  "20000_noread": {
+   "sys.dic": 3300241,
+   "matrix.bin": 1492996,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 5061423
+  },
+  "30000_full": {
+   "sys.dic": 5247588,
+   "matrix.bin": 1612812,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 7128586
+  },
+  "30000_guard": {
+   "sys.dic": 5511358,
+   "matrix.bin": 1881804,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 7661348
+  },
+  "30000_noread": {
+   "sys.dic": 4791612,
+   "matrix.bin": 1612812,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 6672610
+  },
+  "5000_full": {
+   "sys.dic": 1018710,
+   "matrix.bin": 887116,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 2174012
+  },
+  "5000_noread": {
+   "sys.dic": 942305,
+   "matrix.bin": 887116,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 2097607
+  },
+  "60000_full": {
+   "sys.dic": 10014795,
+   "matrix.bin": 1850892,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 12133873
+  },
+  "60000_guard": {
+   "sys.dic": 10236263,
+   "matrix.bin": 2008012,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 12512461
+  },
+  "60000_noread": {
+   "sys.dic": 9088701,
+   "matrix.bin": 1850892,
+   "char.bin": 262496,
+   "unk.dic": 5690,
+   "total": 11207779
+  }
+ },
+ "headline": {
+  "verdict": "枝刈りだけでは B-0 の目安 (実文の 95% が正しく読める) に届かない。held-out で音素列一致率 95% を出すには 20 万見出し語 = 34.8 MB 必要で、実測は 90.9% にとどまる。ESP32-S3 16MB ボードの辞書予算 11.19 MB (reports/b0_flash_budget.json シナリオB) に収まる水準は 60k guard = 12.5 MB がぎりぎり外、30k guard = 7.66 MB で音素列一致率 held-out 69.7% / embedded 80.9%。",
+  "recommended_if_proceeding": {
+   "level": "30000 surfaces + guard set",
+   "bytes": 7661348,
+   "heldout_phoneme_sentence_agreement_pct": 69.72,
+   "embedded_phoneme_sentence_agreement_pct": 80.87,
+   "note": "guard (数詞・助数詞・記号 2,705 表層の強制追加) は +531,338 B で embedded の音素列一致率を 28.96% -> 80.87% に上げる。費用対効果が桁違いなので必須。"
+  },
+  "accent_is_the_hard_floor": "音素列が完全一致してもアクセント句が違う文が全水準で 10〜13% 残る (heldout)。200k / 34.8 MB でも 233 文 (10.02%)。原因は複合語エントリが落ちて分割が変わること (例: 役に立っ -> 役+に+立っ)。枝刈り語数を増やしても漸近的にしか消えない。"
+ },
+ "digit_defect": {
+  "summary": "【最重要の欠陥】全角数字 ０-９ は NAIST-JDIC の通常の見出し語 (名詞,数) であって、頻度枝刈りで簡単に落ちる。落ちると数値が読まれずに『、』(読点=無音) に化け、例外も警告も出ない。",
+  "mechanism": [
+   "pyopenjtalk は入力の半角数字を全角に正規化してから mecab に渡す ('3' -> '３')。",
+   "'３' は sys.dic の見出し語 (名詞,数,*,*,*,*,３,サン,サン,0/2,C3)。njd_set_digit がこれを '三' に置き換えて助数詞と連結する。",
+   "枝刈りで '３' が落ちると unk.dic の SYMBOL 系エントリに落ちる。unk.dic の feature は 7 フィールドしか無く 読み/発音を持たない (実測: 40 エントリ全部が '名詞,一般,*,*,*,*,*' 形式)。",
+   "read/pron が '*' のまま njd_set_pronunciation.c:151-160 に到達し、『かなでない語は読点にする』規則で 、/記号,読点 に置換される。"
+  ],
+  "ranks_in_train_ranking": {
+   "０": 5365,
+   "１": 36003,
+   "２": 51135,
+   "３": 51141,
+   "４": 50703,
+   "５": 47348,
+   "６": 47925,
+   "７": 37897,
+   "８": 49985,
+   "９": 76948,
+   "note": "train (JSUT+ROHAN+ITA+CommonVoice) は数字を含む行が 1.86% しかないため、全角数字は頻度ランキングの遥か後方に落ちる。9 は 76,948 位で 60k 辞書にも入らない。"
+  },
+  "observed_examples": [
+   {
+    "text": "<redacted: corpus text>",
+    "full": "ゴゴサンジジューゴフンデス",
+    "pruned_30k_full": "ゴゴ、ジ、フンデス"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "full": "イチドルワ、ヒャクゴジューニエンサンジューゴセンデス",
+    "pruned_30k_full": "、ドルワ、、エン、センデス"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "full": "ゲンザイノジコクワ、ゴゼンクジナナフンデス",
+    "pruned_60k_full": "ゲンザイノジコクワ、ゴゼン、ジナナフンデス",
+    "note": "7 (rank 37,897) は 60k に入るが 9 (rank 76,948) は入らない"
+   }
+  ],
+  "fix": {
+   "guard_set": "『名詞,数』279 表層 + 『*,接尾』2,254 表層 + 『記号,*』202 表層 = union 2,705 表層を強制追加",
+   "cost_bytes_at_30k": 531338,
+   "effect": {
+    "embedded_phoneme_sentence_agreement_pct": {
+     "before": 28.962,
+     "after": 80.874
+    },
+    "heldout_phoneme_sentence_agreement_pct": {
+     "before": 67.656,
+     "after": 69.72
+    },
+    "embedded_silenced_token_instances": {
+     "before": 194,
+     "after": 27
+    }
+   }
+  }
+ },
+ "oov_fallback_behavior": {
+  "question": "OOV になった語を unk.dic の文字種推定がどう読むか — 『読めない』のか『間違って読む』のか",
+  "answer": "漢字は【読めない = 完全に無音になる】。unk.dic は読み・発音・アクセントを一切持たない (feature 7 フィールド、40 エントリすべて '名詞,一般,*,*,*,*,*' 等) ので pron='*' のまま njd_set_pronunciation.c:151-160 に落ち、『かなでない語は読点にする』規則で 、/記号,読点 に置換される。音声上はポーズになり、語が丸ごと消える。ただし短い OOV は隣接する既知の 1 文字語に分割されて『間違って読む』側に回ることも多い。",
+  "by_character_class": {
+   "漢字 (未知)": "pron が付かず 、(無音) になる。例: 齟齬 -> 、 / 蜃気 -> 、 / 忖度(10k) -> 、",
+   "漢字 (1 文字ずつは既知)": "分割されて字音・字訓が誤って選ばれる。例: 氷点下 -> 氷/コーリ + 点/テン + 下/カ、実業家 -> 実/ミ + 業/ギョー + 家、所要 -> 所/トコロ + 要/カナメ",
+   "かな (未知)": "njd_set_pronunciation_list の仮名表で読みが付き フィラー扱いになる。無音にはならない",
+   "ラテン文字": "ascii 規則表で 1 文字ずつアルファベット読みされる (escalator -> イーエスシーエーエルエーティーオーアール)。フル辞書でも同じなので枝刈りの影響は無い",
+   "全角数字": "上記 digit_defect のとおり無音化する"
+  },
+  "probe": {
+   "dict": "rt_30000_full と rt_10000_full",
+   "command": "scratchpad/b0_cov/unk_probe.py <dictdir> <word>...",
+   "examples": [
+    {
+     "word": "齟齬",
+     "full": "ソゴ (名詞,サ変接続)",
+     "pruned_30k": "、 (記号,読点) = 無音"
+    },
+    {
+     "word": "蜃気楼",
+     "full": "シンキロー (名詞,一般)",
+     "pruned_30k": "蜃気/、 + 楼/、 = 全部無音",
+     "pruned_30k_guard": "蜃気/、 + 楼/ロー"
+    },
+    {
+     "word": "慶應義塾大学",
+     "full": "ケーオーギジュク + ダイガク",
+     "pruned_10k": "慶應/、 + 義塾/、 + 大学/ダイガク"
+    },
+    {
+     "word": "忖度",
+     "full": "ソンタク’ (acc 7 = 無核+ポーズ付)",
+     "pruned_10k": "、 = 無音",
+     "pruned_30k": "ソンタク (acc 1) = 読めるがアクセントが違う"
+    },
+    {
+     "word": "<redacted: corpus text>",
+     "full": "オキナワ+ケン+ナハ+シ’",
+     "pruned_10k": "オキナワ+ケン+、+シ = 那覇が無音"
+    }
+   ]
+  },
+  "caveat": "フル辞書自身も一部の記号を無音化する (heldout で ，(全角カンマ) 33 件・− 5 件・． など計 39 token instance)。枝刈りの無音化件数はこのベースラインからの増分で見ること。"
+ },
+ "failure_kind_breakdown": {
+  "note": "音素列が一致しなかった文を『新たに無音化した token を含む(=読めない)』と『そうでない(=間違って読む)』に分けた。アクセントのみ誤りは音素列一致だがアクセント句列が違う文。",
+  "rows": {
+   "10000_guard_heldout": {
+    "sent": 2325,
+    "silenced_sentences": 790,
+    "misread_sentences": 417,
+    "accent_only_sentences": 305,
+    "silenced_pct": 33.98,
+    "misread_pct": 17.94,
+    "accent_only_pct": 13.12
+   },
+   "30000_full_heldout": {
+    "sent": 2325,
+    "silenced_sentences": 397,
+    "misread_sentences": 355,
+    "accent_only_sentences": 295,
+    "silenced_pct": 17.08,
+    "misread_pct": 15.27,
+    "accent_only_pct": 12.69
+   },
+   "30000_guard_heldout": {
+    "sent": 2325,
+    "silenced_sentences": 324,
+    "misread_sentences": 380,
+    "accent_only_sentences": 304,
+    "silenced_pct": 13.94,
+    "misread_pct": 16.34,
+    "accent_only_pct": 13.08
+   },
+   "60000_guard_heldout": {
+    "sent": 2325,
+    "silenced_sentences": 281,
+    "misread_sentences": 344,
+    "accent_only_sentences": 265,
+    "silenced_pct": 12.09,
+    "misread_pct": 14.8,
+    "accent_only_pct": 11.4
+   },
+   "100000_full_heldout": {
+    "sent": 2325,
+    "silenced_sentences": 200,
+    "misread_sentences": 289,
+    "accent_only_sentences": 249,
+    "silenced_pct": 8.6,
+    "misread_pct": 12.43,
+    "accent_only_pct": 10.71
+   },
+   "200000_full_heldout": {
+    "sent": 2325,
+    "silenced_sentences": 48,
+    "misread_sentences": 162,
+    "accent_only_sentences": 233,
+    "silenced_pct": 2.06,
+    "misread_pct": 6.97,
+    "accent_only_pct": 10.02
+   },
+   "10000_guard_embedded": {
+    "sent": 183,
+    "silenced_sentences": 40,
+    "misread_sentences": 36,
+    "accent_only_sentences": 11,
+    "silenced_pct": 21.86,
+    "misread_pct": 19.67,
+    "accent_only_pct": 6.01
+   },
+   "30000_full_embedded": {
+    "sent": 183,
+    "silenced_sentences": 120,
+    "misread_sentences": 10,
+    "accent_only_sentences": 7,
+    "silenced_pct": 65.57,
+    "misread_pct": 5.46,
+    "accent_only_pct": 3.83
+   },
+   "30000_guard_embedded": {
+    "sent": 183,
+    "silenced_sentences": 13,
+    "misread_sentences": 22,
+    "accent_only_sentences": 12,
+    "silenced_pct": 7.1,
+    "misread_pct": 12.02,
+    "accent_only_pct": 6.56
+   },
+   "60000_guard_embedded": {
+    "sent": 183,
+    "silenced_sentences": 9,
+    "misread_sentences": 17,
+    "accent_only_sentences": 12,
+    "silenced_pct": 4.92,
+    "misread_pct": 9.29,
+    "accent_only_pct": 6.56
+   },
+   "100000_full_embedded": {
+    "sent": 183,
+    "silenced_sentences": 5,
+    "misread_sentences": 14,
+    "accent_only_sentences": 15,
+    "silenced_pct": 2.73,
+    "misread_pct": 7.65,
+    "accent_only_pct": 8.2
+   },
+   "200000_full_embedded": {
+    "sent": 183,
+    "silenced_sentences": 4,
+    "misread_sentences": 8,
+    "accent_only_sentences": 13,
+    "silenced_pct": 2.19,
+    "misread_pct": 4.37,
+    "accent_only_pct": 7.1
+   }
+  }
+ },
+ "silenced_token_stats": {
+  "5000_full_heldout": {
+   "silenced_token_instances": 2355,
+   "distinct": 1699,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "込",
+     16
+    ],
+    [
+     "詰",
+     7
+    ],
+    [
+     "々",
+     7
+    ],
+    [
+     "跳",
+     7
+    ],
+    [
+     "突",
+     7
+    ],
+    [
+     "１",
+     7
+    ],
+    [
+     "行",
+     7
+    ]
+   ]
+  },
+  "10000_full_heldout": {
+   "silenced_token_instances": 1442,
+   "distinct": 1125,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "詰",
+     7
+    ],
+    [
+     "１",
+     7
+    ],
+    [
+     "込",
+     6
+    ],
+    [
+     "転",
+     6
+    ],
+    [
+     "突",
+     6
+    ],
+    [
+     "返",
+     5
+    ],
+    [
+     "渡",
+     5
+    ]
+   ]
+  },
+  "10000_guard_heldout": {
+   "silenced_token_instances": 1169,
+   "distinct": 927,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "込",
+     6
+    ],
+    [
+     "突",
+     6
+    ],
+    [
+     "渡",
+     5
+    ],
+    [
+     "津市",
+     4
+    ],
+    [
+     "応用",
+     4
+    ],
+    [
+     "燃",
+     4
+    ],
+    [
+     "引",
+     4
+    ]
+   ]
+  },
+  "20000_guard_heldout": {
+   "silenced_token_instances": 716,
+   "distinct": 592,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "突",
+     6
+    ],
+    [
+     "応用",
+     4
+    ],
+    [
+     "燃",
+     4
+    ],
+    [
+     "撃",
+     4
+    ],
+    [
+     "噛",
+     3
+    ],
+    [
+     "望",
+     3
+    ],
+    [
+     "雇",
+     3
+    ]
+   ]
+  },
+  "30000_full_heldout": {
+   "silenced_token_instances": 532,
+   "distinct": 427,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "１",
+     7
+    ],
+    [
+     "２",
+     5
+    ],
+    [
+     "３",
+     5
+    ],
+    [
+     "４",
+     5
+    ],
+    [
+     "返",
+     4
+    ],
+    [
+     "１０",
+     4
+    ],
+    [
+     "５",
+     3
+    ]
+   ]
+  },
+  "30000_guard_heldout": {
+   "silenced_token_instances": 427,
+   "distinct": 359,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "遜色",
+     3
+    ],
+    [
+     "競走",
+     3
+    ],
+    [
+     "撃",
+     3
+    ],
+    [
+     "離婚",
+     2
+    ],
+    [
+     "崎町",
+     2
+    ],
+    [
+     "忙",
+     2
+    ],
+    [
+     "怪談",
+     2
+    ]
+   ]
+  },
+  "60000_full_heldout": {
+   "silenced_token_instances": 407,
+   "distinct": 341,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "返",
+     4
+    ],
+    [
+     "遜色",
+     3
+    ],
+    [
+     "競走",
+     3
+    ],
+    [
+     "崎町",
+     2
+    ],
+    [
+     "怪談",
+     2
+    ],
+    [
+     "起",
+     2
+    ],
+    [
+     "放",
+     2
+    ]
+   ]
+  },
+  "60000_guard_heldout": {
+   "silenced_token_instances": 370,
+   "distinct": 310,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "遜色",
+     3
+    ],
+    [
+     "競走",
+     3
+    ],
+    [
+     "崎町",
+     2
+    ],
+    [
+     "怪談",
+     2
+    ],
+    [
+     "起",
+     2
+    ],
+    [
+     "放",
+     2
+    ],
+    [
+     "返",
+     2
+    ]
+   ]
+  },
+  "100000_full_heldout": {
+   "silenced_token_instances": 256,
+   "distinct": 205,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "返",
+     4
+    ],
+    [
+     "遜色",
+     3
+    ],
+    [
+     "起",
+     2
+    ],
+    [
+     "放",
+     2
+    ],
+    [
+     "引",
+     2
+    ],
+    [
+     "函館",
+     2
+    ],
+    [
+     "渡",
+     2
+    ]
+   ]
+  },
+  "200000_full_heldout": {
+   "silenced_token_instances": 87,
+   "distinct": 53,
+   "ref_baseline": 39,
+   "top": [
+    [
+     "，",
+     33
+    ],
+    [
+     "聚慎",
+     2
+    ],
+    [
+     "腔",
+     2
+    ],
+    [
+     "与那",
+     1
+    ],
+    [
+     "奈義",
+     1
+    ],
+    [
+     "筑区",
+     1
+    ],
+    [
+     "宇美",
+     1
+    ],
+    [
+     "豊平",
+     1
+    ]
+   ]
+  },
+  "5000_full_embedded": {
+   "silenced_token_instances": 309,
+   "distinct": 161,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "１",
+     32
+    ],
+    [
+     "３",
+     17
+    ],
+    [
+     "．",
+     13
+    ],
+    [
+     "２",
+     8
+    ],
+    [
+     "８",
+     8
+    ],
+    [
+     "，",
+     8
+    ],
+    [
+     "７",
+     7
+    ],
+    [
+     "４",
+     7
+    ]
+   ]
+  },
+  "10000_full_embedded": {
+   "silenced_token_instances": 241,
+   "distinct": 109,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "１",
+     33
+    ],
+    [
+     "３",
+     18
+    ],
+    [
+     "．",
+     13
+    ],
+    [
+     "８",
+     8
+    ],
+    [
+     "，",
+     8
+    ],
+    [
+     "７",
+     7
+    ],
+    [
+     "２",
+     7
+    ],
+    [
+     "４",
+     7
+    ]
+   ]
+  },
+  "10000_guard_embedded": {
+   "silenced_token_instances": 63,
+   "distinct": 45,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "更新",
+     3
+    ],
+    [
+     "起動",
+     2
+    ],
+    [
+     "残高",
+     2
+    ],
+    [
+     "認証",
+     2
+    ],
+    [
+     "松本",
+     2
+    ],
+    [
+     "．",
+     2
+    ]
+   ]
+  },
+  "20000_guard_embedded": {
+   "silenced_token_instances": 37,
+   "distinct": 24,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "残高",
+     2
+    ],
+    [
+     "．",
+     2
+    ],
+    [
+     "検",
+     1
+    ],
+    [
+     "送",
+     1
+    ],
+    [
+     "残量",
+     1
+    ],
+    [
+     "配線",
+     1
+    ]
+   ]
+  },
+  "30000_full_embedded": {
+   "silenced_token_instances": 194,
+   "distinct": 75,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "１",
+     32
+    ],
+    [
+     "３",
+     17
+    ],
+    [
+     "．",
+     13
+    ],
+    [
+     "，",
+     8
+    ],
+    [
+     "２",
+     7
+    ],
+    [
+     "４",
+     7
+    ],
+    [
+     "７",
+     6
+    ],
+    [
+     "８",
+     6
+    ]
+   ]
+  },
+  "30000_guard_embedded": {
+   "silenced_token_instances": 27,
+   "distinct": 14,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "残高",
+     2
+    ],
+    [
+     "．",
+     2
+    ],
+    [
+     "検知",
+     1
+    ],
+    [
+     "太様",
+     1
+    ],
+    [
+     "渡辺",
+     1
+    ],
+    [
+     "伊藤",
+     1
+    ]
+   ]
+  },
+  "60000_full_embedded": {
+   "silenced_token_instances": 34,
+   "distinct": 19,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "．",
+     3
+    ],
+    [
+     "９",
+     2
+    ],
+    [
+     "残高",
+     2
+    ],
+    [
+     "２９",
+     1
+    ],
+    [
+     "９９９",
+     1
+    ],
+    [
+     "９８",
+     1
+    ]
+   ]
+  },
+  "60000_guard_embedded": {
+   "silenced_token_instances": 23,
+   "distinct": 10,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "残高",
+     2
+    ],
+    [
+     "．",
+     2
+    ],
+    [
+     "太様",
+     1
+    ],
+    [
+     "伊藤",
+     1
+    ],
+    [
+     "輔",
+     1
+    ],
+    [
+     "翔太",
+     1
+    ]
+   ]
+  },
+  "100000_full_embedded": {
+   "silenced_token_instances": 19,
+   "distinct": 7,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "．",
+     2
+    ],
+    [
+     "伊藤",
+     1
+    ],
+    [
+     "輔",
+     1
+    ],
+    [
+     "翔太",
+     1
+    ],
+    [
+     "拓也",
+     1
+    ]
+   ]
+  },
+  "200000_full_embedded": {
+   "silenced_token_instances": 18,
+   "distinct": 6,
+   "ref_baseline": 14,
+   "top": [
+    [
+     "，",
+     8
+    ],
+    [
+     "−",
+     5
+    ],
+    [
+     "．",
+     2
+    ],
+    [
+     "輔",
+     1
+    ],
+    [
+     "翔太",
+     1
+    ],
+    [
+     "拓也",
+     1
+    ]
+   ]
+  }
+ },
+ "coverage_bound_validation": {
+  "claim": "『全 token が枝刈り語彙に入る文だけを正解とみなす』保守的カウント (実ビルド不要の代替指標) は、実測でほぼ厳密な下界として機能した。ただし 17〜20 ポイント悲観側にずれる。",
+  "measured_on": "heldout 2,325 文",
+  "rows": [
+   {
+    "level": "10000_guard",
+    "covered_and_agree": 706,
+    "covered_but_DISAGREE": 1,
+    "not_covered_but_AGREE": 412,
+    "not_covered_and_disagree": 1206,
+    "bound_violation_pct": 0.04,
+    "bound_slack_pct": 17.72
+   },
+   {
+    "level": "30000_guard",
+    "covered_and_agree": 1164,
+    "covered_but_DISAGREE": 0,
+    "not_covered_but_AGREE": 457,
+    "not_covered_and_disagree": 704,
+    "bound_violation_pct": 0.0,
+    "bound_slack_pct": 19.66
+   },
+   {
+    "level": "60000_guard",
+    "covered_and_agree": 1275,
+    "covered_but_DISAGREE": 0,
+    "not_covered_but_AGREE": 425,
+    "not_covered_and_disagree": 625,
+    "bound_violation_pct": 0.0,
+    "bound_slack_pct": 18.28
+   },
+   {
+    "level": "200000_full",
+    "covered_and_agree": 1710,
+    "covered_but_DISAGREE": 1,
+    "not_covered_but_AGREE": 405,
+    "not_covered_and_disagree": 209,
+    "bound_violation_pct": 0.04,
+    "bound_slack_pct": 17.42
+   }
+  ],
+  "interpretation": "実ビルドできない場合は sentence_full_coverage_pct をそのまま報告してよい。真の一致率はそれより 17〜20 ポイント高い。逆に言うとカバー率で 95% を狙う必要はない。"
+ },
+ "accent_minimal_pairs": {
+  "note": "CLAUDE.md が評価セットに要求しているアクセント型ミニマルペア 14 文を各水準で確認した。(pron, acc) 列がフル辞書と完全一致するかで判定。",
+  "rows": [
+   {
+    "level": "10000_guard",
+    "mismatch": 5,
+    "of": 14,
+    "detail": "柿/牡蠣 が無音化 (カキ 0 / カキ 1 の対立が両方消える)、飴も無音化。端・紙は後続動詞の分割が変わる"
+   },
+   {
+    "level": "30000_guard",
+    "mismatch": 1,
+    "of": 14,
+    "detail": "舐める が 舐め+る に分割され acc 2 -> 0。橋(2)/箸(1)/端(0)、雨(1)/飴(0) は正しく保たれる"
+   },
+   {
+    "level": "60000_guard",
+    "mismatch": 1,
+    "of": 14,
+    "detail": "同上"
+   },
+   {
+    "level": "200000_full",
+    "mismatch": 0,
+    "of": 14,
+    "detail": "完全一致"
+   }
+  ],
+  "script": "scratchpad/b0_cov/minpair.py"
+ },
+ "failure_examples": {
+  "count": 56,
+  "categories": {
+   "silent_drop": "OOV が 、(無音) に化けて語が消えた",
+   "misread": "分割が変わって別の読みになった",
+   "accent_only": "音素列は一致、アクセント句が違う",
+   "a123_only": "音素列もアクセント句も一致、A1/A2/A3 だけ違う"
+  },
+  "examples": [
+   {
+    "level": "30000_full_embedded",
+    "category": "silent_drop",
+    "id": "EMB_money_011",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "イチドルワ、ヒャクゴジューニエンサンジューゴセンデス’、",
+    "pruned_pron": "、ドルワ、、エン、センデス’、",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "一",
+      "イチ",
+      2
+     ],
+     [
+      "百",
+      "ヒャク",
+      2
+     ],
+     [
+      "五",
+      "ゴ",
+      0
+     ],
+     [
+      "十",
+      "ジュー",
+      1
+     ],
+     [
+      "二",
+      "ニ",
+      1
+     ],
+     [
+      "三",
+      "サン",
+      1
+     ],
+     [
+      "十",
+      "ジュー",
+      1
+     ],
+     [
+      "五",
+      "ゴ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "１",
+      "、",
+      0
+     ],
+     [
+      "１５２",
+      "、",
+      0
+     ],
+     [
+      "３５",
+      "、",
+      3
+     ]
+    ],
+    "phoneme_edit_distance": 22
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "silent_drop",
+    "id": "EMB_date_004",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "サンガツミッカカラシガツトーカマデオヤスミシマス’、",
+    "pruned_pron": "サンガツ、ニチ’カラ、ツ’キ、ニチマデオヤスミシマス’、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "三日",
+      "ミッカ",
+      5
+     ],
+     [
+      "４月",
+      "シガツ",
+      3
+     ],
+     [
+      "十日",
+      "トーカ",
+      4
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "３",
+      "、",
+      4
+     ],
+     [
+      "日",
+      "ニチ’",
+      1
+     ],
+     [
+      "４",
+      "、",
+      0
+     ],
+     [
+      "月",
+      "ツ’キ",
+      2
+     ],
+     [
+      "１０",
+      "、",
+      3
+     ],
+     [
+      "日",
+      "ニチ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 16
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "silent_drop",
+    "id": "EMB_counter_004",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "サンカシャワヒ’トリダケデシ’タ、",
+    "pruned_pron": "サンカシャワ、ニンダケデシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      3,
+      5
+     ],
+     [
+      2,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      5
+     ],
+     [
+      1,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "一人",
+      "ヒ’トリ",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "１",
+      "、",
+      1
+     ],
+     [
+      "人",
+      "ニン",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "misread",
+    "id": "EMB_notification_021",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "カードヲヨミトリマシ’タ、",
+    "pruned_pron": "カードヲヨミドリマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "読み取り",
+      "ヨミトリ",
+      5
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "読み",
+      "ヨミ",
+      5
+     ],
+     [
+      "取り",
+      "ドリ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 1
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "misread",
+    "id": "EMB_placename_002",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "オーサカフオーサカシ’キタクウメダニムカイマス’、",
+    "pruned_pron": "オーサカフオーサカシ’キタクウメタニムカイマス’、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      5
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      4,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      5
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      4,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "梅田",
+      "ウメダ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "梅",
+      "ウメ",
+      0
+     ],
+     [
+      "田",
+      "タ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 1
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "misread",
+    "id": "EMB_personname_010",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "カトーユイサンノタンジョービワアシ’タデス’、",
+    "pruned_pron": "カトーユイコロモサンノタンジョービワアシ’タデス’、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      3,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      3,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "加藤",
+      "カトー",
+      1
+     ],
+     [
+      "結衣",
+      "ユイ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "加藤",
+      "カトー",
+      2
+     ],
+     [
+      "結",
+      "ユイ",
+      0
+     ],
+     [
+      "衣",
+      "コロモ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "accent_only",
+    "id": "EMB_personname_001",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "タナカタローサン、オマタセシマシ’タ、",
+    "pruned_pron": "タナカタローサン、オマタセシマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      2,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "お",
+      "オ",
+      6
+     ],
+     [
+      "待たせ",
+      "マタセ",
+      0
+     ],
+     [
+      "し",
+      "シ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "お",
+      "オ",
+      3
+     ],
+     [
+      "待た",
+      "マタ",
+      1
+     ],
+     [
+      "せ",
+      "セ",
+      0
+     ],
+     [
+      "し",
+      "シ",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_full_embedded",
+    "category": "accent_only",
+    "id": "EMB_personname_012",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "マツモトアカリサンガニューシ’ツシマシ’タ、",
+    "pruned_pron": "マツモトアカリサンガニューシ’ツシマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      8
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "松本",
+      "マツモト",
+      0
+     ],
+     [
+      "あかり",
+      "アカリ",
+      0
+     ],
+     [
+      "さん",
+      "サン",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "松本",
+      "マツモト",
+      4
+     ],
+     [
+      "あ",
+      "ア",
+      1
+     ],
+     [
+      "かり",
+      "カリ",
+      0
+     ],
+     [
+      "さ",
+      "サ",
+      0
+     ],
+     [
+      "ん",
+      "ン",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "silent_drop",
+    "id": "EMB_money_002",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ザンダカワ、サンジューハチ、ロッピャクエンデス’、",
+    "pruned_pron": "、ワ、サンジューハチ、ロッピャクエンデス’、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      4,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      4,
+      8
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "残高",
+      "ザンダカ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "残高",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 7
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "silent_drop",
+    "id": "EMB_personname_013",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "イノウエナオキ’サンアテノニモツガトドイテイマス’、",
+    "pruned_pron": "、ジキジュサンアテノニモツガトドイテイマス’、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "井上",
+      "イノウエ",
+      0
+     ],
+     [
+      "直樹",
+      "ナオキ’",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "井上",
+      "、",
+      0
+     ],
+     [
+      "直",
+      "ジキ",
+      2
+     ],
+     [
+      "樹",
+      "ジュ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 10
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "silent_drop",
+    "id": "EMB_personname_004",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "タカハシ’ケンタサマノゴヨヤクデス’、",
+    "pruned_pron": "タカハシ’ケン、ノゴヨヤクデス’、",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "健太",
+      "ケンタ",
+      0
+     ],
+     [
+      "様",
+      "サマ",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "健",
+      "ケン",
+      0
+     ],
+     [
+      "太様",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "misread",
+    "id": "EMB_time_013",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ショヨージカンワ、オヨソサンジューゴフンデス’、",
+    "pruned_pron": "トコロカナメジカンワ、オヨソサンジューゴフンデス’、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "所要",
+      "ショヨー",
+      4
+     ],
+     [
+      "時",
+      "ジ",
+      1
+     ],
+     [
+      "間",
+      "カン",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "所",
+      "トコロ",
+      0
+     ],
+     [
+      "要",
+      "カナメ",
+      4
+     ],
+     [
+      "時間",
+      "ジカン",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 9
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "misread",
+    "id": "EMB_date_004",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "サンガツミッカカラシガツトーカマデオヤスミシマス’、",
+    "pruned_pron": "サンガツミッカカラヨンツ’キトーカマデオヤスミシマス’、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "４月",
+      "シガツ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "四",
+      "ヨン",
+      1
+     ],
+     [
+      "月",
+      "ツ’キ",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 7
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "misread",
+    "id": "EMB_placename_009",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "アオモリケンヒロサキシノキオンワ、ヒョーテンカサンドデス’、",
+    "pruned_pron": "アオモリケンヒロサキシノキオンワ、コーリテンカサンドデス’、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "青森",
+      "アオモリ",
+      4
+     ],
+     [
+      "氷点下",
+      "ヒョーテンカ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "青",
+      "アオ",
+      1
+     ],
+     [
+      "森",
+      "モリ",
+      2
+     ],
+     [
+      "氷",
+      "コーリ",
+      4
+     ],
+     [
+      "点",
+      "テン",
+      0
+     ],
+     [
+      "下",
+      "カ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 3
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "accent_only",
+    "id": "EMB_personname_008",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ナカムラサクラサマ、バンゴーサツワジューニバンデス’、",
+    "pruned_pron": "ナカムラサクラサマ、バンゴーサツワジューニバンデス’、",
+    "full_dict_accent_phrases": [
+     [
+      5,
+      9
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "中村",
+      "ナカムラ",
+      5
+     ],
+     [
+      "さくら",
+      "サクラ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "中村",
+      "ナカムラ",
+      4
+     ],
+     [
+      "さ",
+      "サ",
+      0
+     ],
+     [
+      "九",
+      "ク",
+      1
+     ],
+     [
+      "ら",
+      "ラ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_guard_embedded",
+    "category": "accent_only",
+    "id": "EMB_money_010",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ソーリョーワ、ゼーコミロッピャクロクジューエンデス’、",
+    "pruned_pron": "ソーリョーワ、ゼーコミロッピャクロクジューエンデス’、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      3,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      3,
+      8
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "税込み",
+      "ゼーコミ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "税",
+      "ゼー",
+      1
+     ],
+     [
+      "込み",
+      "コミ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "silent_drop",
+    "id": "BASIC5000_4606",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "シニセノヨーショクテンデタベルナポリタンワ、ゼッピンデアル、",
+    "pruned_pron": "シニセノ、テンデタベルナポリタンワ、ゼッピンデアル、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      4
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      0,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      0,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "洋食",
+      "ヨーショク",
+      4
+     ],
+     [
+      "ナポリタン",
+      "ナポリタン",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "洋食",
+      "、",
+      0
+     ],
+     [
+      "ナポリ",
+      "ナポリ",
+      3
+     ],
+     [
+      "タン",
+      "タン",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 7
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "silent_drop",
+    "id": "sentence_collector_09438",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "カゴシマケンアイラシ",
+    "pruned_pron": "カゴシマケン、シ",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      1
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "姶良",
+      "アイラ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "姶良",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_3486",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "タルクイニウスワ、トーヤク’キカンガノビテ、ヒ’キツズキ’ファボワールガショホーサレマシ’タ、",
+    "pruned_pron": "タルクィニウスワ、、キカンガノビテ、ヒ’キツズキ’ファボワールガショホーサレマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      5,
+      8
+     ],
+     [
+      5,
+      8
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      5,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      3,
+      2
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "タルクィニウス",
+      "タルクイニウス",
+      5
+     ],
+     [
+      "投薬",
+      "トーヤク’",
+      5
+     ],
+     [
+      "ファ",
+      "ファ",
+      2
+     ],
+     [
+      "ボワ",
+      "ボワ",
+      1
+     ],
+     [
+      "ール",
+      "ール",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "タルク",
+      "タルク",
+      5
+     ],
+     [
+      "ィ",
+      "ィ",
+      1
+     ],
+     [
+      "二",
+      "ニ",
+      1
+     ],
+     [
+      "ウス",
+      "ウス",
+      1
+     ],
+     [
+      "投薬",
+      "、",
+      0
+     ],
+     [
+      "ファ",
+      "ファ",
+      3
+     ],
+     [
+      "ボ",
+      "ボ",
+      1
+     ],
+     [
+      "ワール",
+      "ワール",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 7
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "misread",
+    "id": "BASIC5000_2920",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "アノオトコヲトキ’フセヨートスルノワ、オーカミニドーリヲトイテ、キ’カセルヨーナモノダ、",
+    "pruned_pron": "アノオトコヲトキ’フセヨートスルノワ、オーカミニドーリヲセツイテ、キ’カセルヨーナモノダ、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      4,
+      11
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      4,
+      10
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      9
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      4,
+      10
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "説き伏せよ",
+      "トキ’フセヨ",
+      4
+     ],
+     [
+      "う",
+      "ー",
+      0
+     ],
+     [
+      "説い",
+      "トイ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "説き",
+      "トキ’",
+      1
+     ],
+     [
+      "伏せ",
+      "フセ",
+      2
+     ],
+     [
+      "よう",
+      "ヨー",
+      0
+     ],
+     [
+      "説",
+      "セツ",
+      1
+     ],
+     [
+      "い",
+      "イ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "misread",
+    "id": "sentence_collector_08851",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ケーショーデス’ンデヨカッタヨ",
+    "pruned_pron": "ケーキズデス’ンデヨカッタヨ",
+    "full_dict_accent_phrases": [
+     [
+      5,
+      8
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      8
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "軽傷",
+      "ケーショー",
+      5
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "軽",
+      "ケー",
+      1
+     ],
+     [
+      "傷",
+      "キズ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "misread",
+    "id": "ROHAN4600_2510",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "アリゾナデカンブツヲオゴッテヤロー、",
+    "pruned_pron": "アリゾナデイヌイブツヲオゴッテヤロー、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "アリゾナ",
+      "アリゾナ",
+      0
+     ],
+     [
+      "乾物",
+      "カンブツ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "アリ",
+      "アリ",
+      3
+     ],
+     [
+      "ゾ",
+      "ゾ",
+      1
+     ],
+     [
+      "ナ",
+      "ナ",
+      1
+     ],
+     [
+      "乾",
+      "イヌイ",
+      0
+     ],
+     [
+      "物",
+      "ブツ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "accent_only",
+    "id": "sentence_collector_09025",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ノラネコガイッピ’キ、バス’テーノベンチノモトデネコロガッテイルダケ",
+    "pruned_pron": "ノラネコガイッピ’キ、バス’テーノベンチノモトデネコロガッテイルダケ",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      4,
+      10
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      8,
+      10
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "寝転がっ",
+      "ネコロガッ",
+      4
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "寝",
+      "ネ",
+      8
+     ],
+     [
+      "転がっ",
+      "コロガッ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_guard_heldout",
+    "category": "accent_only",
+    "id": "yumie-text-1_00843",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "トシヨッタアクマワカイダンノイチバンシタノトコロデヒ’トツ’トンボガエリヲシ’テ、ソノママジベタエアタマヲツッコミマシ’タ、",
+    "pruned_pron": "トシヨッタアクマワカイダンノイチバンシタノトコロデヒ’トツ’トンボガエリヲシ’テ、ソノママジベタエアタマヲツッコミマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      6,
+      7
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      9
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      2
+     ],
+     [
+      3,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      0,
+      7
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "一ばん",
+      "イチバン",
+      0
+     ],
+     [
+      "下",
+      "シタ",
+      6
+     ],
+     [
+      "とんぼがえり",
+      "トンボガエリ",
+      4
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "一",
+      "イチ",
+      2
+     ],
+     [
+      "ば",
+      "バ",
+      0
+     ],
+     [
+      "ん",
+      "ン",
+      0
+     ],
+     [
+      "下",
+      "シタ",
+      0
+     ],
+     [
+      "とん",
+      "トン",
+      1
+     ],
+     [
+      "ぼ",
+      "ボ",
+      1
+     ],
+     [
+      "が",
+      "ガ",
+      0
+     ],
+     [
+      "えり",
+      "エリ",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_0378",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "グェラッツィワ、ギザギザノヤスリデモクメヲミガキ、ヒルヤスミニキャンディヲペロペロナメル、",
+    "pruned_pron": "グェラッツィワ、ギザギザノ、デモクメヲミガキ、ヒルヤスミニキャンディヲペロペロナメル、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      3
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "鑢",
+      "ヤスリ",
+      0
+     ],
+     [
+      "舐める",
+      "ナメル",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "鑢",
+      "、",
+      0
+     ],
+     [
+      "舐め",
+      "ナメ",
+      0
+     ],
+     [
+      "る",
+      "ル",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_0505",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "グィドーワ、ペウチェレニフ’チャリョーリヲフルマッタガ、ドーナッタカネ、",
+    "pruned_pron": "グィドーワ、ペウチェレニ、リョーリヲフルマッタガ、ドーナッタカネ、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "チェレ",
+      "チェレ",
+      1
+     ],
+     [
+      "普茶料理",
+      "フ’チャリョーリ",
+      3
+     ],
+     [
+      "振る舞っ",
+      "フルマッ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "チェ",
+      "チェ",
+      0
+     ],
+     [
+      "レ",
+      "レ",
+      1
+     ],
+     [
+      "普茶",
+      "、",
+      0
+     ],
+     [
+      "料理",
+      "リョーリ",
+      1
+     ],
+     [
+      "振る",
+      "フル",
+      3
+     ],
+     [
+      "舞っ",
+      "マッ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_3325",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ソモソモ、ラザーニャトフォルトゥーニガ、サムドゥプツェノキューセーシュダッテホントナノ？",
+    "pruned_pron": "ソモソモ、ラザーニャトフォルトゥーニガ、サムドゥプツェノ、ヌシダッテホントナノ？",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      3,
+      8
+     ],
+     [
+      4,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      7
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      4,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "ラザーニャ",
+      "ラザーニャ",
+      2
+     ],
+     [
+      "サム",
+      "サム",
+      1
+     ],
+     [
+      "ドゥプツェ",
+      "ドゥプツェ",
+      1
+     ],
+     [
+      "救世主",
+      "キューセーシュ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "ラ",
+      "ラ",
+      0
+     ],
+     [
+      "ザ",
+      "ザ",
+      1
+     ],
+     [
+      "ーニャ",
+      "ーニャ",
+      0
+     ],
+     [
+      "サムドゥプツェ",
+      "サムドゥプツェ",
+      1
+     ],
+     [
+      "救世",
+      "、",
+      0
+     ],
+     [
+      "主",
+      "ヌシ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "misread",
+    "id": "sentence_collector_07311",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "クマモトケンヤマガシ",
+    "pruned_pron": "クマモトケンサンシ’カシ",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      5,
+      8
+     ],
+     [
+      2,
+      3
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "熊本",
+      "クマモト",
+      4
+     ],
+     [
+      "山鹿",
+      "ヤマガ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "熊本",
+      "クマモト",
+      5
+     ],
+     [
+      "山",
+      "サン",
+      2
+     ],
+     [
+      "鹿",
+      "シ’カ",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 5
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "misread",
+    "id": "ROHAN4600_4418",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ニカタナイッツイノカタナデアリ、ソレゾレガコトナルセーシ’ツヲモチマス’、",
+    "pruned_pron": "ニガタナイッタイノカタナデアリ、ソレゾレガコトナルセーシ’ツヲモチマス’、",
+    "full_dict_accent_phrases": [
+     [
+      5,
+      9
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "二",
+      "ニ",
+      5
+     ],
+     [
+      "一対",
+      "イッツイ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "二",
+      "ニ",
+      3
+     ],
+     [
+      "刀",
+      "ガタナ",
+      2
+     ],
+     [
+      "一",
+      "イッ",
+      1
+     ],
+     [
+      "対",
+      "タイ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 3
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "misread",
+    "id": "ROHAN4600_1271",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "テニキズアトヲモツオトコガ、ツァイツェントアイサツ’シ、タチ’サリマシ’タ、",
+    "pruned_pron": "テニキズアトヲモツオトコガ、ツアイツェントアイサツ’シ、タチ’サリマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      2
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      5,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "傷跡",
+      "キズアト",
+      0
+     ],
+     [
+      "ツァイツェン",
+      "ツァイツェン",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "傷",
+      "キズ",
+      2
+     ],
+     [
+      "跡",
+      "アト",
+      1
+     ],
+     [
+      "ツ",
+      "ツ",
+      1
+     ],
+     [
+      "ァ",
+      "ア",
+      1
+     ],
+     [
+      "イ",
+      "イ",
+      1
+     ],
+     [
+      "ツェン",
+      "ツェン",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 1
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "accent_only",
+    "id": "ONOMATOPEE300_187",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ジテンシャノタイヤニササッタクギヲヒ’キヌク’トプシュートオトヲタテテクーキガヌケテシマッタ、",
+    "pruned_pron": "ジテンシャノタイヤニササッタクギヲヒ’キヌク’トプシュートオトヲタテテクーキガヌケテシマッタ、",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      7,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      7,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "刺さっ",
+      "ササッ",
+      2
+     ],
+     [
+      "プ",
+      "プ",
+      1
+     ],
+     [
+      "シュー",
+      "シュー",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "刺さ",
+      "ササ",
+      2
+     ],
+     [
+      "っ",
+      "ッ",
+      1
+     ],
+     [
+      "プシュー",
+      "プシュー",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "30000_full_heldout",
+    "category": "accent_only",
+    "id": "sentence_collector_02762",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "エビフライノエビガデカク’テウレシイ",
+    "pruned_pron": "エビフライノエビガデカク’テウレシイ",
+    "full_dict_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "でかく",
+      "デカク’",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "で",
+      "デ",
+      1
+     ],
+     [
+      "かく",
+      "カク’",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "silent_drop",
+    "id": "yumie-text-1_01278",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ツギニ、ホカノモノタチノカオモソコカラアラワレタ、チーサイコエデダガ、コーテーイロイロマジッタガッショーノウタサエ、キ’コエテキタ、",
+    "pruned_pron": "ツギニ、ホカノモノタチノカオモソコカラアラワレタ、チーサイコエデダガ、コーヒ’クイロイロマジッタアイ、ノウタサエ、キ’コエテキタ、",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      5,
+      5
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      10,
+      10
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      5,
+      6
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "高低",
+      "コーテー",
+      0
+     ],
+     [
+      "いろいろ",
+      "イロイロ",
+      0
+     ],
+     [
+      "まじっ",
+      "マジッ",
+      2
+     ],
+     [
+      "合唱",
+      "ガッショー",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "高",
+      "コー",
+      1
+     ],
+     [
+      "低い",
+      "ヒ’クイ",
+      10
+     ],
+     [
+      "ろいろまじった",
+      "ロイロマジッタ",
+      0
+     ],
+     [
+      "合",
+      "アイ",
+      1
+     ],
+     [
+      "唱",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 9
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "silent_drop",
+    "id": "sentence_collector_08087",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "カガク’テキ’チシ’キノセーシ’ツワ、ソレヲトイニタイスルコタエトカンガエルトメーリョーニナル、",
+    "pruned_pron": "カガク’テキ’チシ’キノセーシ’ツワ、ソレヲトイニタイスルコタエトカンガエルトアカリ、ニナル、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      2
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      2
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "明瞭",
+      "メーリョー",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "明",
+      "アカリ",
+      1
+     ],
+     [
+      "瞭",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_0458",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "シバシバシ’タガカラミ、テャートヨビマチガウノヲフ’セギタイナ、",
+    "pruned_pron": "シバシバシ’タガカラミ、テャートヨビカンチガウノヲ、ギタイナ、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      5,
+      8
+     ],
+     [
+      2,
+      6
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "呼び",
+      "ヨビ",
+      5
+     ],
+     [
+      "間違う",
+      "マチガウ",
+      3
+     ],
+     [
+      "防ぎ",
+      "フ’セギ",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "呼び",
+      "ヨビ",
+      2
+     ],
+     [
+      "間",
+      "カン",
+      1
+     ],
+     [
+      "違う",
+      "チガウ",
+      3
+     ],
+     [
+      "防",
+      "、",
+      3
+     ],
+     [
+      "ぎ",
+      "ギ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 6
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "misread",
+    "id": "sentence_collector_01073",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "コンナナガイキヤク、ヨムジンイナイヨ",
+    "pruned_pron": "コンナナガイキヤク、ヨムヒトイナイヨ",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      3
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      2,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "人い",
+      "ジンイ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "人",
+      "ヒト",
+      0
+     ],
+     [
+      "い",
+      "イ",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 3
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "misread",
+    "id": "yumie-text-1_00606",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "コドモタチワ、メイメイパンノカケラヲヒ’トツズツモライマシ’タガ、ソレワセンノヨリモ、ヨケイチーサイモノデシ’タ、",
+    "pruned_pron": "コドモタチワ、メイメイパンノカケラヲヒ’トツズツモライマシタガ、ソレワセンノヨリモ、ヨケイチーサイモノデシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      9
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      12
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      9
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "ひとつ",
+      "ヒ’トツ",
+      4
+     ],
+     [
+      "ずつ",
+      "ズツ",
+      1
+     ],
+     [
+      "もらい",
+      "モライ",
+      4
+     ],
+     [
+      "まし",
+      "マシ’",
+      1
+     ],
+     [
+      "が",
+      "ガ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "ひと",
+      "ヒ’ト",
+      0
+     ],
+     [
+      "つずつもらいましたが",
+      "ツズツモライマシタガ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 1
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "misread",
+    "id": "BASIC5000_1460",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ロクジューゴサイイジョーノヒトタチワ、セーフ’カラネンキンヲウケテイル、",
+    "pruned_pron": "ロクジューゴサイイジョーノヒ’トタチワ、セーフ’カラトシ’キンヲウケテイル、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "人",
+      "ヒト",
+      2
+     ],
+     [
+      "年金",
+      "ネンキン",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "人",
+      "ヒ’ト",
+      2
+     ],
+     [
+      "年",
+      "トシ’",
+      0
+     ],
+     [
+      "金",
+      "キン",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 5
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "accent_only",
+    "id": "sentence_collector_07171",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "カイガイデカツヤク’スルセンシュヲサムライトヨンデショーカイスル",
+    "pruned_pron": "カイガイデカツヤク’スルセンシュヲサムライトヨンデショーカイスル",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      6
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      6
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "サムライ",
+      "サムライ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "サム",
+      "サム",
+      2
+     ],
+     [
+      "ライ",
+      "ライ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "10000_guard_heldout",
+    "category": "accent_only",
+    "id": "ROHAN4600_2691",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ズィキナニ、ス’キノイミヲオシエマシ’タ、",
+    "pruned_pron": "ズィキナニ、ス’キノイミヲオシエマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      4,
+      6
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      4,
+      6
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "ズィ",
+      "ズィ",
+      1
+     ],
+     [
+      "キナ",
+      "キナ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "ズィキ",
+      "ズィキ",
+      2
+     ],
+     [
+      "ナ",
+      "ナ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "silent_drop",
+    "id": "yumie-text-1_00284",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "コノハコノマドノナイガワニ、ソノトキ’フトナンカキ’シムヨーナオトガキ’コエマシ’タ、ソレカラマモナク、ナンカワタシノハコガ、ウミノウエヲヒッパラレテイルヨーナキガシマシ’タ、",
+    "pruned_pron": "コノハコノマドノナイガワニ、ソノトキ’フトナンカ、ムヨーナオトガキ’コエマシ’タ、ソレカラマモナク、ナンカワタシノハコガ、ウミノウエヲヒッパラレテイルヨーナキガシマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      2,
+      6
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      11,
+      17
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      4
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      11,
+      17
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "軋む",
+      "キ’シム",
+      2
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "軋",
+      "、",
+      0
+     ],
+     [
+      "む",
+      "ム",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "silent_drop",
+    "id": "BASIC5000_3513",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "タク’ハツソーカラシ’ツコク’キシンヲセマラレタビョーニンガ、タク’ハツソーノナカマタチニトーブンスルコトヲジョーケンニ、トンデモナイモノヲキ’シンスル、",
+    "pruned_pron": "タク’ハツソーカラシ’ツコク、ヲセマラレタビョーニンガ、タク’ハツソーノナカマタチニトーブンスルコトヲジョーケンニ、トンデモナイモノヲ、スル、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      8
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      0,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      8
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      3,
+      5
+     ],
+     [
+      8,
+      9
+     ],
+     [
+      0,
+      2
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "しつこく",
+      "シ’ツコク’",
+      3
+     ],
+     [
+      "寄進",
+      "キシン",
+      0
+     ],
+     [
+      "寄進",
+      "キ’シン",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "しつこく",
+      "シ’ツコク",
+      3
+     ],
+     [
+      "寄進",
+      "、",
+      0
+     ],
+     [
+      "寄進",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 11
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "silent_drop",
+    "id": "BASIC5000_0519",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ハコダテサンニノボルト、スバラシイハコダテノヤケーガミラレル、",
+    "pruned_pron": "、ヤマニノボルト、スバラシイ、ノヤケーガミラレル、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      7
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      3
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      4,
+      5
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "函館",
+      "ハコダテ",
+      4
+     ],
+     [
+      "山",
+      "サン",
+      2
+     ],
+     [
+      "函館",
+      "ハコダテ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "函館",
+      "、",
+      0
+     ],
+     [
+      "山",
+      "ヤマ",
+      2
+     ],
+     [
+      "函館",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 17
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "misread",
+    "id": "sentence_collector_05122",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "オーイタケンヒメシマムラ",
+    "pruned_pron": "オーイタケンヒメトームラ",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      6
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      0,
+      6
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "姫島",
+      "ヒメシマ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "姫",
+      "ヒメ",
+      0
+     ],
+     [
+      "島",
+      "トー",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "misread",
+    "id": "ROHAN4600_3581",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ハリケーンガチョクゲキ’シ、セモニッェニセッチ’スル、モニュメントノケンゾーヲオクラセタ、",
+    "pruned_pron": "ハリケーンガチョクゲキ’シ、セモニッェニセッチ’スル、モニュメントノケンゾーヲオソラセタ、",
+    "full_dict_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      5,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      1
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      2
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "遅らせ",
+      "オクラセ",
+      5
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "遅",
+      "オソ",
+      2
+     ],
+     [
+      "ら",
+      "ラ",
+      0
+     ],
+     [
+      "せ",
+      "セ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 2
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "misread",
+    "id": "ROHAN4600_3598",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ルテス’テュノカゾクワ、パイロットヤジツギョーカナド、バラエティーユタカデアルナ、",
+    "pruned_pron": "ルテス’テュノカゾクワ、パイロットヤミギョーカナド、バラエティーユタカデアルナ、",
+    "full_dict_accent_phrases": [
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      6,
+      7
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      1
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      5,
+      6
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      7
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "ルテス",
+      "ルテス’",
+      1
+     ],
+     [
+      "実業",
+      "ジツギョー",
+      6
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "ル",
+      "ル",
+      1
+     ],
+     [
+      "テス",
+      "テス’",
+      1
+     ],
+     [
+      "実",
+      "ミ",
+      5
+     ],
+     [
+      "業",
+      "ギョー",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 3
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "accent_only",
+    "id": "yumie-text-1_01111",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "アナタノイワレルコトワソノママシンジマス’ヨ、ソレデワ、ワタシノタチバモ、マタソレトカンレンシ’テフリーダノタチバモ、ス’コブルフアンテーナモノナノデス’ネ",
+    "pruned_pron": "アナタノイワレルコトワソノママシンジマス’ヨ、ソレデワ、ワタシノタチバモ、マタソレトカンレンシ’テフリーダノタチバモ、ス’コブルフアンテーナモノナノデス’ネ",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      11
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      2,
+      13
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      11
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      3,
+      4
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      0,
+      3
+     ],
+     [
+      0,
+      6
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      5,
+      3
+     ],
+     [
+      2,
+      13
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "すこぶる",
+      "ス’コブル",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "す",
+      "ス’",
+      0
+     ],
+     [
+      "こ",
+      "コ",
+      5
+     ],
+     [
+      "ぶる",
+      "ブル",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "60000_guard_heldout",
+    "category": "accent_only",
+    "id": "ONOMATOPEE300_226",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ヤセスギデナヨナヨシ’テミエルノデ、キンニクヲツケタイ、",
+    "pruned_pron": "ヤセスギデナヨナヨシ’テミエルノデ、キンニクヲツケタイ、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      5
+     ],
+     [
+      1,
+      6
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      9
+     ],
+     [
+      0,
+      2
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "なよなよ",
+      "ナヨナヨ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "な",
+      "ナ",
+      1
+     ],
+     [
+      "よ",
+      "ヨ",
+      0
+     ],
+     [
+      "な",
+      "ナ",
+      1
+     ],
+     [
+      "よ",
+      "ヨ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "silent_drop",
+    "id": "sentence_collector_04736",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "オナジセーサンヨーシ’キガクリカエサレル、",
+    "pruned_pron": "オナジセーサンヨーシ’キガ、サレル、",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      5,
+      9
+     ],
+     [
+      6,
+      7
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      5,
+      9
+     ],
+     [
+      0,
+      3
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "繰返さ",
+      "クリカエサ",
+      6
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "繰返",
+      "、",
+      0
+     ],
+     [
+      "さ",
+      "サ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 7
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_2537",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ディオニューソスガ、シ’キジヲノベタ、",
+    "pruned_pron": "ディオニューソスガ、シ’キ、ヲノベタ、",
+    "full_dict_accent_phrases": [
+     [
+      3,
+      7
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      1,
+      3
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      3,
+      7
+     ],
+     [
+      2,
+      2
+     ],
+     [
+      0,
+      1
+     ],
+     [
+      1,
+      3
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "式辞",
+      "シ’キジ",
+      0
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "式",
+      "シ’キ",
+      2
+     ],
+     [
+      "辞",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 2
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "silent_drop",
+    "id": "ROHAN4600_2854",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "オリベイラワ、ウィンドサーフィンデミツ’ケタフィルムヲ、チョク’ハンサイトデコーニューシマシ’タ、",
+    "pruned_pron": "オリヴェイラワ、ウィンドサーフィンデミツ’ケタフィルムヲ、チョク、サイトデコーニューシマシ’タ、",
+    "full_dict_accent_phrases": [
+     [
+      3,
+      6
+     ],
+     [
+      4,
+      8
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      4,
+      8
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      4,
+      8
+     ],
+     [
+      4,
+      4
+     ],
+     [
+      1,
+      4
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      6,
+      8
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "オリヴェイラ",
+      "オリベイラ",
+      3
+     ],
+     [
+      "直販",
+      "チョク’ハン",
+      4
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "オリ",
+      "オリ",
+      0
+     ],
+     [
+      "ヴェ",
+      "ヴェ",
+      1
+     ],
+     [
+      "イラ",
+      "イラ",
+      1
+     ],
+     [
+      "直",
+      "チョク",
+      1
+     ],
+     [
+      "販",
+      "、",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 5
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "misread",
+    "id": "sentence_collector_07807",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "スナヲス’クイナガラ、ボクワツブヤイタ",
+    "pruned_pron": "スナヲキ’クイナガラ、ボクワツブヤイタ",
+    "full_dict_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      3,
+      5
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      0,
+      3
+     ],
+     [
+      4,
+      6
+     ],
+     [
+      1,
+      3
+     ],
+     [
+      3,
+      5
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "掬い",
+      "ス’クイ",
+      4
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "掬",
+      "キ’ク",
+      4
+     ],
+     [
+      "い",
+      "イ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 2
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "misread",
+    "id": "ROHAN4600_3098",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "チンクエッティ’サマ、ゴショモーナサッテイタ、ウォーキングダイナソーノカセキデゴザイマス’、",
+    "pruned_pron": "チンクエッティヨー、ゴショモーナサッテイタ、ウォーキングダイナソーノカセキデゴザイマス’、",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      8
+     ],
+     [
+      10,
+      10
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      3,
+      6
+     ],
+     [
+      8,
+      9
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      1,
+      6
+     ],
+     [
+      1,
+      2
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      1,
+      11
+     ],
+     [
+      8,
+      9
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "チンクェッティ",
+      "チンクエッティ’",
+      4
+     ],
+     [
+      "様",
+      "サマ",
+      2
+     ],
+     [
+      "ご",
+      "ゴ",
+      10
+     ],
+     [
+      "なさっ",
+      "ナサッ",
+      2
+     ],
+     [
+      "ウォーキング",
+      "ウォーキング",
+      0
+     ],
+     [
+      "ダイナ",
+      "ダイナ",
+      3
+     ],
+     [
+      "ソー",
+      "ソー",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "チンクェ",
+      "チンクエ",
+      1
+     ],
+     [
+      "ッティ",
+      "ッティ",
+      1
+     ],
+     [
+      "様",
+      "ヨー",
+      1
+     ],
+     [
+      "ご",
+      "ゴ",
+      0
+     ],
+     [
+      "な",
+      "ナ",
+      1
+     ],
+     [
+      "さっ",
+      "サッ",
+      1
+     ],
+     [
+      "ウォ",
+      "ウォ",
+      1
+     ],
+     [
+      "ーキングダイナソー",
+      "ーキングダイナソー",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 5
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "misread",
+    "id": "sentence_collector_05612",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "オカヤマケンツヤマシ",
+    "pruned_pron": "オカヤマケンツ’サンシ",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      3,
+      4
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      4,
+      6
+     ],
+     [
+      2,
+      4
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "津山",
+      "ツヤマ",
+      3
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "津",
+      "ツ’",
+      2
+     ],
+     [
+      "山",
+      "サン",
+      2
+     ]
+    ],
+    "phoneme_edit_distance": 4
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "accent_only",
+    "id": "ONOMATOPEE300_071",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ニヒャッキロオーバーノス’ピードデガードレールニオモイキリブツ’カッタノデ、クルマワペチャンコニナッタ、",
+    "pruned_pron": "ニヒャッキロオーバーノス’ピードデガードレールニオモイキリブツ’カッタノデ、クルマワペチャンコニナッタ、",
+    "full_dict_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      5,
+      7
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      3
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      5
+     ],
+     [
+      1,
+      5
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      4,
+      7
+     ],
+     [
+      0,
+      5
+     ],
+     [
+      5,
+      7
+     ],
+     [
+      0,
+      4
+     ],
+     [
+      0,
+      8
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "ぺちゃんこ",
+      "ペチャンコ",
+      2
+     ],
+     [
+      "なっ",
+      "ナッ",
+      1
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "ぺちゃんこになった",
+      "ペチャンコニナッタ",
+      0
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   },
+   {
+    "level": "100000_full_heldout",
+    "category": "accent_only",
+    "id": "sentence_collector_05834",
+    "text": "<redacted: corpus text>",
+    "full_dict_pron": "ヤクニタッテルトイイデス’ネ",
+    "pruned_pron": "ヤクニタッテルトイイデス’ネ",
+    "full_dict_accent_phrases": [
+     [
+      4,
+      13
+     ]
+    ],
+    "pruned_accent_phrases": [
+     [
+      2,
+      3
+     ],
+     [
+      1,
+      10
+     ]
+    ],
+    "tokens_only_in_full": [
+     [
+      "役に立っ",
+      "ヤクニタッ",
+      4
+     ]
+    ],
+    "tokens_only_in_pruned": [
+     [
+      "役",
+      "ヤク",
+      2
+     ],
+     [
+      "に",
+      "ニ",
+      0
+     ],
+     [
+      "立っ",
+      "タッ",
+      1
+     ]
+    ],
+    "phoneme_edit_distance": 0
+   }
+  ]
+ },
+ "caveats": [
+  "『正しく読める』ではなく『フル NAIST-JDIC と同じ結果になる』を測っている。フル辞書自身の誤読 (地名・人名に多い) は検出できない。",
+  "評価は pyopenjtalk 経由。教師 piper-plus の実運用 G2P は MultilingualPhonemizer 経由 (B-1) で、音素表記も違いうる。最終判断はその経路で測り直すこと。",
+  "embedded 183 文は手書きでネイティブレビュー無し。カテゴリ数が少ないので 1 文の増減が 0.55 ポイント動く。",
+  "語彙ランキングはコーパス頻度→min(wcost) 補充という単純な方式。品詞や生産性を考慮したランキングにすれば同じサイズでもっと伸びる余地がある (未検証)。",
+  "guard set は 名詞,数 / *,接尾 / 記号,* の機械的な union で、チューニングしていない。もっと小さい guard で同じ効果が出る可能性が高い。",
+  "feature 変種は full と noread の 2 つだけ。reports/b0_feature_fields.json の L1z (bit 完全一致で 34.3% 削減) は本測定では未使用。組み合わせれば同じ一致率でさらに小さくできる。",
+  "本測定の feature 削減 (noread) の一致率への影響はほぼゼロだが厳密にゼロではない (heldout 30k で 67.656% -> 67.527%、-0.13 ポイント)。",
+  "matrix.bin は使用 context id への再割当で圧縮済み。圧縮の出力不変性は前タスクが 100k 語で実証済みだが、本タスクの各水準で個別に再確認はしていない。",
+  "ESP32 実機でのビルド・mmap・実行時間は未検証。サイズはホスト上のバイナリのバイト数。"
+ ]
+}

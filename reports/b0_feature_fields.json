@@ -1,0 +1,212 @@
+{
+  "task": "B-0 / TTS に必要な OpenJTalk sys.dic feature フィールドの特定",
+  "date": "2026-08-26",
+  "target_dictionary": {
+    "path": "/Users/s19447/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic",
+    "sha256": "67496f05b38b6455eaeed99b167b57ab282eb5fd0b80e8557fd588177e6fd2dc",
+    "total_bytes": 103094645,
+    "lexsize": 789024,
+    "darts_bytes": 23220272,
+    "token_bytes": 12624384,
+    "feature_bytes": 67249917,
+    "note": "M-8 が測った $PP/build/share/open_jtalk/dic/sys.dic (sha256 a0e0f519..., 788923 entries, 103082017 B) とは別ファイル。実際に piper-plus の G2P が読むのはこちら"
+  },
+  "consumed_by_piper_plus": {
+    "labels_used": [
+      "P3 (現在音素)",
+      "A1",
+      "A2",
+      "A3"
+    ],
+    "evidence": "src/python/g2p/piper_plus_g2p/japanese.py:30-33,139,169-175 — _RE_PHONEME と _RE_PROSODY だけ。B:/C:/D:/E:/F:/G:/H:/I:/J:/K:/L:/M: は一切読まない",
+    "a_field_inputs": "jpcommon_label.c:1046-1053 — A1/A2/A3 は index_mora_in_accent_phrase / accent / count_mora_in_accent_phrase のみに依存。njd2jpcommon.c:155-166 が JPCommon へ渡すのは pron/pos/ctype/cform/acc/chain_flag で、accent phrase 分割は chain_flag のみ (jpcommon_label.c:893)"
+  },
+  "field_byte_share": {
+    "pos": 0.072,
+    "pos_group1": 0.094,
+    "pos_group2": 0.029,
+    "pos_group3": 0.022,
+    "ctype": 0.066,
+    "cform": 0.065,
+    "orig": 0.13,
+    "read": 0.169,
+    "pron": 0.169,
+    "acc": 0.035,
+    "chain_rule": 0.019,
+    "delimiters": 0.129
+  },
+  "keep_sets_validated_bit_exact": {
+    "pos": "全値 (13種) 必須",
+    "pos_group1": "全値 (37種) 必須",
+    "pos_group2": [
+      "助数詞"
+    ],
+    "pos_group3": [],
+    "ctype": [
+      "特殊・マス",
+      "特殊・ナイ",
+      "サ変・スル"
+    ],
+    "cform": [
+      "連用形",
+      "連用タ接続",
+      "連用ゴザイ接続",
+      "連用テ接続",
+      "連用デ接続",
+      "連用ニ接続",
+      "未然形"
+    ],
+    "orig": "複合エントリ(acc に ':' を含む) は必須。加えて 機能語9語 + MULTI_READ_KANJI_LIST(69字) + 踊り字 + 漢字を含む語",
+    "read": "njd_set_digit の numerative_class3 の読み 49種のみ",
+    "pron": "全値必須",
+    "acc": "全値必須",
+    "chain_rule": "全値 (115種) 必須"
+  },
+  "consumers": {
+    "ctype": [
+      "pyopenjtalk/openjtalk.pyx:1018 apply_original_rule_before_chaining (サ変・スル → chain_flag=1)",
+      "pyopenjtalk/utils.py:442,444 modify_acc_after_chaining (特殊・マス / 特殊・ナイ → head.acc 書き換え)"
+    ],
+    "cform": [
+      "njd_set_accent_phrase.c:191,195,221 (連用* prefix)",
+      "openjtalk.pyx:1035 (連用形/連用タ接続/連用ゴザイ接続/連用テ接続 → acc-=1)",
+      "utils.py:443 (未然形)"
+    ],
+    "orig": [
+      "njd_node.c:554-563 複合エントリの表層分割キー",
+      "openjtalk.pyx:1038,1041",
+      "utils.py:247-259 modify_kanji_yomi",
+      "utils.py:308-312 predict_nani_reading",
+      "utils.py:446",
+      "utils.py:644-997 process_odori_features"
+    ],
+    "read": [
+      "njd_set_digit.c:685-691 numerative_class3 の助数詞読み分け"
+    ],
+    "pos_group2": [
+      "njd_set_digit.c:147,189,591,685 (助数詞のみ)"
+    ],
+    "pos_group3": [
+      "njd_set_accent_phrase.c:242-248 (姓/名) — ただし実測では A1/A2/A3 に影響なし"
+    ],
+    "chain_rule": [
+      "njd_set_accent_type.c:187,191 get_rule",
+      "openjtalk.pyx:1027-1032"
+    ]
+  },
+  "levels": {
+    "L0": {
+      "feature_bytes": 67249917,
+      "sys_dic_bytes": 103094645,
+      "reduction": 0.0,
+      "diff_lines_of_12211": 0
+    },
+    "L1z": {
+      "desc": "ctype3値 + cform7値 + pos_group2=助数詞のみ + pos_group3列削除 + read=class3のみ",
+      "feature_bytes": 44208253,
+      "sys_dic_bytes": 80052981,
+      "reduction": 0.343,
+      "diff_lines_of_12211": 0
+    },
+    "L2w": {
+      "desc": "L1z + orig を (複合/機能語/MULTI_READ/踊り字/漢字を含む語) に縮約",
+      "feature_bytes": 40258528,
+      "sys_dic_bytes": 76103256,
+      "reduction": 0.401,
+      "diff_lines_of_12211": 0
+    },
+    "L2z": {
+      "desc": "L1z + orig を (複合/機能語/MULTI_READ/踊り字/単漢字) に縮約 — 漢字複合語の orig を落とす",
+      "feature_bytes": 22561530,
+      "sys_dic_bytes": 58406258,
+      "reduction": 0.665,
+      "diff_lines_of_12211": 1,
+      "known_break": "去々年（踊り字の直前語 orig を参照する utils.py:685-691）"
+    },
+    "L3": {
+      "desc": "L2z を 13B 固定レコード (postag u8 / flags u8 / chain u8 / acc u8 / mora u8 / pron_off u32 / aux_off u32) + dedup 文字列プールに二値化",
+      "feature_bytes": 16143048,
+      "sys_dic_bytes": 51987776,
+      "reduction": 0.76,
+      "verified": false
+    },
+    "L4": {
+      "desc": "L3 + pron を 1B/モーラ (158種) に符号化",
+      "feature_bytes": 12396972,
+      "sys_dic_bytes": 48241700,
+      "reduction": 0.816,
+      "verified": false
+    }
+  },
+  "hard_floor": {
+    "darts_plus_token_bytes": 35844728,
+    "per_entry_bytes": 45.4,
+    "implication": "feature を 0 バイトにしても sys.dic は 35.8 MB 残る。feature 削減だけでは ESP32 に載らない。語彙枝刈りが必須"
+  },
+  "validation": {
+    "harness": "scratchpad/b0/worker.py — run_mecab_detailed → feature 列を書き換え → run_njd_from_mecab → apply_postprocessing → make_label → (P3, A1, A2, A3) 比較",
+    "baseline_crosscheck": "pipeline(t) == extract_fullcontext(t) が 300 行で完全一致",
+    "corpus": "scratchpad/pool.tsv 12,211 行 (jsut 7,187 / rohan4600 4,600 / ita 422)",
+    "not_covered": "Common Voice ja 11,060 行 (別ファイル) は未検証"
+  },
+  "postprocessing_layers": {
+    "note": "OpenJTalk C 本体だけを移植しても教師と一致しない。pyopenjtalk-plus 独自の Cython/Python 後処理が acc と chain_flag を書き換える",
+    "layers": [
+      {
+        "name": "apply_original_rule_before_chaining",
+        "where": "pyopenjtalk/openjtalk.pyx:1010-1041",
+        "runs": "run_njd_from_mecab 内、njd_set_pronunciation と njd_set_digit の間",
+        "reads": [
+          "pos",
+          "pos_group1",
+          "ctype",
+          "cform",
+          "orig",
+          "string",
+          "acc",
+          "mora_size",
+          "chain_rule"
+        ],
+        "writes": [
+          "chain_flag",
+          "chain_rule",
+          "acc"
+        ]
+      },
+      {
+        "name": "apply_postprocessing",
+        "where": "pyopenjtalk/__init__.py:566-579",
+        "chain": [
+          "modify_filler_accent",
+          "predict_nani_reading",
+          "modify_kanji_yomi",
+          "suppress_unnatural_auxiliary_u_long_vowel",
+          "retreat_acc_nuc",
+          "modify_acc_after_chaining",
+          "process_odori_features"
+        ]
+      }
+    ],
+    "ablation_3000_lines": {
+      "use_vanilla=True (独自後処理を全部止める)": {
+        "diff_lines": 973,
+        "diff_ph": 182,
+        "diff_A": 10842
+      },
+      "use_sudachi_kanji_yomi=False": {
+        "diff_lines": 123,
+        "diff_ph": 158,
+        "diff_A": 7
+      },
+      "predict_nani=False": {
+        "diff_lines": 24,
+        "diff_ph": 24,
+        "diff_A": 0
+      }
+    },
+    "external_deps": {
+      "sudachipy+SudachiDict-core": "209 MB — modify_kanji_yomi が使う。切ると 3000行中123行(4.1%)で読みが変わる",
+      "nani_model.onnx": "139 KB — predict_nani_reading。切ると 24行(0.8%)。移植コストは小さい"
+    }
+  }
+}

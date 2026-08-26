@@ -1,0 +1,1159 @@
+{
+ "task": "B-0 / 枝刈り NAIST-JDIC 辞書の実バイナリサイズ実測",
+ "date": "2026-08-26",
+ "headline": "エントリ数 5 水準 x feature 削減 3 水準 x matrix 圧縮 2 通り = 30 セルを全部 mecab-dict-index で実ビルドして stat した (estimated 行はゼロ)。ESP32-S3 16MB / OTA 2 枠の辞書予算 11,456 KB には 95,700 entries / 75,282 見出し語 / L2 / matrix 圧縮ありで 11,726,889 B が収まり (余裕 4,055 B)、held-out 2,325 文でフル辞書との 音素列文一致 73.42% / アクセント込み一致 62.54% / PER 2.31%。B-0 の目安 95% には遠い。95% に近づけるには 263,000 entries = 26.33 MiB (91.31%) が必要で、これは 32MB flash の ESP32-S3-WROOM-2-N32R16V (1.8V octal / 調達が脆い) でしか成立しない。",
+ "source_dictionary": {
+  "path": "/Users/s19447/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary",
+  "sys_dic_sha256": "67496f05b38b6455eaeed99b167b57ab282eb5fd0b80e8557fd588177e6fd2dc",
+  "lexsize": 789024,
+  "surfaces": 677769,
+  "sys_dic_bytes": 103094645,
+  "note": "piper-plus の python G2P が実際に読むのはこちら。$PP/build/share/open_jtalk/dic/sys.dic (788,923 entries) とは別リビジョン。matrix.bin/char.bin/unk.dic/*.def は両者 sha256 一致、違うのは sys.dic だけ (実測)。"
+ },
+ "runtime_file_set": {
+  "files": [
+   "sys.dic",
+   "matrix.bin",
+   "char.bin",
+   "unk.dic"
+  ],
+  "note": "left-id.def / right-id.def / pos-id.def / rewrite.def / dicrc はビルド時のみ。この 4 ファイルだけのディレクトリで pyopenjtalk が動くことを実測 (builds/out_*_C の中身はこの 4 つだけ)。total_runtime_bytes はこの 4 ファイルの合計。"
+ },
+ "pruning_criterion": {
+  "chosen": "corpus_train.tsv の表層形出現頻度 降順 → コーパス外の語は min(wcost) 昇順で補充",
+  "rationale": "実ビルド 3 通りの比較で決めた。頻度が支配的で wcost 単独は使い物にならない。",
+  "detail": [
+   "1. data/splits/corpus_train.tsv (20,946 行) をフル辞書の pyopenjtalk.run_mecab_detailed で解析し、既知語の表層形の出現数を数える (344,037 token / 既知表層 29,325 種 / 未知語 425 種)。",
+   "2. 頻度降順に表層形を並べる。コーパスに出ない 648,444 表層形は min(wcost) 昇順 (同点は表層長) で後ろに繋ぐ。",
+   "3. 目標エントリ数に達するまで表層形を**丸ごと**採る。同綴り異義エントリは曖昧性解消のため分割しない (このため実エントリ数は目標を最大 1 表層形ぶん超える)。",
+   "4. 評価は corpus_heldout.tsv (2,325 行) と corpus_embedded.tsv (183 行) で行い、ランキングには一切使っていない (held-out)。"
+  ],
+  "ablation_30k_entries_L1_compacted": [
+   {
+    "mode": "freq (採用)",
+    "entries": 30000,
+    "total_runtime_bytes": 4448318,
+    "heldout_phoneme_sentence_agreement_pct": 56.817,
+    "heldout_PER_pct": 4.7576,
+    "embedded_phoneme_sentence_agreement_pct": 68.306
+   },
+   {
+    "mode": "wcost のみ",
+    "entries": 30000,
+    "total_runtime_bytes": 4304109,
+    "heldout_phoneme_sentence_agreement_pct": 1.376,
+    "heldout_PER_pct": 32.6055,
+    "embedded_phoneme_sentence_agreement_pct": 1.093
+   },
+   {
+    "mode": "hybrid  log2(1+freq)*1000 - wcost",
+    "entries": 30000,
+    "total_runtime_bytes": 4539145,
+    "heldout_phoneme_sentence_agreement_pct": 36.43,
+    "heldout_PER_pct": 7.9977,
+    "embedded_phoneme_sentence_agreement_pct": 61.202
+   }
+  ],
+  "ablation_conclusion": "wcost 単独は壊滅的 (held-out 文一致 1.38% / PER 32.6%)。wcost が最小の語は 1 文字の稀な漢字・記号に偏り、高頻度の助詞や動詞語尾が入らないため。hybrid も pure freq に負ける (36.4% vs 56.8%)。**コーパス頻度が唯一有効な軸**で、wcost はコーパス外語の順序付けにしか使えない。"
+ },
+ "feature_levels": {
+  "L0": "無削減 (11 フィールドそのまま)",
+  "L1": "ctype を {特殊・マス,特殊・ナイ,サ変・スル} の 3 値に / cform を {連用形,連用タ接続,連用ゴザイ接続,連用テ接続,連用デ接続,連用ニ接続,未然形} の 7 値に / pos_group2 を {助数詞} のみに / pos_group3 を '*' に / read を njd_set_digit の numerative_class3 の読み 49 値のみに。それ以外は '*'",
+  "L2": "L1 + orig の縮約。複合エントリ (acc に ':') / 機能語 9 語 + MULTI_READ_KANJI_LIST 69 字 / 踊り字を含む語 / 単漢字 は残し、それ以外を '*'",
+  "provenance": "reports/b0_feature_fields.json の L1z / L2z をベースにしている",
+  "CORRECTION_vs_b0_feature_fields_json": [
+   {
+    "issue": "pos_group3 の『列削除』はビルドしてはいけない",
+    "evidence": "njd/njd_node.c:438-500 の NJDNode_load は ',' で位置パースする (surface,pos,pos_group1,pos_group2,pos_group3,ctype,cform,orig,read,pron,acc,chain_rule,chain_flag)。列を 1 本抜くと以降が全部ズレる。本測定では '*' 化して 11 列を維持した",
+    "cost": "10 列にすれば L2 で 40,532,232 → 38,954,184 B (実測差 1,578,048 B) 縮むが、その辞書は動かない"
+   },
+   {
+    "issue": "mecab の sys.dic は feature 文字列を dedup しない",
+    "evidence": "同じ feature を持つ 789,024 entries を実ビルドした結果、feature セクションは L2 で 40,532,232 B。Python 側で set() して数えると 23,453,356 B (uniq 445,913)。b0_feature_fields.json の L1z=44,208,253 / L2z=22,561,530 は 『10 列 + dedup』を仮定した数字で、実測で完全に再現できた (下の feature_pool_accounting) が、mecab-dict-index が吐く実バイナリはそれより L1 で +9.6% / L2 で +79.6% 大きい",
+    "implication": "dedup による 17.1 MB (L2, 全件) の節約は mecab 形式では取れない。b0_feature_fields.json の L3/L4 (独自バイナリ) に進むときだけ回収できる"
+   }
+  ],
+  "feature_pool_accounting_full_dict": {
+   "L0": {
+    "cols11_nodedup": 67249917,
+    "cols11_dedup": 67239680,
+    "distinct": 788909,
+    "cols10_nodedup": 64975345,
+    "cols10_dedup": 64940424
+   },
+   "L1": {
+    "cols11_nodedup": 48449456,
+    "cols11_dedup": 45693599,
+    "distinct": 742673,
+    "cols10_nodedup": 46871408,
+    "cols10_dedup": 44208253
+   },
+   "L2": {
+    "cols11_nodedup": 40532232,
+    "cols11_dedup": 23453356,
+    "distinct": 445913,
+    "cols10_nodedup": 38954184,
+    "cols10_dedup": 22561530
+   }
+  },
+  "effect_on_output": {
+   "full_vocab": "L0/L1/L2 とも held-out 2,325 文 + embedded 183 文でフル辞書と 100.00% 一致 (差分 0 文)",
+   "pruned_vocab": "枝刈り後は L0 と L1/L2 が 2,325 文中 1〜2 文 (0.04〜0.09%) だけ食い違う。10k/30k/60k で 2 文、100k で 1 文、全件で 0 文。keep-set は『フル語彙で bit 完全一致』であって『任意の枝刈り後も一致』ではない。ただし影響は誤差以下で、L2 を採らない理由にはならない",
+   "example_divergent_sentence": "<redacted: corpus text>"
+  }
+ },
+ "grid": [
+  {
+   "level": "10,000 entries / L0",
+   "target_entries": 10000,
+   "feature_level": "L0",
+   "surfaces": 4794,
+   "entries": 10000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 977933,
+   "darts_bytes": 166048,
+   "token_bytes": 160000,
+   "feature_bytes": 651813,
+   "matrix_bin_bytes_compacted": 868566,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 659,
+   "total_runtime_bytes": 2114685,
+   "total_runtime_bytes_without_matrix_compaction": 5038381,
+   "total_runtime_MiB": 2.017,
+   "heldout": {
+    "token_coverage_pct": 87.154,
+    "sentence_coverage_pct": 18.495,
+    "phoneme_sentence_agreement_pct": 31.226,
+    "phoneme_error_rate_pct": 10.4174,
+    "accent_sentence_agreement_pct": 20.817
+   },
+   "embedded": {
+    "token_coverage_pct": 87.171,
+    "sentence_coverage_pct": 31.694,
+    "phoneme_sentence_agreement_pct": 39.344,
+    "phoneme_error_rate_pct": 13.5496,
+    "accent_sentence_agreement_pct": 35.519
+   }
+  },
+  {
+   "level": "10,000 entries / L1",
+   "target_entries": 10000,
+   "feature_level": "L1",
+   "surfaces": 4794,
+   "entries": 10000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 841855,
+   "darts_bytes": 166048,
+   "token_bytes": 160000,
+   "feature_bytes": 515735,
+   "matrix_bin_bytes_compacted": 868566,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 659,
+   "total_runtime_bytes": 1978607,
+   "total_runtime_bytes_without_matrix_compaction": 4902303,
+   "total_runtime_MiB": 1.887,
+   "heldout": {
+    "token_coverage_pct": 87.154,
+    "sentence_coverage_pct": 18.495,
+    "phoneme_sentence_agreement_pct": 31.226,
+    "phoneme_error_rate_pct": 10.419,
+    "accent_sentence_agreement_pct": 20.817
+   },
+   "embedded": {
+    "token_coverage_pct": 87.171,
+    "sentence_coverage_pct": 31.694,
+    "phoneme_sentence_agreement_pct": 39.344,
+    "phoneme_error_rate_pct": 13.5496,
+    "accent_sentence_agreement_pct": 35.519
+   }
+  },
+  {
+   "level": "10,000 entries / L2",
+   "target_entries": 10000,
+   "feature_level": "L2",
+   "surfaces": 4794,
+   "entries": 10000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 794939,
+   "darts_bytes": 166048,
+   "token_bytes": 160000,
+   "feature_bytes": 468819,
+   "matrix_bin_bytes_compacted": 868566,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 659,
+   "total_runtime_bytes": 1931691,
+   "total_runtime_bytes_without_matrix_compaction": 4855387,
+   "total_runtime_MiB": 1.842,
+   "heldout": {
+    "token_coverage_pct": 87.154,
+    "sentence_coverage_pct": 18.495,
+    "phoneme_sentence_agreement_pct": 31.226,
+    "phoneme_error_rate_pct": 10.419,
+    "accent_sentence_agreement_pct": 20.817
+   },
+   "embedded": {
+    "token_coverage_pct": 87.171,
+    "sentence_coverage_pct": 31.694,
+    "phoneme_sentence_agreement_pct": 39.344,
+    "phoneme_error_rate_pct": 13.5496,
+    "accent_sentence_agreement_pct": 35.519
+   }
+  },
+  {
+   "level": "30,000 entries / L0",
+   "target_entries": 30000,
+   "feature_level": "L0",
+   "surfaces": 17658,
+   "entries": 30000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 3218131,
+   "darts_bytes": 645200,
+   "token_bytes": 480000,
+   "feature_bytes": 2092859,
+   "matrix_bin_bytes_compacted": 1428054,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 845,
+   "total_runtime_bytes": 4914371,
+   "total_runtime_bytes_without_matrix_compaction": 7278579,
+   "total_runtime_MiB": 4.687,
+   "heldout": {
+    "token_coverage_pct": 93.206,
+    "sentence_coverage_pct": 39.785,
+    "phoneme_sentence_agreement_pct": 56.86,
+    "phoneme_error_rate_pct": 4.7561,
+    "accent_sentence_agreement_pct": 44.258
+   },
+   "embedded": {
+    "token_coverage_pct": 93.242,
+    "sentence_coverage_pct": 53.552,
+    "phoneme_sentence_agreement_pct": 68.306,
+    "phoneme_error_rate_pct": 5.0708,
+    "accent_sentence_agreement_pct": 59.016
+   }
+  },
+  {
+   "level": "30,000 entries / L1",
+   "target_entries": 30000,
+   "feature_level": "L1",
+   "surfaces": 17658,
+   "entries": 30000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 2752078,
+   "darts_bytes": 645200,
+   "token_bytes": 480000,
+   "feature_bytes": 1626806,
+   "matrix_bin_bytes_compacted": 1428054,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 845,
+   "total_runtime_bytes": 4448318,
+   "total_runtime_bytes_without_matrix_compaction": 6812526,
+   "total_runtime_MiB": 4.242,
+   "heldout": {
+    "token_coverage_pct": 93.206,
+    "sentence_coverage_pct": 39.785,
+    "phoneme_sentence_agreement_pct": 56.817,
+    "phoneme_error_rate_pct": 4.7576,
+    "accent_sentence_agreement_pct": 44.258
+   },
+   "embedded": {
+    "token_coverage_pct": 93.242,
+    "sentence_coverage_pct": 53.552,
+    "phoneme_sentence_agreement_pct": 68.306,
+    "phoneme_error_rate_pct": 5.0708,
+    "accent_sentence_agreement_pct": 59.016
+   }
+  },
+  {
+   "level": "30,000 entries / L2",
+   "target_entries": 30000,
+   "feature_level": "L2",
+   "surfaces": 17658,
+   "entries": 30000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 2566397,
+   "darts_bytes": 645200,
+   "token_bytes": 480000,
+   "feature_bytes": 1441125,
+   "matrix_bin_bytes_compacted": 1428054,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 845,
+   "total_runtime_bytes": 4262637,
+   "total_runtime_bytes_without_matrix_compaction": 6626845,
+   "total_runtime_MiB": 4.065,
+   "heldout": {
+    "token_coverage_pct": 93.206,
+    "sentence_coverage_pct": 39.785,
+    "phoneme_sentence_agreement_pct": 56.817,
+    "phoneme_error_rate_pct": 4.7576,
+    "accent_sentence_agreement_pct": 44.258
+   },
+   "embedded": {
+    "token_coverage_pct": 93.242,
+    "sentence_coverage_pct": 53.552,
+    "phoneme_sentence_agreement_pct": 68.306,
+    "phoneme_error_rate_pct": 5.0708,
+    "accent_sentence_agreement_pct": 59.016
+   }
+  },
+  {
+   "level": "60,000 entries / L0",
+   "target_entries": 60000,
+   "feature_level": "L0",
+   "surfaces": 42430,
+   "entries": 60000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 7217918,
+   "darts_bytes": 1794072,
+   "token_bytes": 960000,
+   "feature_bytes": 4463774,
+   "matrix_bin_bytes_compacted": 1685452,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 918,
+   "total_runtime_bytes": 9171556,
+   "total_runtime_bytes_without_matrix_compaction": 11278366,
+   "total_runtime_MiB": 8.747,
+   "heldout": {
+    "token_coverage_pct": 95.703,
+    "sentence_coverage_pct": 54.194,
+    "phoneme_sentence_agreement_pct": 70.022,
+    "phoneme_error_rate_pct": 2.8433,
+    "accent_sentence_agreement_pct": 58.323
+   },
+   "embedded": {
+    "token_coverage_pct": 96.334,
+    "sentence_coverage_pct": 71.585,
+    "phoneme_sentence_agreement_pct": 82.514,
+    "phoneme_error_rate_pct": 2.4202,
+    "accent_sentence_agreement_pct": 73.77
+   }
+  },
+  {
+   "level": "60,000 entries / L1",
+   "target_entries": 60000,
+   "feature_level": "L1",
+   "surfaces": 42430,
+   "entries": 60000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 6206171,
+   "darts_bytes": 1794072,
+   "token_bytes": 960000,
+   "feature_bytes": 3452027,
+   "matrix_bin_bytes_compacted": 1685452,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 918,
+   "total_runtime_bytes": 8159809,
+   "total_runtime_bytes_without_matrix_compaction": 10266619,
+   "total_runtime_MiB": 7.782,
+   "heldout": {
+    "token_coverage_pct": 95.703,
+    "sentence_coverage_pct": 54.194,
+    "phoneme_sentence_agreement_pct": 69.935,
+    "phoneme_error_rate_pct": 2.8448,
+    "accent_sentence_agreement_pct": 58.323
+   },
+   "embedded": {
+    "token_coverage_pct": 96.334,
+    "sentence_coverage_pct": 71.585,
+    "phoneme_sentence_agreement_pct": 82.514,
+    "phoneme_error_rate_pct": 2.4202,
+    "accent_sentence_agreement_pct": 73.77
+   }
+  },
+  {
+   "level": "60,000 entries / L2",
+   "target_entries": 60000,
+   "feature_level": "L2",
+   "surfaces": 42430,
+   "entries": 60000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 5740280,
+   "darts_bytes": 1794072,
+   "token_bytes": 960000,
+   "feature_bytes": 2986136,
+   "matrix_bin_bytes_compacted": 1685452,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 918,
+   "total_runtime_bytes": 7693918,
+   "total_runtime_bytes_without_matrix_compaction": 9800728,
+   "total_runtime_MiB": 7.337,
+   "heldout": {
+    "token_coverage_pct": 95.703,
+    "sentence_coverage_pct": 54.194,
+    "phoneme_sentence_agreement_pct": 69.935,
+    "phoneme_error_rate_pct": 2.8448,
+    "accent_sentence_agreement_pct": 58.323
+   },
+   "embedded": {
+    "token_coverage_pct": 96.334,
+    "sentence_coverage_pct": 71.585,
+    "phoneme_sentence_agreement_pct": 82.514,
+    "phoneme_error_rate_pct": 2.4202,
+    "accent_sentence_agreement_pct": 73.77
+   }
+  },
+  {
+   "level": "100,000 entries / L0",
+   "target_entries": 100000,
+   "feature_level": "L0",
+   "surfaces": 78586,
+   "entries": 100000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 12999226,
+   "darts_bytes": 3199224,
+   "token_bytes": 1600000,
+   "feature_bytes": 8199930,
+   "matrix_bin_bytes_compacted": 1901254,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 975,
+   "total_runtime_bytes": 15168666,
+   "total_runtime_bytes_without_matrix_compaction": 17059674,
+   "total_runtime_MiB": 14.466,
+   "heldout": {
+    "token_coverage_pct": 96.44,
+    "sentence_coverage_pct": 58.882,
+    "phoneme_sentence_agreement_pct": 74.323,
+    "phoneme_error_rate_pct": 2.1896,
+    "accent_sentence_agreement_pct": 63.183
+   },
+   "embedded": {
+    "token_coverage_pct": 96.964,
+    "sentence_coverage_pct": 75.956,
+    "phoneme_sentence_agreement_pct": 85.792,
+    "phoneme_error_rate_pct": 1.8275,
+    "accent_sentence_agreement_pct": 77.049
+   }
+  },
+  {
+   "level": "100,000 entries / L1",
+   "target_entries": 100000,
+   "feature_level": "L1",
+   "surfaces": 78586,
+   "entries": 100000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 10869117,
+   "darts_bytes": 3199224,
+   "token_bytes": 1600000,
+   "feature_bytes": 6069821,
+   "matrix_bin_bytes_compacted": 1901254,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 975,
+   "total_runtime_bytes": 13038557,
+   "total_runtime_bytes_without_matrix_compaction": 14929565,
+   "total_runtime_MiB": 12.435,
+   "heldout": {
+    "token_coverage_pct": 96.44,
+    "sentence_coverage_pct": 58.882,
+    "phoneme_sentence_agreement_pct": 74.28,
+    "phoneme_error_rate_pct": 2.1904,
+    "accent_sentence_agreement_pct": 63.183
+   },
+   "embedded": {
+    "token_coverage_pct": 96.964,
+    "sentence_coverage_pct": 75.956,
+    "phoneme_sentence_agreement_pct": 85.792,
+    "phoneme_error_rate_pct": 1.8275,
+    "accent_sentence_agreement_pct": 77.049
+   }
+  },
+  {
+   "level": "100,000 entries / L2",
+   "target_entries": 100000,
+   "feature_level": "L2",
+   "surfaces": 78586,
+   "entries": 100000,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 10000703,
+   "darts_bytes": 3199224,
+   "token_bytes": 1600000,
+   "feature_bytes": 5201407,
+   "matrix_bin_bytes_compacted": 1901254,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 975,
+   "total_runtime_bytes": 12170143,
+   "total_runtime_bytes_without_matrix_compaction": 14061151,
+   "total_runtime_MiB": 11.606,
+   "heldout": {
+    "token_coverage_pct": 96.44,
+    "sentence_coverage_pct": 58.882,
+    "phoneme_sentence_agreement_pct": 74.28,
+    "phoneme_error_rate_pct": 2.1904,
+    "accent_sentence_agreement_pct": 63.183
+   },
+   "embedded": {
+    "token_coverage_pct": 96.964,
+    "sentence_coverage_pct": 75.956,
+    "phoneme_sentence_agreement_pct": 85.792,
+    "phoneme_error_rate_pct": 1.8275,
+    "accent_sentence_agreement_pct": 77.049
+   }
+  },
+  {
+   "level": "全件 entries / L0",
+   "target_entries": null,
+   "feature_level": "L0",
+   "surfaces": 677769,
+   "entries": 789024,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 103094645,
+   "darts_bytes": 23220272,
+   "token_bytes": 12624384,
+   "feature_bytes": 67249917,
+   "matrix_bin_bytes_compacted": 3235972,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 1272,
+   "total_runtime_bytes": 106598803,
+   "total_runtime_bytes_without_matrix_compaction": 107155093,
+   "total_runtime_MiB": 101.661,
+   "heldout": {
+    "token_coverage_pct": null,
+    "sentence_coverage_pct": null,
+    "phoneme_sentence_agreement_pct": 100.0,
+    "phoneme_error_rate_pct": 0.0,
+    "accent_sentence_agreement_pct": 100.0
+   },
+   "embedded": {
+    "token_coverage_pct": null,
+    "sentence_coverage_pct": null,
+    "phoneme_sentence_agreement_pct": 100.0,
+    "phoneme_error_rate_pct": 0.0,
+    "accent_sentence_agreement_pct": 100.0
+   }
+  },
+  {
+   "level": "全件 entries / L1",
+   "target_entries": null,
+   "feature_level": "L1",
+   "surfaces": 677769,
+   "entries": 789024,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 84294184,
+   "darts_bytes": 23220272,
+   "token_bytes": 12624384,
+   "feature_bytes": 48449456,
+   "matrix_bin_bytes_compacted": 3235972,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 1272,
+   "total_runtime_bytes": 87798342,
+   "total_runtime_bytes_without_matrix_compaction": 88354632,
+   "total_runtime_MiB": 83.731,
+   "heldout": {
+    "token_coverage_pct": null,
+    "sentence_coverage_pct": null,
+    "phoneme_sentence_agreement_pct": 100.0,
+    "phoneme_error_rate_pct": 0.0,
+    "accent_sentence_agreement_pct": 100.0
+   },
+   "embedded": {
+    "token_coverage_pct": null,
+    "sentence_coverage_pct": null,
+    "phoneme_sentence_agreement_pct": 100.0,
+    "phoneme_error_rate_pct": 0.0,
+    "accent_sentence_agreement_pct": 100.0
+   }
+  },
+  {
+   "level": "全件 entries / L2",
+   "target_entries": null,
+   "feature_level": "L2",
+   "surfaces": 677769,
+   "entries": 789024,
+   "measured_or_estimated": "measured",
+   "sys_dic_bytes": 76376960,
+   "darts_bytes": 23220272,
+   "token_bytes": 12624384,
+   "feature_bytes": 40532232,
+   "matrix_bin_bytes_compacted": 3235972,
+   "matrix_bin_bytes_original": 3792262,
+   "char_bin_bytes": 262496,
+   "unk_dic_bytes": 5690,
+   "distinct_context_ids": 1272,
+   "total_runtime_bytes": 79881118,
+   "total_runtime_bytes_without_matrix_compaction": 80437408,
+   "total_runtime_MiB": 76.181,
+   "heldout": {
+    "token_coverage_pct": null,
+    "sentence_coverage_pct": null,
+    "phoneme_sentence_agreement_pct": 100.0,
+    "phoneme_error_rate_pct": 0.0,
+    "accent_sentence_agreement_pct": 100.0
+   },
+   "embedded": {
+    "token_coverage_pct": null,
+    "sentence_coverage_pct": null,
+    "phoneme_sentence_agreement_pct": 100.0,
+    "phoneme_error_rate_pct": 0.0,
+    "accent_sentence_agreement_pct": 100.0
+   }
+  }
+ ],
+ "esp32_budget_points": [
+  {
+   "board": "4MB",
+   "scenario": "A no-OTA / model 別partition",
+   "dictionary_budget_bytes": 1245184,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 1969,
+   "entries": 5001,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 1216454,
+   "total_runtime_MiB": 1.16,
+   "headroom_bytes": 28730,
+   "fits": true,
+   "sys_dic_bytes": 382216,
+   "matrix_bin_bytes": 566052,
+   "heldout": {
+    "token_coverage_pct": 81.134,
+    "sentence_coverage_pct": 8.344,
+    "phoneme_sentence_agreement_pct": 15.785,
+    "phoneme_error_rate_pct": 16.646,
+    "accent_sentence_agreement_pct": 10.065
+   },
+   "embedded": {
+    "token_coverage_pct": 80.241,
+    "sentence_coverage_pct": 15.301,
+    "phoneme_sentence_agreement_pct": 18.033,
+    "phoneme_error_rate_pct": 20.9746,
+    "accent_sentence_agreement_pct": 16.393
+   }
+  },
+  {
+   "board": "8MB",
+   "scenario": "C OTA2 / model を app に内蔵",
+   "dictionary_budget_bytes": 2555904,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 7887,
+   "entries": 15002,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 2541328,
+   "total_runtime_MiB": 2.424,
+   "headroom_bytes": 14576,
+   "fits": true,
+   "sys_dic_bytes": 1224786,
+   "matrix_bin_bytes": 1048356,
+   "heldout": {
+    "token_coverage_pct": 90.037,
+    "sentence_coverage_pct": 26.968,
+    "phoneme_sentence_agreement_pct": 41.978,
+    "phoneme_error_rate_pct": 7.724,
+    "accent_sentence_agreement_pct": 30.151
+   },
+   "embedded": {
+    "token_coverage_pct": 89.863,
+    "sentence_coverage_pct": 37.158,
+    "phoneme_sentence_agreement_pct": 49.18,
+    "phoneme_error_rate_pct": 9.944,
+    "accent_sentence_agreement_pct": 42.077
+   }
+  },
+  {
+   "board": "8MB",
+   "scenario": "B OTA2 / model 別partition",
+   "dictionary_budget_bytes": 3342336,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 12352,
+   "entries": 21750,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 3339135,
+   "total_runtime_MiB": 3.184,
+   "headroom_bytes": 3201,
+   "fits": true,
+   "sys_dic_bytes": 1819583,
+   "matrix_bin_bytes": 1251366,
+   "heldout": {
+    "token_coverage_pct": 92.036,
+    "sentence_coverage_pct": 33.634,
+    "phoneme_sentence_agreement_pct": 50.495,
+    "phoneme_error_rate_pct": 5.776,
+    "accent_sentence_agreement_pct": 37.548
+   },
+   "embedded": {
+    "token_coverage_pct": 92.096,
+    "sentence_coverage_pct": 47.541,
+    "phoneme_sentence_agreement_pct": 61.749,
+    "phoneme_error_rate_pct": 6.5196,
+    "accent_sentence_agreement_pct": 53.005
+   }
+  },
+  {
+   "board": "8MB",
+   "scenario": "A no-OTA / model 別partition",
+   "dictionary_budget_bytes": 5439488,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 25836,
+   "entries": 41000,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 5405844,
+   "total_runtime_MiB": 5.155,
+   "headroom_bytes": 33644,
+   "fits": true,
+   "sys_dic_bytes": 3588854,
+   "matrix_bin_bytes": 1548804,
+   "heldout": {
+    "token_coverage_pct": 94.691,
+    "sentence_coverage_pct": 47.957,
+    "phoneme_sentence_agreement_pct": 64.516,
+    "phoneme_error_rate_pct": 3.4855,
+    "accent_sentence_agreement_pct": 52.43
+   },
+   "embedded": {
+    "token_coverage_pct": 95.418,
+    "sentence_coverage_pct": 65.574,
+    "phoneme_sentence_agreement_pct": 77.596,
+    "phoneme_error_rate_pct": 3.2763,
+    "accent_sentence_agreement_pct": 68.852
+   }
+  },
+  {
+   "board": "16MB",
+   "scenario": "C OTA2 / model を app に内蔵",
+   "dictionary_budget_bytes": 10944512,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 68016,
+   "entries": 88150,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 10921496,
+   "total_runtime_MiB": 10.416,
+   "headroom_bytes": 23016,
+   "fits": true,
+   "sys_dic_bytes": 8798568,
+   "matrix_bin_bytes": 1854742,
+   "heldout": {
+    "token_coverage_pct": 96.314,
+    "sentence_coverage_pct": 58.065,
+    "phoneme_sentence_agreement_pct": 73.333,
+    "phoneme_error_rate_pct": 2.3119,
+    "accent_sentence_agreement_pct": 62.366
+   },
+   "embedded": {
+    "token_coverage_pct": 96.793,
+    "sentence_coverage_pct": 74.317,
+    "phoneme_sentence_agreement_pct": 84.699,
+    "phoneme_error_rate_pct": 1.9756,
+    "accent_sentence_agreement_pct": 75.956
+   }
+  },
+  {
+   "board": "16MB",
+   "scenario": "B OTA2 / model 別partition",
+   "dictionary_budget_bytes": 11730944,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 75282,
+   "entries": 95700,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 11726889,
+   "total_runtime_MiB": 11.184,
+   "headroom_bytes": 4055,
+   "fits": true,
+   "sys_dic_bytes": 9603961,
+   "matrix_bin_bytes": 1854742,
+   "heldout": {
+    "token_coverage_pct": 96.325,
+    "sentence_coverage_pct": 58.194,
+    "phoneme_sentence_agreement_pct": 73.419,
+    "phoneme_error_rate_pct": 2.3066,
+    "accent_sentence_agreement_pct": 62.538
+   },
+   "embedded": {
+    "token_coverage_pct": 96.793,
+    "sentence_coverage_pct": 74.317,
+    "phoneme_sentence_agreement_pct": 84.699,
+    "phoneme_error_rate_pct": 1.9756,
+    "accent_sentence_agreement_pct": 75.956
+   }
+  },
+  {
+   "board": "16MB",
+   "scenario": "A no-OTA / model 別partition",
+   "dictionary_budget_bytes": 13828096,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 89582,
+   "entries": 113000,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 13815068,
+   "total_runtime_MiB": 13.175,
+   "headroom_bytes": 13028,
+   "fits": true,
+   "sys_dic_bytes": 11490486,
+   "matrix_bin_bytes": 2056396,
+   "heldout": {
+    "token_coverage_pct": 96.697,
+    "sentence_coverage_pct": 60.989,
+    "phoneme_sentence_agreement_pct": 76.043,
+    "phoneme_error_rate_pct": 1.9794,
+    "accent_sentence_agreement_pct": 65.376
+   },
+   "embedded": {
+    "token_coverage_pct": 97.423,
+    "sentence_coverage_pct": 78.142,
+    "phoneme_sentence_agreement_pct": 87.432,
+    "phoneme_error_rate_pct": 1.4488,
+    "accent_sentence_agreement_pct": 79.235
+   }
+  },
+  {
+   "board": "32MB",
+   "scenario": "B OTA2 / model 別partition",
+   "dictionary_budget_bytes": 28508160,
+   "feature_level": "L2",
+   "matrix_compaction": true,
+   "surfaces": 209026,
+   "entries": 263000,
+   "measured_or_estimated": "measured",
+   "total_runtime_bytes": 27607296,
+   "total_runtime_MiB": 26.328,
+   "headroom_bytes": 900864,
+   "fits": true,
+   "sys_dic_bytes": 24675674,
+   "matrix_bin_bytes": 2663436,
+   "heldout": {
+    "token_coverage_pct": 98.458,
+    "sentence_coverage_pct": 78.452,
+    "phoneme_sentence_agreement_pct": 91.312,
+    "phoneme_error_rate_pct": 0.5252,
+    "accent_sentence_agreement_pct": 81.548
+   },
+   "embedded": {
+    "token_coverage_pct": 98.282,
+    "sentence_coverage_pct": 84.699,
+    "phoneme_sentence_agreement_pct": 93.443,
+    "phoneme_error_rate_pct": 0.8232,
+    "accent_sentence_agreement_pct": 86.339
+   }
+  }
+ ],
+ "curve_extension": [
+  {
+   "entries": 5001,
+   "surfaces": 1969,
+   "total_runtime_bytes": 1216454,
+   "total_runtime_MiB": 1.16,
+   "sys_dic_bytes": 382216,
+   "matrix_bin_bytes": 566052,
+   "heldout_token_coverage_pct": 81.134,
+   "heldout_sentence_coverage_pct": 8.344,
+   "heldout_phoneme_sentence_agreement_pct": 15.785,
+   "heldout_phoneme_error_rate_pct": 16.646,
+   "heldout_accent_sentence_agreement_pct": 10.065,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 10000,
+   "surfaces": 4794,
+   "total_runtime_bytes": 1931691,
+   "total_runtime_MiB": 1.842,
+   "sys_dic_bytes": 794939,
+   "matrix_bin_bytes": 868566,
+   "heldout_token_coverage_pct": 87.154,
+   "heldout_sentence_coverage_pct": 18.495,
+   "heldout_phoneme_sentence_agreement_pct": 31.226,
+   "heldout_phoneme_error_rate_pct": 10.419,
+   "heldout_accent_sentence_agreement_pct": 20.817,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 15002,
+   "surfaces": 7887,
+   "total_runtime_bytes": 2541328,
+   "total_runtime_MiB": 2.424,
+   "sys_dic_bytes": 1224786,
+   "matrix_bin_bytes": 1048356,
+   "heldout_token_coverage_pct": 90.037,
+   "heldout_sentence_coverage_pct": 26.968,
+   "heldout_phoneme_sentence_agreement_pct": 41.978,
+   "heldout_phoneme_error_rate_pct": 7.724,
+   "heldout_accent_sentence_agreement_pct": 30.151,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 21750,
+   "surfaces": 12352,
+   "total_runtime_bytes": 3339135,
+   "total_runtime_MiB": 3.184,
+   "sys_dic_bytes": 1819583,
+   "matrix_bin_bytes": 1251366,
+   "heldout_token_coverage_pct": 92.036,
+   "heldout_sentence_coverage_pct": 33.634,
+   "heldout_phoneme_sentence_agreement_pct": 50.495,
+   "heldout_phoneme_error_rate_pct": 5.776,
+   "heldout_accent_sentence_agreement_pct": 37.548,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 30000,
+   "surfaces": 17658,
+   "total_runtime_bytes": 4262637,
+   "total_runtime_MiB": 4.065,
+   "sys_dic_bytes": 2566397,
+   "matrix_bin_bytes": 1428054,
+   "heldout_token_coverage_pct": 93.206,
+   "heldout_sentence_coverage_pct": 39.785,
+   "heldout_phoneme_sentence_agreement_pct": 56.817,
+   "heldout_phoneme_error_rate_pct": 4.7576,
+   "heldout_accent_sentence_agreement_pct": 44.258,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 41000,
+   "surfaces": 25836,
+   "total_runtime_bytes": 5405844,
+   "total_runtime_MiB": 5.155,
+   "sys_dic_bytes": 3588854,
+   "matrix_bin_bytes": 1548804,
+   "heldout_token_coverage_pct": 94.691,
+   "heldout_sentence_coverage_pct": 47.957,
+   "heldout_phoneme_sentence_agreement_pct": 64.516,
+   "heldout_phoneme_error_rate_pct": 3.4855,
+   "heldout_accent_sentence_agreement_pct": 52.43,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 60000,
+   "surfaces": 42430,
+   "total_runtime_bytes": 7693918,
+   "total_runtime_MiB": 7.337,
+   "sys_dic_bytes": 5740280,
+   "matrix_bin_bytes": 1685452,
+   "heldout_token_coverage_pct": 95.703,
+   "heldout_sentence_coverage_pct": 54.194,
+   "heldout_phoneme_sentence_agreement_pct": 69.935,
+   "heldout_phoneme_error_rate_pct": 2.8448,
+   "heldout_accent_sentence_agreement_pct": 58.323,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 88150,
+   "surfaces": 68016,
+   "total_runtime_bytes": 10921496,
+   "total_runtime_MiB": 10.416,
+   "sys_dic_bytes": 8798568,
+   "matrix_bin_bytes": 1854742,
+   "heldout_token_coverage_pct": 96.314,
+   "heldout_sentence_coverage_pct": 58.065,
+   "heldout_phoneme_sentence_agreement_pct": 73.333,
+   "heldout_phoneme_error_rate_pct": 2.3119,
+   "heldout_accent_sentence_agreement_pct": 62.366,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 95700,
+   "surfaces": 75282,
+   "total_runtime_bytes": 11726889,
+   "total_runtime_MiB": 11.184,
+   "sys_dic_bytes": 9603961,
+   "matrix_bin_bytes": 1854742,
+   "heldout_token_coverage_pct": 96.325,
+   "heldout_sentence_coverage_pct": 58.194,
+   "heldout_phoneme_sentence_agreement_pct": 73.419,
+   "heldout_phoneme_error_rate_pct": 2.3066,
+   "heldout_accent_sentence_agreement_pct": 62.538,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 100000,
+   "surfaces": 78586,
+   "total_runtime_bytes": 12170143,
+   "total_runtime_MiB": 11.606,
+   "sys_dic_bytes": 10000703,
+   "matrix_bin_bytes": 1901254,
+   "heldout_token_coverage_pct": 96.44,
+   "heldout_sentence_coverage_pct": 58.882,
+   "heldout_phoneme_sentence_agreement_pct": 74.28,
+   "heldout_phoneme_error_rate_pct": 2.1904,
+   "heldout_accent_sentence_agreement_pct": 63.183,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 113000,
+   "surfaces": 89582,
+   "total_runtime_bytes": 13815068,
+   "total_runtime_MiB": 13.175,
+   "sys_dic_bytes": 11490486,
+   "matrix_bin_bytes": 2056396,
+   "heldout_token_coverage_pct": 96.697,
+   "heldout_sentence_coverage_pct": 60.989,
+   "heldout_phoneme_sentence_agreement_pct": 76.043,
+   "heldout_phoneme_error_rate_pct": 1.9794,
+   "heldout_accent_sentence_agreement_pct": 65.376,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 200001,
+   "surfaces": 161261,
+   "total_runtime_bytes": 22314929,
+   "total_runtime_MiB": 21.281,
+   "sys_dic_bytes": 19510987,
+   "matrix_bin_bytes": 2535756,
+   "heldout_token_coverage_pct": 98.258,
+   "heldout_sentence_coverage_pct": 76.086,
+   "heldout_phoneme_sentence_agreement_pct": 89.634,
+   "heldout_phoneme_error_rate_pct": 0.646,
+   "heldout_accent_sentence_agreement_pct": 79.742,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 263000,
+   "surfaces": 209026,
+   "total_runtime_bytes": 27607296,
+   "total_runtime_MiB": 26.328,
+   "sys_dic_bytes": 24675674,
+   "matrix_bin_bytes": 2663436,
+   "heldout_token_coverage_pct": 98.458,
+   "heldout_sentence_coverage_pct": 78.452,
+   "heldout_phoneme_sentence_agreement_pct": 91.312,
+   "heldout_phoneme_error_rate_pct": 0.5252,
+   "heldout_accent_sentence_agreement_pct": 81.548,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 400000,
+   "surfaces": 324209,
+   "total_runtime_bytes": 41995303,
+   "total_runtime_MiB": 40.05,
+   "sys_dic_bytes": 38808585,
+   "matrix_bin_bytes": 2918532,
+   "heldout_token_coverage_pct": 99.155,
+   "heldout_sentence_coverage_pct": 87.269,
+   "heldout_phoneme_sentence_agreement_pct": 95.527,
+   "heldout_phoneme_error_rate_pct": 0.2599,
+   "heldout_accent_sentence_agreement_pct": 89.29,
+   "measured_or_estimated": "measured"
+  },
+  {
+   "entries": 789024,
+   "surfaces": 677769,
+   "total_runtime_bytes": 79881118,
+   "total_runtime_MiB": 76.181,
+   "sys_dic_bytes": 76376960,
+   "matrix_bin_bytes": 3235972,
+   "heldout_token_coverage_pct": 100.0,
+   "heldout_sentence_coverage_pct": 100.0,
+   "heldout_phoneme_sentence_agreement_pct": 100.0,
+   "heldout_phoneme_error_rate_pct": 0.0,
+   "heldout_accent_sentence_agreement_pct": 100.0,
+   "measured_or_estimated": "measured"
+  }
+ ],
+ "matrix_bin": {
+  "original_bytes": 3792262,
+  "original_context_ids": 1377,
+  "method": "枝刈り後に実際に使われる lcAttr/rcAttr だけを連番に再割当して部分行列を切り出す。matrix[rcAttr + lsize*lcAttr] (mecab/src/connector.h:39-46)。CSV の lid/rid と unk.dic の 16 B token (offset 0/2) も同じ写像で書き換える。BOS/EOS は zero-init Node (tokenizer.cpp:80-87) なので旧 id 0 -> 新 id 0 を保証する",
+  "measured": [
+   {
+    "target_entries": 10000,
+    "context_ids": 659,
+    "matrix_bin_bytes": 868566,
+    "formula_check": 868566
+   },
+   {
+    "target_entries": 30000,
+    "context_ids": 845,
+    "matrix_bin_bytes": 1428054,
+    "formula_check": 1428054
+   },
+   {
+    "target_entries": 60000,
+    "context_ids": 918,
+    "matrix_bin_bytes": 1685452,
+    "formula_check": 1685452
+   },
+   {
+    "target_entries": 100000,
+    "context_ids": 975,
+    "matrix_bin_bytes": 1901254,
+    "formula_check": 1901254
+   },
+   {
+    "target_entries": null,
+    "context_ids": 1272,
+    "matrix_bin_bytes": 3235972,
+    "formula_check": 3235972
+   }
+  ],
+  "exact_formula": "matrix.bin = distinct_lcAttr * distinct_rcAttr * 2 + 4 (実測で全水準一致)",
+  "losslessness": "compacted matrix を使った full_L0 辞書が、無圧縮のオリジナル辞書と held-out 2,325 文 + embedded 183 文で (P3,A1,A2,A3) 完全一致 = 100.00%。可逆であることの実測",
+  "further_reduction": "同一の行・列をまとめる可逆圧縮の余地は小さい。フル 1377x1377 で distinct rows=1342 / distinct cols=1342 → 3,601,932 B (元 3,792,262 B の 95.0%) にしかならない。context id の compaction が唯一効く手"
+ },
+ "scaling_model": {
+  "purpose": "任意のエントリ数への内挿・外挿用。全係数は上の実測点から出した",
+  "token_bytes": "= 16 * entries (実測で全水準ちょうど 16.0 B/entry)",
+  "feature_bytes_per_entry": {
+   "L0": "65.2 〜 85.2 (高頻度語ほど feature が短い)",
+   "L1": "51.6 〜 61.4",
+   "L2": "46.9 〜 52.0"
+  },
+  "darts_bytes": "≒ 35.06 B * (見出し語数)。10 点の実測 (4,794 〜 677,769 surfaces) への 原点通過フィットで最大誤差 17.1%。**エントリ数ではなく見出し語数に比例する。**『darts は語数に線形に縮まない』という M-8 の警戒は実測で外れ — 34.3 B/surface (4.8k) 〜 42.3 B/surface (42k) 〜 34.3 B/surface (678k) と 1.24 倍の範囲に収まる",
+  "entries_per_surface": "2.09 (10k entries 時) 〜 1.16 (全件)。高頻度語ほど同綴り異義が多い",
+  "fixed_cost": "char.bin 262,496 B + unk.dic 5,690 B = 268,186 B は枝刈りで一切減らない"
+ },
+ "conclusions": [
+  "esp32_budget_points が本題の答え。全部『実際にその予算内に収まるサイズでビルドして測った』点。16MB/OTA2 = 95,700 entries / 11,726,889 B → held-out 文一致 73.42%。8MB/OTA なし = 41,000 entries / 5,405,844 B → 64.52%。8MB/OTA2 = 21,750 entries / 3,339,135 B → 50.49%。4MB = 5,001 entries / 1,216,454 B → 15.79% (実用外)。32MB/OTA2 = 263,000 entries / 27,607,296 B → 91.31%。",
+  "**95% の壁**: held-out で音素列文一致 95% を初めて超えるのは 400,000 entries / 324,209 見出し語 = 41,995,303 B (40.05 MiB) で 95.53%。ESP32-S3 の最大構成 (32MB flash / OTA2 = 27,840 KB) にも収まらない。**アクセント込みの一致は 400k でも 89.29% で 95% に届かない。** つまり『オンデバイス日本語 G2P を NAIST-JDIC の枝刈りで作る』路線は、教師と 95% 一致という基準では ESP32 のどの flash 容量でも成立しない。実用ラインをどこに引くか (16MB で 73%) が意思決定になる。",
+  "feature 削減 (L0→L2) の効き目は 17〜23%。10k entries で 2,114,685 → 1,931,691 B (-8.7%)、100k entries で 15,168,666 → 12,170,143 B (-19.8%)、全件で 106,598,803 → 79,881,118 B (-25.1%)。**出力への影響は実質ゼロなので取らない理由がない**が、これ単独では ESP32 に載らない。",
+  "matrix.bin の context-id 圧縮は小サイズ域で支配的。10k entries では 3,792,262 → 868,566 B で 合計を 4.80 MiB → 2.02 MiB に半減以下にする。**feature 削減より効く。**",
+  "語彙枝刈りが唯一の主軸。フル 102.19 MiB → 100k entries L2 で 11.61 MiB (5.7% に) だが、held-out 文一致は 74% 止まり。誤りは残りの 4% の token に集中しており、token coverage 96.4% でも文単位では 59% しか完全一致しない (1 文 16.4 token なので当然)。",
+  "枝刈り基準はコーパス頻度が唯一有効。wcost 単独は held-out 文一致 1.38% で使い物にならない。"
+ ],
+ "reproduction": {
+  "env": [
+   "export PP=/Users/s19447/Documents/piper-plus",
+   "export PY=$PP/.venv/bin/python",
+   "export SP=/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad"
+  ],
+  "steps": [
+   "# 0) mecab-dict-index (既にビルド済み: $SP/b0/mecab-dict-index, build_dict.md §1.4)",
+   "$PY $SP/b0/dump_entries.py $SP/b0/size/entries_pyoj.tsv $PP/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic",
+   "$PY $SP/b0/size/tokfreq.py $PP/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary /Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_train.tsv $SP/b0/size/train_tokfreq.tsv",
+   "cd $SP/b0/size && $PY $SP/b0/measure_size.py build          # 30 セル / 47 秒",
+   "cd $SP/b0/size && $PY $SP/b0/measure_size.py rank-abl       # 枝刈り基準",
+   "cd $SP/b0/size && $PY $SP/b0/measure_size.py extra 22100 40300 96100 200000 400000",
+   "$PY $SP/b0/size/eval_dict.py <dicdir> texts_heldout.json hyp.json   # 辞書ごとに別プロセス",
+   "$PY $SP/b0/size/score.py ; $PY $SP/b0/size/coverage.py <full dicdir>",
+   "$PY $SP/b0/size/make_report.py"
+  ],
+  "build_guard": "open_jtalk 版 mecab は CHECK_DIE の exit() が潰されている (dictionary_compiler.cpp:100-107)。measure_size.py は stderr 行数 0 と returncode 0 を assert している。全 38 ビルドで stderr 0 行"
+ },
+ "caveats": [
+  "『一致率』はフル NAIST-JDIC と同じ音素列/アクセントが出るかであって、正しい読みかではない。フル辞書自身の誤読は測っていない。",
+  "評価は pyopenjtalk.extract_fullcontext 経由 (P3 と A1/A2/A3)。piper-plus の実行時経路は MultilingualPhonemizer (B-1) で、音素表記も違う可能性がある。最終判断はそちらで測り直すこと。",
+  "corpus_embedded.tsv 183 行はエージェントの手書きでネイティブレビュー未了。ESP32 実運用の代理でしかない。",
+  "枝刈りは表層形単位。同綴り異義エントリを全部残すため、目標エントリ数をわずかに超える。",
+  "unk.dic の未知語フォールバックが漢字複合語に何を返すかは分離して測っていない。枝刈り後の誤りにはこの寄与が混ざっている。",
+  "MCU 実装には OpenJTalk の C 本体に加えて pyopenjtalk-plus の後処理層 (SudachiDict-core 209 MB / nani ONNX を含む) が要る (reports/b0_feature_fields.json)。本測定の一致率はその後処理を教師側と同じに揃えた前提の数字。",
+  "ESP32 の data パーティションは 4 KB 単位なので、実配置サイズは表の値を 4 KB 切り上げしたもの。"
+ ]
+}

@@ -1,8 +1,11 @@
 # 教師ラベルパック・コーパス・合成音声。
 # 23,271 行分の (dT, zT, yT) は数 GB になるのでコミットしない。
+# コーパス本文は再配布しない (JSUT / Common Voice / ROHAN のライセンス)。
+# data/splits/ は build_corpus.py で再生成できる。
 /data/
-/reports/
 /labels/
+
+# reports/ は B-0 等の一次データ (JSON、数百 KB) なので追跡する
 *.wav
 *.npz
 *.ckpt

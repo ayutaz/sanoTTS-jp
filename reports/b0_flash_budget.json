@@ -1,0 +1,326 @@
+{
+  "task": "B-0 / ESP32-S3 flash budget for an on-device Japanese G2P dictionary",
+  "date": "2026-08-26",
+  "generated_by": "scratchpad/b0/mkjson.py (values from ESP-IDF release/v5.3 source + Espressif docs; NO hardware was flashed)",
+  "confidence_note": "All partition/flash numbers are read from ESP-IDF source or Espressif documentation. App-size numbers are precedents from Espressif's own projects, NOT a build of the saanoTTS firmware (no ESP-IDF toolchain on this machine).",
+  "chip_facts": {
+    "bootloader_offset": {
+      "value": "0x0 on ESP32-S3 (0x1000 only on ESP32/ESP32-S2)",
+      "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/bootloader/Kconfig.projbuild",
+      "evidence": "CONFIG_BOOTLOADER_OFFSET_IN_FLASH: default 0x1000 if IDF_TARGET_ESP32 || IDF_TARGET_ESP32S2 ... default 0x0"
+    },
+    "partition_table_offset": {
+      "value": "0x8000 (default) -> bootloader region = 32 KB; partition table itself = 4 KB sector",
+      "source": "https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-guides/partition-tables.html"
+    },
+    "flash_size_kconfig_options": {
+      "value": [
+        "1MB",
+        "2MB",
+        "4MB",
+        "8MB",
+        "16MB",
+        "32MB",
+        "64MB",
+        "128MB"
+      ],
+      "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/esptool_py/Kconfig.projbuild",
+      "note": "choice ESPTOOLPY_FLASHSIZE has no per-target guard on S3; 32MB is a first-class option."
+    },
+    "mmu": {
+      "entries": 512,
+      "page_size_bytes": 65536,
+      "simultaneously_mappable_bytes": 33554432,
+      "max_physical_addressable_bytes": 1073741824,
+      "ibus_dbus_share_linear_space": true,
+      "flash_and_psram_share_the_same_window": true,
+      "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/soc/esp32s3/include/soc/ext_mem_defs.h",
+      "evidence": [
+        "#define SOC_MMU_ENTRY_NUM 512",
+        "SOC_MMU_LINEAR_ADDR_MASK 0x1FFFFFF  (= 32 MB)",
+        "_Static_assert(SOC_MMU_IRAM0_LINEAR_ADDRESS_LOW == SOC_MMU_DRAM0_LINEAR_ADDRESS_LOW, \"IRAM0 and DRAM0 linear address should be same\")",
+        "#define SOC_MMU_ACCESS_FLASH 0 / #define SOC_MMU_ACCESS_SPIRAM BIT(15)  (per-page selector -> one shared vaddr pool)",
+        "SOC_MMU_MAX_PADDR_PAGE_NUM 16384  (16384*64KB = 1 GB max physical)"
+      ]
+    },
+    "address_windows": {
+      "DROM": "0x3C000000-0x3E000000 (32 MB)",
+      "IROM": "0x42000000-0x44000000 (32 MB)",
+      "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/soc/esp32s3/include/soc/soc.h"
+    },
+    "consequence": "mapped_flash_bytes + mapped_psram_bytes <= 32 MB. On an N32R16V board (32 MB flash + 16 MB PSRAM) at most ~16 MB of the flash can be memory-mapped while PSRAM is enabled. Irrelevant for a few-MB dictionary. DERIVED FROM SOURCE, not measured on hardware.",
+    "cache": {
+      "icache": "32 KB",
+      "dcache": "64 KB",
+      "dcache_line": "64 B",
+      "source": "https://github.com/espressif/esp-skainet/blob/master/examples/chinese_tts/sdkconfig.defaults.esp32s3",
+      "evidence": "CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y / CONFIG_ESP32S3_DATA_CACHE_64KB=y / CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y (Espressif's own ESP32-S3 TTS example)"
+    },
+    "sdmmc": {
+      "slots": 2,
+      "source": "https://github.com/espressif/esp-idf/tree/release/v5.3/components/soc/esp32s3/include/soc/soc_caps.h",
+      "evidence": "#define SOC_SDMMC_NUM_SLOTS 2"
+    }
+  },
+  "boards": [
+    {
+      "module": "ESP32-S3-WROOM-1",
+      "flash": "4 / 8 / 16 MB Quad SPI",
+      "psram": "0 / 2 MB QSPI / 8 MB OSPI",
+      "spi_voltage": "3.3 V",
+      "max_flash_MB": 16,
+      "availability": "mainstream, cheapest, all major distributors",
+      "source": "https://documentation.espressif.com/esp32-s3-wroom-1_wroom-1u_datasheet_en.html"
+    },
+    {
+      "module": "ESP32-S3-WROOM-1U",
+      "flash": "same as WROOM-1 (U = external antenna)",
+      "max_flash_MB": 16,
+      "source": "https://documentation.espressif.com/esp32-s3-wroom-1_wroom-1u_datasheet_en.html"
+    },
+    {
+      "module": "ESP32-S3-WROOM-2",
+      "flash": "16 / 32 MB Octal SPI",
+      "psram": "8 / 16 MB Octal SPI",
+      "spi_voltage": "1.8 V (eFuse VDD_SPI_TIEH / VDD_SPI_FORCE)",
+      "max_flash_MB": 32,
+      "availability": "N16R8V and N32R8V are EOL; only N32R16V is active",
+      "source": "https://documentation.espressif.com/esp32-s3-wroom-2_datasheet_en.html"
+    },
+    {
+      "devkit": "ESP32-S3-DevKitC-1 v1.1",
+      "official_ordering_codes": [
+        {
+          "code": "ESP32-S3-DevKitC-1-N8R8",
+          "module": "ESP32-S3-WROOM-1-N8R8",
+          "flash_MB": 8,
+          "psram_MB": 8,
+          "spi_v": "3.3"
+        },
+        {
+          "code": "ESP32-S3-DevKitC-1-N32R16V",
+          "module": "ESP32-S3-WROOM-2-N32R16V",
+          "flash_MB": 32,
+          "psram_MB": 16,
+          "spi_v": "1.8"
+        },
+        {
+          "code": "ESP32-S3-DevKitC-1U-N8R8",
+          "module": "ESP32-S3-WROOM-1U-N8R8",
+          "flash_MB": 8,
+          "psram_MB": 8,
+          "spi_v": "3.3"
+        }
+      ],
+      "source": "https://docs.espressif.com/projects/esp-dev-kits/en/latest/esp32s3/esp32-s3-devkitc-1/user_guide_v1.1.html",
+      "note": "16 MB N16R8 boards are ubiquitous in the third-party market (module ESP32-S3-WROOM-1-N16R8 is an official Espressif part) but are not one of the three official DevKitC-1 v1.1 ordering codes."
+    }
+  ],
+  "partition_overheads_KB": {
+    "bootloader_region": 32,
+    "partition_table": 4,
+    "phy_init": 4,
+    "nvs_single_app": 24,
+    "nvs_with_ota": 16,
+    "otadata": 8,
+    "total_single_app": 64,
+    "total_with_ota": 64,
+    "note": "Both default layouts put the first app partition at 0x10000, i.e. exactly 64 KB of non-app overhead either way.",
+    "sources": [
+      "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/partition_table/partitions_singleapp.csv",
+      "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/partition_table/partitions_two_ota.csv",
+      "https://docs.espressif.com/projects/esp-idf/en/stable/esp32s3/api-guides/partition-tables.html"
+    ]
+  },
+  "app_size_assumptions": {
+    "chosen_app_slot_KB": 2048,
+    "justification": [
+      {
+        "precedent": "esp-tflite-micro examples (person_detection, micro_speech)",
+        "app_slot": "0x1E0000 = 1920 KB per OTA slot",
+        "comment": "csv comment: '1920KB per app slot leaves room for tflite models'",
+        "source": "https://github.com/espressif/esp-tflite-micro/blob/master/examples/person_detection/partitions.csv"
+      },
+      {
+        "precedent": "ESP-IDF partitions_singleapp.csv",
+        "app": "1 MB",
+        "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/partition_table/partitions_singleapp.csv"
+      },
+      {
+        "precedent": "ESP-IDF partitions_singleapp_large.csv",
+        "app": "1500 KB",
+        "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/partition_table/partitions_singleapp_large.csv"
+      },
+      {
+        "precedent": "esp-skainet chinese_tts (Espressif's own on-device TTS, ESP32-S3, 16 MB flash)",
+        "app": "4 MB factory + 3890 KB voice_data",
+        "source": "https://github.com/espressif/esp-skainet/blob/master/examples/chinese_tts/partitions.csv"
+      }
+    ],
+    "model_partition_KB": 768,
+    "model_note": "saanoTTS int8 blobs = 679,832 B (paper). 0xC0000 = 768 KB gives 16 % headroom. Peak tensor arena ~289 KB lives in RAM/PSRAM, not flash."
+  },
+  "budget_table": [
+    {
+      "scenario": "A",
+      "description": "no OTA (single factory app), model in its own partition",
+      "system_overhead_KB": 64,
+      "app_KB": 2048,
+      "model_partition_KB": 768,
+      "free_for_dictionary": {
+        "4MB": {
+          "KB": 1216,
+          "MB": 1.19,
+          "fits": true
+        },
+        "8MB": {
+          "KB": 5312,
+          "MB": 5.19,
+          "fits": true
+        },
+        "16MB": {
+          "KB": 13504,
+          "MB": 13.19,
+          "fits": true
+        },
+        "32MB": {
+          "KB": 29888,
+          "MB": 29.19,
+          "fits": true
+        }
+      }
+    },
+    {
+      "scenario": "B",
+      "description": "OTA x2 slots, model in its own partition (shared by both slots)",
+      "system_overhead_KB": 64,
+      "app_KB": 4096,
+      "model_partition_KB": 768,
+      "free_for_dictionary": {
+        "4MB": {
+          "KB": -832,
+          "MB": -0.81,
+          "fits": false
+        },
+        "8MB": {
+          "KB": 3264,
+          "MB": 3.19,
+          "fits": true
+        },
+        "16MB": {
+          "KB": 11456,
+          "MB": 11.19,
+          "fits": true
+        },
+        "32MB": {
+          "KB": 27840,
+          "MB": 27.19,
+          "fits": true
+        }
+      }
+    },
+    {
+      "scenario": "C",
+      "description": "OTA x2 slots, model linked into the app image (duplicated per slot)",
+      "system_overhead_KB": 64,
+      "app_KB": 5632,
+      "model_partition_KB": 0,
+      "free_for_dictionary": {
+        "4MB": {
+          "KB": -1600,
+          "MB": -1.56,
+          "fits": false
+        },
+        "8MB": {
+          "KB": 2496,
+          "MB": 2.44,
+          "fits": true
+        },
+        "16MB": {
+          "KB": 10688,
+          "MB": 10.44,
+          "fits": true
+        },
+        "32MB": {
+          "KB": 27072,
+          "MB": 26.44,
+          "fits": true
+        }
+      }
+    }
+  ],
+  "flash_mmap_for_the_dictionary": {
+    "verdict": "YES - a read-only dictionary partition can be esp_partition_mmap()'d and read with ordinary random loads. This is exactly what Espressif's own on-device TTS does.",
+    "production_precedent": {
+      "what": "esp-skainet examples/chinese_tts maps a 3890 KB 'voice_data' partition and hands the raw pointer to the TTS library",
+      "code": "esp_partition_find_first(ESP_PARTITION_TYPE_DATA, ESP_PARTITION_SUBTYPE_ANY, \"voice_data\"); esp_partition_mmap(part, 0, part->size, ESP_PARTITION_MMAP_DATA, &voicedata, &mmap); esp_tts_voice_set_init(&esp_tts_voice_template, (int16_t*)voicedata);",
+      "source": "https://github.com/espressif/esp-skainet/blob/master/examples/chinese_tts/main/main.c"
+    },
+    "why_the_paper's_SIMD_finding_does_not_transfer": [
+      "The paper's failure (correlation 0.011) was on SIMD/PIE operands for model weights - a sustained, aligned, high-bandwidth stream (45 MMAC per audio-second).",
+      "Dictionary lookup is the opposite regime: a few hundred scattered 4-16 B reads per utterance, via ordinary scalar loads through the D-cache.",
+      "The ESP32-S3 SoC Errata v1.3 lists 8 items ([CACHE-126], [RTC-126], [ANALOG-160], [LCD-239], [USBOTG-4289], [RMT-176], [TOUCH-100], [ADC-183]); NONE concerns PIE/vector loads from memory-mapped flash. [CACHE-126] is about cache WRITE-BACKS, which a read-only flash mapping never performs.",
+      "So the paper's collapse is not a documented silicon defect for read-only scalar access; treat it as specific to their PIE kernel path."
+    ],
+    "measured_access_cost": {
+      "method": "scratchpad/b0/trie_cost.py - instrumented Darts double-array common-prefix search over the REAL NAIST-JDIC sys.dic (788,923 entries), 300 sentences sampled (seed 0) from pool.tsv",
+      "mean_chars_per_sentence": 27.6,
+      "trie_unit_reads_per_sentence": {
+        "mean": 420,
+        "median": 398,
+        "max": 1233
+      },
+      "token_plus_feature_reads_per_sentence": {
+        "mean": 165,
+        "max": 597
+      },
+      "dict_candidates_per_sentence": {
+        "mean": 43,
+        "max": 127
+      },
+      "distinct_64KB_pages_touched_per_sentence": {
+        "mean": 91,
+        "median": 89,
+        "max": 225
+      },
+      "reads_per_char": 15.2
+    },
+    "worst_case_timing_estimate": {
+      "assumption": "every one of ~585 reads/sentence is a D-cache miss; 64 B line fill; QIO @ 80 MHz (4 data lines) = ~128 clk data + ~20 clk cmd/addr/dummy = ~148 clk = ~1.85 us",
+      "per_sentence_ms": 1.08,
+      "compare_audio_seconds_per_sentence": 3.96,
+      "fraction_of_realtime": "~0.027 %",
+      "compare_decoder_compute": "paper RTF 0.22 on S3 -> ~0.87 s of CPU per 3.96 s sentence; dictionary I/O is ~0.12 % of that",
+      "status": "ESTIMATE - arithmetic from documented clocking, not measured on hardware"
+    },
+    "mmu_pressure": "A dictionary partition of D MB needs D*16 MMU entries out of 512. A 4 MB dict = 64 entries; it can stay mapped for the whole life of the program, so there is no page churn and no remapping cost.",
+    "recommended_partition_type": "raw custom data partition (or subtype 'fat'/'undefined' used raw). Do NOT put the dictionary in SPIFFS/LittleFS: those add per-file overhead and, more importantly, cannot be mmap'd - you would have to read()/copy into RAM."
+  },
+  "sd_card_option": {
+    "when": "only if the dictionary must exceed the flash budget, or must be user-replaceable",
+    "hardware": "ESP32-S3 has 2 SDMMC slots (1-/4-bit) plus SPI-mode SD",
+    "hard_constraint": "SD content CANNOT be memory-mapped. ESP-IDF: 'mmap is supported by cache, so it can only be used on main flash.' Every dictionary probe becomes a block read through FATFS.",
+    "designs": [
+      {
+        "name": "D1 load-to-PSRAM at boot",
+        "how": "read the whole dict from SD into PSRAM once, then random-access it at PSRAM speed",
+        "cost": "needs dict_size <= PSRAM free space (8 MB PSRAM board: ~6-7 MB usable); boot delay ~1-3 s for a 4 MB dict at typical 2-5 MB/s SD throughput (UNMEASURED)",
+        "verdict": "the only sane SD design"
+      },
+      {
+        "name": "D2 stream from SD per lookup",
+        "how": "keep the trie resident, page token/feature records from SD",
+        "cost": "~585 block reads/sentence -> FATFS + SD latency (order 0.1-1 ms each) = 0.06-0.6 s/sentence",
+        "verdict": "borderline; would eat a real share of the 0.87 s compute budget"
+      }
+    ],
+    "downside": "breaks the paper's 'general-purpose microcontroller, no external storage' claim; adds pins, cost, and an absent/corrupt-card failure mode"
+  },
+  "recommendation": {
+    "target_board": "ESP32-S3-WROOM-1-N16R8 (16 MB quad flash, 8 MB octal PSRAM, 3.3 V)",
+    "why": "11.19 MB free for the dictionary WITH two OTA slots, 13.19 MB without OTA. 3.3 V quad flash keeps the board mainstream and cheap; 32 MB requires the 1.8 V octal WROOM-2 whose 8 GB-class variants are mostly EOL.",
+    "dictionary_size_target": "<= 4 MB. That fits every scenario on 16 MB and 32 MB, and fits 8 MB boards in scenarios A and B.",
+    "8MB_verdict": "viable but tight: 5.19 MB (no OTA) / 3.19 MB (OTA). An 8 MB board forces either OTA or a >3 MB dictionary to be dropped.",
+    "32MB_verdict": "not needed. Buys ~16 MB more headroom for a dictionary that should be <= 4 MB, at the price of 1.8 V octal flash and an EOL-heavy module line."
+  }
+}

@@ -1,0 +1,538 @@
+{
+ "task": "B-0 fallback: alternatives to dictionary pruning for on-device Japanese G2P on ESP32-S3",
+ "date": "2026-08-26",
+ "how_measured": {
+  "reference": "pyopenjtalk 0.4.1-post8 pinned to OPEN_JTALK_DICT_DIR=$PP/build/share/open_jtalk/dic (NAIST-JDIC, lexsize 788,923). phoneme seq = pyopenjtalk.g2p(); phoneme+accent seq = piper_plus_g2p.japanese.JapanesePhonemizer.phonemize() (the canonical piper-plus JA path, tokens include the accent marks [ ] # _ and the ? EOS family).",
+  "eval_sets": {
+   "heldout": "data/splits/corpus_heldout.tsv 2,325 lines",
+   "embedded": "data/splits/corpus_embedded.tsv 183 lines (ESP32 announcement-style, 62.3% contain digits)"
+  },
+  "metrics": {
+   "phoneme_sentence_exact_pct": "% of sentences whose phoneme sequence is identical to the full-dictionary reference",
+   "phoneme_error_rate_pct": "token-level Levenshtein / reference length",
+   "phoneme_plus_accent_sentence_exact_pct": "same but on the JapanesePhonemizer token stream, which carries the accent marks",
+   "accent_structure_sentence_exact_pct": "only the (mark, mora-index) sequence for [ ] # _ compared; insensitive to vowel devoicing"
+  },
+  "important": "All 'agreement' numbers are agreement WITH THE FULL 103 MB DICTIONARY, not correctness. The full dictionary's own misreadings are invisible to this measurement."
+ },
+ "baseline_pruning_with_accent": {
+  "note": "Re-measured because the earlier pruning run only compared PHONEMES. Ranking is TRAIN-split frequency only (data/splits/corpus_train.tsv, 20,946 lines); evaluation is on the held-out split. matrix.bin compacted to used context ids (output-invariant).",
+  "levels": {
+   "10000": {
+    "surfaces": 10000,
+    "entries": 18298,
+    "sys_dic": 1878995,
+    "matrix_bin": 1146102,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 3293283,
+    "eval": {
+     "heldout": {
+      "ph_ex": 45.51,
+      "per": 7.094,
+      "pha_ex": 33.51,
+      "pha_er": 10.556,
+      "acc_ex": 34.24
+     },
+     "embedded": {
+      "ph_ex": 18.03,
+      "per": 24.86,
+      "pha_ex": 15.85,
+      "pha_er": 29.412,
+      "acc_ex": 16.94
+     }
+    }
+   },
+   "30000": {
+    "surfaces": 30000,
+    "entries": 46228,
+    "sys_dic": 5247588,
+    "matrix_bin": 1612812,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 7128586,
+    "eval": {
+     "heldout": {
+      "ph_ex": 67.66,
+      "per": 3.238,
+      "pha_ex": 55.18,
+      "pha_er": 5.061,
+      "acc_ex": 56.17
+     },
+     "embedded": {
+      "ph_ex": 28.96,
+      "per": 19.394,
+      "pha_ex": 25.14,
+      "pha_er": 23.135,
+      "acc_ex": 27.32
+     }
+    }
+   },
+   "60000": {
+    "surfaces": 60000,
+    "entries": 79290,
+    "sys_dic": 10014795,
+    "matrix_bin": 1850892,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 12133873,
+    "eval": {
+     "heldout": {
+      "ph_ex": 72.34,
+      "per": 2.559,
+      "pha_ex": 61.46,
+      "pha_er": 3.989,
+      "acc_ex": 62.41
+     },
+     "embedded": {
+      "ph_ex": 79.78,
+      "per": 4.082,
+      "pha_ex": 71.58,
+      "pha_er": 5.386,
+      "acc_ex": 73.77
+     }
+    }
+   },
+   "100000": {
+    "surfaces": 100000,
+    "entries": 125800,
+    "sys_dic": 16347018,
+    "matrix_bin": 2159046,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 18774250,
+    "eval": {
+     "heldout": {
+      "ph_ex": 78.97,
+      "per": 1.65,
+      "pha_ex": 68.52,
+      "pha_er": 2.805,
+      "acc_ex": 69.46
+     },
+     "embedded": {
+      "ph_ex": 89.62,
+      "per": 1.367,
+      "pha_ex": 81.42,
+      "pha_er": 2.219,
+      "acc_ex": 82.51
+     }
+    }
+   }
+  }
+ },
+ "option1a_kana_input_rules_only": {
+  "rule_data_bytes": {
+   "jpcommon mora table (kana->phoneme), 162 moras": 1644,
+   "compact re-encoding (key pool + u8 keylen/cons-id/vowel-id + codebook)": 1340,
+   "ALL OpenJTalk rule tables (mora + unvoiced + long vowel + pronunciation + accent phrase + accent type + digit/counter + charconv), string data only": 20511
+  },
+  "accuracy": {
+   "heldout": {
+    "phoneme_error_rate_pct": 1.178,
+    "phoneme_sentence_exact_pct": 57.46,
+    "devoicing_normalised_per_pct": 0.272,
+    "devoicing_normalised_sentence_exact_pct": 90.41
+   },
+   "embedded": {
+    "phoneme_error_rate_pct": 1.367,
+    "phoneme_sentence_exact_pct": 72.68,
+    "devoicing_normalised_per_pct": 0.631,
+    "devoicing_normalised_sentence_exact_pct": 90.71
+   },
+   "accent": "ZERO. The rule table carries no accent information at all."
+  },
+  "control_full_dictionary_fed_the_same_kana": {
+   "heldout": {
+    "phoneme_error_rate_pct": 1.821,
+    "phoneme_sentence_exact_pct": 44.6,
+    "devoicing_normalised_per_pct": 0.308,
+    "devoicing_normalised_sentence_exact_pct": 91.87,
+    "accent_structure_sentence_exact_pct": 0.47,
+    "phoneme_plus_accent_error_rate_pct": 18.824
+   },
+   "meaning": "Running the whole 103 MB dictionary on kana input is WORSE than the 1.6 KB rule table for phonemes, and its accent output is 0.47% sentence-exact. Once the input is kana, the dictionary buys nothing for segmental content and cannot recover accent."
+  },
+  "devoicing_note": "47.27% of held-out sentences differ from the reference ONLY in vowel devoicing (I/U vs i/u). CLAUDE.md's S_ja noise-injection set depends on I and U, so this is not cosmetic."
+ },
+ "option1b_kana_keyed_mecab_dict": {
+  "note": "surface := the katakana reading, so the trie alphabet is kana only. 788,923 -> 471,174 entries after collapsing homophones with identical POS/accent; 340,126 distinct readings.",
+  "levels": {
+   "5000": {
+    "readings": 5000,
+    "entries": 21309,
+    "sys_dic": 1983406,
+    "matrix_bin": 1325196,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 3576788,
+    "heldout_eval": {
+     "ph_ex": 68.9,
+     "per": 0.915,
+     "pha_ex": 8.99,
+     "pha_er": 10.291,
+     "acc_ex": 9.03
+    }
+   },
+   "10000": {
+    "readings": 10000,
+    "entries": 34215,
+    "sys_dic": 3343643,
+    "matrix_bin": 1577092,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 5188921,
+    "heldout_eval": {
+     "ph_ex": 72.39,
+     "per": 0.774,
+     "pha_ex": 12.56,
+     "pha_er": 8.792,
+     "acc_ex": 12.56
+    }
+   },
+   "30000": {
+    "readings": 30000,
+    "entries": 72370,
+    "sys_dic": 8249813,
+    "matrix_bin": 1956246,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 10474245,
+    "heldout_eval": {
+     "ph_ex": 77.68,
+     "per": 0.607,
+     "pha_ex": 20.6,
+     "pha_er": 6.949,
+     "acc_ex": 20.6
+    }
+   },
+   "60000": {
+    "readings": 60000,
+    "entries": 116528,
+    "sys_dic": 14799590,
+    "matrix_bin": 2302662,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 17370438,
+    "heldout_eval": {
+     "ph_ex": 77.38,
+     "per": 0.618,
+     "pha_ex": 19.91,
+     "pha_er": 7.116,
+     "acc_ex": 19.96
+    }
+   },
+   "340126": {
+    "readings": 340126,
+    "entries": 471278,
+    "sys_dic": 65271309,
+    "matrix_bin": 3235972,
+    "char_bin": 262496,
+    "unk_dic": 5690,
+    "total": 68775467,
+    "heldout_eval": {
+     "ph_ex": 77.89,
+     "per": 0.599,
+     "pha_ex": 19.83,
+     "pha_er": 7.182,
+     "acc_ex": 19.87
+    }
+   }
+  },
+  "verdict": "Strictly dominated. At every footprint the kanji-keyed dictionary gives better accent (e.g. 3.29 MB kanji = 34.24% accent vs 3.58 MB kana = 9.03%), and the kana dict tops out at 20.6% no matter how big it gets."
+ },
+ "option1c_minimal_accent_lookup_table": {
+  "note": "NOT a MeCab dictionary. Flat sorted table: kana key -> {accent type u8, mora count u8, chain-rule id u8, POS id u8} + 3 B binary-search offset per key. This is the cheapest possible 'accent dictionary'.",
+  "sizes_bytes": {
+   "2000": 58426,
+   "5000": 134771,
+   "10000": 256484,
+   "30000": 718128,
+   "60000": 1296746,
+   "340126": 8607359
+  },
+  "homograph_entries": {
+   "2000": 6908,
+   "5000": 13972,
+   "10000": 23587,
+   "30000": 58221,
+   "60000": 99124,
+   "340126": 415741
+  },
+  "verdict": "Storage is cheap (0.68 MB for 30k readings) but unusable on its own: the measured bottleneck is morphological segmentation + accent-phrase chaining, not the lexicon. See option1b levels, which give this table the best possible segmenter and still top out at 20.6% sentence accent accuracy."
+ },
+ "option2_precompiled_phrases": {
+  "measured": {
+   "embedded": {
+    "sentences": 183,
+    "mean_chars": 14.4,
+    "mean_phonemes": 37.4,
+    "median_phonemes": 37,
+    "p95_phonemes": 61,
+    "max_phonemes": 74,
+    "distinct_tokens": 42,
+    "bytes_raw_1B_per_ph_plus_nul": 7034,
+    "bytes_index_uint16": 368,
+    "bytes_total": 7402,
+    "bytes_per_sentence": 40.4,
+    "blob_deflate": 3061,
+    "blob_deflate_per_sentence": 16.7
+   },
+   "heldout": {
+    "sentences": 2325,
+    "mean_chars": 27.0,
+    "mean_phonemes": 64.6,
+    "median_phonemes": 57,
+    "p95_phonemes": 138,
+    "max_phonemes": 252,
+    "distinct_tokens": 50,
+    "bytes_raw_1B_per_ph_plus_nul": 152470,
+    "bytes_index_uint16": 4652,
+    "bytes_total": 157122,
+    "bytes_per_sentence": 67.6,
+    "blob_deflate": 64554,
+    "blob_deflate_per_sentence": 27.8
+   },
+   "train": {
+    "sentences": 20946,
+    "mean_chars": 26.9,
+    "mean_phonemes": 64.5,
+    "median_phonemes": 57,
+    "p95_phonemes": 140,
+    "max_phonemes": 250,
+    "distinct_tokens": 50,
+    "bytes_raw_1B_per_ph_plus_nul": 1372782,
+    "bytes_index_uint16": 41894,
+    "bytes_total": 1414676,
+    "bytes_per_sentence": 67.5,
+    "blob_deflate": 556831,
+    "blob_deflate_per_sentence": 26.6
+   }
+  },
+  "table": {
+   "phrases": [
+    100,
+    1000,
+    10000,
+    100000
+   ],
+   "embedded_style_bytes": [
+    4040,
+    40400,
+    404000,
+    4040000
+   ],
+   "general_sentence_bytes": [
+    6760,
+    67600,
+    676000,
+    6760000
+   ],
+   "embedded_style_deflate_bytes": [
+    1670,
+    16700,
+    167000,
+    1670000
+   ]
+  },
+  "audio_comparison": {
+   "method": "pyopenjtalk.tts() HTS mei_normal used as a speaking-rate proxy; its 3.95 s mean on 300 held-out sentences matches the teacher's measured 3.96 s/sentence (plan doc line 37)",
+   "embedded_mean_seconds": 2.96,
+   "heldout_mean_seconds": 3.95,
+   "bytes_per_sentence": {
+    "phoneme_ids_1B": 40.4,
+    "pcm_22050Hz_int16": 130419,
+    "adpcm_4bit": 32605,
+    "opus_16kbps": 5915
+   },
+   "ratio_pcm_over_phonemes": 3228,
+   "ratio_opus_over_phonemes": 146
+  },
+  "numeric_slots": {
+   "combos": 2424,
+   "counters": 24,
+   "numbers": "0-100",
+   "blob_plus_uint16_index_bytes": 42381,
+   "deflate_bytes": 7465,
+   "verified_hard_cases": {
+    "3本": "s a ] [ N_m b o N_uvular",
+    "6本": "r o ] [ cl p o N_uvular",
+    "8日": "y o [ o k a",
+    "20日": "h a [ ts U k a",
+    "1人": "h I [ t o ] r i",
+    "2人": "f U [ t a r i"
+   },
+   "note": "41.4 KiB gives correct readings AND correct accent for every 0-100 x 24-counter combination, including the irregular ones. Alternatively the OpenJTalk digit/counter rule tables are 9,016 B of string data and generate these compositionally."
+  }
+ },
+ "option3_hybrid_freq_dict_plus_kana_fallback": {
+  "finding": "This is not an extra mechanism: MeCab + unk.dic already IS the hybrid. char.bin routes OOV runs by character class, so an OOV kana word gets read correctly by rule while accent is lost.",
+  "measured_oov_behaviour": {
+   "kana OOV read correctly": {
+    "ズガピョコリン": "z u g a py o k o r i N",
+    "ぷにゅらほ": "p u ny u r a h o"
+   },
+   "kanji OOV is SILENTLY DELETED": {
+    "饕餮": "(empty; NJD pron = 、 as 記号)",
+    "蹉跌": "(empty)",
+    "忸怩たる思い": "t a r u o m o i (忸怩 dropped)"
+   },
+   "why this matters": "An out-of-vocabulary kanji word is not mispronounced, it is dropped. The listener gets a grammatically broken sentence with no audible signal that anything was lost."
+  },
+  "coverage_curve": {
+   "1000": {
+    "heldout": {
+     "token_coverage_pct": 75.87,
+     "sentence_all_in_dict_pct": 3.78,
+     "sentence_dict_or_kana_pct": 9.29
+    },
+    "embedded": {
+     "token_coverage_pct": 74.47,
+     "sentence_all_in_dict_pct": 2.73,
+     "sentence_dict_or_kana_pct": 6.01
+    }
+   },
+   "2000": {
+    "heldout": {
+     "token_coverage_pct": 80.89,
+     "sentence_all_in_dict_pct": 8.56,
+     "sentence_dict_or_kana_pct": 16.82
+    },
+    "embedded": {
+     "token_coverage_pct": 79.14,
+     "sentence_all_in_dict_pct": 14.75,
+     "sentence_dict_or_kana_pct": 16.94
+    }
+   },
+   "5000": {
+    "heldout": {
+     "token_coverage_pct": 87.09,
+     "sentence_all_in_dict_pct": 18.92,
+     "sentence_dict_or_kana_pct": 30.8
+    },
+    "embedded": {
+     "token_coverage_pct": 86.24,
+     "sentence_all_in_dict_pct": 28.96,
+     "sentence_dict_or_kana_pct": 34.43
+    }
+   },
+   "10000": {
+    "heldout": {
+     "token_coverage_pct": 90.82,
+     "sentence_all_in_dict_pct": 30.02,
+     "sentence_dict_or_kana_pct": 42.8
+    },
+    "embedded": {
+     "token_coverage_pct": 91.02,
+     "sentence_all_in_dict_pct": 41.53,
+     "sentence_dict_or_kana_pct": 50.27
+    }
+   },
+   "15000": {
+    "heldout": {
+     "token_coverage_pct": 92.42,
+     "sentence_all_in_dict_pct": 35.74,
+     "sentence_dict_or_kana_pct": 49.2
+    },
+    "embedded": {
+     "token_coverage_pct": 92.61,
+     "sentence_all_in_dict_pct": 50.27,
+     "sentence_dict_or_kana_pct": 59.56
+    }
+   },
+   "20000": {
+    "heldout": {
+     "token_coverage_pct": 93.35,
+     "sentence_all_in_dict_pct": 41.51,
+     "sentence_dict_or_kana_pct": 54.28
+    },
+    "embedded": {
+     "token_coverage_pct": 93.86,
+     "sentence_all_in_dict_pct": 55.19,
+     "sentence_dict_or_kana_pct": 64.48
+    }
+   },
+   "30350": {
+    "heldout": {
+     "token_coverage_pct": 95.24,
+     "sentence_all_in_dict_pct": 51.4,
+     "sentence_dict_or_kana_pct": 63.83
+    },
+    "embedded": {
+     "token_coverage_pct": 95.74,
+     "sentence_all_in_dict_pct": 66.67,
+     "sentence_dict_or_kana_pct": 73.77
+    }
+   }
+  },
+  "coverage_note": "Vocabulary ranked on the 20,946-line train split, measured on the 2,325-line held-out split and the 183-line embedded set. 30,350 is the ENTIRE distinct-surface vocabulary of the train split.",
+  "size_vs_accuracy": "Use baseline_pruning_with_accent for the size axis: the hybrid's accuracy curve IS that curve."
+ },
+ "option4_host_side_g2p": {
+  "device_footprint_bytes": 0,
+  "accuracy": "identical to the teacher by construction",
+  "wire_format": {
+   "phoneme_ids_1B_per_token_plus_nul": {
+    "embedded_mean_B_per_sentence": 40.4,
+    "heldout_mean_B_per_sentence": 67.6,
+    "heldout_p95_phonemes": 138,
+    "heldout_max_phonemes": 252
+   },
+   "kana_utf8": {
+    "embedded": 60.3,
+    "heldout": 99.3
+   },
+   "kana_plus_accent_marks": "kana + ~10.3 marks/sentence (held-out) / 6.2 (embedded)"
+  },
+  "link_budget_estimate": {
+   "method": "arithmetic from documented link rates, NOT measured on hardware",
+   "BLE 4.2 worst case (20 B ATT payload, 30 ms connection interval) ~= 660 B/s": "68 B sentence = 0.10 s",
+   "Opus 16 kbps audio streaming = 2,000 B/s": "exceeds that worst-case BLE 4.2 link by 3x, sustained",
+   "conclusion": "the phoneme-id wire format is 100-3,000x cheaper than streaming the audio, so on-device synthesis still wins the bandwidth/latency/offline-buffer argument even with host-side G2P"
+  },
+  "product_argument": {
+   "holds": "Any product where the text originates off-device (phone app, gateway, cloud notification) already has the link that would carry phoneme ids. The paper's own system boundary is the same ('external G2P excluded').",
+   "breaks": "Fully standalone operation where the device composes its own text locally (clock, sensor readings, local state machine) with no companion.",
+   "but": "That standalone case is a CLOSED vocabulary, and option 2 covers it: 20 KiB of rules + 41 KiB of number/counter phonemes + ~40 B per template."
+  }
+ },
+ "option5_neural_g2p": {
+  "repo": "ayousanz/nn-g2p-jp (private, HF, accessible as ayousanz). sha 807c3a29fd7b0211545a6e80c032e78c3b6eea7f, last modified 2026-02-17",
+  "best_model": "M9 = checkpoints/ja_m9/best_model.pt, config configs/train/ja_m9.yaml",
+  "architecture": "Conformer encoder 6 layers d_model=384 nhead=6 ffn=1536 kernel=15, shared Transformer decoder 4 layers with dual heads (phone + prosody), joint CTC. Grapheme vocab 4,857 (kanji included), phone vocab 46, prosody vocab 52.",
+  "output_format_matches_piper_plus": "phone vocab is exactly the piper-plus JA set (a o i u k e r N s t m sh n g b d h cl y j ts ch z p w f ky ry gy ny hy by my v py dy fy kw ty gw e: o:) and the prosody vocab is the same ^ $ ? _ # [ ] marks JapanesePhonemizer emits. This is the right output format for the student.",
+  "params_measured": 23022916,
+  "params_breakdown": {
+   "encoder": 10646784,
+   "shared_decoder": 9466368,
+   "src_embed": 1865088,
+   "conformer_modules": 928512,
+   "heads_and_norms": 116156
+  },
+  "onnx_sizes_from_repo_metadata": {
+   "ja_medium/model_ar.onnx fp32": 57219575,
+   "ja_medium/model_ar_int8.onnx": 20398854,
+   "ja_improved/model_ar_int8.onnx": 20572806
+  },
+  "accuracy_reported_by_the_repo": {
+   "WikiPron word-level PER": "2.17%",
+   "WikiPron WER": "10.25%",
+   "ja_test sentence-level PER": "0.28% (1,000 samples)",
+   "ja_test Prosody F1": "0.834",
+   "CharsiuG2P 300M comparison PER": "7.36%"
+  },
+  "compute_measured": {
+   "encoder_MAC_per_input_char": 8881920,
+   "decoder_plus_heads_MAC_per_output_token": 5973504,
+   "heldout_mean_sentence_MMAC": 626,
+   "embedded_mean_sentence_MMAC": 351,
+   "method": "summed in_features*out_features over every nn.Linear and in/groups*out*kernel over every nn.Conv1d of the instantiated M9 model, times the measured mean input chars (27.0) and output tokens (64.6). beam=1, one decoder pass."
+  },
+  "why_it_does_not_fit": {
+   "flash": "20.4 MB int8 vs the measured ESP32-S3 dictionary budget of 11.19 MB (16 MB board, OTA 2 slots) from reports/b0_flash_budget.json. Does not fit at all.",
+   "compute": "626 MMAC/sentence vs the whole saanoTTS student at 45 MMAC/audio-second x 3.95 s = 178 MMAC/sentence. The G2P would be 3.5x the entire TTS.",
+   "memory_traffic_is_the_real_killer": "Autoregressive decoding re-reads the 5.97 MB int8 decoder every output token. 64.6 tokens x 5.97 MB = 386 MB per sentence. ESP32-S3 D-cache is at most 64 KB so there is no reuse. At QIO 80 MHz (4 lines SDR = 40 MB/s) that is 9.7 s per sentence; even from octal PSRAM at ~160 MB/s it is 2.4 s. The estimate is arithmetic from documented clocking, not a hardware measurement, but there are two orders of magnitude of headroom in the conclusion.",
+   "what_would_fit": "To keep G2P under 10% of the student's CPU budget the weight traffic must stay under ~3.5 MB/sentence. That means either a ~50 K-param autoregressive decoder or, far better, a NON-autoregressive model whose weights are read once per sentence: a 1 MB non-AR char->phoneme+prosody model costs 25 ms of flash traffic. No such checkpoint exists in the repo; every ja_* checkpoint there is the same encoder-decoder shape (smallest is ja_small_v2 at 66 MB fp32)."
+  },
+  "verdict": "Not usable as-is. It is however the correct teacher for a distillation target, because its output alphabet already matches piper-plus and it reaches sentence-level PER 0.28%."
+ }
+}
