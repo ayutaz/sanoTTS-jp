@@ -9,7 +9,7 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-025 と**訂正履歴 C-001〜C-021** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-026 と**訂正履歴 C-001〜C-021** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-34。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-11 の検証タスクと Phase 0〜D の状態 | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
@@ -82,44 +82,80 @@ saanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
-│   ├── plan/phase-a-decisions.md          Phase A の決定
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 + 訂正履歴
-│   ├── measurements.md                    実測値の一次ソース
+│   ├── decisions.md                       決定記録 D-001〜D-025 + 訂正履歴 C-001〜C-021
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-34
+│   ├── vastai-runbook.md                  vast.ai の実行手順（次のフェーズ）
 │   ├── plan/phase0-1-implementation-plan.md
+│   ├── plan/phase-a-decisions.md          Phase A の決定
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
 │       └── saanotts-jp-feasibility.md     初期調査
+├── src/saanotts_jp/                       ライブラリ（scripts から import する）
+│   ├── _param_reference.py                論文 Table I を再現する層構成
+│   ├── losses.py                          式2 / 3 / 5 / 6 / 7
+│   ├── discriminator.py                   一次差分判別器（学習専用）
+│   ├── vocab.py                           ⚠️ デプロイ語彙 57 と教師IDの写像（重みと一緒に凍結）
+│   ├── labelpack.py                       ラベルパックの読み書き + 13 ゲート
+│   ├── durations.py                       全行 duration の読み込み
+│   ├── flatness.py                        音素クラス別 SFM（設定と教師ベースラインを凍結）
+│   ├── scoreq_metric.py                   SCOREQ ラッパ（torchcodec 回避）
+│   └── teacher_identity.py                piper-plus のコミット / ソース SHA-256 のピン留め
+├── deploy/
+│   ├── vastai_bootstrap.sh                setup → parity → labels → train
+│   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制（33 ケースのテスト付き）
-│   └── skills/                            recording-measurements / teacher-inference
-├── reports/                               B-0 の一次データ (JSON)
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（58 ケースのテスト付き）
+│   └── skills/                            recording-measurements / teacher-inference /
+│                                          student-training / evaluating-quality / verifying-reports
+├── reports/                               一次データ (JSON)。⚠️ 全行ダンプは追跡しない
 └── scripts/
     ├── phase0_verify_teacher.py           教師の決定的推論を検証（6 チェック）
-    ├── kana_g2p.py                        中間表現 ⇄ 音素列の変換器
-    ├── esp32_memory_budget.py             ESP32-S3 のメモリ収支見積もり
+    ├── kana_g2p.py                        中間表現 ⇄ 音素列の変換器 + 入力正規化
     ├── gen_teacher_labels.py              中間表現 → 教師 → ラベルパック
+    ├── b_durations_all.py                 全行の duration だけを取る（B-4/7/8 の土台）
     ├── train_student.py                   生徒 4 段の蒸留学習
-    ├── test_losses.py                     損失の性質テスト (19 項目)
-    ├── test_labelpack.py                  パック往復 + ゲート発火テスト
-    ├── b4_device_parity.py                CPU/GPU のラベル一致検証
-    ├── b5_teacher_baseline.py             教師音声 24 文を生成
-    ├── b5_measure_mos.py                  UTMOS を測る
-    ├── dump_naist_jdic.py                 sys.dic のエントリ列挙
+    ├── test_losses.py / test_labelpack.py / test_discriminator.py
+    ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
+    ├── b4_length_hist.py                  長さ分布と符号化の関係式
+    ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
+    ├── b6_build_evalset.py                クラス別 n を確保した評価セットを作る
+    ├── b6_flatness_grid.py                SFM の窓設計グリッド（定数がズレたら exit 1）
+    ├── b7_sv_calibration.py               length scale s_v の較正
+    ├── b8_pad_duration.py                 `_` PAD のフレーム占有率
+    ├── b9_vocab_closure.py                デプロイ語彙の閉包
+    ├── b9_add_question_eos.py             疑問 EOS 4 種の文を追加
+    ├── b10_overlap.py / b10_write_exclusions.py
+    ├── c1_lambda_balance.py               λ の勾配整合
+    ├── d5_istft_framing.py / d6_ema_ablation.py
+    ├── eval_metrics.py                    UTMOS + SCOREQ 4 設定を並べて出す
+    ├── esp32_memory_budget.py             ESP32-S3 のメモリ収支見積もり
     └── b0/                                B-0 の測定スクリプト（記録用）
 ```
 
 ## 実行方法
 
 ```bash
-uv sync                                          # 環境構築（初回・依存変更時）
-uv run python scripts/phase0_verify_teacher.py   # 教師の疎通確認（6 チェック）
-uv run python scripts/kana_g2p.py                # 中間表現変換器のセルフテスト
+uv sync --extra eval                             # 環境構築（初回・依存変更時）
+
+# 健全性チェック（ここが通らないなら先に進まない）
+uv run python scripts/phase0_verify_teacher.py   # 教師の疎通（6 チェック）
+uv run python scripts/kana_g2p.py                # 中間表現変換器（10 ケース）
+uv run python scripts/test_losses.py             # 損失の性質（26 項目）
+uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
+uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（58 ケース）
+uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
+
+# 次のフェーズ（vast.ai 上で実行する）
+bash deploy/vastai_bootstrap.sh setup
+bash deploy/vastai_bootstrap.sh parity           # ★ D-015 のゲート。ここで結果を読む
 ```
 
 **Python は必ず `uv` 経由**（`pip install` を使わない）。**学習は vast.ai**（[D-012](decisions.md)）。
+手元で `--split train` のラベルを丸ごと生成しようとすると hook が止める。
 
 ## 外部依存
 
@@ -128,4 +164,8 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器のセ�
 | 教師モデル | `ayousanz/piper-plus-zero-shot-tsukuyomi` (HF private) | `epoch=499-step=22000.ckpt` 927 MB |
 | piper-plus | `/Users/s19447/Documents/piper-plus` | v2.0.0 HEAD。**読み取り専用で使う** |
 | Python 環境 | 本リポジトリの `uv`（`pyproject.toml`） | Python 3.14.0 / torch 2.13.0。教師ラベルは piper-plus venv と bit 一致 |
-| 学習環境 | **vast.ai** | ラベル生成も向こうで実行（D-012） |
+| 学習環境 | **vast.ai** | ラベル生成も向こうで実行（D-012）。手順は [`vastai-runbook.md`](vastai-runbook.md) |
+| 評価指標 | `scoreq==1.0.1`（PyPI） | `uv sync --extra eval`。ラッパは `src/saanotts_jp/scoreq_metric.py` |
+
+⚠️ **piper-plus のコミットは `src/saanotts_jp/teacher_identity.py` にピン留めしてある。**
+別マシンで教師を動かす前に `verify()` を通すこと（コードが違えばラベルは静かに別物になる）。

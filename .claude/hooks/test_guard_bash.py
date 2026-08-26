@@ -83,6 +83,23 @@ CASES: list[tuple[str, str, str]] = [
     ("deny", "sed -i '' 's/a/b/' /Users/s19447/Documents/piper-plus/src/python/x.py", "sed -i は書き込み"),
     ("deny", "sed --in-place 's/a/b/' /Users/s19447/Documents/piper-plus/x.py", "sed --in-place は書き込み"),
     ("allow", "sed -n '1,5p' scripts/x.py", "自リポの sed -n"),
+    # --- 本番ラベルパックの保護（D-015） ---
+    ("deny", "rm -rf data/pack", "本番パックの削除"),
+    ("deny", "rm -rf data/pack_heldout", "本番パック(heldout)の削除"),
+    ("deny", "mv data/pack /tmp/old", "本番パックの移動"),
+    ("allow", "rm -rf data/pack_sibdense", "検証用パックは作り直し前提なので通す"),
+    ("allow", "ls data/pack", "読み取りは通す"),
+    ("allow", "du -sh data/pack", "サイズ確認は通す"),
+    ("allow", "cat data/pack/manifest.json", "manifest の確認は通す"),
+    # --- ローカルでの本番ラベル生成（D-012） ---
+    ("deny", "uv run python scripts/gen_teacher_labels.py --split train --out data/pack",
+     "手元での本番生成"),
+    ("allow", "uv run python scripts/gen_teacher_labels.py --split train --limit 20 --out /tmp/p",
+     "--limit 付きの疎通確認は通す"),
+    ("allow", "uv run python scripts/gen_teacher_labels.py --split heldout --out data/pack_heldout",
+     "heldout は 2,334 行なので通す"),
+    ("allow", "uv run python scripts/gen_teacher_labels.py --split sibdense --out data/pack_sibdense",
+     "評価セットは通す"),
 ]
 
 

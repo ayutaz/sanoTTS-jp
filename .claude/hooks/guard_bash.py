@@ -9,6 +9,11 @@
 2. **`pip install`** — `uv.lock` と実環境が黙って乖離する（D-012）。
 3. **uv を経由しない python** — `.venv/lib/.../site-packages/piper_train/` に
    v1.13.0 相当の stale なコピーが実在し、間違った方を掴んでも例外が出ない（M-1.1）。
+4. **本番ラベルパックの破棄・再生成** — ラベルは一度だけ生成して SHA-256 で固定する
+   決まり（D-015）。消してしまうと、同じデバイス・同じ piper-plus commit を
+   再現しない限り**同じラベルは二度と作れない**。
+5. **ローカルでの本番ラベル生成** — 学習もラベル生成も vast.ai 側で行う（D-012）。
+   手元で 20,946 文を回すと数時間かかるうえ、そのパックは使われない。
 
 stdin に hook の JSON を受け取り、判定を JSON で返す。
 """
@@ -145,6 +150,51 @@ def check_python_invocation(cmd: str) -> None:
         )
 
 
+#: 本番ラベルパック。**一度だけ生成して SHA-256 で固定する**（D-015）
+PRODUCTION_PACKS = ("data/pack", "data/pack_heldout")
+
+#: 破棄系のコマンド。`data/pack_sibdense` のような検証用パックは対象外
+DESTRUCTIVE = ("rm", "mv", "truncate", "shred")
+
+
+def check_production_pack(cmd: str) -> None:
+    """本番ラベルパックの破棄を止める。
+
+    ⚠️ **検証用パック（`data/pack_sibdense` など）は対象にしない。**
+    あれは作り直しが前提。守るのは本番の 2 つだけ。
+    """
+    for pack in PRODUCTION_PACKS:
+        # `data/pack_sibdense` に誤爆しないよう、直後が単語構成文字でないことを要求する
+        target = re.escape(pack) + r"(?![\w-])"
+        for word in DESTRUCTIVE:
+            if re.search(rf"{CMD_POS}{re.escape(word)}\s+[^;&|\n]*{target}", cmd):
+                deny(
+                    f"`{word}` が本番ラベルパック `{pack}` を対象にしています。\n"
+                    "**ラベルは一度だけ生成して SHA-256 で固定する**決まりです（D-015）。\n"
+                    "消すと、同じデバイス・同じ piper-plus commit を再現しない限り\n"
+                    "**同じラベルは二度と作れません**（CPU と GPU で bit 一致しない）。\n"
+                    "作り直す必要が本当にあるなら、理由を manifest に残してから手で消してください。"
+                )
+
+
+def check_local_label_generation(cmd: str) -> None:
+    """ローカルでの本番ラベル生成を止める（--limit 無しの train split）。"""
+    if "gen_teacher_labels.py" not in cmd:
+        return
+    if not re.search(r"--split\s+train\b", cmd):
+        return
+    if re.search(r"--limit\s+\d", cmd):
+        return          # 疎通確認は通す
+    deny(
+        "手元で train split のラベルを丸ごと生成しようとしています。\n"
+        "**ラベル生成も学習も vast.ai 側で行います**（D-012）。\n"
+        "20,946 文はローカルで約 1 時間、パックは 4.42 GB になり、しかも\n"
+        "**そのパックは本番に使われません**（生成デバイスを manifest に固定するため）。\n\n"
+        "手順: docs/vastai-runbook.md\n"
+        "疎通確認だけなら `--limit 20` を付けるか `--split heldout` を使ってください。"
+    )
+
+
 _HEREDOC_START = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 
@@ -186,6 +236,8 @@ def main() -> int:
     check_piper_plus_write(cmd)
     check_pip(cmd)
     check_python_invocation(cmd)
+    check_production_pack(cmd)
+    check_local_label_generation(cmd)
     return 0
 
 

@@ -19,13 +19,25 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
 | **このファイル** | 実装時の要点だけ。**コードを書く前に必ず読む** |
 | [`docs/measurements.md`](docs/measurements.md) | **数値の一次ソース**。全項目に再現コマンド付き。食い違ったらここが正 |
 | [`docs/decisions.md`](docs/decisions.md) | 決定の理由と**訂正履歴**（同じ間違いを繰り返さないため） |
-| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-11 と Phase 0〜6 |
+| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-11 と Phase 0〜D |
+| [`docs/vastai-runbook.md`](docs/vastai-runbook.md) | **次のフェーズの手順**。ラベル一括生成 → 本学習 |
+| [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
 | [`docs/research/saanotts-jp-feasibility.md`](docs/research/saanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-現状: Phase 0（教師の動作確定）まで完了。`scripts/phase0_verify_teacher.py` が 6 チェック PASS。
-次は **B-0（オンデバイス G2P のフットプリント実測）**— プロジェクトの成否を決めるタスク。
-実装コードはまだ無い（このファイルの「コマンド」節はコードが入り次第更新すること）。
+**現状（2026-08-27）**: Phase 0 / A / B / C の実装と、検証タスク **B-0 〜 B-11 が全部完了**。
+設計値は D-016 〜 D-025 として凍結してある。
+**次は vast.ai での本番ラベル生成と本学習**（[`docs/vastai-runbook.md`](docs/vastai-runbook.md)）。
+
+```bash
+uv sync --extra eval
+uv run python scripts/phase0_verify_teacher.py     # 教師の疎通（6 チェック）
+uv run python scripts/test_losses.py               # 損失の性質（26 項目）
+uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
+uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
+uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（58 ケース）
+uv run python scripts/train_student.py --pack data/pack_sibdense --smoke
+```
 
 ## アーキテクチャ（固定仕様）
 
@@ -208,13 +220,23 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 
 | 種類 | 名前 | いつ効くか |
 |---|---|---|
-| skill | `recording-measurements` | 数値・サイズ・能力の主張を docs に書く前 |
+| skill | `recording-measurements` | 数値・サイズ・**能力の有無**の主張を docs に書く前 |
 | skill | `teacher-inference` | 教師モデルを呼ぶとき（6 つの沈黙する失敗を防ぐ） |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / **uv 非経由の python** を deny（33 ケースの回帰テスト付き） |
+| skill | `student-training` | 生徒・損失・学習ループを触るとき（語彙写像 / iSTFT / λ / PAD） |
+| skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
+| skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **ローカルでの本番ラベル生成** を deny（**58 ケース**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
-hook を変えたら `.claude/hooks/guard_bash.py` の pipe-test を通すこと
-（誤検知があると全 Bash が止まる）。
+hook を変えたら必ず回帰テストを通すこと（誤検知があると全 Bash が止まる）:
+
+```bash
+uv run python .claude/hooks/test_guard_bash.py     # 58/58 期待通り
+```
+
+⚠️ **誤検知は 4 回踏んでいる**（C-011 で 3 回、C-020 で 1 回）。C-020 は
+C-015 で直したはずの改行の扱いが**別の関数に残っていた**再発だった。
+**区切り文字の定義を 2 か所に散らさないこと。**
 
 ## 開発環境のルール
 
