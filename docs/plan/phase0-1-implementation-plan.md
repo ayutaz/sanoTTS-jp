@@ -22,32 +22,37 @@
    Phase D   C99 コア + ESP32 実機
 ```
 
-### Phase A: ラベル生成の設計を固める
+### Phase A: ラベル生成の設計を固める ✅ 決着（D-014）
 
-**最優先の設計判断**: いま経路が 2 つあり噛み合っていない。
+**生徒が学ぶ入力と、デバイスが実際に作る入力を一致させる**。詳細は
+[`phase-a-decisions.md`](phase-a-decisions.md)。
 
 ```
-デバイス:   中間表現 ──[mora テーブル 951 B]──▶ 音素ID
-ラベル生成: 漢字文   ──[MultilingualPhonemizer]──▶ 音素ID ──▶ 教師
+漢字文 ──[ホスト・OpenJTalk]──▶ 中間表現 ──[kana_g2p 1,786 B]──▶ 音素ID ──▶ 教師
+                                              ↑ デバイスと同じ変換器
 ```
 
-蒸留では**生徒が学ぶ入力と、デバイスが実際に作る入力が一致していなければならない**。
-ラベル生成も中間表現から始めるべきで、そうすると **B-1（かな無し行 5.36% が
-中国語音素になる問題）が構造的に消える**。
-
-| # | タスク | 完了条件 |
+| # | 決定 | 根拠 |
 |---|---|---|
-| **A-1** | ラベル生成の入力を中間表現に統一 | held-out 全件で「中間表現 → 音素ID」が漢字経路と一致するか、差分の規模を把握。B-1 が消えるかを判定 |
-| **A-2** | prosody の扱いを決定 | 中間表現は A1/A2/A3 を持たない。実 prosody あり/なしで `dT` を比較し、生徒が phoneme ID だけから学習可能か判断 |
-| ~~A-3~~ | ~~教師品質ベースライン~~ | ✅ 完了（B-5 / M-10 / D-013） |
+| **A-1** | **入力は中間表現に統一** | 漢字経路との不一致 4 件はすべて漢字経路側のバグ（`埼玉県秩父市` が中国語音素になる、M-19）。**B-1 が構造的に消えた** |
+| **A-2** | **prosody は zeros** | 実 prosody 1.730 vs zeros 1.740、**有意差なし** (p=0.72)。デバイスは prosody を供給できないので条件を揃える（M-20） |
+| **A-3** | パック形式 fp16 + int16、13 ゲート | σ がチャネル間で 241.8 倍偏る → `μ_T`/`σ_T` を同梱（M-20） |
 
-### Phase B: ラベル一括生成（vast.ai）
+### Phase B: ラベル一括生成（vast.ai）— 実装完了、実行待ち
 
 テキスト 1.2 MB を持ち込み、向こうで 23,271 文（学習 20,946）のラベルを生成。
 CPU 換算 1.1 時間、パックは fp16+int16 で 4.42 GB。SHA-256 と生成環境を manifest に固定。
-残る **B-2 / B-3 / B-4 / B-6 〜 B-10** はこのフェーズで潰す。
 
-### Phase C: 生徒の実装
+⚠️ **本番実行の前に、そのインスタンス上で `scripts/b4_device_parity.py --device cuda`
+を走らせること**（D-015）。CPU と MPS は bit 一致しない（SNR 97〜106 dB）。
+**ラベルは一度だけ生成する。**
+
+残る **B-4 / B-6 〜 B-10** はこのフェーズで潰す（B-1/B-2/B-3 は決着済み）。
+
+### Phase C: 生徒の実装 — 実装完了、本学習待ち
+
+4 段の学習ループ（`scripts/train_student.py`）はスモークテストを通過している（M-22）。
+**以下は本学習の計画。**
 
 **1.4 M（z-line）を先に**作る。日本語で蒸留レシピが機能するかを速く確かめるため。
 Duration → Acoustic → Decoder → joint の順。その後 **567 K（c-line）**に落とし、
@@ -229,91 +234,79 @@ TTS 特化辞書が載る**。⚠️ ただし darts trie は語数に線形に�
 
 ---
 
-## 2. ⚠️ 着手前に実測で潰す不確定事項
+## 2. 検証タスク B-0 〜 B-11
 
-**このセクションが全部 GREEN になるまで Phase 1 のラベル一括生成に進んではいけない。**
-論文が narrow test set で 1.35 の過大評価をした教訓、および集約スコアが sibilant 欠陥を隠した教訓から、**「検証を先に置く」を計画の原則にする**。
+**「検証を先に置く」を計画の原則にする。** 論文が narrow test set で 1.35 の過大評価を
+した教訓、および集約スコアが sibilant 欠陥を隠した教訓から。
 
-### B-1 【最優先】G2P の言語誤ルーティング ⚠️ 未検証（対策が）
+**現在の状態（2026-08-27）**:
 
-**現象（実測で再現済み）**: 教師の `phoneme_type` は `multilingual` なので canonical な経路は `MultilingualPhonemizer(['ja','en','zh','es','fr','pt'])`。ところが `multilingual.py:420` が `context_has_kana` を**文全体で**判定し、`:163/:173/:187` が CJK を `"ja" if context_has_kana else "zh"` に振り分けるため、**かなを 1 文字も含まない行が丸ごと中国語になる**。
+| 状態 | タスク |
+|---|---|
+| ✅ 解決済み | B-0（G2P 実測）/ B-1（誤ルーティング）/ B-2（prosody ズレ）/ B-3（`fy`）/ B-5（教師品質）/ B-11（stale install） |
+| ⚠️ 本学習の前に | **B-6**（平坦度プローブ）/ **B-7**（`s_v` 較正） |
+| ⚠️ 本番ラベル生成の前に | **B-4**（長さフィルタ）/ **B-8**（`_` PAD）/ **B-10**（コーパス重複） |
+| — | B-9（死んでいる音素）は情報のみ |
+
+B-1 / B-2 は Phase A の設計判断で**構造的に消えた**（潰したのではなく、
+そこを通らない経路にした）。
+
+### B-1 G2P の言語誤ルーティング ✅ 解消済み（A-1 の決定で構造的に消えた）
+
+**当時の問題**: 教師の canonical 経路 `MultilingualPhonemizer` は「かな」を文全体で
+判定するため、**かなを 1 文字も含まない行が丸ごと中国語音素になる**。
+コーパスの 5.36%（1,247 行）が該当し、符号化 id が `num_symbols=173` 未満に収まるため
+**例外も警告も出ない**。
+
+**解消のしかた**: A-1 でラベル生成の入力を**かな中間表現**に統一した。
+中間表現の生成は `JapanesePhonemizer` しか通らないので、
+`MultilingualPhonemizer` の言語判定が経路から消えた。
+
+**証拠**（M-19、自己実測）:
 
 ```
-'慶應義塾大学文学部、仏文学科卒業。'
-  ML: ['tɕʰ','iŋ','tone4','iŋ','tone1','i','tone4','ʂ','u','tone2', ...]   ← 北京語
-  JA: ['k','e','[','e','o','o','g','i','j','u','k','u','d','a', ...]
-'一個，二個，三個。'   ML: ['i','tone2','k','ɤ','tone4','ɚ','tone4', ...]   ← 北京語
-'2025年7月17日木曜日。' ML: 数字が全部 drop され中国語化
+埼玉県秩父市
+  旧経路 (MultilingualPhonemizer) : i ɕ f u ʂ                    ← 中国語音素
+  新経路 (JapanesePhonemizer)     : s a i t a m a k e N_n ch I ch i b u sh i
 ```
 
-**規模**: pool 23,271 行のうち **1,247 行 (5.36%) で JA と出力が食い違い、1,200 行 (5.16%) が日本語音素表 65 エントリ外のトークンを出す**（tone4 2622, tone1 2449, tone2 1498, ɕ 1090, ʂ 972 …）。
-**危険なのは、符号化 id が最大 139 で `num_symbols=173` 未満のため例外も skip も起きず、そのまま中国語音声のラベルが生成されること。**
+現行経路との音素ID一致が 86% に留まるのは、**残り 14% が旧経路側の誤ルーティング**
+だから（M-20）。新経路を正解とみなしてよい。
 
-**さらに悪いこと**: 評価セットの供給元候補だった JSUT `countersuffix26` は **26 行中 25 行 (96.15%)** がこれに該当する。「1つ/1個/1本の読み分け」という日本語 TTS で最も繊細な軸に、日本語として読まれない文を丸ごと当てる設計になっていた。
+⚠️ **入力サニタイズは別途必要。** 未知語は誤読ではなく**無音で脱落する**（D-009）。
+外字・幽霊漢字はホスト側 G2P でも同じ失敗をする。
 
-**piper-plus 内部でも 2 経路が矛盾している**:
-- 6 言語事前学習: `prepare_multilingual_dataset.py:340,346` が**発話の言語タグごとに** `get_phonemizer(language)`（ja なら `JapanesePhonemizer`）
-- つくよみちゃん FT: `preprocess.py:950-958 phonemize_batch_multilingual` が **文全体を `MultilingualPhonemizer` に渡す**
+### B-2 `prosody_features` の無警告ズレ ✅ 解消済み（A-2 の決定で消えた）
 
-FT の 100 文はすべてかな入りなので両者一致するが、蒸留用 23,271 行では 5.36% で分岐する。
+**当時の問題**: `PiperEncoder._convert_prosody` が zip の前に長さを強制的に揃えるため
+`strict=True` が原理的に発火せず、ラテン混じり文で **prosody が末尾側にずれたまま通る**。
 
-**検証タスク**:
-```bash
-export PP=/Users/s19447/Documents/piper-plus
-uv run python scripts/b1_probe_g2p_routing.py --pool data/interim/pool.tsv --out reports/b1_routing.json
-```
-**完了条件**:
-1. `reports/b1_routing.json` に `{"ml_ja_divergent": N, "non_ja_token_rows": M}` が出る
-2. **決定 D1 を下す**（下の 3 択から 1 つ、根拠つきで `docs/decisions/D1-frontend.md` に記録）
-   - (a) `JapanesePhonemizer` に言語ピン留め（教師の FT 前処理とは食い違うが、FT の 100 文では両者一致するので実害は限定的、という仮説）
-   - (b) `MultilingualPhonemizer` のまま、非日本語音素を出した行を除外
-   - (c) `MultilingualPhonemizer` に渡す前にかなを 1 文字も含まない行を検出して (a) にフォールバック
-3. **どの選択でも、`scripts/gate_ja_only.py` が全ラベル生成入力に対して「出力トークンが日本語 65 エントリ ∪ {`^`,`$`,`?`,`?!`,`?.`,`?~`} に閉じている」ことを assert する**。1 行でも漏れたらラベル生成を止める。
+**解消のしかた**: A-2 で**ラベル生成の prosody を一律ゼロにした**（B-c で実測して決着）。
+prosody を渡さないので、ずれようがない。
 
-> ⚠️ 並行作業で書かれた `scratchpad/gen_teacher_labels.py` は「`MultilingualPhonemizer` が canonical」とコメントで断定している。D1 が決まるまでこのスクリプトを本番のラベル生成に使ってはいけない。
+根拠（held-out 無作為 24 文、自己実測）:
 
-### B-2 【最優先】prosody_features の無警告ズレ ⚠️ 未検証（対策が）
+| 条件 | UTMOS mean |
+|---|---:|
+| canonical + 実 prosody | 1.730 |
+| **中間表現 + zeros** | **1.740** |
 
-**反証済みの誤り**: 「`zip(..., strict=True)` で長さ一致は構造的に保証される」は**成立しない**。
-`PiperEncoder._convert_prosody` (`encoder.py:133-141`) が zip の**前に** `while len(result) < expected_len: result.append(None)` / `return result[:expected_len]` で長さを強制的に揃えるため、`:185-187` の `strict=True` は**原理的に発火しない**。
+対応のある t 検定で **p = 0.72、有意差なし**。加えて:
 
-**本計画作成時の再現実測**:
-```
-'The quick brown fox、雨が降る。'
-  tokens 34 / prosody 34 → raw_ids 31 (空白 3 個が drop) → ids 65 / prosody 65 (例外なし)
-```
-つまり **prosody が末尾側に 3 ずれたまま無警告で通る**。`preprocess.py:911-919` の長さチェックも長さが等しいので発火しない。
+- **デバイスは prosody を供給できない**ので、教師と生徒の条件が揃うほうが良い
+- 実 prosody は ID 列の 92% で位置合わせできない（長さ一致が 24 文中 2 文）
+- prosody は duration にしか効かず、ピッチはアクセント記号が担う（M-13）
 
-**prosody は実効性のある入力**（総フレームを 8〜9% 動かす。実 prosody 115 / ゼロテンソル 106 / None 119）ので、これは実害のあるデータ破壊。
+⚠️ **ゼロは「prosody 無し」ではない。** `prosody_proj(0) = bias` が concat される
+第 3 の条件で、**それで一貫させる**という決定（M-20）。
 
-**採用しない対策**: `PiperEncoder(strict=True)`。教師の学習時は `preprocess.py:821` が strict 引数を渡さない（= `strict=False`）ので前処理が食い違い、かつ**ラテン単語間の空白が `KeyError` になって複数語ラテン文が全滅する**（28 文中 5 文）。CLAUDE.md が要求する「英数字混在」軸を消す。
+### B-3 `fy` など音素表 OOV ✅ 決着（除外する）
 
-**採用する対策**: **token 段階で、`phoneme_id_map` に無いトークンを prosody ごとペアで除去する。**
+**教師の `phoneme_id_map` に `fy` が無い**ことを確認した（`hy`=55 / `f`=53 はあるが
+`fy` は無い）。中間表現の問題ではなく教師側の制約。
 
-```python
-def strip_unmapped(tokens, prosody, id_map):
-    keep = [(t, p) for t, p in zip(tokens, prosody, strict=True)
-            if pua.map_token(t) in id_map or t in id_map]
-    return [t for t, _ in keep], [p for _, p in keep]
-```
-
-**検証タスク**: 回帰テスト `tests/test_prosody_align.py`
-**完了条件**: 以下が全部 PASS
-```
-pytest tests/test_prosody_align.py -q
-# 1) ラテン混じり文で strip 後の (tokens, prosody) が ground truth と要素単位で一致
-# 2) 純日本語 200 文で strip 前後の tokens が不変（= 過剰除去していない）
-# 3) len(phoneme_ids) == 2*len(tokens_after_strip) + 3 が全文で成立
-```
-
-> **`prosody_features=None` は「prosody ゼロ」ではない。** `models.py:891-921` は None のとき `torch.zeros(...)` を**そのまま concat** するが、ゼロテンソルを渡すと `prosody_proj(0) = bias`（非ゼロ）が concat される。実測で総フレームが 115 / 106 / 119 と 3 通り全部違う。ラベル生成では必ず実 prosody を明示的に渡すこと。
-
-### B-3 `fy` など音素表 OOV の無警告分解 ⚠️ 未検証（規模が）
-
-**反証済みの誤り**: 「`fy` は約 30 行、`strict=True` で弾ける」。
-実測は **55 行 / 55 出現**（rohan4600 53 / jsut loanword128 1 / cv sentence-collector 1）。そして `strict=True` でも**エラーにならない** — `encoder.py:108-125 _tokens_to_raw_ids` が `map_token('fy')` の返す未変換 2 文字列を 1 文字ずつ引くため、**`fy` が黙って `f`(53) + `y`(64) に分解される**。
-
-**完了条件**: B-1 の `gate_ja_only.py` が `fy` を含む 55 行を検出してレポートに出す。方針は **(a) 該当行を除外**（PoC なので音素表拡張はしない。拡張は `id_maps.py` / `pua.json` / C++ / Rust / `docs/spec/pua-contract.toml` の同時更新と CI ゲート `check_pua_consistency.py` を要し、しかも ckpt 側の埋め込み表 173 エントリが埋まっているので新規 id を足すと ckpt と非互換になる）。
+コーパス 23,457 行のうち **55 行 (0.23%)** が該当。**ラベル生成から除外する**
+（`gen_teacher_labels.py` が KeyError で棄却し `index.jsonl` に理由を残す）。
 
 ### B-4 長さフィルタの基準 ⚠️ 未検証
 
@@ -575,7 +568,22 @@ python scripts/verify_packs.py data/packs/smoke/
 
 ---
 
-## 4. Phase 1 — ラベル生成パイプライン
+## 4. Phase B（旧 Phase 1）— ラベル生成パイプライン ✅ 実装完了
+
+> **実装は済んでいる。** 以下は設計の記録と、本番実行（B-e）の手順。
+>
+> | 成果物 | 状態 |
+> |---|---|
+> | `scripts/gen_teacher_labels.py` | ✅ heldout 200 文で採用 200 / 棄却 0 / 124 ms/文 |
+> | `src/saanotts_jp/labelpack.py` | ✅ 往復テスト + ゲート 13 項目（`scripts/test_labelpack.py`） |
+> | `scripts/b4_device_parity.py` | ✅ CPU/MPS 照合済み。**CUDA は vast.ai 上で要実行** |
+> | **B-e 本番実行（20,946 文）** | ⏸ vast.ai 待ち。パック約 5.8 GiB |
+>
+> 本番の手順:
+> ```bash
+> uv run python scripts/b4_device_parity.py --device cuda   # 先にこれ
+> uv run python scripts/gen_teacher_labels.py --split train --out data/pack
+> ```
 
 ### P1-1 コーパス調達
 
@@ -753,7 +761,33 @@ python scripts/verify_packs.py data/packs/train_23k/ --strict
 
 ---
 
-## 5. Phase 2 以降の見取り図
+## 5. Phase C（旧 Phase 2〜4）— 生徒の実装 ✅ 実装完了
+
+> **4 段すべて実装しスモークテストを通した。** 本学習は vast.ai。
+>
+> | 成果物 | 状態 |
+> |---|---|
+> | `src/saanotts_jp/_param_reference.py` | ✅ 4 モジュールが論文の Table I と delta 0 |
+> | `src/saanotts_jp/losses.py` | ✅ 式2/3/5/6/7。性質テスト 19 項目（`scripts/test_losses.py`） |
+> | `scripts/train_student.py` | ✅ 4 段のループ。実データ 200 発話で全 stage の損失が下降 |
+> | **本学習** | ⏸ vast.ai 待ち |
+>
+> スモークテスト（heldout 200 発話 / 各 12 step / MPS、M-22）:
+>
+> | Stage | 損失 | 変化 | ms/step |
+> |---|---|---:|---:|
+> | 1 Duration `Dα` | 式2 | −28.7% | 52 |
+> | 2 Acoustic `Eρ`+`Aβ` | 式3 | −60.0% | 142 |
+> | 3 Decoder `Gγ` | 式5 | −23.6% | 44 |
+> | 4 Joint | 式6 | −19.3% | 12 |
+>
+> ⚠️ **「回ることの確認」であって品質の確認ではない。** 12 step では何も学習していない。
+>
+> **本学習で決めること**:
+> 1. `λ₂ / λ_n / λ_Δ / λ_s`（式3）と `λ_T`（式2）— **論文に値が無い**。暫定 1.0
+> 2. 判別器の構造 — 論文は「一次差分に対する判別器」としか書いていない。現状は推測
+> 3. 学習曲線 512 / 5,000 / 20,946 の 3 水準（論文は 2 点しか持っていない）
+> 4. `β`（式7）— **聴取で決める**。集約スコアはむしろ下がる（4.09 → 3.92）
 
 ### D0: ターゲット tier ✅ 決着済み (2026-08-26)
 
@@ -826,8 +860,13 @@ S_ja = {s, sh, ts, ch, z, j, h, hy, f, v, I, U}     ← A/E/O は 0 出現なの
 
 ## 6. 生徒モデルの層構成（逆算結果）
 
-**参照実装**: `scratchpad/saanotts_param_reference.py`（4 モジュールすべて delta 0、end-to-end forward 通過）。
-**⚠️ `src/` に写す前に、下記の「未確定」項目を config ノブとして外に出すこと。** 間違った定数がハードコードされたまま実装が進むのを防ぐ。
+**参照実装**: [`src/saanotts_jp/_param_reference.py`](../../src/saanotts_jp/_param_reference.py)
+（4 モジュールすべて delta 0、end-to-end forward 通過、M-17）。学習コードは
+[`scripts/train_student.py`](../../scripts/train_student.py)。
+
+⚠️ **delta 0 は「論文と同じパラメータ数」であって「論文と同じ層構成」ではない。**
+下記の反証と未確定項目はそのまま残っている。本学習で品質が出ないときに
+真っ先に疑うのはここ。
 
 | モジュール | 目標 | 構成後 | 判定の強さ |
 |---|---:|---:|---|
@@ -1125,15 +1164,17 @@ VOWEL     = {"a","i","u","e","o","a:","i:","u:","e:","o:"}
 
 ### 9.1 判断待ち（Decision Records として凍結する）
 
-> **✅ 決着済み**: D0（tier → 567 K が成果物、D-007）/ D3 の一部（コーパスは 23,271 行で確定）。
-> **消えた可能性**: D1 は入力仕様の変更で不要になるかもしれない。Phase A-1 で判定する。
+> **✅ 決着済み**: D0（tier → 567 K、D-007）/ **A-1**（入力は中間表現）/
+> **A-2**（prosody は zeros）/ **D1**（A-1 の決定で消滅）/ D3（コーパス 23,271 行で確定）。
 
 | ID | 判断 | 期限 | 影響範囲 |
 |---|---|---|---|
-| **A-1** | **ラベル生成の入力を中間表現に統一するか**（統一すれば D1 が消える） | **Phase B 着手前（最優先）** | ラベル全体。生徒が学ぶ入力とデバイスの出力の一致 |
-| **A-2** | prosody をどう供給するか（中間表現は A1/A2/A3 を持たない） | Phase B 着手前 | `dT` の質。生徒 duration net の設計 |
-| ~~**D1**~~ | ~~フロントエンド: `MultilingualPhonemizer` か言語ピン留めか~~ | A-1 の結果次第で消える | pool の 5.36% のラベル |
-| ~~**D0**~~ | ~~ターゲット tier~~ → **567 K が成果物、1.4 M は足場**（D-007） | ✅ | — |
+| ~~**A-1**~~ | ~~ラベル生成の入力~~ → **中間表現に統一**（B-1 が構造的に消えた） | ✅ | — |
+| ~~**A-2**~~ | ~~prosody の供給~~ → **zeros**（UTMOS に有意差なし、p=0.72） | ✅ | — |
+| ~~**D1**~~ | ~~フロントエンドの選択~~ → **A-1 の決定で消滅** | ✅ | — |
+| ~~**D0**~~ | ~~ターゲット tier~~ → **567 K が成果物、1.4 M は足場** | ✅ | — |
+| **C-1** | `λ₂ / λ_n / λ_Δ / λ_s`（式3）と `λ_T`（式2）の値 | **本学習の前** | 収束と潜在の質。**論文に値が無い** |
+| **C-2** | 判別器の構造（論文は「一次差分に対する判別器」としか書いていない） | 本学習の前 | 式5 の adversarial 項 |
 | **D2** | `_` PAD (トークンの 49%) の duration の扱い | Phase 2 着手前 | `Dα` の実効トークン予算、`clip` の下限問題 |
 | **D3** | Common Voice をどこまで使うか（断片 66.6% / 裸の地名 4.1% / ライセンス verified:false） | Phase 1 の split 作成前 | pool の 40.7%。配布可能サブセットの定義 |
 | **D4** | アクセント記号トークンのみか、A1/A2/A3 3 スカラー (+128 params) を足すか | Phase 2 の評価後 | `Dα` のアクセント再現性 |
