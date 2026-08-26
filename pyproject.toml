@@ -19,9 +19,10 @@ dependencies = [
 # 評価指標。SCOREQ は piper-plus に実装が無いので別途追加が必要
 # (docs/research/saanotts-jp-feasibility.md §2.5)。
 eval = [
-    "pyworld>=0.3.4",       # F0 抽出 (アクセント型の検証)
-    "jiwer>=3.0",           # CER
-    "matplotlib>=3.9",      # dT ヒストグラム等
+    "pyworld>=0.3.4", # F0 抽出 (アクセント型の検証)
+    "jiwer>=3.0", # CER
+    "matplotlib>=3.9", # dT ヒストグラム等
+    "torchaudio>=2.11.0",
 ]
 
 [build-system]

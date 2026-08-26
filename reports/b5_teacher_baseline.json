@@ -1,0 +1,211 @@
+{
+ "utterances": [
+  {
+   "idx": 0,
+   "text": "<redacted: corpus text>",
+   "sec": 3.425,
+   "mora_per_sec": 7.01,
+   "wav": "reports/b5_teacher_wav/t00.wav",
+   "utmos": 2.1502
+  },
+  {
+   "idx": 1,
+   "text": "<redacted: corpus text>",
+   "sec": 3.379,
+   "mora_per_sec": 7.25,
+   "wav": "reports/b5_teacher_wav/t01.wav",
+   "utmos": 2.0087
+  },
+  {
+   "idx": 2,
+   "text": "<redacted: corpus text>",
+   "sec": 4.272,
+   "mora_per_sec": 5.73,
+   "wav": "reports/b5_teacher_wav/t02.wav",
+   "utmos": 1.779
+  },
+  {
+   "idx": 3,
+   "text": "<redacted: corpus text>",
+   "sec": 3.402,
+   "mora_per_sec": 7.35,
+   "wav": "reports/b5_teacher_wav/t03.wav",
+   "utmos": 1.5831
+  },
+  {
+   "idx": 4,
+   "text": "<redacted: corpus text>",
+   "sec": 3.785,
+   "mora_per_sec": 6.87,
+   "wav": "reports/b5_teacher_wav/t04.wav",
+   "utmos": 1.9484
+  },
+  {
+   "idx": 5,
+   "text": "<redacted: corpus text>",
+   "sec": 4.075,
+   "mora_per_sec": 6.5,
+   "wav": "reports/b5_teacher_wav/t05.wav",
+   "utmos": 1.4334
+  },
+  {
+   "idx": 6,
+   "text": "<redacted: corpus text>",
+   "sec": 3.889,
+   "mora_per_sec": 6.94,
+   "wav": "reports/b5_teacher_wav/t06.wav",
+   "utmos": 2.1234
+  },
+  {
+   "idx": 7,
+   "text": "<redacted: corpus text>",
+   "sec": 3.878,
+   "mora_per_sec": 7.09,
+   "wav": "reports/b5_teacher_wav/t07.wav",
+   "utmos": 2.0854
+  },
+  {
+   "idx": 8,
+   "text": "<redacted: corpus text>",
+   "sec": 4.667,
+   "mora_per_sec": 6.11,
+   "wav": "reports/b5_teacher_wav/t08.wav",
+   "utmos": 1.9274
+  },
+  {
+   "idx": 9,
+   "text": "<redacted: corpus text>",
+   "sec": 4.481,
+   "mora_per_sec": 6.47,
+   "wav": "reports/b5_teacher_wav/t09.wav",
+   "utmos": 2.3204
+  },
+  {
+   "idx": 10,
+   "text": "<redacted: corpus text>",
+   "sec": 3.657,
+   "mora_per_sec": 8.34,
+   "wav": "reports/b5_teacher_wav/t10.wav",
+   "utmos": 1.4255
+  },
+  {
+   "idx": 11,
+   "text": "<redacted: corpus text>",
+   "sec": 4.331,
+   "mora_per_sec": 7.27,
+   "wav": "reports/b5_teacher_wav/t11.wav",
+   "utmos": 1.8723
+  },
+  {
+   "idx": 12,
+   "text": "<redacted: corpus text>",
+   "sec": 5.074,
+   "mora_per_sec": 6.5,
+   "wav": "reports/b5_teacher_wav/t12.wav",
+   "utmos": 1.6721
+  },
+  {
+   "idx": 13,
+   "text": "<redacted: corpus text>",
+   "sec": 5.12,
+   "mora_per_sec": 6.64,
+   "wav": "reports/b5_teacher_wav/t13.wav",
+   "utmos": 1.5734
+  },
+  {
+   "idx": 14,
+   "text": "<redacted: corpus text>",
+   "sec": 5.155,
+   "mora_per_sec": 6.89,
+   "wav": "reports/b5_teacher_wav/t14.wav",
+   "utmos": 1.8115
+  },
+  {
+   "idx": 15,
+   "text": "<redacted: corpus text>",
+   "sec": 5.364,
+   "mora_per_sec": 6.9,
+   "wav": "reports/b5_teacher_wav/t15.wav",
+   "utmos": 1.5415
+  },
+  {
+   "idx": 16,
+   "text": "<redacted: corpus text>",
+   "sec": 4.969,
+   "mora_per_sec": 7.75,
+   "wav": "reports/b5_teacher_wav/t16.wav",
+   "utmos": 1.4923
+  },
+  {
+   "idx": 17,
+   "text": "<redacted: corpus text>",
+   "sec": 5.747,
+   "mora_per_sec": 6.96,
+   "wav": "reports/b5_teacher_wav/t17.wav",
+   "utmos": 1.5176
+  },
+  {
+   "idx": 18,
+   "text": "<redacted: corpus text>",
+   "sec": 6.49,
+   "mora_per_sec": 6.63,
+   "wav": "reports/b5_teacher_wav/t18.wav",
+   "utmos": 1.4188
+  },
+  {
+   "idx": 19,
+   "text": "<redacted: corpus text>",
+   "sec": 7.198,
+   "mora_per_sec": 6.32,
+   "wav": "reports/b5_teacher_wav/t19.wav",
+   "utmos": 1.7862
+  },
+  {
+   "idx": 20,
+   "text": "<redacted: corpus text>",
+   "sec": 7.732,
+   "mora_per_sec": 6.34,
+   "wav": "reports/b5_teacher_wav/t20.wav",
+   "utmos": 1.7303
+  },
+  {
+   "idx": 21,
+   "text": "<redacted: corpus text>",
+   "sec": 7.639,
+   "mora_per_sec": 6.81,
+   "wav": "reports/b5_teacher_wav/t21.wav",
+   "utmos": 1.4894
+  },
+  {
+   "idx": 22,
+   "text": "<redacted: corpus text>",
+   "sec": 7.152,
+   "mora_per_sec": 7.69,
+   "wav": "reports/b5_teacher_wav/t22.wav",
+   "utmos": 1.5441
+  },
+  {
+   "idx": 23,
+   "text": "<redacted: corpus text>",
+   "sec": 9.044,
+   "mora_per_sec": 6.63,
+   "wav": "reports/b5_teacher_wav/t23.wav",
+   "utmos": 1.7141
+  }
+ ],
+ "pad_sec": 0.3,
+ "sample_rate": 22050,
+ "summary": {
+  "utmos": {
+   "n": 24,
+   "mean": 1.7478,
+   "median": 1.7222,
+   "sd": 0.2543,
+   "min": 1.4188,
+   "max": 2.3204,
+   "corr_with_duration": -0.3723
+  },
+  "scoreq": null
+ },
+ "note": "UTMOS / SCOREQ は日本語では較正されていない (D-008)。絶対値を英語モデルと比較しないこと。生徒の評価では教師比で報告する。"
+}

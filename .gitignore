@@ -13,6 +13,7 @@
 
 # reports/ は B-0 等の一次データ (JSON、数百 KB) なので追跡する
 *.wav
+/reports/b5_teacher_wav/
 *.npz
 *.ckpt
 *.onnx
