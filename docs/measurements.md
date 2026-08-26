@@ -876,6 +876,44 @@ segment 8192 sample = 0.372 s。
 
 ---
 
+## M-19. A-1 の不一致は経路 (b) の誤りではない（自己実測）
+
+Phase A の A-1 で、2 経路の音素ID一致率が held-out で 86.8〜93.4% と出た。
+**この「不一致」を経路 (b)（中間表現経由）の欠陥と読んではいけない。**
+
+不一致の実例を引くと、上位は**かなを 1 文字も含まない地名**だった:
+
+```
+埼玉県秩父市
+  経路(a) MultilingualPhonemizer : i ɕ f u ʂ                       ← 中国語音素
+  経路(b) JapanesePhonemizer     : s a i t a m a k e N_n ch I ch i b u sh i  ← 正しい
+
+長崎県五島市
+  経路(a) : i ɕ u t ʂ                                              ← 中国語音素
+  経路(b) : n a g a s a k i k e N_ng g o sh i m a sh i              ← 正しい
+```
+
+**これは B-1（かな無し行 5.36% が中国語音素になる問題）そのもの。**
+経路を (b) に統一することで B-1 が実際に解消されることの直接的な証拠になる。
+
+⚠️ したがって A-1 の一致率は「(b) の正しさ」の指標ではない。
+**(a) を正解とみなす前提が成り立たない。** 不一致は次の 3 つに分けて数えるべき:
+
+1. **(a) が中国語誤ルーティング** → (b) が正しい。B-1 の解消
+2. (b) の mora テーブル不足 → 拡張で解消（表現可能率 85.7% → 92.8% → 正規化込み 100%）
+3. 真に判断が分かれるもの → 個別に精査
+
+再現:
+```bash
+uv run python - <<'EOF'
+from piper_train.infer_onnx import text_to_phoneme_ids_and_prosody
+from piper_plus_g2p.japanese import JapanesePhonemizer
+# 埼玉県秩父市 を両経路に通して比較
+EOF
+```
+
+---
+
 ## 未測定（測る必要があるもの）
 
 | 項目 | なぜ必要か | 対応タスク |

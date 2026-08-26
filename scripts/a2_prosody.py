@@ -192,45 +192,128 @@ def load_cache():
 
 
 # --------------------------------------------------------------------------
-# アクセント句の切り出し
+# トークンの役割（ckpt の phoneme_id_map から実測で引く）
 # --------------------------------------------------------------------------
-def split_phrases(ids, pros):
-    """(a1,a2,a3) の a2 リセットでアクセント句に切る。
+def token_roles(cfg):
+    """id → 役割。PUA を戻して canonical なトークン名で分類する。"""
+    pim = cfg["phoneme_id_map"]
+    from piper_plus_g2p.encode.pua import CHAR2TOKEN  # noqa: PLC0415
 
-    Returns: list of dict(start, end, moras=[(a1,a2,a3)...], has_fall)
-    `has_fall` はその句に `]` (id 9) が含まれるか。
-    """
+    inv = {v[0]: k for k, v in pim.items()}
+    name = {i: CHAR2TOKEN.get(c, c) for i, c in inv.items()}
+    T = {n: i for i, n in name.items()}
+    mora_end = {
+        T[k]
+        for k in ("a", "i", "u", "e", "o", "A", "I", "U", "E", "O",
+                  "N", "N_m", "N_n", "N_ng", "N_uvular", "cl")
+        if k in T
+    }
+    # 中国語 / 英語へ誤ルーティングされた行を弾くための印
+    foreign = {
+        i for i, n in name.items()
+        if n.startswith("tone")
+        or n in ("æ", "ɑ", "ə", "ɛ", "ɪ", "ɹ", "ʊ", "ʌ", "ˈ", "ˌ", "ː")
+    }
+    return {
+        "name": name, "PAD": T["_"], "RISE": T["["], "FALL": T["]"],
+        "HASH": T["#"], "BOS": T["^"], "mora_end": mora_end, "foreign": foreign,
+        "nonmora": {T["_"], T["["], T["]"], T["#"], T["^"]}
+        | {T[k] for k in ("$", "?", "!") if k in T},
+    }
+
+
+def split_phrases(ids, pros):
+    """実 prosody の a2 リセットでアクセント句に切る（正解側の分割）。"""
     phrases = []
     cur = None
-    for i, (tid, p) in enumerate(zip(ids, pros)):
-        a1, a2, a3 = p
-        if a2 == 0:  # prosody なし（pad / 記号 / BOS / EOS）
+    last = None
+    for i, p in enumerate(pros):
+        if p[1] == 0:
             continue
-        if cur is None or a2 < cur["moras"][-1][1] or a2 == cur["moras"][-1][1] - 0:
-            pass
-        if cur is not None and a2 <= cur["moras"][-1][1] and p != cur["moras"][-1]:
-            if a2 == 1:
-                phrases.append(cur)
-                cur = None
-        if cur is None:
-            cur = {"start": i, "end": i, "moras": [p]}
-        else:
-            if p != cur["moras"][-1]:
+        if p != last:
+            if p[1] == 1:
+                if cur:
+                    phrases.append(cur)
+                cur = {"start": i, "end": i, "moras": [p]}
+            elif cur is not None:
                 cur["moras"].append(p)
+            else:
+                cur = {"start": i, "end": i, "moras": [p]}
+            last = p
+        if cur is not None:
             cur["end"] = i
     if cur is not None:
         phrases.append(cur)
     for ph in phrases:
-        ph["has_fall"] = 9 in ids[ph["start"] : ph["end"] + 1]
-        ph["has_rise"] = 8 in ids[ph["start"] : ph["end"] + 1]
+        seg = ids[ph["start"] : ph["end"] + 1]
+        ph["has_fall"] = 9 in seg
+        ph["has_rise"] = 8 in seg
         n = len(ph["moras"])
         ph["n_moras"] = n
-        a1s = [m[0] for m in ph["moras"]]
-        a2s = [m[1] for m in ph["moras"]]
-        ph["accent_type"] = a2s[0] - a1s[0]  # a1 = a2 - accent_type
+        ph["accent_type"] = ph["moras"][0][1] - ph["moras"][0][0]
         ph["heiban"] = ph["accent_type"] == 0
         ph["odaka"] = ph["accent_type"] == n
+        ph["consistent"] = (
+            [m[1] for m in ph["moras"]] == list(range(1, n + 1))
+            and all(m[2] == n - m[1] + 1 for m in ph["moras"])
+            and all(m[0] == m[1] - ph["accent_type"] for m in ph["moras"])
+        )
     return phrases
+
+
+def decode_prosody(ids, R):
+    """**音素ID列だけ**から A1/A2/A3 を復元する。
+
+    デバイスが持つ情報（= 音素ID列）だけで prosody がどこまで決まるかを測るため。
+    規則:
+      - モーラ = 子音* + モーラ終端トークン（母音 / N* / cl）
+      - `[` はアクセント句の第 1 モーラの直後に立つ → 句頭が分かる
+      - `#` はアクセント句境界（モーラ内部にも現れるのでモーラは切らない）
+      - `]` は核の直後 → アクセント型。`]` が無い句は尾高（型 = モーラ数）
+    """
+    moras, cur, marks = [], [], []
+    for idx, i in enumerate(ids):
+        if i == R["PAD"]:
+            continue
+        if i in (R["RISE"], R["FALL"]):
+            marks.append((len(moras), i))
+            continue
+        if i == R["HASH"]:
+            marks.append((len(moras), R["HASH"]))
+            continue
+        if i in R["nonmora"]:
+            if cur:
+                moras.append(cur)
+                cur = []
+            continue
+        cur.append(idx)
+        if i in R["mora_end"]:
+            moras.append(cur)
+            cur = []
+    if cur:
+        moras.append(cur)
+    n = len(moras)
+    starts = {0} if n else set()
+    for after, kind in marks:
+        if kind == R["RISE"] and after >= 1:
+            starts.add(after - 1)
+        elif kind == R["HASH"]:
+            starts.add(after)
+    starts = sorted(s for s in starts if s < n)
+    out = [(0, 0, 0)] * len(ids)
+    for si, s in enumerate(starts):
+        e = starts[si + 1] - 1 if si + 1 < len(starts) else n - 1
+        length = e - s + 1
+        typ = length  # `]` が無ければ尾高
+        for after, kind in marks:
+            if kind == R["FALL"] and s < after <= e + 1:
+                typ = after - s
+                break
+        for j in range(s, e + 1):
+            a2 = j - s + 1
+            for t in moras[j]:
+                out[t] = (a2 - typ, a2, length - a2 + 1)
+    return tuple(out)
 
 
 # --------------------------------------------------------------------------
@@ -238,60 +321,73 @@ def split_phrases(ids, pros):
 # --------------------------------------------------------------------------
 def stage_a() -> dict:
     rows = load_cache()
+    R = token_roles(load_config())
     print(f"[stage a] 行数 {len(rows)}")
+
+    ja = [r for r in rows if not any(i in R["foreign"] for i in r["ids"])]
+    n_zh = sum(
+        1 for r in rows
+        if any(R["name"].get(i, "").startswith("tone") for i in r["ids"])
+    )
+    print(f"  中国語へ誤ルーティング {n_zh} 行 / 純日本語 {len(ja)} 行")
 
     by_ids = collections.defaultdict(list)
     for r in rows:
         by_ids[r["ids"]].append(r)
     dups = {k: v for k, v in by_ids.items() if len(v) > 1}
-    conflicts = [
-        (k, v) for k, v in dups.items() if len({r["pros"] for r in v}) > 1
-    ]
+    conflicts = [(k, v) for k, v in dups.items() if len({r["pros"] for r in v}) > 1]
     print(f"  unique 音素ID列 {len(by_ids)} / 重複グループ {len(dups)} / "
           f"prosody が食い違う重複 {len(conflicts)}")
 
-    # `#` (id 7) は実際に出るか
-    n_hash = sum(r["ids"].count(7) for r in rows)
-    n_rise = sum(r["ids"].count(8) for r in rows)
-    n_fall = sum(r["ids"].count(9) for r in rows)
+    n_hash = sum(r["ids"].count(R["HASH"]) for r in rows)
+    n_rise = sum(r["ids"].count(R["RISE"]) for r in rows)
+    n_fall = sum(r["ids"].count(R["FALL"]) for r in rows)
     print(f"  記号出現: '#'={n_hash}  '['={n_rise}  ']'={n_fall}")
 
-    # アクセント句の分類
     cnt = collections.Counter()
-    amb_rows = 0
-    for r in rows:
-        phs = split_phrases(r["ids"], r["pros"])
-        row_amb = False
-        for ph in phs:
+    for r in ja:
+        for ph in split_phrases(r["ids"], r["pros"]):
             cnt["phrases"] += 1
-            if ph["has_fall"]:
-                cnt["with_fall"] += 1
-            else:
-                cnt["no_fall"] += 1
-                if ph["heiban"]:
-                    cnt["no_fall_heiban"] += 1
-                    row_amb = True
-                elif ph["odaka"]:
-                    cnt["no_fall_odaka"] += 1
-                    row_amb = True
-                else:
-                    cnt["no_fall_other"] += 1
-        amb_rows += row_amb
-    print(f"  アクセント句 {cnt['phrases']}  ']' あり {cnt['with_fall']}  "
-          f"']' なし {cnt['no_fall']}")
-    print(f"    ']' なしの内訳: 平板 {cnt['no_fall_heiban']} / 尾高 "
-          f"{cnt['no_fall_odaka']} / その他 {cnt['no_fall_other']}")
-    print(f"  平板/尾高の曖昧性を含む行: {amb_rows} ({amb_rows / len(rows) * 100:.1f}%)")
+            if not ph["consistent"]:
+                cnt["inconsistent"] += 1
+                continue
+            cnt["with_fall" if ph["has_fall"] else "no_fall"] += 1
+            if not ph["has_fall"]:
+                cnt["no_fall_heiban" if ph["heiban"]
+                    else "no_fall_odaka" if ph["odaka"] else "no_fall_other"] += 1
+            if ph["n_moras"] == 1 and not ph["has_rise"]:
+                cnt["one_mora_no_rise"] += 1
+    print(f"  アクセント句 {cnt['phrases']}: ']' あり {cnt['with_fall']} / なし "
+          f"{cnt['no_fall']}（平板 {cnt['no_fall_heiban']} / 尾高 "
+          f"{cnt['no_fall_odaka']} / 他 {cnt['no_fall_other']}）")
+    print(f"  '[' を持たない 1 モーラ句 = ID から見えない句境界: "
+          f"{cnt['one_mora_no_rise']} ({cnt['one_mora_no_rise'] / cnt['phrases'] * 100:.2f}%)")
+
+    # 音素ID列だけから prosody を復元できるか
+    exact = tok_ok = tok_all = 0
+    for r in ja:
+        dec = decode_prosody(list(r["ids"]), R)
+        exact += dec == r["pros"]
+        tok_ok += sum(1 for a, b in zip(dec, r["pros"]) if a == b)
+        tok_all += len(r["pros"])
+    print(f"  ID 列のみからの prosody 復元: 文単位 {exact}/{len(ja)} = "
+          f"{exact / len(ja) * 100:.2f}%  /  token {tok_ok / tok_all * 100:.3f}%")
 
     return {
         "rows": len(rows),
+        "rows_misrouted_to_zh": n_zh,
+        "rows_pure_ja": len(ja),
         "unique_id_sequences": len(by_ids),
         "duplicate_groups": len(dups),
         "duplicate_rows": sum(len(v) for v in dups.values()),
         "duplicate_groups_with_prosody_conflict": len(conflicts),
         "token_counts": {"hash_7": n_hash, "rise_8": n_rise, "fall_9": n_fall},
         "accent_phrases": dict(cnt),
-        "rows_with_heiban_odaka_ambiguity": amb_rows,
+        "prosody_from_ids_only": {
+            "sentence_exact_pct": round(exact / len(ja) * 100, 3),
+            "token_exact_pct": round(tok_ok / tok_all * 100, 4),
+            "n_rows": len(ja),
+        },
     }
 
 

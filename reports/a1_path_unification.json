@@ -1,6 +1,6 @@
 {
  "task": "A-1 ラベル生成経路の統一可否",
- "generated_at": "2026-08-26T17:49:20+0900",
+ "generated_at": "2026-08-26T17:51:30+0900",
  "paths": {
   "a": "text_to_phoneme_ids_and_prosody(language='ja', language_id_map=lim)",
   "b": "JapanesePhonemizer -> [#正規化] -> phonemes_to_intermediate -> intermediate_to_tokens -> intermediate_to_phonemes -> PiperEncoder"
@@ -369,7 +369,7 @@
     "misrouting_examples": [],
     "rows_routed_nonja_in_a": 1094,
     "rows_routed_nonja_and_ids_equal": 0,
-    "elapsed_s": 8.1
+    "elapsed_s": 8.6
    },
    "ext": {
     "mora_table_entries": 159,
@@ -398,7 +398,7 @@
     "misrouting_examples": [],
     "rows_routed_nonja_in_a": 1094,
     "rows_routed_nonja_and_ids_equal": 0,
-    "elapsed_s": 8.5
+    "elapsed_s": 9.0
    },
    "ext_norm": {
     "mora_table_entries": 159,
@@ -500,7 +500,7 @@
     ],
     "rows_routed_nonja_in_a": 1094,
     "rows_routed_nonja_and_ids_equal": 0,
-    "elapsed_s": 9.2
+    "elapsed_s": 9.6
    }
   }
  },
@@ -665,6 +665,286 @@
     "intermediate": "し[が]けんく°[さつ]し"
    }
   ],
-  "elapsed_s": 50.5
+  "elapsed_s": 51.7
+ },
+ "misrouted_rows_check": {
+  "n": 30,
+  "note": "(a) が zh/en に誤ルーティングする行のみ。mora 数は中間表現から数えた",
+  "mora_per_s_a_mean": 6.48,
+  "mora_per_s_b_mean": 7.59,
+  "in_natural_range_6_10_a": 23,
+  "in_natural_range_6_10_b": 30,
+  "rows": [
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.521,
+    "sec_b": 1.265,
+    "mora_per_s_a": 6.58,
+    "mora_per_s_b": 7.9,
+    "intermediate": "さ[いたま]けんち°[ちぶ]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.567,
+    "sec_b": 1.416,
+    "mora_per_s_a": 6.38,
+    "mora_per_s_b": 7.06,
+    "intermediate": "な[がさき]けんご[しま]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 24,
+    "sec_a": 3.158,
+    "sec_b": 3.518,
+    "mora_per_s_a": 7.6,
+    "mora_per_s_b": 6.82,
+    "intermediate": "へ[りこ]ぷ°たあのぱ][いろっとも_て[んもんがく]しゃも_な][さも"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 12,
+    "sec_a": 1.637,
+    "sec_b": 1.44,
+    "mora_per_s_a": 7.33,
+    "mora_per_s_b": 8.34,
+    "intermediate": "ふ°[くおか]けんし[んぐ]うまち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.579,
+    "sec_b": 1.207,
+    "mora_per_s_a": 6.33,
+    "mora_per_s_b": 8.28,
+    "intermediate": "あ[いち]けんい[わくら]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 9,
+    "sec_a": 1.637,
+    "sec_b": 1.312,
+    "mora_per_s_a": 5.5,
+    "mora_per_s_b": 6.86,
+    "intermediate": "と[おきょ]おとと[しま]く"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 9,
+    "sec_a": 1.625,
+    "sec_b": 1.3,
+    "mora_per_s_a": 5.54,
+    "mora_per_s_b": 6.92,
+    "intermediate": "と[おきょ]おとね[りま]く"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 9,
+    "sec_a": 1.602,
+    "sec_b": 1.231,
+    "mora_per_s_a": 5.62,
+    "mora_per_s_b": 7.31,
+    "intermediate": "と[おきょ]おとみ[たか]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.753,
+    "sec_b": 1.358,
+    "mora_per_s_a": 5.7,
+    "mora_per_s_b": 7.36,
+    "intermediate": "わ[かやま]けんい[わで]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.602,
+    "sec_b": 1.428,
+    "mora_per_s_a": 6.87,
+    "mora_per_s_b": 7.7,
+    "intermediate": "せ[んだい]しわ[かばやし]く"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.765,
+    "sec_b": 1.44,
+    "mora_per_s_a": 6.23,
+    "mora_per_s_b": 7.64,
+    "intermediate": "わ[かやま]けんた[いじ]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.614,
+    "sec_b": 1.567,
+    "mora_per_s_a": 6.82,
+    "mora_per_s_b": 7.02,
+    "intermediate": "な[がさき]けんな[がさき]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 8,
+    "sec_a": 1.649,
+    "sec_b": 1.161,
+    "mora_per_s_a": 4.85,
+    "mora_per_s_b": 6.89,
+    "intermediate": "し[が]けんく°[さつ]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.649,
+    "sec_b": 1.37,
+    "mora_per_s_a": 6.67,
+    "mora_per_s_b": 8.03,
+    "intermediate": "に[いがた]けんさ[んじょ]おし"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.556,
+    "sec_b": 1.289,
+    "mora_per_s_a": 7.07,
+    "mora_per_s_b": 8.54,
+    "intermediate": "と[く°しま]けんい[しい]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 13,
+    "sec_a": 1.741,
+    "sec_b": 1.66,
+    "mora_per_s_a": 7.46,
+    "mora_per_s_b": 7.83,
+    "intermediate": "お[きなわ]けんな[かぐす°くむら"
+   },
+   {
+    "text": "堺市堺区",
+    "morae": 8,
+    "sec_a": 1.254,
+    "sec_b": 1.196,
+    "mora_per_s_a": 6.38,
+    "mora_per_s_b": 6.69,
+    "intermediate": "さ[かい]し°さ[かい]く"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 12,
+    "sec_a": 1.718,
+    "sec_b": 1.544,
+    "mora_per_s_a": 6.98,
+    "mora_per_s_b": 7.77,
+    "intermediate": "お[きなわ]けんよ[なばる]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.834,
+    "sec_b": 1.242,
+    "mora_per_s_a": 6.0,
+    "mora_per_s_b": 8.85,
+    "intermediate": "と[っとり]けんひ[えずむら"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.591,
+    "sec_b": 1.416,
+    "mora_per_s_a": 6.92,
+    "mora_per_s_b": 7.77,
+    "intermediate": "ふ°[くおか]けんこ[おげ]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.753,
+    "sec_b": 1.405,
+    "mora_per_s_a": 5.7,
+    "mora_per_s_b": 7.12,
+    "intermediate": "わ[かやま]けんご[ぼ]おし"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 13,
+    "sec_a": 1.741,
+    "sec_b": 1.486,
+    "mora_per_s_a": 7.46,
+    "mora_per_s_b": 8.75,
+    "intermediate": "ひょ[おご]けんし[んおんせ]んまち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.533,
+    "sec_b": 1.289,
+    "mora_per_s_a": 6.53,
+    "mora_per_s_b": 7.76,
+    "intermediate": "お[おさか]ふお[おさか]し"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 24,
+    "sec_a": 2.984,
+    "sec_b": 2.949,
+    "mora_per_s_a": 8.04,
+    "mora_per_s_b": 8.14,
+    "intermediate": "てぃ[いしゃつのわ[き]とえ[りもととせ[なかがあ][せでし[めった"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 11,
+    "sec_a": 1.544,
+    "sec_b": 1.486,
+    "mora_per_s_a": 7.12,
+    "mora_per_s_b": 7.4,
+    "intermediate": "お[おさか]ふ°し[まもと]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 12,
+    "sec_a": 1.939,
+    "sec_b": 1.486,
+    "mora_per_s_a": 6.19,
+    "mora_per_s_b": 8.07,
+    "intermediate": "か[ごしま]けんや[く°しま]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.591,
+    "sec_b": 1.289,
+    "mora_per_s_a": 6.29,
+    "mora_per_s_b": 7.76,
+    "intermediate": "な[ら]けんお[およど]まち"
+   },
+   {
+    "text": "熊本市北区",
+    "morae": 8,
+    "sec_a": 1.498,
+    "sec_b": 1.231,
+    "mora_per_s_a": 5.34,
+    "mora_per_s_b": 6.5,
+    "intermediate": "く[まもと]し°き[た]く"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.625,
+    "sec_b": 1.382,
+    "mora_per_s_a": 6.15,
+    "mora_per_s_b": 7.24,
+    "intermediate": "ぎ[ふ]けんき°[たがた]まち"
+   },
+   {
+    "text": "<redacted: corpus text>",
+    "morae": 10,
+    "sec_a": 1.509,
+    "sec_b": 1.37,
+    "mora_per_s_a": 6.63,
+    "mora_per_s_b": 7.3,
+    "intermediate": "お[かやま]けんな[ぎ]まち"
+   }
+  ]
  }
 }

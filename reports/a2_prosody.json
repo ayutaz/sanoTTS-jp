@@ -1,6 +1,8 @@
 {
  "stage_a_corpus": {
   "rows": 23454,
+  "rows_misrouted_to_zh": 1146,
+  "rows_pure_ja": 22190,
   "unique_id_sequences": 23452,
   "duplicate_groups": 2,
   "duplicate_rows": 4,
@@ -11,13 +13,17 @@
    "fall_9": 96027
   },
   "accent_phrases": {
-   "phrases": 142722,
-   "with_fall": 96027,
-   "no_fall": 46695,
-   "no_fall_odaka": 45116,
-   "no_fall_other": 1114,
-   "no_fall_heiban": 465
+   "phrases": 139964,
+   "with_fall": 95188,
+   "no_fall": 44776,
+   "no_fall_odaka": 44646,
+   "one_mora_no_rise": 1879,
+   "no_fall_other": 130
   },
-  "rows_with_heiban_odaka_ambiguity": 19017
+  "prosody_from_ids_only": {
+   "sentence_exact_pct": 98.765,
+   "token_exact_pct": 99.8933,
+   "n_rows": 22190
+  }
  }
 }
