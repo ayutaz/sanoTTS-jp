@@ -70,6 +70,19 @@ CASES: list[tuple[str, str, str]] = [
     ("allow", "cat <<'EOF' > note.md\n| a | python3 b.py |\nEOF", "heredoc 内の表"),
     # heredoc の**外**は今までどおり見る
     ("deny", "cat <<'EOF' > a.txt\nhello\nEOF\npip install x", "heredoc の後ろの pip install"),
+    # --- 改行を跨いだ誤検知（2026-08-27 に実際に踏んだ。C-015 と同じ根の再発） ---
+    ("allow", "chmod +x deploy/run.sh\nuv run python x.py --root /Users/s19447/Documents/piper-plus",
+     "chmod は別行。piper-plus は次行の引数"),
+    ("allow", "mkdir -p deploy\nuv run python -c \"import x\"  # /Users/s19447/Documents/piper-plus",
+     "mkdir は別行"),
+    ("deny", "chmod -R 777 /Users/s19447/Documents/piper-plus/src", "同じ行なら止める"),
+    ("deny", "mkdir -p /Users/s19447/Documents/piper-plus/newdir", "同じ行なら止める"),
+    # --- sed の読み書き区別 ---
+    ("allow", "sed -n '1,80p' /Users/s19447/Documents/piper-plus/src/python/piper_train/vits/models.py",
+     "sed -n は読み取り"),
+    ("deny", "sed -i '' 's/a/b/' /Users/s19447/Documents/piper-plus/src/python/x.py", "sed -i は書き込み"),
+    ("deny", "sed --in-place 's/a/b/' /Users/s19447/Documents/piper-plus/x.py", "sed --in-place は書き込み"),
+    ("allow", "sed -n '1,5p' scripts/x.py", "自リポの sed -n"),
 ]
 
 

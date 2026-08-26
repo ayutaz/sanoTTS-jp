@@ -81,7 +81,14 @@ def check_piper_plus_write(cmd: str) -> None:
     # 任意の空白の後ろで照合すると `grep "rm /path/..."` のような
     # 引用符の中の文字列まで拾ってしまう（実際に誤検知した）。
     for word in WRITE_COMMANDS:
-        if re.search(rf"{CMD_POS}{re.escape(word)}\s+[^;&|]*{re.escape(PIPER_PLUS)}", cmd):
+        # `sed -n 'a,bp' file` は読み取り。書き込むのは `-i` / `--in-place` のときだけ。
+        # ここを一律 deny にすると piper-plus のソースが読めなくなる（実際に踏んだ）。
+        if word == "sed" and not re.search(r"(?:^|\s)(?:-[a-zA-Z]*i|--in-place)\b", cmd):
+            continue
+        # ⚠️ 引数の走査に `\n` を含めない。**改行はシェルのコマンド区切り**なので、
+        # 含めると「1 行目の chmod」と「2 行目の引数」を同じコマンドとして繋いでしまう
+        # （C-015 で CMD_POS に `\n` を足したとき、こちら側を直し忘れて再発した）。
+        if re.search(rf"{CMD_POS}{re.escape(word)}\s+[^;&|\n]*{re.escape(PIPER_PLUS)}", cmd):
             deny(
                 f"`{word}` が piper-plus のパスを対象にしています。\n"
                 f"{PIPER_PLUS} は**読み取り専用の依存**です（docs/decisions.md D-003）。\n"
