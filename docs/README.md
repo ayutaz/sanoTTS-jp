@@ -62,10 +62,21 @@ saanoTTS-jp/
 │   ├── measurements.md                    実測値の一次ソース
 │   ├── plan/phase0-1-implementation-plan.md
 │   └── research/saanotts-jp-feasibility.md
+├── pyproject.toml / uv.lock               uv 環境定義
 └── scripts/
     ├── phase0_verify_teacher.py           教師の決定的推論を検証（6 チェック）
     └── kana_g2p.py                        中間表現 ⇄ 音素列の変換器
 ```
+
+## 実行方法
+
+```bash
+uv sync                                          # 環境構築（初回・依存変更時）
+uv run python scripts/phase0_verify_teacher.py   # 教師の疎通確認（6 チェック）
+uv run python scripts/kana_g2p.py                # 中間表現変換器のセルフテスト
+```
+
+**Python は必ず `uv` 経由**（`pip install` を使わない）。**学習は vast.ai**（[D-012](decisions.md)）。
 
 ## 外部依存
 
@@ -73,4 +84,5 @@ saanoTTS-jp/
 |---|---|---|
 | 教師モデル | `ayousanz/piper-plus-zero-shot-tsukuyomi` (HF private) | `epoch=499-step=22000.ckpt` 927 MB |
 | piper-plus | `/Users/s19447/Documents/piper-plus` | v2.0.0 HEAD。**読み取り専用で使う** |
-| Python 環境 | `/Users/s19447/Documents/piper-plus/.venv` | Python 3.13.9 / torch 2.11.0 |
+| Python 環境 | 本リポジトリの `uv`（`pyproject.toml`） | Python 3.14.0 / torch 2.13.0。教師ラベルは piper-plus venv と bit 一致 |
+| 学習環境 | **vast.ai** | ラベル生成も向こうで実行（D-012） |

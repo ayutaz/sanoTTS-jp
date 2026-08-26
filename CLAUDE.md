@@ -178,6 +178,45 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 日付・時刻・金額 / 約物 / 疑問文（`?` `?!` `?.` `?~` の4種の EOS トークンがある）/
 アクセント型ミニマルペア。**テンプレート文は使わない。**
 
+## 開発環境のルール
+
+### Python は必ず `uv` を使う
+
+```bash
+uv sync                       # 環境構築（初回・依存変更時）
+uv run python scripts/xxx.py  # 実行
+uv add <pkg>                  # 依存追加（pip install しない）
+```
+
+- **`pip install` を直接使わない。** `uv add` で `pyproject.toml` と `uv.lock` に記録する
+- piper-plus は `[tool.uv.sources]` の **path 依存 (editable)** で参照する。
+  **piper-plus のリポジトリは読み取り専用**（checkout / commit / 編集の禁止）
+- uv 環境には M-1.1 の stale な `piper_train` が存在しないので、
+  `sys.path.insert` は不要（既存スクリプトのものは冗長だが害はない）
+
+環境差の影響は実測済み。piper-plus venv (py3.13.9/torch2.11) と
+uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する（M-15）。
+
+### 学習は vast.ai で行う
+
+ローカル（macOS / MPS）では学習しない。
+
+**ラベル生成も vast.ai 側で実行する。** ラベルパックは 20,946 文で
+**4.42 GB (fp16+int16) / 8.83 GB (fp32)** になるが、入力テキストは **1.2 MB** しかない。
+ローカルで生成して転送するより、テキストだけ渡して向こうで生成するほうが桁違いに安い。
+
+```
+アップロード : テキスト 1.2 MB のみ（ckpt 927 MB は HF から直接取得）
+インスタンス : ラベル生成 → 学習 → 生徒の重みだけ持ち帰る（数 MB）
+ダウンロード : 生徒の重み + 学習ログ
+```
+
+⚠️ **GPU 推論の bit 一致は未検証**（M-15 の照合は CPU 同士）。
+ラベル生成は一度だけ実行し、パックに SHA-256 を付けて固定すること。
+生成に使った環境（Python / torch / CUDA のバージョン）も manifest に記録する。
+
+要求スペックの目安は [`docs/requirements.md`](docs/requirements.md) §8.4。
+
 ## piper-plus の参照点
 
 | 用途 | パス（`/Users/s19447/Documents/piper-plus` 相対） |

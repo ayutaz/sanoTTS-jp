@@ -14,7 +14,9 @@
 # 枝刈り辞書のビルド成果物 (B-0)
 /dict_build/
 
-# Python
+# Python / uv
+# uv.lock は再現性のためコミットする（除外しない）
+*.egg-info/
 __pycache__/
 *.py[cod]
 .venv/

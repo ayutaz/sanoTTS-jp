@@ -624,6 +624,70 @@ mora テーブル  116 エントリ / 951 B
 
 ---
 
+## M-15. 実行環境と学習コストの見積もり
+
+### uv 環境は piper-plus venv と bit 一致する
+
+本プロジェクトは `uv` で独立した環境を持つ（`pyproject.toml` / `uv.lock`）。
+piper-plus は **path 依存 (editable)** で参照するだけで、リポジトリは変更しない。
+
+| 環境 | Python | torch |
+|---|---|---|
+| piper-plus `.venv` | 3.13.9 | 2.11.0 |
+| **本プロジェクト `uv`** | **3.14.0** | **2.13.0** |
+
+バージョンが違うが、**教師ラベルは bit 完全一致する**（SHA-256 で照合）:
+
+```
+今日は良い天気ですね。  audio e1bebfcc553e67a9  z fe7b3ccaa246bf07  d 1c92df6d5a839fe7
+電源を入れてください。  audio a835df26fbd397c6  z 8d0f9f9b841017e5  d 240c6e5a2da76e99
+橋を渡る。            audio 42aa518a10372198  z 2ce62ea5a909de61  d ebaa7befd11b42a0
+```
+
+**含意**: ラベル生成をローカルでもリモート（vast.ai）でも実行でき、結果が同じになる。
+
+**副次的な利益**: uv の venv には M-1.1 の stale な `piper_train`（v1.13.0 相当）が
+存在しないため、`sys.path.insert` なしで正しいモジュールが解決される。
+
+```
+piper_train:    /Users/s19447/Documents/piper-plus/src/python/piper_train/vits/models.py
+piper_plus_g2p: /Users/s19447/Documents/piper-plus/src/python/g2p/piper_plus_g2p/__init__.py
+```
+
+⚠️ **GPU 推論の bit 一致は未検証。** 上記は CPU 同士の比較。GPU は別カーネル・TF32 等で
+差が出る可能性がある。ラベル生成は一度だけ実行し、パックに SHA-256 を付けて固定すること。
+
+### 教師ラベル生成のコスト（実測）
+
+M3 Pro CPU で 60 文を計測:
+
+```
+186 ms/文   平均 252 frames / 2.93 秒音声 / 102 音素ID
+```
+
+学習用 20,946 文への外挿:
+
+| 項目 | 値 |
+|---|---:|
+| CPU 逐次の所要時間 | **1.1 時間** |
+| 生成される音声の総量 | 17.1 時間分 |
+
+### ラベルパックのサイズ（20,946 文）
+
+| 内容 | float32 | 圧縮形式 |
+|---|---:|---:|
+| `zT` (192ch 潜在) | 3.78 GB | **1.89 GB** (fp16) |
+| `yT` (22.05 kHz 波形) | 5.04 GB | **2.52 GB** (int16) |
+| `dT` (duration) | 8.1 MB | 8.1 MB |
+| **合計** | **8.83 GB** | **4.42 GB** |
+
+**入力テキストのみなら 1.2 MB。**
+
+→ **ラベルは vast.ai 側で生成する。** 4.4〜8.8 GB を転送するより、
+テキスト 1.2 MB + ckpt 927 MB（HF から直接取得）を渡すほうが桁違いに安い。
+
+---
+
 ## 未測定（測る必要があるもの）
 
 | 項目 | なぜ必要か | 対応タスク |

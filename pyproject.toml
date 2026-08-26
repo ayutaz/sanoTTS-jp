@@ -1,0 +1,49 @@
+[project]
+name = "saanotts-jp"
+version = "0.1.0"
+description = "arXiv:2608.21378 saanoTTS の蒸留レシピを日本語に適用し ESP32 で動かす (PoC)"
+requires-python = ">=3.11"
+
+dependencies = [
+    # 教師モデル (piper-plus の SynthesizerTrn) を動かすために必須。
+    # ONNX からは潜在 z が取れないので PyTorch 経路しかない (docs/decisions.md D-001)。
+    "piper-train[train]",
+    "torch>=2.11.0",
+    "numpy<2.5",
+    "soundfile>=0.14.0",
+    "librosa>=0.11.0",
+    "huggingface-hub>=0.36.2,<1.0",
+]
+
+[project.optional-dependencies]
+# 評価指標。SCOREQ は piper-plus に実装が無いので別途追加が必要
+# (docs/research/saanotts-jp-feasibility.md §2.5)。
+eval = [
+    "pyworld>=0.3.4",       # F0 抽出 (アクセント型の検証)
+    "jiwer>=3.0",           # CER
+    "matplotlib>=3.9",      # dT ヒストグラム等
+]
+
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# スクリプト置き場であってライブラリではないので、パッケージは作らない
+py-modules = []
+
+# --- uv 設定 ---------------------------------------------------------------
+#
+# 教師は piper-plus のローカルチェックアウトから path 依存で取る。
+# **piper-plus は読み取り専用で扱うこと**（checkout / commit / 編集の禁止、
+# docs/decisions.md D-003）。ここでは import するだけ。
+#
+# path 依存にすることで、piper-plus の .venv に混入している
+# v1.13.0 相当の stale な piper_train を踏まずに済む（docs/measurements.md M-1.1）。
+# あちらは別ディストリビューション piper_plus_workspace-1.12.0 の所有物で
+# `pip install -e` では消えないが、本プロジェクトの venv は独立しているので
+# 最初から存在しない。
+
+[tool.uv.sources]
+piper-train = { path = "/Users/s19447/Documents/piper-plus/src/python", editable = true }
+piper-plus-g2p = { path = "/Users/s19447/Documents/piper-plus/src/python/g2p", editable = true }
