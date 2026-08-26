@@ -191,7 +191,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 |---|---|---|
 | skill | `recording-measurements` | 数値・サイズ・能力の主張を docs に書く前 |
 | skill | `teacher-inference` | 教師モデルを呼ぶとき（6 つの沈黙する失敗を防ぐ） |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込みと `pip install` を deny、uv 非経由の python を ask |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / **uv 非経由の python** を deny（33 ケースの回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
 hook を変えたら `.claude/hooks/guard_bash.py` の pipe-test を通すこと

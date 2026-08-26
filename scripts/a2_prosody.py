@@ -493,101 +493,89 @@ def stage_b(n=300) -> dict:
 # --------------------------------------------------------------------------
 # stage c
 # --------------------------------------------------------------------------
-def flip_heiban_odaka(ids, pros):
-    """']' を持たないアクセント句の a1 を 平板 ⇄ 尾高 に入れ替える。
+def force_heiban(ids, pros, R):
+    """`]` を持たない句（= 実測ではすべて尾高）を平板に置き換える。
 
-    音素ID列は 1 bit も変えない。ID 列からは区別できない prosody を作る。
+    ID 列は 1 bit も変えない。「同じ ID 列に別の prosody が付いたら dT はどれだけ動くか」
+    の感度プローブ。
     """
-    pros = list(pros)
-    phs = split_phrases(ids, pros)
+    out = list(pros)
     changed = 0
-    for ph in phs:
-        if ph["has_fall"]:
-            continue
-        n = ph["n_moras"]
-        if ph["heiban"]:
-            new_type = n  # 平板 → 尾高
-        elif ph["odaka"]:
-            new_type = 0  # 尾高 → 平板
-        else:
+    for ph in split_phrases(ids, pros):
+        if ph["has_fall"] or not ph["consistent"] or not ph["odaka"]:
             continue
         for i in range(ph["start"], ph["end"] + 1):
-            a1, a2, a3 = pros[i]
+            a1, a2, a3 = out[i]
             if a2 == 0:
                 continue
-            pros[i] = (a2 - new_type, a2, a3)
+            out[i] = (a2, a2, a3)  # accent_type = 0
         changed += 1
-    return tuple(pros), changed
+    return tuple(out), changed
 
 
 def stage_c(n=300) -> dict:
     rows = load_cache()
+    R = token_roles(load_config())
     model = load_teacher()
     sample = pick_heldout(rows, n)
     rng = random.Random(20260827)
 
-    # c2 用: 同じトークン数の別文を探す
     by_len = collections.defaultdict(list)
     for r in rows:
         by_len[len(r["ids"])].append(r)
 
-    c1_tot, c1_tok, c1_changed, c1_used = [], [], [], 0
-    c2_tot, c2_tok, c2_used = [], [], 0
+    acc = {k: {"tot": [], "tok": [], "n_diff": 0} for k in
+           ("c1_decoded_from_ids", "c2_transplant", "c3_force_heiban")}
     t0 = time.time()
     for k, r in enumerate(sample):
         ids = list(r["ids"])
         d_real = durations_only(model, ids, prosody_tensor(r["pros"]))
-        base = float(np.ceil(d_real[0].numpy()).sum())
+        base_frames = float(np.ceil(d_real[0].numpy()).sum())
 
-        flipped, changed = flip_heiban_odaka(r["ids"], r["pros"])
-        if changed:
-            d = durations_only(model, ids, prosody_tensor(flipped))
-            c1_tot.append((float(np.ceil(d[0].numpy()).sum()) - base) / base * 100)
-            c1_tok.append(np.abs(d[0].numpy() - d_real[0].numpy()))
-            c1_changed.append(changed)
-            c1_used += 1
-
+        variants = {}
+        dec = decode_prosody(ids, R)
+        variants["c1_decoded_from_ids"] = (dec, dec != r["pros"])
         alts = [o for o in by_len[len(ids)] if o["id"] != r["id"]]
         if alts:
-            alt = rng.choice(alts)
-            d = durations_only(model, ids, prosody_tensor(alt["pros"]))
-            c2_tot.append((float(np.ceil(d[0].numpy()).sum()) - base) / base * 100)
-            c2_tok.append(np.abs(d[0].numpy() - d_real[0].numpy()))
-            c2_used += 1
+            variants["c2_transplant"] = (rng.choice(alts)["pros"], True)
+        hb, ch = force_heiban(r["ids"], r["pros"], R)
+        if ch:
+            variants["c3_force_heiban"] = (hb, True)
+
+        for key, (pv, differs) in variants.items():
+            d = durations_only(model, ids, prosody_tensor(pv))
+            acc[key]["tot"].append(
+                (float(np.ceil(d[0].numpy()).sum()) - base_frames) / base_frames * 100
+            )
+            acc[key]["tok"].append(np.abs(d[0].numpy() - d_real[0].numpy()))
+            acc[key]["n_diff"] += bool(differs)
         if (k + 1) % 50 == 0:
             print(f"   {k + 1}/{len(sample)}  {time.time() - t0:.0f}s", flush=True)
 
-    def summarize(tot, tok):
-        tot = np.asarray(tot)
-        tok = np.concatenate(tok) if tok else np.zeros(1)
-        return {
+    out = {}
+    for key, a in acc.items():
+        tot = np.asarray(a["tot"])
+        tok = np.concatenate(a["tok"]) if a["tok"] else np.zeros(1)
+        out[key] = {
             "n": int(len(tot)),
+            "n_prosody_actually_differs": a["n_diff"],
             "total_frames_delta_pct": {
-                "mean_abs": round(float(np.abs(tot).mean()), 3),
-                "median_abs": round(float(np.median(np.abs(tot))), 3),
-                "p95_abs": round(float(np.percentile(np.abs(tot), 95)), 3),
-                "max_abs": round(float(np.abs(tot).max()), 3),
-                "mean_signed": round(float(tot.mean()), 3),
+                "mean_abs": round(float(np.abs(tot).mean()), 4),
+                "median_abs": round(float(np.median(np.abs(tot))), 4),
+                "p95_abs": round(float(np.percentile(np.abs(tot), 95)), 4),
+                "max_abs": round(float(np.abs(tot).max()), 4),
+                "mean_signed": round(float(tot.mean()), 4),
             },
             "per_token_delta_frames": {
-                "mean_abs": round(float(tok.mean()), 4),
-                "p95_abs": round(float(np.percentile(tok, 95)), 4),
-                "max_abs": round(float(tok.max()), 4),
+                "mean_abs": round(float(tok.mean()), 5),
+                "p95_abs": round(float(np.percentile(tok, 95)), 5),
+                "max_abs": round(float(tok.max()), 5),
             },
         }
-
-    out = {
-        "c1_heiban_odaka_flip": summarize(c1_tot, c1_tok),
-        "c2_prosody_transplant_same_length": summarize(c2_tot, c2_tok),
-    }
-    out["c1_heiban_odaka_flip"]["phrases_flipped_per_row_mean"] = round(
-        float(np.mean(c1_changed)), 2
-    )
-    print(f"[stage c] c1 (平板⇄尾高, ID固定) n={c1_used}: "
-          f"総フレーム |Δ| 平均 "
-          f"{out['c1_heiban_odaka_flip']['total_frames_delta_pct']['mean_abs']}%")
-    print(f"          c2 (別文の prosody 移植) n={c2_used}: 総フレーム |Δ| 平均 "
-          f"{out['c2_prosody_transplant_same_length']['total_frames_delta_pct']['mean_abs']}%")
+        print(f"[stage c] {key:22s} n={len(tot):3d} 実際に prosody が違う "
+              f"{a['n_diff']:3d}: 総フレーム |Δ| 平均 "
+              f"{out[key]['total_frames_delta_pct']['mean_abs']:.3f}% / "
+              f"token |Δ| 平均 {out[key]['per_token_delta_frames']['mean_abs']:.4f} frame")
     return out
 
 

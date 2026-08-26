@@ -32,3 +32,6 @@ __pycache__/
 
 # OS
 .DS_Store
+
+# 個人設定（許可モード等）。チームで共有しない
+.claude/settings.local.json

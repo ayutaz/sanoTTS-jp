@@ -54,15 +54,11 @@ def deny(reason: str) -> None:
     sys.exit(0)
 
 
-def ask(reason: str) -> None:
-    print(json.dumps({
-        "hookSpecificOutput": {
-            "hookEventName": "PreToolUse",
-            "permissionDecision": "ask",
-            "permissionDecisionReason": reason,
-        }
-    }))
-    sys.exit(0)
+# NOTE: 以前は `permissionDecision: "ask"` を返すヘルパも持っていたが全廃した。
+# `ask` は `defaultMode: dontAsk` を上書きして毎回プロンプトを出すため、
+# 作業のたびに止まる（C-013）。このプロジェクトのガードはどれも判断の余地が無いので
+# すべて `deny` でよい。「止めないが知らせたい」ものが出てきたら
+# `{"systemMessage": "..."}` を返すこと（プロンプトを出さずに通知できる）。
 
 
 def check_piper_plus_write(cmd: str) -> None:
@@ -115,25 +111,25 @@ def check_pip(cmd: str) -> None:
 
 
 def check_python_invocation(cmd: str) -> None:
-    """uv を経由しない python を警告する。"""
-    # piper-plus の venv の python を直接叩いている
+    """uv を経由しない python を止める。
+
+    **`ask` ではなく `deny` にしている。** `ask` だと `defaultMode: dontAsk` でも
+    確認が挟まり作業のたびに止まる。「uv を経由しない python はそもそもあり得ない」
+    のがプロジェクトの方針（D-012）なので、`pip install` と同じく機械的に塞ぐ。
+    """
     if f"{PIPER_PLUS}/.venv/bin/python" in cmd:
-        ask(
+        deny(
             "piper-plus の venv の python を直接使おうとしています。\n"
             "本プロジェクトは **`uv run python`** が正です（D-012）。\n"
             "piper-plus 側の venv には v1.13.0 相当の stale な piper_train が\n"
-            "混入しており、sys.path.insert を忘れると黙ってそちらが読まれます（M-1.1）。\n"
-            "\n"
-            "両環境の比較が目的なら意図的な使用なので続行して構いません。"
+            "混入しており、sys.path.insert を忘れると黙ってそちらが読まれます（M-1.1）。"
         )
 
-    # uv を経由せずに .py ファイルを実行している。
-    # `-c` / `- <<EOF` のワンライナーも対象にする ―― 使い捨てのつもりでも
-    # 教師を読む処理が混ざれば stale piper_train を掴む（M-1.1）。
+    # uv を経由せずに python を起動している。`-c` や heredoc のワンライナーも対象。
+    # 使い捨てのつもりでも教師を読む処理が混ざれば stale piper_train を掴む。
     if re.search(CMD_POS + r"(python|python3)\s+(?![^;&|]*\buv\b)", cmd):
-        ask(
-            "`uv run` を経由しない python を実行しようとしています。\n"
-            "本プロジェクトは **`uv run python`** が正です（D-012）。\n"
+        deny(
+            "`uv run` を経由しない python は使いません。**`uv run python`** を使ってください（D-012）。\n"
             "`pip install` を使わないのと同じ理由で、環境を uv.lock に固定しておく必要があります。"
         )
 

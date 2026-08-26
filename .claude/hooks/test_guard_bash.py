@@ -34,11 +34,11 @@ CASES: list[tuple[str, str, str]] = [
     ("deny", "pip install torch", "基本形"),
     ("deny", "pip3 install -r req.txt", "pip3"),
     ("deny", "sudo pip install x", "sudo 経由"),
-    # --- uv を経由しない python を警告 ---
-    ("ask", f"{PP}/.venv/bin/python scripts/x.py", "stale piper_train のリスク"),
-    ("ask", "python3 scripts/kana_g2p.py", "uv 抜きの scripts 実行"),
-    ("ask", 'python3 -c "print(1)"', "使い捨てワンライナーも uv 経由にする"),
-    ("ask", "python3 .claude/hooks/test_guard_bash.py", "hook のテストも同様"),
+    # --- uv を経由しない python を止める（ask ではなく deny。D-012 / C-013）---
+    ("deny", f"{PP}/.venv/bin/python scripts/x.py", "stale piper_train のリスク"),
+    ("deny", "python3 scripts/kana_g2p.py", "uv 抜きの scripts 実行"),
+    ("deny", 'python3 -c "print(1)"', "使い捨てワンライナーも uv 経由にする"),
+    ("deny", "python3 .claude/hooks/test_guard_bash.py", "hook のテストも同様"),
     # --- 素通しすべき（誤検知チェック）---
     ("allow", 'grep -n "pip install" docs/plan/x.md', "引用符内の pip install"),
     ("allow", f'grep -n "rm {PP}/x" docs/a.md', "引用符内の rm + piper-plus"),

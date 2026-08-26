@@ -321,7 +321,7 @@ def main() -> int:
                             "intermediate": inter,
                         }
                     )
-                if vname == "ext_norm" and not same:
+                if vname == "ext_norm" and not same and len(detail_rows[dname]) < 300:
                     detail_rows[dname].append(
                         {
                             "id": rid,
@@ -387,7 +387,8 @@ def main() -> int:
         },
         "variants": {
             "base": "現行 mora テーブル (116) / 正規化なし",
-            "ext": "外来音モーラ +41 と `ん` 異音規則 +2 (kw/gw) を足した / 正規化なし",
+            "ext": f"外来音モーラ +{len(table_ext) - len(table_base)} と "
+            f"`ん` 異音規則 +{len(EXTRA_N_ALLOPHONE)} (kw/gw) を足した / 正規化なし",
             "ext_norm": "拡張テーブル + 規則 + `#` の mora 内挿入を正規化",
         },
         "summary": summary,
