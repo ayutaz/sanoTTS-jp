@@ -1,0 +1,22 @@
+# 教師ラベルパック・コーパス・合成音声。
+# 23,271 行分の (dT, zT, yT) は数 GB になるのでコミットしない。
+/data/
+/reports/
+/labels/
+*.wav
+*.npz
+*.ckpt
+*.onnx
+
+# 枝刈り辞書のビルド成果物 (B-0)
+/dict_build/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+
+# OS
+.DS_Store
