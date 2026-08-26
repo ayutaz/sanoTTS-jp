@@ -178,6 +178,20 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 日付・時刻・金額 / 約物 / 疑問文（`?` `?!` `?.` `?~` の4種の EOS トークンがある）/
 アクセント型ミニマルペア。**テンプレート文は使わない。**
 
+## このプロジェクトの skill / hook
+
+`.claude/` に品質ガードを置いてある。**内容は過去の実際の事故から作られている。**
+
+| 種類 | 名前 | いつ効くか |
+|---|---|---|
+| skill | `recording-measurements` | 数値・サイズ・能力の主張を docs に書く前 |
+| skill | `teacher-inference` | 教師モデルを呼ぶとき（6 つの沈黙する失敗を防ぐ） |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込みと `pip install` を deny、uv 非経由の python を ask |
+| 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
+
+hook を変えたら `.claude/hooks/guard_bash.py` の pipe-test を通すこと
+（誤検知があると全 Bash が止まる）。
+
 ## 開発環境のルール
 
 ### Python は必ず `uv` を使う
