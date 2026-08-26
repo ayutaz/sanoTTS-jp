@@ -303,7 +303,24 @@ import sys; sys.path.insert(0, "/Users/s19447/Documents/piper-plus/src/python")
 **教師を触るスクリプトは必ず `__file__` を assert して掴んだ実体を検証すること**
 （`scripts/phase0_verify_teacher.py` がその実装例）。
 
-## 音素化は canonical 経路を使う（自前で組まない）
+## 入力仕様（確定）
+
+**中間表現「ひらがな + アクセント記号 + 無声化マーク」**。漢字は端末で扱わない。
+要件定義は [`docs/requirements.md`](docs/requirements.md)、決定の経緯は D-010 / D-011。
+
+```
+今日は良い天気ですね。  →  きょ][おわよ][いて][んきです°ね
+[ 上昇 / ] 下降核 / # 句境界 / ° 無声化
+```
+
+- 端末側は **mora テーブル 951 B + `ん` の異音規則 18 件**のみ（`scripts/kana_g2p.py`）
+- ホスト側で漢字文から中間表現を生成する（オフライン・OpenJTalk 使用）
+- held-out で表現可能 96.40% / 往復一致 **100%** / 教師出力と **bit 完全一致**
+
+**アクセントと無声化を規則で推定してはいけない。** ひらがなのみだと
+フル 103 MB 辞書を積んでもアクセント一致は **15%**、無声化の規則推定は 170 箇所を過剰適用した。
+
+## 教師ラベル生成も canonical 経路を使う（自前で組まない）
 
 ```python
 from piper_train.infer_onnx import text_to_phoneme_ids_and_prosody
