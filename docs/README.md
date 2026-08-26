@@ -32,10 +32,11 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 [完了] 要件定義              requirements.md
 [完了] ESP32 メモリ収支      I2S 逐次出力で 96 KB / SRAM 残 416 KB。中止材料なし
 [完了] B-5 教師品質ベースライン UTMOS 1.748 / 実人間 2.305 → 比 0.758。指標の較正ずれを補正
-[次]   B-1 / B-2 を塞ぐ      ラベル生成前の 2 つの無警告データ破壊
-[未]   B-3..B-11            残りの不確定事項
-[未]   Phase 1 以降          ラベル一括生成 → Duration → Acoustic → Decoder → 量子化
-[未]   ESP32 実機 spike      C99 コアと量子化済み生徒が出来てから
+[完了] Phase A              ラベル生成の設計確定（入力経路 / prosody / パック形式）
+[完了] Phase B              パイプライン実装。B-e (本番実行) のみ vast.ai 待ち
+[完了] Phase C              生徒 4 段の学習ループ。スモークテスト全通過
+[次]   本学習 (vast.ai)      ラベル一括生成 → 1.4 M → 567 K → 学習曲線 3 水準
+[未]   Phase D              C99 コア + ESP32 実機
 ```
 
 ### 何が確実で、何が未知か
@@ -61,6 +62,7 @@ saanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
+│   ├── plan/phase-a-decisions.md          Phase A の決定
 │   ├── requirements.md                    要件定義書
 │   ├── decisions.md                       決定記録 + 訂正履歴
 │   ├── measurements.md                    実測値の一次ソース
@@ -78,6 +80,11 @@ saanoTTS-jp/
     ├── phase0_verify_teacher.py           教師の決定的推論を検証（6 チェック）
     ├── kana_g2p.py                        中間表現 ⇄ 音素列の変換器
     ├── esp32_memory_budget.py             ESP32-S3 のメモリ収支見積もり
+    ├── gen_teacher_labels.py              中間表現 → 教師 → ラベルパック
+    ├── train_student.py                   生徒 4 段の蒸留学習
+    ├── test_losses.py                     損失の性質テスト (19 項目)
+    ├── test_labelpack.py                  パック往復 + ゲート発火テスト
+    ├── b4_device_parity.py                CPU/GPU のラベル一致検証
     ├── b5_teacher_baseline.py             教師音声 24 文を生成
     ├── b5_measure_mos.py                  UTMOS を測る
     ├── dump_naist_jdic.py                 sys.dic のエントリ列挙
