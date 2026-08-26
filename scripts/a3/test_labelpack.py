@@ -1,7 +1,7 @@
 """labelpack.py の往復 bit 一致とゲート発火を実ラベル 128 文で検証する。"""
 import glob, json, os, shutil, sys, time
 import numpy as np
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # scripts/ を通す
 from labelpack import PackWriter, PackReader, check_utt, GateError, PCM_SCALE
 
 snap = glob.glob("/Users/s19447/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")[0]

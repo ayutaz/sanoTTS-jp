@@ -1,0 +1,819 @@
+{
+ "task": "A-3 ラベルパック形式の決定",
+ "date": "2026-08-26",
+ "status": "測定完了。形式・量子化・波形保存・manifest・健全性ゲートをすべて決定",
+ "environment": {
+  "machine": "macOS-26.2-arm64-arm-64bit-Mach-O",
+  "python": "3.14.0",
+  "numpy": "2.4.6",
+  "torch": "2.13.0",
+  "note": "すべて macOS ローカル (APFS / NVMe) の warm cache 実測。vast.ai の実 IO は未測定"
+ },
+ "sample": {
+  "how": "data/splits/corpus_train.tsv からかな入りの行を seed 20260826 で 128 文無作為抽出し、canonical 経路 (text_to_phoneme_ids_and_prosody + language_id_map) で音素化して教師の決定的推論 (noise_scale=0 / noise_scale_w=0 / length_scale=1 / lid=0 / speaker_embeddings=None / 実 prosody) を実行",
+  "n_utts": 128,
+  "total_seconds": 564.1,
+  "mean_seconds": 4.407,
+  "mean_frames": 379.6,
+  "mean_n_ids": 148.2,
+  "gen_ms_per_utt": 145,
+  "script": "scripts/a3/gen_labels_sample.py"
+ },
+ "decision_1_format": {
+  "verdict": "shard 化した生バイナリ + memmap + 構造化 index（npz / HDF5 / safetensors は不採用）",
+  "layout": {
+   "pack/manifest.json": "生成環境・フラグ・コーパス由来・全ファイルの SHA-256",
+   "pack/index.npy": "構造化配列 (seq, shard, n_ids, frames, zt_off, yt_off, tok_off, crc32)。学習時に読むのはこれ",
+   "pack/index.jsonl": "同内容 + text / source / id。人間が grep する用",
+   "pack/tokens.npz": "phoneme_ids(int32) / dT(fp32) / prosody(int16) を全発話ぶん連結 + offsets。全体で 38 MB",
+   "pack/channel_stats.npz": "mu_T[192] sigma_T[192] min_T[192] max_T[192] n_frames",
+   "pack/shards/{sid:04d}.zt.f16": "zT fp16 を (192,T) C-order で連結",
+   "pack/shards/{sid:04d}.yt.i16": "yT int16 を連結 (scale 32767 固定)",
+   "pack/SHA256SUMS": "manifest 以外の全ファイル"
+  },
+  "why": [
+   "(a) ランダムアクセス: shard_bin 12.2 us/utt。次点 safetensors 82.9 / hdf5 114-125 / npz 173 / npz圧縮 792。 ただし 20,946 文でも最遅の npz_deflate で 16.6 s/epoch なので **速度は決め手ではない**",
+   "(b) ディスク: 論理ペイロードに対するオーバーヘッドが +0.02% で最小 (npz_store +0.36% / hdf5_group +0.75%)",
+   "(c) 部分再生成: 128 文/shard なら 1 文の作り直しで書き直すのは 38.6 MB の 1 shard だけ。 単一 HDF5 は 6.3 GB 全体、per-utterance npz は 20,946 ファイルの管理が必要",
+   "(d) SHA-256: shard 単位で固定でき、行単位は index の crc32 で検出できる。2.80 GB/s なので 6.32 GB 全体で 2.3 s",
+   "(e) memmap なので DataLoader の worker 間で page cache を共有する（npz/HDF5 は worker ごとに heap へ展開）",
+   "(f) Phase 2 (Duration Dα) は tokens.npz だけ読めばよく shard に触らない → 実測 1.0 us/utt"
+  ],
+  "shard_size": {
+   "utts_per_shard": 128,
+   "shards_for_train": 164,
+   "bytes_per_shard_MB": 38.6
+  },
+  "rejected": {
+   "npz (per-utterance)": "オーバーヘッド +0.36%、読み 173 us/utt、20,946 ファイル。zip 経由で memmap できない",
+   "npz_compressed": "17.8% 縮むが読み 792 us/utt（14.2 倍遅い）。ディスクは逼迫していないので割に合わない",
+   "safetensors": "読み 82.9 us/utt は良いが per-utterance ファイルのままで、shard 化すると生バイナリと同じになる。 ヘッダの JSON 分だけ +0.10%",
+   "HDF5": "単一ファイルは魅力だが読み 114-125 us/utt、部分再生成が全体書き直し、h5py が依存に増える。 並列書き込みには MPI ビルドが要る"
+  },
+  "measured": {
+   "npz_store": {
+    "bytes_on_disk": 44232704,
+    "bytes_logical": 43956048,
+    "n_files": 128,
+    "write_s": 0.049431499999627704,
+    "read_us_per_utt": 173.1402223328284,
+    "partial_read_us_per_utt": 90.73804166716097,
+    "overhead_pct": 0.3594634788393275
+   },
+   "npz_deflate": {
+    "bytes_on_disk": 36265984,
+    "bytes_logical": 36017016,
+    "n_files": 128,
+    "write_s": 1.044154916999105,
+    "read_us_per_utt": 792.2326113342327,
+    "partial_read_us_per_utt": 93.4364583323865,
+    "overhead_pct": -17.766756422943853
+   },
+   "safetensors": {
+    "bytes_on_disk": 44118016,
+    "bytes_logical": 43843176,
+    "n_files": 128,
+    "write_s": 0.037300041996786604,
+    "read_us_per_utt": 82.85915266606025,
+    "partial_read_us_per_utt": 24.44802766573654,
+    "overhead_pct": 0.10175665856777914
+   },
+   "shard_bin": {
+    "bytes_on_disk": 43814912,
+    "bytes_logical": 43805520,
+    "n_files": 6,
+    "write_s": 0.019223417002649512,
+    "read_us_per_utt": 12.188152667173805,
+    "partial_read_us_per_utt": 2.1077499998985636,
+    "overhead_pct": 0.01578132346123877
+   },
+   "hdf5_group": {
+    "bytes_on_disk": 44130304,
+    "bytes_logical": 44129178,
+    "n_files": 1,
+    "write_s": 0.03616520799914724,
+    "read_us_per_utt": 125.15388900040611,
+    "partial_read_us_per_utt": 52.602013999906674,
+    "overhead_pct": 0.7547500139730469
+   },
+   "hdf5_ragged": {
+    "bytes_on_disk": 43814912,
+    "bytes_logical": 43810936,
+    "n_files": 1,
+    "write_s": 0.01835779199973331,
+    "read_us_per_utt": 114.2815833336499,
+    "partial_read_us_per_utt": 50.058486333000474,
+    "overhead_pct": 0.028147013256677015
+   },
+   "wav_sidecar": {
+    "bytes_on_disk": 44105728,
+    "bytes_logical": 43810128,
+    "n_files": 133,
+    "write_s": 0.05848554099793546,
+    "read_us_per_utt": 51.58938900058274,
+    "partial_read_us_per_utt": null,
+    "overhead_pct": 0.02630220576873128
+   }
+  },
+  "logical_payload_bytes": 43798608,
+  "n_utts_measured": 128
+ },
+ "decision_2_quantization": {
+  "verdict": "zT = fp16 / yT = int16 (scale 32767 固定)。bf16 と int8 は不可",
+  "zT": {
+   "channel_sigma_min": 0.04194988939974702,
+   "channel_sigma_max": 10.14240812278185,
+   "channel_sigma_ratio": 241.8,
+   "zT_abs_max_observed": 52.18,
+   "note_fp16_range": "fp16 の最大 65504 に対し実測 |zT| max 52.18。オーバーフローの余地なし",
+   "codecs": {
+    "fp16": {
+     "bytes_per_elem": 2,
+     "eta_q_rms_over_sigma_mean": 0.00035216433710782286,
+     "eta_q_rms_over_sigma_max": 0.006989649158712558,
+     "l1": 0.0001656937540732996,
+     "l2": 9.325775976545506e-08,
+     "ln": 0.00026373747738810366,
+     "ldelta": 0.0002305920296674038,
+     "lstat": 3.623085008746174e-05
+    },
+    "bf16": {
+     "bytes_per_elem": 2,
+     "eta_q_rms_over_sigma_mean": 0.0056209324828931035,
+     "eta_q_rms_over_sigma_max": 0.11928391003916898,
+     "l1": 0.002644860448665232,
+     "l2": 2.366875358333672e-05,
+     "ln": 0.004211155242358612,
+     "ldelta": 0.0021651338793935793,
+     "lstat": 0.005896081479300245
+    },
+    "int16_pc": {
+     "bytes_per_elem": 2,
+     "eta_q_rms_over_sigma_mean": 3.0049421675014404e-05,
+     "eta_q_rms_over_sigma_max": 0.00026835296214493514,
+     "l1": 2.1326257747968807e-05,
+     "l2": 1.4315138958078467e-09,
+     "ln": 2.599015972342132e-05,
+     "ldelta": 2.8476844986705968e-05,
+     "lstat": 2.659707073719128e-06
+    },
+    "int8_pc": {
+     "bytes_per_elem": 1,
+     "eta_q_rms_over_sigma_mean": 0.007753420401074999,
+     "eta_q_rms_over_sigma_max": 0.07020088862394568,
+     "l1": 0.0055014245590934135,
+     "l2": 9.526116583644592e-05,
+     "ln": 0.006706034437112697,
+     "ldelta": 0.007217498973929744,
+     "lstat": 0.0007577667459808393
+    }
+   },
+   "student_residual_sweep": [
+    {
+     "eta": 0.003,
+     "rel_delta_l1": 0.005121176700259464,
+     "rel_delta_l2": 0.006368525463395365,
+     "rel_delta_ln": 0.021295696323882604,
+     "rel_delta_ldelta": 0.004919592043887759,
+     "rel_delta_lstat": 0.019666474952925762
+    },
+    {
+     "eta": 0.01,
+     "rel_delta_l1": 0.0005312948599143617,
+     "rel_delta_l2": 0.0007159532757674616,
+     "rel_delta_ln": 0.002504216431281196,
+     "rel_delta_ldelta": 0.0005616726975477026,
+     "rel_delta_lstat": 0.0027878570282078505
+    },
+    {
+     "eta": 0.03,
+     "rel_delta_l1": 5.386111624021894e-05,
+     "rel_delta_l2": 4.072914631619079e-05,
+     "rel_delta_ln": 0.00028071815775561635,
+     "rel_delta_ldelta": 5.1562933425697655e-05,
+     "rel_delta_lstat": 0.0001393653980611254
+    },
+    {
+     "eta": 0.1,
+     "rel_delta_l1": 5.681836755932286e-06,
+     "rel_delta_l2": 2.3842823089522463e-05,
+     "rel_delta_ln": 1.9385169081537584e-05,
+     "rel_delta_ldelta": 5.563596187344719e-06,
+     "rel_delta_lstat": -2.998615655659755e-05
+    },
+    {
+     "eta": 0.3,
+     "rel_delta_l1": -3.9699262541290404e-08,
+     "rel_delta_l2": -4.912248938830711e-06,
+     "rel_delta_ln": 3.4947185703136936e-06,
+     "rel_delta_ldelta": -4.225454516253387e-07,
+     "rel_delta_lstat": -7.219578137690158e-06
+    }
+   ],
+   "reading": [
+    "fp16 の量子化誤差は per-channel RMS/sigma_T で mean 3.52e-4 / worst channel 6.99e-3",
+    "生徒の残差 eta（sigma_T 比）を 0.03 と置くと、ターゲットを fp32→fp16 にしたときの L_c 各項の変化は最大 2.8e-4（0.03%）",
+    "eta=0.003 という非現実的に良い生徒でも変化は最大 2.1%",
+    "→ **fp16 で足りる。zT を fp32 で持つ理由は無い**（2.69 GB 節約）",
+    "bf16 は fp16 の 16 倍悪い (5.62e-3)。GPU 学習の既定が bf16 でも **保存は fp16**",
+    "int16 per-channel 対称量子化は同じ 2 B/elem で fp16 の 11.7 倍精度が良い (3.01e-5)。 現時点で必要ないが、将来 c-line の 40ch を int8 化する布石として同じ writer で扱える",
+    "int8 per-channel は 7.75e-3 で eta=0.03 の生徒の残差分散の 6.7% を占める。**半分のサイズだが採らない**"
+   ],
+   "note_sample": "量子化の評価はすべて 128 文 / 48,586 フレームの実ラベルに対する実測。生徒残差 eta は仮定であって実測ではない（生徒がまだ無い）。eta を 0.003 まで下げても fp16 の寄与が 2.1% 以下であることが結論を支えている"
+  },
+  "yT": {
+   "peak_stats": {
+    "mean": 0.3841,
+    "min": 0.2382,
+    "max": 0.5375
+   },
+   "int16_global_scale_32767": {
+    "snr_db_mean": 76.86222839355469,
+    "snr_db_min": 74.1301498413086,
+    "l1_mean": 7.4481799856584985e-06,
+    "mrstft": {
+     "512_128": 6.153985981427468e-05,
+     "1024_256": 8.510441904263644e-05,
+     "2048_512": 0.00011627502539113266
+    },
+    "mrstft_mean": 8.763976808268126e-05
+   },
+   "int16_peak_normalized": {
+    "snr_db_mean": 85.02822875976562,
+    "snr_db_min": 81.54644775390625,
+    "l1_mean": 2.965447720271186e-06,
+    "mrstft": {
+     "512_128": 2.4883253459506705e-05,
+     "1024_256": 3.4449188419216625e-05,
+     "2048_512": 4.7141149210006006e-05
+    },
+    "mrstft_mean": 3.549119702957645e-05
+   },
+   "student_reference_mrstft": {
+    "10": {
+     "512_128": 0.1700376532971859,
+     "1024_256": 0.226905457675457,
+     "2048_512": 0.293613588437438,
+     "l1": 0.015458718873560429
+    },
+    "20": {
+     "512_128": 0.053265401045791805,
+     "1024_256": 0.07263262453489006,
+     "2048_512": 0.09599990607239306,
+     "l1": 0.00488681998103857
+    },
+    "30": {
+     "512_128": 0.01615571533329785,
+     "1024_256": 0.022135163191705942,
+     "2048_512": 0.029413162730634212,
+     "l1": 0.0015453299274668097
+    },
+    "40": {
+     "512_128": 0.0049338561948388815,
+     "1024_256": 0.006777139118639752,
+     "2048_512": 0.009088440041523427,
+     "l1": 0.000488896097522229
+    }
+   },
+   "reading": [
+    "int16 / 固定 scale 32767 で SNR mean 76.86 dB (min 74.13)",
+    "式5 の l_{n,h} に与える下限は 6.15e-5 (512/128) 〜 1.16e-4 (2048/512)",
+    "波形 SNR 40 dB の生徒でも l_{n,h} は 4.9e-3〜9.1e-3 なので、int16 の寄与は **1.3% 以下**",
+    "→ **int16 で足りる**（3.59 GB 節約）",
+    "発話ごとピーク正規化にすると +8.2 dB になるが、生徒の水準から見て不要。 固定 scale なら scale を保存せずに済み、wav としてもそのまま鳴らせる"
+   ]
+  }
+ },
+ "decision_3_waveform_vs_stft": {
+  "verdict": "波形を int16 で持つ。STFT の事前計算はしない",
+  "measured": {
+   "R": [
+    [
+     512,
+     128
+    ],
+    [
+     1024,
+     256
+    ],
+    [
+     2048,
+     512
+    ]
+   ],
+   "bins_per_sample_total": 6.013671875,
+   "log1p_abs_S_fp16_bytes_per_sample": 12.02734375,
+   "log1p_abs_S_fp32_bytes_per_sample": 24.0546875,
+   "yT_int16_bytes_per_sample": 2
+  },
+  "why": [
+   "R = {(512,128),(1024,256),(2048,512)} は各解像度が (n/2+1)/h ≒ 2.0 bin/sample なので合計 6.014 bin/sample",
+   "log(1+|S|) を fp16 で持つと 12.03 B/sample = int16 波形の **6.0 倍**（fp32 なら 12.0 倍）。3.59 GB → 21.6 GB",
+   "しかも式5 は STFT 項だけではない: lambda_w の波形 L1、LSGAN の L_adv、一次差分判別器の L_FM は **いずれも波形そのものを要求する**ので、STFT を持っても波形を捨てられない",
+   "→ 事前計算は「大きくなるうえに波形を置き換えられない」。学習中に GPU で毎回取るのが正しい"
+  ],
+  "considered_and_rejected": {
+   "yT を保存せず学習中に教師 decoder で再生成": {
+    "saving_GB": 3.591,
+    "why_no": "教師 (30.8 M params / ckpt 927 MB) を学習インスタンスに常駐させることになり、論文の『凍結して audit したラベルパック』という前提が崩れる。GPU 推論の bit 一致も未検証 (M-15)"
+   },
+   "cT = E_rho(zT) を 40ch で事前計算": {
+    "verdict": "パックには 192ch の zT を入れる。40ch の cT は入れない",
+    "why_no": "E_rho (14,952 params) は生徒側の学習グラフに属する『学習専用エンコーダ』なので、同時学習するなら cT は毎ステップ動く = 事前計算できない。先に E_rho だけ凍結する段取りを採るなら事前計算は可能だが、**論文にも本プロジェクトの資料にも凍結の記述は無い**（自分では論文本文を読んでいない）。どちらに転んでも zT があれば cT は導けるので、パックは zT を持つのが安全側",
+    "impact_on_P1_5": "計画書 P1-5 の『c-line なら E_rho を通した後の 40ch 版も別に保存する』は、E_rho を凍結する設計を前提にしないと成立しない。Phase C で E_rho の扱いを決めるまで保留",
+    "status": "推論（論文本文未確認）。measurement ではない"
+   }
+  }
+ },
+ "size": {
+  "measured_basis": {
+   "frames_model": "frames = 2.58742 * n_ids - 3.845 (R2 = 0.9776, 実ラベル 128 文の最小二乗)",
+   "validation": "短い半分 frames/n_ids = 2.5343、長い半分 = 2.5730。外挿の偏りは無い",
+   "n_ids_source": "train 20,946 行を canonical 経路で音素化した実測 (mean 130.90 / p50 116 / p90 232 / p99 338 / max 500 / >400 が 24 行)"
+  },
+  "train_20946": {
+   "zT_fp16": 2693285729.9844437,
+   "yT_int16": 3591047639.9792585,
+   "dT_fp32": 10967380.0,
+   "ids_int32": 10967380.0,
+   "prosody_int16": 16451070.0,
+   "total_bytes": 6322719199.963702,
+   "total_GB": 6.323,
+   "est_frames": 7013764,
+   "est_hours": 22.62,
+   "KiB_per_utt": 294.8
+  },
+  "all_splits": {
+   "train": 6.323,
+   "heldout_2325": 0.702,
+   "embedded_183": 0.032,
+   "total_GB": 7.057,
+   "fp32_equivalent_GB": 14.114
+  },
+  "correction_to_docs": {
+   "docs/measurements.md M-15": "『20,946 文で fp16+int16 4.42 GB / fp32 8.83 GB』は **43% 過小**。実測基準では 6.32 GB / 12.61 GB。原因は平均発話長を 2.93 s と置いたこと（実測基準では 3.888 s）。M-15 自身の 60 文サンプル (2.93 s/文) がコーパス平均より短い側に偏っていた",
+   "plan P1-5": "『T1 pool 全体 23,271 文 = 25.6 h / yT 4.06 GB + zT 3.05 GB』は本測定と整合的（23,454 文で 25.2 h / 7.06 GB）。**P1-5 のほうが正しい**",
+   "docs/requirements.md 8.4": "ディスク >= 40 GB は fp32 12.61 GB + ckpt 0.93 GB でも足りるので結論は変わらない"
+  },
+  "compression_options": {
+   "yT FLAC": {
+    "ratio_pct": 51.4,
+    "decode_us_per_utt": 883.0,
+    "note": "3.59 GB → 1.85 GB。1 epoch あたり 18.5 s (1 worker) の CPU を食う。ディスクが 20 GB 級のインスタンスを使う場合のみ検討"
+   },
+   "zT deflate6": {
+    "ratio_pct": 91.8,
+    "note": "fp16 潜在はほぼ非圧縮。**圧縮しない**"
+   },
+   "zT zstd3": {
+    "ratio_pct": 93.1
+   },
+   "yT zstd3": {
+    "ratio_pct": 74.6
+   }
+  }
+ },
+ "decision_4_manifest": {
+  "verdict": "『後から GPU/CPU の差を検証できる』ことを設計目標にする。manifest 単体で再実行条件が復元できること",
+  "schema": {
+   "pack_version": "1",
+   "created_utc": "ISO8601",
+   "generator": {
+    "script": "scripts/gen_teacher_labels.py",
+    "git_commit": "<sha>",
+    "argv": [
+     "..."
+    ]
+   },
+   "environment": {
+    "python": "3.x.y",
+    "torch": "x.y.z",
+    "numpy": "x.y.z",
+    "device": "cuda:0 | cpu",
+    "cuda": "12.x",
+    "cudnn": "...",
+    "gpu_name": "RTX 4090",
+    "driver": "...",
+    "torch_flags": {
+     "allow_tf32_matmul": false,
+     "allow_tf32_cudnn": false,
+     "float32_matmul_precision": "highest",
+     "deterministic_algorithms": true,
+     "cudnn_benchmark": false
+    },
+    "env": {
+     "CUBLAS_WORKSPACE_CONFIG": ":4096:8",
+     "PYTHONHASHSEED": "0"
+    },
+    "piper_plus_commit": "<sha>",
+    "piper_train_file": "<解決した __file__>"
+   },
+   "teacher": {
+    "repo": "ayousanz/piper-plus-zero-shot-tsukuyomi",
+    "file": "epoch=499-step=22000.ckpt",
+    "sha256": "f375c749caa2a707b3fc9ee672142bdc1441bcbcdd3b523dd9efdb18b017683e",
+    "ema_applied": true,
+    "ema_num_updates": 11000,
+    "remove_weight_norm_after_ema": true
+   },
+   "inference_flags": {
+    "noise_scale": 0.0,
+    "noise_scale_w": 0.0,
+    "length_scale": 1.0,
+    "lid": 0,
+    "speaker_embeddings": null,
+    "prosody": "real A1/A2/A3",
+    "seed": 0
+   },
+   "g2p": {
+    "function": "piper_train.infer_onnx.text_to_phoneme_ids_and_prosody",
+    "language": "ja",
+    "language_id_map_passed": true,
+    "route_decision": "B-1 の D1 をここに焼く（ja ピン留め / ML のまま / フォールバック）",
+    "use_vanilla": "B-0 追試の結論をここに焼く"
+   },
+   "corpus": {
+    "file": "data/splits/corpus_train.tsv",
+    "sha256": "<sha>",
+    "n_rows_in": 20946,
+    "n_rows_packed": "<n>",
+    "rejects": "index.jsonl の reject_reason で集計"
+   },
+   "format": {
+    "zt_dtype": "float16",
+    "yt_dtype": "int16",
+    "pcm_scale": 32767.0,
+    "hop": 256,
+    "sample_rate": 22050,
+    "z_channels": 192,
+    "utts_per_shard": 128
+   },
+   "sha256": {
+    "<relpath>": "<sha256>",
+    "...": "全 shard / index / tokens / channel_stats"
+   }
+  },
+  "gpu_cpu_verification_protocol": [
+   "M-15 の bit 一致は **CPU 同士**の照合であって GPU は未検証",
+   "ラベル生成の最初に、固定 8 文（M-15 の 3 文 + 各長さ帯 5 文）を CPU と生成デバイスの両方で回し、audio/z/d の SHA-256 を manifest の `bitwise_probe` に両方記録する",
+   "一致すれば以後 GPU 生成でよい。一致しなければ manifest に不一致として残したうえで生成を続け、**そのパックで学習した生徒は CPU 生成のパックと混ぜない**",
+   "TF32 は必ず切る (allow_tf32=False / float32_matmul_precision='highest')。既定の TF32 は fp32 の仮数を 10 bit に落とすので、fp16 保存より前の段階で精度を失う",
+   "行単位の crc32 を index に持たせ、shard の SHA-256 と二段で固定する"
+  ]
+ },
+ "decision_5_gates": {
+  "verdict": "保存の直前に 1 発話ごとに assert する。1 つでも落ちたらその行を採用せず index.jsonl に理由を残す",
+  "implementation": "scripts/labelpack.py の check_utt()",
+  "checks": [
+   {
+    "id": "G1",
+    "check": "zT.shape[0] == 192",
+    "catches": "潜在の取り違え"
+   },
+   {
+    "id": "G2",
+    "check": "zT.shape[1] * 256 == len(yT)",
+    "catches": "hop 不整合・切り詰め"
+   },
+   {
+    "id": "G3",
+    "check": "ceil(dT).sum() == zT.shape[1]",
+    "catches": "duration とフレームの乖離"
+   },
+   {
+    "id": "G4",
+    "check": "len(ids) == len(dT) == len(prosody)",
+    "catches": "B-2 の prosody ズレ（長さで検出できる分）"
+   },
+   {
+    "id": "G5",
+    "check": "0 <= min(ids) and max(ids) < 173",
+    "catches": "185 entry の phoneme_id_map から埋め込み範囲外の id を拾う事故"
+   },
+   {
+    "id": "G6",
+    "check": "ids[0] == 1 (^) and ids[-1] == 2 ($)",
+    "catches": "BOS/EOS の欠落"
+   },
+   {
+    "id": "G7",
+    "check": "非ゼロ id が必ず 1 個以上の PAD(id 0) で隔てられている",
+    "catches": "**C-007 の 2.4 倍速**。自前音素化は intersperse PAD を持たない。実ラベル 128/128 で成立",
+    "note": "『ids[1::2] が全部 0』は使えない。読点で PAD が連続して偶奇がずれるため実測 31/128 しか通らない (B-8)"
+   },
+   {
+    "id": "G8",
+    "check": "zT / yT / dT に NaN / Inf が無い",
+    "catches": "数値破綻"
+   },
+   {
+    "id": "G9",
+    "check": "max|yT| >= 1e-4",
+    "catches": "全ゼロ音声"
+   },
+   {
+    "id": "G10",
+    "check": "max|yT| < 1.0",
+    "catches": "int16 化でのクリップ（実測 peak max 0.5375 なので通常は発火しない）"
+   },
+   {
+    "id": "G11",
+    "check": "min(dT) > 0",
+    "catches": "非正の duration"
+   },
+   {
+    "id": "G12",
+    "check": "4.0 <= mora/s <= 12.0",
+    "catches": "音素化ミス（他の全ゲートを通過してしまう唯一の失敗）",
+    "note": "**skill の 6–10 は狭すぎる**。実ラベル 128 文で mean 7.19 / min 5.04 / max 9.64 なので 6–10 だと正常な 7/128 = 5.5% を誤って弾く。4–12 なら 0/128 で、C-007 の 17.7 mora/s は確実に落ちる"
+   },
+   {
+    "id": "G13",
+    "check": "パック全体: mean(mora/s) が 6.5–8.5、frames/n_ids の mean が 2.4–2.7",
+    "catches": "行単位では通るが全体が系統的にずれた場合",
+    "note": "コーパス集計ゲート"
+   }
+  ],
+  "gate_firing_test": {
+   "frames 不一致": "hop 不一致: frames 263*256 != samples 67584",
+   "ceil(dT) 不一致": "ceil(dT).sum()=153 != frames 264",
+   "音素 id >= 173": "音素 id が範囲外: max 173 (num_symbols=173)",
+   "NaN": "zT に NaN/Inf",
+   "全ゼロ音声": "yT が無音（全ゼロ相当）",
+   "intersperse 無し": "intersperse PAD が無い（自前音素化の疑い）",
+   "発話速度 2.4x": "発話速度 21.53 mora/s が範囲外",
+   "dT に 0": "ceil(dT).sum()=262 != frames 264"
+  },
+  "roundtrip_bit_exact": true,
+  "note_on_channel_stats": "mu_T / sigma_T は **fp16 に落とす前の fp32 の値**から 1 パスで集計する。実測 sigma_T は 0.0419〜10.1424 の 242 倍差で、L_c の N_T 正規化を省くと高分散チャネルが loss を支配する。本報告の sigma_T 0.0419〜10.1424 は **128 文 / 48,586 フレームの標本値**であって、本番パックの値ではない。writer が 20,946 文の 1 パスで再計算する。計画書 P1-5 の 0.041〜9.305（8 文）とは整合的で、標本を増やすと上端が広がる"
+ },
+ "open_questions": [
+  "40ch の cT 用 mu/sigma は E_rho を凍結するまで作れない。式7 の sigma_T_k を c-line でどう取るかは Phase C の判断",
+  "vast.ai の実 IO（NVMe か network volume か）は未測定。network volume なら shard 化の利得はもっと大きい",
+  "GPU 推論が CPU と bit 一致するかは未検証。上の bitwise_probe で最初に確かめる",
+  "heldout 2,325 文に zT が要るのは s_v 較正と診断のためだけ。yT だけでよければ 0.40 GB 減らせる",
+  "max(n_ids) = 500 で max_phoneme_ids=400 を超える行が 24 行ある（B-4）。パック前に落とすか要判断"
+ ],
+ "reproduce": "scripts/a3/README.md",
+ "artifacts": {
+  "module": "scripts/labelpack.py",
+  "scripts": "scripts/a3/",
+  "raw_measurements": {
+   "fmt_bench.json": {
+    "n_utt": 128,
+    "logical_payload_bytes": 43798608,
+    "formats": {
+     "npz_store": {
+      "bytes_on_disk": 44232704,
+      "bytes_logical": 43956048,
+      "n_files": 128,
+      "write_s": 0.049431499999627704,
+      "read_us_per_utt": 173.1402223328284,
+      "partial_read_us_per_utt": 90.73804166716097,
+      "overhead_pct": 0.3594634788393275
+     },
+     "npz_deflate": {
+      "bytes_on_disk": 36265984,
+      "bytes_logical": 36017016,
+      "n_files": 128,
+      "write_s": 1.044154916999105,
+      "read_us_per_utt": 792.2326113342327,
+      "partial_read_us_per_utt": 93.4364583323865,
+      "overhead_pct": -17.766756422943853
+     },
+     "safetensors": {
+      "bytes_on_disk": 44118016,
+      "bytes_logical": 43843176,
+      "n_files": 128,
+      "write_s": 0.037300041996786604,
+      "read_us_per_utt": 82.85915266606025,
+      "partial_read_us_per_utt": 24.44802766573654,
+      "overhead_pct": 0.10175665856777914
+     },
+     "shard_bin": {
+      "bytes_on_disk": 43814912,
+      "bytes_logical": 43805520,
+      "n_files": 6,
+      "write_s": 0.019223417002649512,
+      "read_us_per_utt": 12.188152667173805,
+      "partial_read_us_per_utt": 2.1077499998985636,
+      "overhead_pct": 0.01578132346123877
+     },
+     "hdf5_group": {
+      "bytes_on_disk": 44130304,
+      "bytes_logical": 44129178,
+      "n_files": 1,
+      "write_s": 0.03616520799914724,
+      "read_us_per_utt": 125.15388900040611,
+      "partial_read_us_per_utt": 52.602013999906674,
+      "overhead_pct": 0.7547500139730469
+     },
+     "hdf5_ragged": {
+      "bytes_on_disk": 43814912,
+      "bytes_logical": 43810936,
+      "n_files": 1,
+      "write_s": 0.01835779199973331,
+      "read_us_per_utt": 114.2815833336499,
+      "partial_read_us_per_utt": 50.058486333000474,
+      "overhead_pct": 0.028147013256677015
+     },
+     "wav_sidecar": {
+      "bytes_on_disk": 44105728,
+      "bytes_logical": 43810128,
+      "n_files": 133,
+      "write_s": 0.05848554099793546,
+      "read_us_per_utt": 51.58938900058274,
+      "partial_read_us_per_utt": null,
+      "overhead_pct": 0.02630220576873128
+     }
+    }
+   },
+   "quant_zT.json": {
+    "channel_sigma_min": 0.04194988939974702,
+    "channel_sigma_max": 10.14240812278185,
+    "n_frames": 48586,
+    "codecs": {
+     "fp16": {
+      "bytes_per_elem": 2,
+      "eta_q_rms_over_sigma_mean": 0.00035216433710782286,
+      "eta_q_rms_over_sigma_max": 0.006989649158712558,
+      "l1": 0.0001656937540732996,
+      "l2": 9.325775976545506e-08,
+      "ln": 0.00026373747738810366,
+      "ldelta": 0.0002305920296674038,
+      "lstat": 3.623085008746174e-05
+     },
+     "bf16": {
+      "bytes_per_elem": 2,
+      "eta_q_rms_over_sigma_mean": 0.0056209324828931035,
+      "eta_q_rms_over_sigma_max": 0.11928391003916898,
+      "l1": 0.002644860448665232,
+      "l2": 2.366875358333672e-05,
+      "ln": 0.004211155242358612,
+      "ldelta": 0.0021651338793935793,
+      "lstat": 0.005896081479300245
+     },
+     "int16_pc": {
+      "bytes_per_elem": 2,
+      "eta_q_rms_over_sigma_mean": 3.0049421675014404e-05,
+      "eta_q_rms_over_sigma_max": 0.00026835296214493514,
+      "l1": 2.1326257747968807e-05,
+      "l2": 1.4315138958078467e-09,
+      "ln": 2.599015972342132e-05,
+      "ldelta": 2.8476844986705968e-05,
+      "lstat": 2.659707073719128e-06
+     },
+     "int8_pc": {
+      "bytes_per_elem": 1,
+      "eta_q_rms_over_sigma_mean": 0.007753420401074999,
+      "eta_q_rms_over_sigma_max": 0.07020088862394568,
+      "l1": 0.0055014245590934135,
+      "l2": 9.526116583644592e-05,
+      "ln": 0.006706034437112697,
+      "ldelta": 0.007217498973929744,
+      "lstat": 0.0007577667459808393
+     }
+    },
+    "student_sweep": [
+     {
+      "eta": 0.003,
+      "rel_delta_l1": 0.005121176700259464,
+      "rel_delta_l2": 0.006368525463395365,
+      "rel_delta_ln": 0.021295696323882604,
+      "rel_delta_ldelta": 0.004919592043887759,
+      "rel_delta_lstat": 0.019666474952925762
+     },
+     {
+      "eta": 0.01,
+      "rel_delta_l1": 0.0005312948599143617,
+      "rel_delta_l2": 0.0007159532757674616,
+      "rel_delta_ln": 0.002504216431281196,
+      "rel_delta_ldelta": 0.0005616726975477026,
+      "rel_delta_lstat": 0.0027878570282078505
+     },
+     {
+      "eta": 0.03,
+      "rel_delta_l1": 5.386111624021894e-05,
+      "rel_delta_l2": 4.072914631619079e-05,
+      "rel_delta_ln": 0.00028071815775561635,
+      "rel_delta_ldelta": 5.1562933425697655e-05,
+      "rel_delta_lstat": 0.0001393653980611254
+     },
+     {
+      "eta": 0.1,
+      "rel_delta_l1": 5.681836755932286e-06,
+      "rel_delta_l2": 2.3842823089522463e-05,
+      "rel_delta_ln": 1.9385169081537584e-05,
+      "rel_delta_ldelta": 5.563596187344719e-06,
+      "rel_delta_lstat": -2.998615655659755e-05
+     },
+     {
+      "eta": 0.3,
+      "rel_delta_l1": -3.9699262541290404e-08,
+      "rel_delta_l2": -4.912248938830711e-06,
+      "rel_delta_ln": 3.4947185703136936e-06,
+      "rel_delta_ldelta": -4.225454516253387e-07,
+      "rel_delta_lstat": -7.219578137690158e-06
+     }
+    ]
+   },
+   "quant_yT.json": {
+    "int16": {
+     "global": {
+      "snr_db_mean": 76.86222839355469,
+      "snr_db_min": 74.1301498413086,
+      "l1_mean": 7.4481799856584985e-06,
+      "mrstft": {
+       "512_128": 6.153985981427468e-05,
+       "1024_256": 8.510441904263644e-05,
+       "2048_512": 0.00011627502539113266
+      },
+      "mrstft_mean": 8.763976808268126e-05
+     },
+     "peak": {
+      "snr_db_mean": 85.02822875976562,
+      "snr_db_min": 81.54644775390625,
+      "l1_mean": 2.965447720271186e-06,
+      "mrstft": {
+       "512_128": 2.4883253459506705e-05,
+       "1024_256": 3.4449188419216625e-05,
+       "2048_512": 4.7141149210006006e-05
+      },
+      "mrstft_mean": 3.549119702957645e-05
+     }
+    },
+    "student_ref": {
+     "10": {
+      "512_128": 0.1700376532971859,
+      "1024_256": 0.226905457675457,
+      "2048_512": 0.293613588437438,
+      "l1": 0.015458718873560429
+     },
+     "20": {
+      "512_128": 0.053265401045791805,
+      "1024_256": 0.07263262453489006,
+      "2048_512": 0.09599990607239306,
+      "l1": 0.00488681998103857
+     },
+     "30": {
+      "512_128": 0.01615571533329785,
+      "1024_256": 0.022135163191705942,
+      "2048_512": 0.029413162730634212,
+      "l1": 0.0015453299274668097
+     },
+     "40": {
+      "512_128": 0.0049338561948388815,
+      "1024_256": 0.006777139118639752,
+      "2048_512": 0.009088440041523427,
+      "l1": 0.000488896097522229
+     }
+    },
+    "stft_bins_per_sample": 6.013671875,
+    "R": [
+     [
+      512,
+      128
+     ],
+     [
+      1024,
+      256
+     ],
+     [
+      2048,
+      512
+     ]
+    ]
+   },
+   "scale.json": {
+    "utts": 20946,
+    "est_frames": 7013764.921834489,
+    "est_samples": 1795523819.9896293,
+    "hours": 22.61934769450276,
+    "components": {
+     "zT_fp16": 2693285729.9844437,
+     "yT_int16": 3591047639.9792585,
+     "dT_fp32": 10967380.0,
+     "ids_int32": 10967380.0,
+     "prosody_int16": 16451070.0
+    },
+    "total_bytes": 6322719199.963702,
+    "sha256_gbps": 2.799619602393848
+   },
+   "packtest.json": {
+    "roundtrip_bit_exact": true,
+    "gates": {
+     "frames 不一致": "hop 不一致: frames 263*256 != samples 67584",
+     "ceil(dT) 不一致": "ceil(dT).sum()=153 != frames 264",
+     "音素 id >= 173": "音素 id が範囲外: max 173 (num_symbols=173)",
+     "NaN": "zT に NaN/Inf",
+     "全ゼロ音声": "yT が無音（全ゼロ相当）",
+     "intersperse 無し": "intersperse PAD が無い（自前音素化の疑い）",
+     "発話速度 2.4x": "発話速度 21.53 mora/s が範囲外",
+     "dT に 0": "ceil(dT).sum()=262 != frames 264"
+    },
+    "pack_bytes": 43844765,
+    "n": 128
+   }
+  }
+ }
+}

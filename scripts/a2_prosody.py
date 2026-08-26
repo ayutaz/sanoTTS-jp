@@ -12,15 +12,21 @@
            （+ アクセント句を切り出して「ID からは区別できない prosody」の量を数える）
   stage b  held-out 300 文で 実 prosody / ゼロ / None の 3 通りの dT を比較
   stage c  音素ID列を固定したまま prosody だけ差し替えて dT のばらつきを測る
-           c1: 平板/尾高の入れ替え（ID 列からは区別できない唯一の言語学的曖昧性）
-           c2: 同じ長さの別文の prosody を丸ごと移植（上限の目安）
+           c1: 音素ID列だけから復元した prosody（= デバイスが持てる情報の上限）
+           c2: 同じ長さの別文の prosody を丸ごと移植（感度の上限の目安）
+           c3: `]` の無い句を平板に強制（アクセント型を変えたときの感度）
+  stage c1detail  c1 で食い違った行だけを取り出して dT 差を測る
   stage d  実 prosody とゼロで教師音声を合成して UTMOS を比べる
 
 実行:
     uv run python scripts/a2_prosody.py phonemize     # 音素化キャッシュを作る
-    uv run python scripts/a2_prosody.py a b c
+    uv run python scripts/a2_prosody.py a b c c1detail
     uv run --extra eval python scripts/a2_prosody.py d
-    uv run python scripts/a2_prosody.py merge         # reports/a2_prosody.json を作る
+    uv run python scripts/a2_prosody_routeb.py        # 経路 (b) での追試
+    uv run python scripts/a2_prosody.py merge         # 判定を reports に書き込む
+
+⚠️ 分析対象からは **B-1 の誤ルーティング行（かな無し行が北京語音素になる）を除く**。
+除かないと「prosody が ID から復元できない行」の上位がすべて誤ルーティングの地名になる。
 
 前提: `teacher-inference` skill の 6 項目。duration-only 高速経路は
 `infer()` と bit 一致することを stage b の冒頭で毎回検証する。
@@ -32,6 +38,7 @@ import collections
 import csv
 import glob
 import json
+import os
 import pathlib
 import pickle
 import random
@@ -47,9 +54,9 @@ import torch
 PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
 CKPT = "epoch=499-step=22000.ckpt"
 ROOT = pathlib.Path("/Users/s19447/Desktop/saanoTTS-jp")
+# 音素化キャッシュの置き場（中間ファイルなのでリポジトリには置かない）
 WORK = pathlib.Path(
-    "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/"
-    "3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/phaseA"
+    os.environ.get("A2_WORK_DIR", "/tmp/saanotts_a2_prosody")
 )
 WORK.mkdir(parents=True, exist_ok=True)
 CACHE = WORK / "corpus_phonemes.pkl"
@@ -394,8 +401,22 @@ def stage_a() -> dict:
 # --------------------------------------------------------------------------
 # stage b
 # --------------------------------------------------------------------------
-def pick_heldout(rows, n, seed=20260826, min_ids=40):
-    cands = [r for r in rows if r["split"] == "heldout" and len(r["ids"]) >= min_ids]
+def pick_heldout(rows, n, seed=20260826, min_ids=40, R=None):
+    """held-out から n 文。
+
+    **中国語 / 英語へ誤ルーティングされた行 (B-1) を必ず除く。**
+    かなを 1 文字も含まない行（地名など）は `MultilingualPhonemizer` が丸ごと
+    北京語音素にするので prosody も日本語のものではなくなり、
+    prosody の分析対象にならない（M-19 / D-009）。
+    """
+    R = R or token_roles(load_config())
+    cands = [
+        r
+        for r in rows
+        if r["split"] == "heldout"
+        and len(r["ids"]) >= min_ids
+        and not any(i in R["foreign"] for i in r["ids"])
+    ]
     rng = random.Random(seed)
     rng.shuffle(cands)
     return cands[:n]
@@ -579,6 +600,64 @@ def stage_c(n=300) -> dict:
     return out
 
 
+def stage_c1_detail(n=300) -> dict:
+    """c1 で prosody が食い違った行だけを取り出して dT の差を測る。
+
+    c1 の平均は「食い違わない 96% の 0」で薄まるので、**食い違った行だけ**の
+    大きさを別に出す。どういう文で起きるかも記録する。
+    """
+    rows = load_cache()
+    R = token_roles(load_config())
+    model = load_teacher()
+    sample = pick_heldout(rows, n)
+    diff = [r for r in sample if decode_prosody(list(r["ids"]), R) != r["pros"]]
+    print(f"[stage c1detail] {n} 文中 decoded != real: {len(diff)}")
+
+    tot, tok, examples = [], [], []
+    for r in diff:
+        ids = list(r["ids"])
+        d0 = durations_only(model, ids, prosody_tensor(r["pros"]))
+        d1 = durations_only(model, ids, prosody_tensor(decode_prosody(ids, R)))
+        b = float(np.ceil(d0[0].numpy()).sum())
+        pct = abs(float(np.ceil(d1[0].numpy()).sum()) - b) / b * 100
+        tot.append(pct)
+        tok.append(np.abs(d1[0].numpy() - d0[0].numpy()))
+        examples.append(
+            {
+                "id": r["id"],
+                "text": r["text"][:40],
+                "total_frames_delta_pct": round(pct, 4),
+                "per_token_delta_frames_mean": round(float(tok[-1].mean()), 5),
+            }
+        )
+        print(f"   {r['id']:32s} |Δ|フレーム {pct:6.3f}%  {r['text'][:26]}")
+    tokc = np.concatenate(tok) if tok else np.zeros(1)
+
+    ho = [
+        r
+        for r in rows
+        if r["split"] == "heldout" and not any(i in R["foreign"] for i in r["ids"])
+    ]
+    nd = sum(1 for r in ho if decode_prosody(list(r["ids"]), R) != r["pros"])
+    print(f"   held-out 純日本語 {len(ho)} 文中 decoded != real: {nd} "
+          f"({nd / len(ho) * 100:.2f}%)")
+    return {
+        "n_sampled": n,
+        "n_rows_prosody_not_recoverable": len(diff),
+        "on_those_rows": {
+            "total_frames_delta_pct_mean": round(float(np.mean(tot)), 4),
+            "total_frames_delta_pct_median": round(float(np.median(tot)), 4),
+            "total_frames_delta_pct_max": round(float(np.max(tot)), 4),
+            "per_token_delta_frames_mean_abs": round(float(tokc.mean()), 5),
+            "per_token_delta_frames_p95_abs": round(float(np.percentile(tokc, 95)), 5),
+        },
+        "heldout_rows_pure_ja": len(ho),
+        "heldout_rows_prosody_not_recoverable": nd,
+        "heldout_not_recoverable_pct": round(nd / len(ho) * 100, 3),
+        "examples": examples,
+    }
+
+
 # --------------------------------------------------------------------------
 # stage d — UTMOS
 # --------------------------------------------------------------------------
@@ -586,12 +665,16 @@ def stage_d(n=32) -> dict:
     import soundfile as sf
 
     rows = load_cache()
+    R = token_roles(load_config())
     model = load_teacher()
-    # 3〜8 秒相当を長さで層化して選ぶ（B-5 と同じ設計。短尺は MOS 推定器を不安定にする）
+    # 3.5 秒以上を長さで層化して選ぶ（B-5 と同じ設計。短尺は MOS 推定器を不安定にする）。
+    # 誤ルーティング行 (B-1) は除く。
     cands = [
         r
         for r in rows
-        if r["split"] == "heldout" and 90 <= len(r["ids"]) <= 220
+        if r["split"] == "heldout"
+        and 130 <= len(r["ids"]) <= 280
+        and not any(i in R["foreign"] for i in r["ids"])
     ]
     cands.sort(key=lambda r: len(r["ids"]))
     step = max(1, len(cands) // n)
@@ -678,6 +761,73 @@ def stage_d(n=32) -> dict:
 
 
 # --------------------------------------------------------------------------
+# 判定（測定値から組み立てる。数値をここに直書きしない）
+# --------------------------------------------------------------------------
+def build_decision(data: dict) -> dict:
+    a = data["stage_a_corpus"]
+    b = data["stage_b_dT_conditions"]["conditions"]
+    c = data["stage_c_id_fixed_prosody_perturbation"]
+    cd = data.get("stage_c1_detail", {})
+    d = data.get("stage_d_utmos", {}).get("summary", {})
+    rb_path = ROOT / "reports/a2_prosody_routeb.json"
+    rb = json.loads(rb_path.read_text())["results"] if rb_path.exists() else None
+    routeb = (
+        f"中間表現が実際に通る経路 (b) `JapanesePhonemizer` でも同じ: 復元は "
+        f"held-out 文 {rb['heldout']['sentence_exact_pct']}% / token "
+        f"{rb['heldout']['token_exact_pct']}%、embedded 文 "
+        f"{rb['embedded']['sentence_exact_pct']}%（reports/a2_prosody_routeb.json）"
+        if rb
+        else "経路 (b) は未測定"
+    )
+    return {
+        "label_generation": "(a) 実 A1/A2/A3 を渡す",
+        "why": [
+            f"prosody は実効的: ゼロにすると総フレームが "
+            f"{b['zero']['total_frames_delta_pct']['mean']}%、None だと "
+            f"{b['none']['total_frames_delta_pct']['mean']}% 動く",
+            f"それでも生徒の教師信号は矛盾しない: コーパス {a['rows']} 行で音素ID列の重複は "
+            f"{a['duplicate_groups']} グループしかなく、prosody が食い違う重複は "
+            f"{a['duplicate_groups_with_prosody_conflict']} 件",
+            f"prosody 自体が音素ID列のほぼ決定的な関数: ID 列だけからの復元が "
+            f"token {a['prosody_from_ids_only']['token_exact_pct']}% / 文 "
+            f"{a['prosody_from_ids_only']['sentence_exact_pct']}%（経路 (a) 基準）",
+            routeb,
+            f"復元できない残差が dT を動かす量は小さい: 全体平均 "
+            f"{c['c1_decoded_from_ids']['total_frames_delta_pct']['mean_abs']}%、"
+            f"食い違った行だけでも "
+            f"{cd.get('on_those_rows', {}).get('total_frames_delta_pct_mean')}%",
+            f"(a) と (b) で教師音声の UTMOS に有意差なし: real "
+            f"{d.get('real', {}).get('utmos_mean')} vs zero "
+            f"{d.get('zero', {}).get('utmos_mean')}（差 "
+            f"{d.get('zero_minus_real', {}).get('utmos_mean')}, t="
+            f"{data.get('stage_d_utmos', {}).get('summary', {}).get('paired_t')}）。"
+            f"UTMOS は日本語で較正されていない (D-008) ので、差が出ないことを (b) の"
+            f"根拠にはできない",
+        ],
+        "student_duration_net_extra_input": "不要（アクセント記号 [ ] # だけでよい）",
+        "student_why": (
+            "A1/A2/A3 はアクセント句内の位置特徴で、句境界と核は音素ID列の "
+            "'[' / ']' / '#' が保持している。ID 列だけから "
+            f"{a['prosody_from_ids_only']['token_exact_pct']}% 復元できるので、"
+            "生徒 Dα は音素IDだけから同じ情報を学習できる。"
+        ),
+        "caveats": [
+            "UTMOS は日本語で較正されていない（実人間 2.305, M-10）。"
+            "本測定は (a)/(b) の差を見るためだけに使い、絶対値を解釈しない",
+            f"stage d は n={data.get('stage_d_utmos', {}).get('n')} / 実 prosody 側の"
+            f"平均 {d.get('real', {}).get('sec_mean')} 秒。B-5 (M-10) の 24 文・"
+            f"平均 5.16 秒とは別サンプルなので UTMOS 絶対値の突き合わせはしない",
+            f"ゼロにすると発話が {abs(d.get('zero_minus_real', {}).get('sec_pct_mean', 0))}% "
+            f"速くなる。UTMOS がテンポ変化に鈍い可能性があり、"
+            f"「UTMOS に差が無い = (b) でも音質が落ちない」とは読めない",
+            "prosody 復元器 decode_prosody() は本測定の分析用であり、"
+            "ラベル生成に使う必要はない（実 prosody をそのまま渡すため）",
+            f"音素ID列が中国語へ誤ルーティングされる行が {a['rows_misrouted_to_zh']} 行 "
+            "残っている（B-1）。本測定はその行を分析から除外しただけで、B-1 は未解決",
+        ],
+    }
+
+
 def main(argv):
     stages = argv[1:] or ["a", "b", "c"]
     report = ROOT / "reports/a2_prosody.json"
@@ -691,10 +841,13 @@ def main(argv):
             data["stage_b_dT_conditions"] = stage_b()
         elif s == "c":
             data["stage_c_id_fixed_prosody_perturbation"] = stage_c()
+        elif s == "c1detail":
+            data["stage_c1_detail"] = stage_c1_detail()
         elif s == "d":
             data["stage_d_utmos"] = stage_d()
         elif s == "merge":
-            pass
+            data["decision"] = build_decision(data)
+            print(json.dumps(data["decision"], ensure_ascii=False, indent=1))
         else:
             raise SystemExit(f"unknown stage: {s}")
     if data:
