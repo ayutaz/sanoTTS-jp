@@ -1,0 +1,172 @@
+{
+ "seed": 20260826,
+ "raw_rows": 23271,
+ "empty_after_norm": 0,
+ "rows_changed_by_nfkc": 840,
+ "unique_after_dedup": 23271,
+ "exact_duplicates_removed": 0,
+ "duplicate_pairs_top": [],
+ "near_dup_threshold_jaccard5gram": 0.7,
+ "near_dup_leaks_moved_to_train": 4,
+ "near_dup_examples": [
+  {
+   "heldout": "<redacted: corpus text>",
+   "jaccard": 0.857,
+   "train": "<redacted: corpus text>"
+  },
+  {
+   "heldout": "<redacted: corpus text>",
+   "jaccard": 0.867,
+   "train": "<redacted: corpus text>"
+  },
+  {
+   "heldout": "<redacted: corpus text>",
+   "jaccard": 0.714,
+   "train": "<redacted: corpus text>"
+  },
+  {
+   "heldout": "<redacted: corpus text>",
+   "jaccard": 0.765,
+   "train": "<redacted: corpus text>"
+  }
+ ],
+ "splits": {
+  "train": {
+   "name": "train",
+   "lines": 20946,
+   "chars_total": 564121,
+   "chars_per_line_mean": 26.93,
+   "chars_per_line_median": 24,
+   "chars_per_line_min": 1,
+   "chars_per_line_max": 97,
+   "char_class_pct": {
+    "hiragana": 53.58,
+    "kanji": 27.66,
+    "katakana": 11.62,
+    "punct_other": 6.96,
+    "digit": 0.16,
+    "latin": 0.02,
+    "space": 0.0
+   },
+   "lines_containing_pct": {
+    "kanji": 98.63,
+    "hiragana": 95.08,
+    "punct_other": 79.85,
+    "katakana": 43.04,
+    "digit": 1.86,
+    "latin": 0.42,
+    "space": 0.05
+   },
+   "lines_without_any_kana": 1005,
+   "lines_without_any_kana_pct": 4.798,
+   "by_source": {
+    "cv/sentence_collector": 8522,
+    "jsut/basic5000": 4495,
+    "rohan4600": 4140,
+    "cv/yumie-text-1": 1421,
+    "jsut/travel1000": 900,
+    "jsut/utparaphrase512": 460,
+    "ita/recitation324": 292,
+    "jsut/onomatopee300": 270,
+    "jsut/precedent130": 117,
+    "jsut/loanword128": 115,
+    "jsut/repeat500": 90,
+    "ita/emotion100": 88,
+    "jsut/countersuffix26": 23,
+    "cv/singleword-benchmark": 11,
+    "jsut/voiceactress100": 2
+   }
+  },
+  "heldout": {
+   "name": "heldout",
+   "lines": 2325,
+   "chars_total": 62712,
+   "chars_per_line_mean": 26.97,
+   "chars_per_line_median": 24,
+   "chars_per_line_min": 2,
+   "chars_per_line_max": 98,
+   "char_class_pct": {
+    "hiragana": 53.99,
+    "kanji": 27.82,
+    "katakana": 11.09,
+    "punct_other": 6.89,
+    "digit": 0.16,
+    "latin": 0.04,
+    "space": 0.0
+   },
+   "lines_containing_pct": {
+    "kanji": 98.71,
+    "hiragana": 94.24,
+    "punct_other": 79.83,
+    "katakana": 40.77,
+    "digit": 1.72,
+    "latin": 0.86,
+    "space": 0.04
+   },
+   "lines_without_any_kana": 133,
+   "lines_without_any_kana_pct": 5.72,
+   "by_source": {
+    "cv/sentence_collector": 947,
+    "jsut/basic5000": 500,
+    "rohan4600": 460,
+    "cv/yumie-text-1": 158,
+    "jsut/travel1000": 96,
+    "jsut/utparaphrase512": 52,
+    "ita/recitation324": 32,
+    "jsut/onomatopee300": 30,
+    "jsut/loanword128": 13,
+    "jsut/precedent130": 13,
+    "ita/emotion100": 10,
+    "jsut/repeat500": 10,
+    "jsut/countersuffix26": 3,
+    "cv/singleword-benchmark": 1
+   }
+  }
+ },
+ "all_unique": {
+  "name": "all_unique",
+  "lines": 23271,
+  "chars_total": 626833,
+  "chars_per_line_mean": 26.94,
+  "chars_per_line_median": 24,
+  "chars_per_line_min": 1,
+  "chars_per_line_max": 98,
+  "char_class_pct": {
+   "hiragana": 53.62,
+   "kanji": 27.67,
+   "katakana": 11.57,
+   "punct_other": 6.95,
+   "digit": 0.16,
+   "latin": 0.03,
+   "space": 0.0
+  },
+  "lines_containing_pct": {
+   "kanji": 98.63,
+   "hiragana": 94.99,
+   "punct_other": 79.85,
+   "katakana": 42.81,
+   "digit": 1.84,
+   "latin": 0.47,
+   "space": 0.05
+  },
+  "lines_without_any_kana": 1138,
+  "lines_without_any_kana_pct": 4.89,
+  "by_source": {
+   "cv/sentence_collector": 9469,
+   "jsut/basic5000": 4995,
+   "rohan4600": 4600,
+   "cv/yumie-text-1": 1579,
+   "jsut/travel1000": 996,
+   "jsut/utparaphrase512": 512,
+   "ita/recitation324": 324,
+   "jsut/onomatopee300": 300,
+   "jsut/precedent130": 130,
+   "jsut/loanword128": 128,
+   "jsut/repeat500": 100,
+   "ita/emotion100": 98,
+   "jsut/countersuffix26": 26,
+   "cv/singleword-benchmark": 12,
+   "jsut/voiceactress100": 2
+  }
+ }
+}
