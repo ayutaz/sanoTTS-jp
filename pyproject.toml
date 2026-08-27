@@ -25,6 +25,9 @@ eval = [
     "torchaudio>=2.11.0",
     "scoreq>=1.0.1",
     "faster-whisper>=1.0",
+    "speechmos>=0.0.1.1",
+    "onnxruntime>=1.29.0",
+    "requests>=2.34.2",
 ]
 
 [build-system]
