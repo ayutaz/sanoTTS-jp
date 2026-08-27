@@ -46,3 +46,8 @@ __pycache__/
 # 合成音声
 /reports/eval_*/
 /reports/student_wav/
+
+# C コアのビルド成果物とエクスポート（再生成できる）
+/csrc/golden_test
+/csrc/*.bin
+/csrc/*.o

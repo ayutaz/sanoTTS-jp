@@ -1,0 +1,375 @@
+{
+ "ckpt": "runs/v2/stage4.pt",
+ "betas": [
+  0.0,
+  2.0
+ ],
+ "n_sentences": 20,
+ "repeats": 2,
+ "n_trials": 40,
+ "seed": 20260827,
+ "design": "A/B 強制選択。順序ランダム / 左右ランダム / 同一刺激を 2 回反復（内的一貫性の確認用）",
+ "how_to_score": "各 β の選好数を数える。二項 95%CI が 0.5 を跨いだら **β を小さいほうに倒す**（計画書 §Phase 5）。反復間で答えが割れた試行の割合が内的一貫性",
+ "trials": [
+  {
+   "trial": "T000",
+   "uid": "RECITATION324_109",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.10989010989010989
+  },
+  {
+   "trial": "T001",
+   "uid": "BASIC5000_2918",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09523809523809523
+  },
+  {
+   "trial": "T002",
+   "uid": "sentence_collector_04223",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09876543209876543
+  },
+  {
+   "trial": "T003",
+   "uid": "ROHAN4600_2061",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09523809523809523
+  },
+  {
+   "trial": "T004",
+   "uid": "BASIC5000_4784",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.11578947368421053
+  },
+  {
+   "trial": "T005",
+   "uid": "sentence_collector_05344",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.11594202898550725
+  },
+  {
+   "trial": "T006",
+   "uid": "ROHAN4600_4217",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09433962264150944
+  },
+  {
+   "trial": "T007",
+   "uid": "sentence_collector_02982",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09859154929577464
+  },
+  {
+   "trial": "T008",
+   "uid": "sentence_collector_05967",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.1038961038961039
+  },
+  {
+   "trial": "T009",
+   "uid": "sentence_collector_06787",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09278350515463918
+  },
+  {
+   "trial": "T010",
+   "uid": "ROHAN4600_0654",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.11818181818181818
+  },
+  {
+   "trial": "T011",
+   "uid": "ONOMATOPEE300_157",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09523809523809523
+  },
+  {
+   "trial": "T012",
+   "uid": "sentence_collector_05342",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09411764705882353
+  },
+  {
+   "trial": "T013",
+   "uid": "sentence_collector_05690",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09090909090909091
+  },
+  {
+   "trial": "T014",
+   "uid": "sentence_collector_03868",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09090909090909091
+  },
+  {
+   "trial": "T015",
+   "uid": "sentence_collector_07830",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.096045197740113
+  },
+  {
+   "trial": "T016",
+   "uid": "UT-PARAPHRASE-sent035-phrase1",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09574468085106383
+  },
+  {
+   "trial": "T017",
+   "uid": "BASIC5000_1026",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09836065573770492
+  },
+  {
+   "trial": "T018",
+   "uid": "sentence_collector_03249",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.08955223880597014
+  },
+  {
+   "trial": "T019",
+   "uid": "BASIC5000_0568",
+   "text": "<redacted: corpus text>",
+   "repeat": 0,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09090909090909091
+  },
+  {
+   "trial": "T020",
+   "uid": "sentence_collector_05344",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.11594202898550725
+  },
+  {
+   "trial": "T021",
+   "uid": "ROHAN4600_4217",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09433962264150944
+  },
+  {
+   "trial": "T022",
+   "uid": "BASIC5000_2918",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09523809523809523
+  },
+  {
+   "trial": "T023",
+   "uid": "sentence_collector_06787",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09278350515463918
+  },
+  {
+   "trial": "T024",
+   "uid": "sentence_collector_05967",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.1038961038961039
+  },
+  {
+   "trial": "T025",
+   "uid": "RECITATION324_109",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.10989010989010989
+  },
+  {
+   "trial": "T026",
+   "uid": "sentence_collector_02982",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09859154929577464
+  },
+  {
+   "trial": "T027",
+   "uid": "ROHAN4600_0654",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.11818181818181818
+  },
+  {
+   "trial": "T028",
+   "uid": "sentence_collector_03868",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09090909090909091
+  },
+  {
+   "trial": "T029",
+   "uid": "sentence_collector_07830",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.096045197740113
+  },
+  {
+   "trial": "T030",
+   "uid": "BASIC5000_4784",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.11578947368421053
+  },
+  {
+   "trial": "T031",
+   "uid": "UT-PARAPHRASE-sent035-phrase1",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09574468085106383
+  },
+  {
+   "trial": "T032",
+   "uid": "sentence_collector_05342",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09411764705882353
+  },
+  {
+   "trial": "T033",
+   "uid": "ROHAN4600_2061",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09523809523809523
+  },
+  {
+   "trial": "T034",
+   "uid": "sentence_collector_05690",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09090909090909091
+  },
+  {
+   "trial": "T035",
+   "uid": "ONOMATOPEE300_157",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09523809523809523
+  },
+  {
+   "trial": "T036",
+   "uid": "BASIC5000_1026",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09836065573770492
+  },
+  {
+   "trial": "T037",
+   "uid": "sentence_collector_04223",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.09876543209876543
+  },
+  {
+   "trial": "T038",
+   "uid": "sentence_collector_03249",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 0.0,
+   "B_beta": 2.0,
+   "density": 0.08955223880597014
+  },
+  {
+   "trial": "T039",
+   "uid": "BASIC5000_0568",
+   "text": "<redacted: corpus text>",
+   "repeat": 1,
+   "A_beta": 2.0,
+   "B_beta": 0.0,
+   "density": 0.09090909090909091
+  }
+ ]
+}
