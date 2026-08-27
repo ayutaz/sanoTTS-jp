@@ -9,8 +9,8 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-028 と**訂正履歴 C-001〜C-022** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-37。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-028 と**訂正履歴 C-001〜C-023** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-41。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-11 の検証タスクと Phase 0〜D の状態 | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | **vast.ai 実行手順**。ラベル一括生成 → 本学習。教師の同一性照合とゲート | 実行時 |
@@ -40,16 +40,20 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 [完了] B-4/6/7/8/9/10       検証タスク完走。D-016〜D-028 として設計値を凍結
 [完了] SCOREQ 導入           論文の主指標。教師 2.0488 / 実人間 2.4983 → 比 0.820
 [完了] 本番ラベルパック      train 20,790 / heldout 2,314 発話。SHA-256 固定（M-35）
-[完了] 本学習 v1/v2         **SCOREQ 教師比 0.611（目標 0.5427 を超過）**（M-36 / M-37）
-[次]   β（式7）の決定        **聴取で決める。** 指標では決めない
-[未]   Phase D              C99 コア + ESP32 実機
+[完了] 本学習 v1/v2         **SCOREQ 教師比 0.611（論文の英語比 0.5427 を超過）**（M-36 / M-37）
+[完了] CER                  かな CER 教師 0.135 / 生徒 0.178（M-38）
+[完了] int8 量子化           blob 624,692 B（論文比 −8.1%）（M-39）
+[完了] β スイープ            β=0 と 2 が候補。⚠️ **聴取待ち**（M-40）
+[完了] Phase D-1            C99 コア。Pearson 1.000000 / SNR 117.5 dB（M-41）
+[次]   Phase D-2            **ストリーミング化。今は 1.26 MB で ESP32 に載らない**
+[未]   Phase D-3            int8 カーネル + 実機測定
 ```
 
 ### 凍結した設計値（2026-08-27）
 
 | 項目 | 値 | 記録 |
 |---|---|---|
-| デプロイ語彙 | **57**（英語版は 157）→ 合計 **559,008 params** | D-016 / M-26 |
+| デプロイ語彙 | **57**（英語版は 157）→ 合計 **559,008 params** / int8 blob 624,692 B | D-016 / M-26 / M-39 |
 | 長さフィルタ | `max_spec_length=700` で 4.31% 除外 | D-017 / M-23 |
 | `_` PAD | **フレームの 53.76%**。特別扱いしない | D-018 / M-25 |
 | `s_v` | **1.2187**（丸め規約の差の吸収） | D-019 / M-24 |
@@ -59,6 +63,9 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 | `yT` | EMA 適用版 | D-023 / M-33 |
 | 判別器 | 94,755 params（学習専用） | D-025 / M-31 |
 | 平坦度プローブ | `n_fft=1024 / guard=0 / power=1` | M-27 |
+| 実行環境 | 手元の M4 Max（ラベル生成 CPU / 学習 MPS） | D-027 |
+| `Eρ` | Stage 2 で凍結、Stage 3 で decoder と学習 | D-028 |
+| CER | **かな CER**（表記 CER は符号が逆転する） | C-023 |
 
 ### 何が確実で、何が未知か
 
@@ -72,13 +79,19 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 - **オンデバイス G2P は 951 B で成立する**（往復 100%、教師出力と bit 一致）
 
 **未知（プロジェクトの成否を左右する順）**
-1. **ESP32 実機のレイテンシと実 heap** — 解析では余裕があるが、C99 コアが出来るまで測れない
-2. **`β`（式7）** — **聴取で決める。** 集約スコアはむしろ下がるので指標で決めない
-3. **日本語 CER** — まだ測っていない。SCOREQ / UTMOS とは別の軸
 
-**⚠️ 「567 K で日本語が実用に足るか」は v2 で一歩進んだ**（SCOREQ 教師比 0.611 が
-論文の英語 embedded 比 0.5427 を上回った、M-37）。ただし **n=24** で、
-絶対値は日本語で較正されていない。聴取と CER はまだ。
+1. **ESP32 に載るか** — ⚠️ **C コアは現在 1.26 MB。SRAM 512 KB の 246%。**
+   ストリーミング化で 6+10 KB に落ちる見込みだが、時間方向の受容野
+   （decoder ±16 / acoustic ±10 フレーム）があるのでチャンク処理が要る
+2. **レイテンシ** — ⚠️ **一度も測っていない。** `irfft` が naive DFT なので
+   FFT 化するまで測る意味が無い
+3. **`β`（式7）** — **聴取で決める。** 候補は β=0 と 2（M-40）。
+   ⚠️ この生徒は β=0 で既に教師と一致しており、**式7 が要らない可能性が高い**
+4. **アクセント型の再現性** — ⚠️ ミニマルペア（橋/箸/端）の評価が未実施
+
+**品質は目標に届いた**（SCOREQ 教師比 0.611 > 論文の英語比 0.5427、M-37）。
+⚠️ ただし **n=24** で、絶対値は日本語で較正されていない。聴取も未実施。
+**残るのはメモリとレイテンシ。**
 
 ## リポジトリ構成
 
@@ -106,13 +119,17 @@ saanoTTS-jp/
 │   ├── flatness.py                        音素クラス別 SFM（設定と教師ベースラインを凍結）
 │   ├── scoreq_metric.py                   SCOREQ ラッパ（torchcodec 回避）
 │   └── teacher_identity.py                piper-plus のコミット / ソース SHA-256 のピン留め
-├── deploy/
+├── csrc/                                  **C99 推論コア（Phase D）**
+│   ├── saanotts.h / saanotts.c            依存は libm のみ。malloc を呼ばず arena を使う
+│   ├── golden_test.c                      参照実装との一致検証（Pearson >= 0.98）
+│   └── Makefile                           `make test`
+├── deploy/                                vast.ai 用（⚠️ 現在は使っていない、D-027）
 │   ├── vastai_bootstrap.sh                setup → parity → labels → train
 │   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（58 ケースのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（57 ケースのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                          student-training / evaluating-quality / verifying-reports
 ├── reports/                               一次データ (JSON)。⚠️ 全行ダンプは追跡しない
@@ -137,7 +154,18 @@ saanoTTS-jp/
     ├── d5_istft_framing.py / d6_ema_ablation.py
     ├── eval_metrics.py                    UTMOS + SCOREQ 4 設定を並べて出す
     ├── esp32_memory_budget.py             ESP32-S3 のメモリ収支見積もり
+    ├── train_student.py                   生徒 4 段の蒸留学習（段間で重みを引き継ぐ）
+    ├── synthesize_student.py              **生徒だけで音声を作る**（教師を呼ばない）
+    ├── eval_student.py                    教師比 + 音素クラス別 SFM/RMS
+    ├── measure_cer.py                     かな CER（表記 CER も参考で併記）
+    ├── quantize_student.py                int8 PTQ シミュレーションと blob サイズ
+    ├── b_beta_sweep.py                    β の候補絞り込み（決定は聴取）
+    ├── build_listening_set.py             A/B 聴取セット（順序・左右ランダム / 2 反復）
+    ├── score_listening.py                 二項 CI と内的一貫性で判定
+    ├── export_c_weights.py                重みと golden を SAAN 形式で書き出す
     └── b0/                                B-0 の測定スクリプト（記録用）
+
+（`data/pack*` `runs/` `reports/eval_*` `csrc/*.bin` は .gitignore。再生成できる）
 ```
 
 ## 実行方法
@@ -151,13 +179,28 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器（10 �
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（58 ケース）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（57 ケース）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 
-# 次のフェーズ（vast.ai 上で実行する）
-bash deploy/vastai_bootstrap.sh setup
-bash deploy/vastai_bootstrap.sh parity           # ★ D-015 のゲート。ここで結果を読む
+# C99 推論コア（Phase D）
+uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt
+make -C csrc test                                # golden test（Pearson >= 0.98）
 ```
+
+一から作り直す場合:
+
+```bash
+uv run python scripts/gen_teacher_labels.py --split train   --out data/pack     # 47 分
+uv run python scripts/gen_teacher_labels.py --split heldout --out data/pack_heldout
+uv run python scripts/train_student.py --run runs/v2 --stage 1 --steps 20000 --accum 8
+uv run python scripts/train_student.py --run runs/v2 --stage 2 --steps 60000 --accum 8
+uv run python scripts/train_student.py --run runs/v2 --stage 3 --steps 40000 --accum 8
+uv run python scripts/train_student.py --run runs/v2 --stage 4 --steps 60000 --accum 8
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v2/stage4.pt --n 24 \
+    --out reports/eval_v2
+```
+
+⚠️ **ラベルは一度だけ生成する**（D-015）。hook が `data/pack` の破棄と再生成を deny する。
 
 **Python は必ず `uv` 経由**（`pip install` を使わない）。**学習は vast.ai**（[D-012](decisions.md)）。
 手元で `--split train` のラベルを丸ごと生成しようとすると hook が止める。

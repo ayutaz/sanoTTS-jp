@@ -133,13 +133,42 @@ from saanotts_jp.labelpack import PackReader
 
 `c_rank` が下がり続けるなら潰れている。別案（再構成損失を足す / 順序を変える）は未検証。
 
+## 7. C99 コアと参照実装は 1:1 で対応させる
+
+`csrc/saanotts.c` は `src/saanotts_jp/_param_reference.py` の写しである。
+**片方だけ直すと golden test が落ちる。それが検出手段。**
+
+対応で間違えやすいところ:
+
+| 箇所 | 落とし穴 |
+|---|---|
+| LayerNorm | PyTorch は**チャネル方向**に正規化する（参照実装は `transpose(1,2)` してから）。C は `[C,T]` レイアウトなので時刻ごとに C 本を見る。**軸を間違えても数値は出る** |
+| Duration の残差 | LayerScale 付き（`x + γ·f(x)`）。**Acoustic は素の残差**（γ 無し） |
+| decoder の条件付け | `g = cup(cdown(c))` の `c` は**毎段とも元の入力**。`h` ではない |
+| GELU | PyTorch の既定は erf 版。tanh 近似ではない |
+| `round` | C の `roundf` は half-away-from-zero、`torch.round` は **half-to-even**。ちょうど .5 で割れる |
+
+```bash
+uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt
+make -C csrc test        # Pearson >= 0.98 が受け入れ条件
+```
+
+⚠️ **golden test が通っても ESP32 に載るとは限らない。** 現在の C コアは
+**1.26 MB 使い SRAM 512 KB の 246%**（発話全体をバッファしているため、M-41）。
+
 ## 学習を回す
 
 ```bash
-uv run python scripts/train_student.py --run runs/v1 --all --steps 20000
-uv run python scripts/synthesize_student.py --ckpt runs/v1/stage4.pt \
-    --texts data/splits/corpus_heldout.tsv --limit 24 --out reports/student_wav
+uv run python scripts/train_student.py --run runs/v2 --stage 1 --steps 20000 --accum 8
+uv run python scripts/train_student.py --run runs/v2 --stage 2 --steps 60000 --accum 8
+uv run python scripts/train_student.py --run runs/v2 --stage 3 --steps 40000 --accum 8
+uv run python scripts/train_student.py --run runs/v2 --stage 4 --steps 60000 --accum 8
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v2/stage4.pt --n 24 \
+    --out reports/eval_v2
 ```
+
+**step 配分の実測（M-37）**: Stage 3 は **20,000 step で SNR +8.91 dB に飽和**する
+（40,000 は半分無駄）。Stage 2 の val はまだ下がる余地がある。
 
 **手元の M4 Max で完結する**（D-027。ラベル生成は CPU で 40 分、学習は MPS で約 1.3 時間）。
 ラベル生成に MPS を使わないのは CPU と bit 一致しないため（M-21）。

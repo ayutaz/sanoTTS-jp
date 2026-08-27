@@ -28,15 +28,19 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
 **現状（2026-08-27）**: Phase 0 / A / B / C 完了、検証タスク **B-0 〜 B-11 も全部完了**。
 設計値は D-016 〜 D-028 として凍結。実行はすべて手元の M4 Max（D-027）。
 
-**本学習 v2 で目標を超えた**（M-37）:
+**品質は目標に届いた。残るのはメモリとレイテンシ。**
 
 | 指標 | 生徒 | 教師比 | 論文の英語 embedded 比 |
 |---|---:|---:|---:|
 | SCOREQ synthetic/nr | **1.2063** | **0.611** [0.568, 0.658] | 0.5427 |
 | UTMOS | 1.3585 | 0.758 | — |
+| かな CER | 0.1776 | 教師 0.1351（差 +0.043） | — |
 
 ⚠️ **n=24。** 絶対値は日本語で較正されていないので論文の 2.54 と比べない（D-020）。
-次は `β`（式7）の決定と Phase D（C99 コア + ESP32 実機）。
+
+**⚠️ 現在の最大の問題: C99 コアが 1.26 MB で ESP32-S3 の SRAM 512 KB に載らない**
+（M-41）。ゴールデンテストは Pearson 1.000000 で通っているが、
+**発話全体をバッファしている**。次はストリーミング化（Phase D-2）。
 
 ```bash
 uv sync --extra eval
@@ -44,8 +48,8 @@ uv run python scripts/phase0_verify_teacher.py     # 教師の疎通（6 チェ�
 uv run python scripts/test_losses.py               # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（58 ケース）
-uv run python scripts/train_student.py --pack data/pack_sibdense --smoke
+uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（57 ケース）
+make -C csrc test                                  # C99 コアの golden test
 ```
 
 ## アーキテクチャ（固定仕様）
@@ -66,7 +70,11 @@ uv run python scripts/train_student.py --pack data/pack_sibdense --smoke
 - 学習専用の `z→c` エンコーダ `Eρ` (14,952) は**デプロイ時に実行されない**
   （acoustic が c を直接出す）。パラメータ数の勘定に入れないこと
 - z-line 版（1.4 M 級, quality tier）は `Eρ` を省き 192ch の z を直接ターゲットにし、
-  hinge adversary を追加する
+  hinge adversary を追加する。⚠️ **作っていない** — 567 K が先に目標へ届いたため
+
+**実測（M-39 / M-41）**: int8 blob **624,692 B**（論文 679,832 B の −8.1%）。
+C99 コアは golden test を Pearson 1.000000 で通過。
+⚠️ **ただし実行時メモリが 1.26 MB あり ESP32 の SRAM に載らない**（要ストリーミング化）。
 
 ## 教師モデルの扱い
 
@@ -242,7 +250,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `student-training` | 生徒・損失・学習ループを触るとき（語彙写像 / iSTFT / λ / PAD） |
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **ローカルでの本番ラベル生成** を deny（**58 ケース**の回帰テスト付き） |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** を deny（**57 ケース**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
 hook を変えたら必ず回帰テストを通すこと（誤検知があると全 Bash が止まる）:
@@ -503,22 +511,28 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 
 ## 未解決のブロッカー（優先順）
 
-**Phase A / B / C の実装と、検証タスク B-0 〜 B-11 はすべて決着した。**
-設計値は D-016 〜 D-028 として凍結してある。現在地は [`docs/README.md`](docs/README.md)。
-**本学習 v2 で SCOREQ 教師比 0.611（目標 0.5427 を超過、M-37）。**
+**Phase 0 / A / B / C と検証タスク B-0 〜 B-11 はすべて決着した。**
+設計値は D-016 〜 D-028 として凍結。現在地は [`docs/README.md`](docs/README.md)。
 
-1. **【次】`β`（式7 の摩擦音ノイズ注入）の決定。** **聴取で決める**（論文も同様）。
-   集約スコアはむしろ下がる（論文 4.09 → 3.92）ので**指標で決めてはいけない**。
-   手順は計画書 §Phase 5。⚠️ **β スイープの前に power 計算をやること**
-2. **ESP32 実機の RAM とレイテンシ。** 解析では余裕（I2S 逐次出力で 96 KB、M-16）だが、
-   C99 コアと量子化済み生徒が出来るまで測れない（Phase D）
-3. **学習をどこまで延ばすか。** v2（Stage 2/4 各 60,000 step = 2.9 epoch）で
-   目標を超えたが、Stage 2 の val はまだ下がる余地がある。
-   ⚠️ Stage 4 の終盤で train 0.126 / val 0.140 の乖離が出ているので**過学習を監視する**
-4. **`λ_Δ / λ_s / λ_T` の最終値。** 勾配整合の初期値のまま目標を超えたので
-   優先度は下がったが、探索していない（D-021）
-5. **1.4 M z-line で上限を測るか。** 567 K が目標に届いたので
-   「上限を測ってから判断する」必要性は薄れた。やるなら差分の確認のため
+1. **【次】ストリーミング化（Phase D-2）。** ⚠️ **C99 コアが 1.26 MB 使い、
+   ESP32-S3 の SRAM 512 KB の 246%。載らない。**
+   支配的なのは `mag/cos/sin` (637 KB) と iSTFT の `acc/wsq` (218 KB) で、
+   どちらもフレーム単位に落とせば 6 KB / 10 KB になる。
+   ⚠️ **ただし時間方向のカーネルがあるのでフレーム単位には割れない**
+   （受容野は decoder ±16 / acoustic ±10 フレーム）。チャンク処理が要る。
+   完了条件はピーク RAM < 200 KB かつ一括版と**bit 一致**
+2. **`irfft` の FFT 化。** 現在は naive DFT (O(N²))。
+   **これを直すまでレイテンシを測る意味が無い**
+3. **`β`（式7）の決定。** 候補は β=0 と 2（M-40）。**聴取で決める**（論文も同様）。
+   聴取セットは `reports/listening_beta/` に用意済み（40 試行）。
+   ⚠️ この生徒は **β=0 で既に教師と一致**しており、式7 が要らない可能性が高い
+4. **int8 カーネル（Phase D-3）。** blob は 624,692 B に落ちているが
+   **C コアは fp32 で読んでいる**
+5. **アクセント型の再現性。** ミニマルペア（橋/箸/端、雨/飴）の評価が未実施。
+   **入れないと検出できない**
+
+**優先度を下げたもの**: `λ_Δ/λ_s/λ_T` の探索（初期値のまま目標に届いた）/
+1.4 M z-line（上限を測る必要が薄れた）/ 学習の延長（Stage 2 はまだ下がる余地あり）。
 
 ## ⚠️ 未知語は誤読ではなく「無音で消える」
 
