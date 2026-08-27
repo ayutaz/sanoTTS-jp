@@ -72,9 +72,10 @@ make -C csrc test                                  # C99 コアの golden test
 - z-line 版（1.4 M 級, quality tier）は `Eρ` を省き 192ch の z を直接ターゲットにし、
   hinge adversary を追加する。⚠️ **作っていない** — 567 K が先に目標へ届いたため
 
-**実測（M-39 / M-41）**: int8 blob **624,692 B**（論文 679,832 B の −8.1%）。
-C99 コアは golden test を Pearson 1.000000 で通過。
-⚠️ **ただし実行時メモリが 1.26 MB あり ESP32 の SRAM に載らない**（要ストリーミング化）。
+**実測（M-39 / M-41 / M-42）**: int8 blob **624,692 B**（論文 679,832 B の −8.1%）。
+C99 コアは golden test を Pearson 1.000000 で通過し、**ストリーミング版は
+実行時メモリ 197 KB**（ESP32-S3 の SRAM 512 KB の 38%）で一括版と **bit 完全一致**。
+⚠️ **レイテンシは未測定**（`irfft` が naive DFT）。
 
 ## 教師モデルの扱い
 

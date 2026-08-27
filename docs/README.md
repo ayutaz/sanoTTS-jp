@@ -63,6 +63,7 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 | `yT` | EMA 適用版 | D-023 / M-33 |
 | 判別器 | 94,755 params（学習専用） | D-025 / M-31 |
 | 平坦度プローブ | `n_fft=1024 / guard=0 / power=1` | M-27 |
+| ストリーミング | ステート保持 / CHUNK=8。**197 KB で一括版と bit 一致** | D-029 / M-42 |
 | 実行環境 | 手元の M4 Max（ラベル生成 CPU / 学習 MPS） | D-027 |
 | `Eρ` | Stage 2 で凍結、Stage 3 で decoder と学習 | D-028 |
 | CER | **かな CER**（表記 CER は符号が逆転する） | C-023 |
@@ -119,9 +120,12 @@ saanoTTS-jp/
 │   ├── scoreq_metric.py                   SCOREQ ラッパ（torchcodec 回避）
 │   └── teacher_identity.py                piper-plus のコミット / ソース SHA-256 のピン留め
 ├── csrc/                                  **C99 推論コア（Phase D）**
-│   ├── saanotts.h / saanotts.c            依存は libm のみ。malloc を呼ばず arena を使う
-│   ├── golden_test.c                      参照実装との一致検証（Pearson >= 0.98）
-│   └── Makefile                           `make test`
+│   ├── saanotts.h / saanotts.c            一括版。依存は libm のみ。malloc を呼ばず arena を使う
+│   ├── saanotts_stream.h / .c             **ストリーミング版**（197 KB / SRAM に載る）
+│   ├── saanotts_internal.h                両版で共有するカーネル（**2 回書かない**）
+│   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
+│   ├── stream_test.c                      Phase D-2 の受け入れ条件 G1〜G4
+│   └── Makefile                           `make all-test`
 ├── deploy/                                vast.ai 用（⚠️ 現在は使っていない、D-027）
 │   ├── vastai_bootstrap.sh                setup → parity → labels → train
 │   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す
@@ -183,7 +187,7 @@ uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + 
 
 # C99 推論コア（Phase D）
 uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt
-make -C csrc test                                # golden test（Pearson >= 0.98）
+make -C csrc all-test                            # golden test + ストリーミング G1〜G4
 ```
 
 一から作り直す場合:
