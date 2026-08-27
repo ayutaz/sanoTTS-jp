@@ -15,18 +15,18 @@
       "n_frames": 106,
       "chunks": 21,
       "audio_sec": 1.2307,
-      "total_measured": {"ms_mean": 38.2230, "ms_sd": 0.4170, "ms_median": 38.1065, "ms_min": 37.8080, "ms_max": 39.2310, "n": 10, "xrt_mean": 0.03106, "xrt_min": 0.03072},
+      "total_measured": {"ms_mean": 40.8018, "ms_sd": 0.2227, "ms_median": 40.8215, "ms_min": 40.4620, "ms_max": 41.1130, "n": 10, "xrt_mean": 0.03315, "xrt_min": 0.03288},
       "stages_model": {
-      "duration": {"ms_mean": 0.1479, "ms_sd": 0.0076, "ms_median": 0.1500, "ms_min": 0.1370, "ms_max": 0.1570, "n": 7, "xrt_mean": 0.00012, "xrt_min": 0.00011},
-      "token_block": {"ms_mean": 4.0863, "ms_sd": 0.0122, "ms_median": 4.0910, "ms_min": 4.0680, "ms_max": 4.0990, "n": 7, "xrt_mean": 0.00332, "xrt_min": 0.00331},
-      "acoustic_frame": {"ms_mean": 9.4543, "ms_sd": 0.0697, "ms_median": 9.4046, "ms_min": 9.3967, "ms_max": 9.5592, "n": 7, "xrt_mean": 0.00768, "xrt_min": 0.00764},
-      "decoder": {"ms_mean": 23.2150, "ms_sd": 0.1079, "ms_median": 23.2438, "ms_min": 23.0177, "ms_max": 23.3308, "n": 7, "xrt_mean": 0.01886, "xrt_min": 0.01870},
-      "istft": {"ms_mean": 0.2530, "ms_sd": 0.0124, "ms_median": 0.2562, "ms_min": 0.2297, "ms_max": 0.2650, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00019},
-      "_sum": {"ms_mean": 37.1564, "ms_min": 36.8490, "xrt_mean": 0.03019, "xrt_min": 0.02994}
+      "duration": {"ms_mean": 0.1517, "ms_sd": 0.0011, "ms_median": 0.1510, "ms_min": 0.1510, "ms_max": 0.1540, "n": 7, "xrt_mean": 0.00012, "xrt_min": 0.00012},
+      "token_block": {"ms_mean": 4.3286, "ms_sd": 0.0178, "ms_median": 4.3240, "ms_min": 4.3080, "ms_max": 4.3610, "n": 7, "xrt_mean": 0.00352, "xrt_min": 0.00350},
+      "acoustic_frame": {"ms_mean": 10.1496, "ms_sd": 0.0763, "ms_median": 10.1481, "ms_min": 10.0563, "ms_max": 10.2940, "n": 7, "xrt_mean": 0.00825, "xrt_min": 0.00817},
+      "decoder": {"ms_mean": 24.3029, "ms_sd": 0.1496, "ms_median": 24.3035, "ms_min": 24.1133, "ms_max": 24.4963, "n": 7, "xrt_mean": 0.01975, "xrt_min": 0.01959},
+      "istft": {"ms_mean": 0.2562, "ms_sd": 0.0085, "ms_median": 0.2562, "ms_min": 0.2473, "ms_max": 0.2738, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00020},
+      "_sum": {"ms_mean": 39.1889, "ms_min": 38.8759, "xrt_mean": 0.03184, "xrt_min": 0.03159}
       },
-      "stage_share_pct": {"duration": 0.37, "token_block": 11.04, "acoustic_frame": 25.50, "decoder": 62.46, "istft_naive_dft": 0.62},
-      "reconciliation_sum_over_measured": {"mean": 0.9721, "min": 0.9746},
-      "istft_ms_per_frame": 0.0022
+      "stage_share_pct": {"duration": 0.39, "token_block": 11.08, "acoustic_frame": 25.87, "decoder": 62.03, "istft_naive_dft": 0.64},
+      "reconciliation_sum_over_measured": {"mean": 0.9605, "min": 0.9608},
+      "istft_ms_per_frame": 0.0023
     },
     {
       "name": "medium",
@@ -34,17 +34,17 @@
       "n_frames": 323,
       "chunks": 48,
       "audio_sec": 3.7500,
-      "total_measured": {"ms_mean": 91.3771, "ms_sd": 0.6232, "ms_median": 91.3870, "ms_min": 90.7130, "ms_max": 92.3880, "n": 10, "xrt_mean": 0.02437, "xrt_min": 0.02419},
+      "total_measured": {"ms_mean": 95.2665, "ms_sd": 0.8044, "ms_median": 95.1315, "ms_min": 94.3030, "ms_max": 97.1950, "n": 10, "xrt_mean": 0.02540, "xrt_min": 0.02515},
       "stages_model": {
-      "duration": {"ms_mean": 0.2881, "ms_sd": 0.0084, "ms_median": 0.2870, "ms_min": 0.2790, "ms_max": 0.3030, "n": 7, "xrt_mean": 0.00008, "xrt_min": 0.00007},
-      "token_block": {"ms_mean": 12.0480, "ms_sd": 0.3450, "ms_median": 12.1580, "ms_min": 11.5000, "ms_max": 12.4800, "n": 7, "xrt_mean": 0.00321, "xrt_min": 0.00307},
-      "acoustic_frame": {"ms_mean": 21.7837, "ms_sd": 0.1433, "ms_median": 21.8066, "ms_min": 21.6180, "ms_max": 21.9982, "n": 7, "xrt_mean": 0.00581, "xrt_min": 0.00576},
-      "decoder": {"ms_mean": 53.3833, "ms_sd": 0.2710, "ms_median": 53.4149, "ms_min": 52.9747, "ms_max": 53.7432, "n": 7, "xrt_mean": 0.01424, "xrt_min": 0.01413},
-      "istft": {"ms_mean": 0.7806, "ms_sd": 0.0233, "ms_median": 0.7806, "ms_min": 0.7402, "ms_max": 0.8075, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00020},
-      "_sum": {"ms_mean": 88.2837, "ms_min": 87.1119, "xrt_mean": 0.02354, "xrt_min": 0.02323}
+      "duration": {"ms_mean": 0.3113, "ms_sd": 0.0132, "ms_median": 0.3100, "ms_min": 0.2940, "ms_max": 0.3320, "n": 7, "xrt_mean": 0.00008, "xrt_min": 0.00008},
+      "token_block": {"ms_mean": 12.4971, "ms_sd": 0.1870, "ms_median": 12.5130, "ms_min": 12.1320, "ms_max": 12.7010, "n": 7, "xrt_mean": 0.00333, "xrt_min": 0.00324},
+      "acoustic_frame": {"ms_mean": 23.2276, "ms_sd": 0.0580, "ms_median": 23.2313, "ms_min": 23.1504, "ms_max": 23.3153, "n": 7, "xrt_mean": 0.00619, "xrt_min": 0.00617},
+      "decoder": {"ms_mean": 55.4769, "ms_sd": 0.2463, "ms_median": 55.3834, "ms_min": 55.2624, "ms_max": 55.9483, "n": 7, "xrt_mean": 0.01479, "xrt_min": 0.01474},
+      "istft": {"ms_mean": 0.7787, "ms_sd": 0.0285, "ms_median": 0.7671, "ms_min": 0.7537, "ms_max": 0.8344, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00020},
+      "_sum": {"ms_mean": 92.2916, "ms_min": 91.5925, "xrt_mean": 0.02461, "xrt_min": 0.02442}
       },
-      "stage_share_pct": {"duration": 0.32, "token_block": 13.20, "acoustic_frame": 24.82, "decoder": 60.81, "istft_naive_dft": 0.85},
-      "reconciliation_sum_over_measured": {"mean": 0.9661, "min": 0.9603},
+      "stage_share_pct": {"duration": 0.32, "token_block": 13.25, "acoustic_frame": 25.28, "decoder": 60.34, "istft_naive_dft": 0.82},
+      "reconciliation_sum_over_measured": {"mean": 0.9688, "min": 0.9713},
       "istft_ms_per_frame": 0.0023
     },
     {
@@ -53,18 +53,18 @@
       "n_frames": 785,
       "chunks": 105,
       "audio_sec": 9.1138,
-      "total_measured": {"ms_mean": 204.4000, "ms_sd": 1.1821, "ms_median": 204.2065, "ms_min": 202.7300, "ms_max": 206.4190, "n": 10, "xrt_mean": 0.02243, "xrt_min": 0.02224},
+      "total_measured": {"ms_mean": 213.9038, "ms_sd": 1.1617, "ms_median": 213.5565, "ms_min": 212.5750, "ms_max": 216.4050, "n": 10, "xrt_mean": 0.02347, "xrt_min": 0.02332},
       "stages_model": {
-      "duration": {"ms_mean": 0.6584, "ms_sd": 0.0127, "ms_median": 0.6540, "ms_min": 0.6450, "ms_max": 0.6840, "n": 7, "xrt_mean": 0.00007, "xrt_min": 0.00007},
-      "token_block": {"ms_mean": 28.9356, "ms_sd": 0.2854, "ms_median": 29.0820, "ms_min": 28.4990, "ms_max": 29.1900, "n": 7, "xrt_mean": 0.00317, "xrt_min": 0.00313},
-      "acoustic_frame": {"ms_mean": 47.6725, "ms_sd": 0.2593, "ms_median": 47.6595, "ms_min": 47.3681, "ms_max": 48.0879, "n": 7, "xrt_mean": 0.00523, "xrt_min": 0.00520},
-      "decoder": {"ms_mean": 116.6214, "ms_sd": 0.1660, "ms_median": 116.6319, "ms_min": 116.3305, "ms_max": 116.8629, "n": 7, "xrt_mean": 0.01280, "xrt_min": 0.01276},
-      "istft": {"ms_mean": 1.8924, "ms_sd": 0.0874, "ms_median": 1.9298, "ms_min": 1.7008, "ms_max": 1.9625, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00019},
-      "_sum": {"ms_mean": 195.7804, "ms_min": 194.5435, "xrt_mean": 0.02148, "xrt_min": 0.02135}
+      "duration": {"ms_mean": 0.6861, "ms_sd": 0.0220, "ms_median": 0.6750, "ms_min": 0.6670, "ms_max": 0.7200, "n": 7, "xrt_mean": 0.00008, "xrt_min": 0.00007},
+      "token_block": {"ms_mean": 30.1723, "ms_sd": 0.1224, "ms_median": 30.1440, "ms_min": 30.0130, "ms_max": 30.3820, "n": 7, "xrt_mean": 0.00331, "xrt_min": 0.00329},
+      "acoustic_frame": {"ms_mean": 51.4330, "ms_sd": 0.3031, "ms_median": 51.4631, "ms_min": 50.9969, "ms_max": 51.7765, "n": 7, "xrt_mean": 0.00564, "xrt_min": 0.00560},
+      "decoder": {"ms_mean": 121.8625, "ms_sd": 0.2662, "ms_median": 121.8378, "ms_min": 121.4682, "ms_max": 122.2746, "n": 7, "xrt_mean": 0.01337, "xrt_min": 0.01333},
+      "istft": {"ms_mean": 1.9251, "ms_sd": 0.0742, "ms_median": 1.8971, "ms_min": 1.8644, "ms_max": 2.0606, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00020},
+      "_sum": {"ms_mean": 206.0791, "ms_min": 205.0095, "xrt_mean": 0.02261, "xrt_min": 0.02249}
       },
-      "stage_share_pct": {"duration": 0.33, "token_block": 14.65, "acoustic_frame": 24.35, "decoder": 59.80, "istft_naive_dft": 0.87},
-      "reconciliation_sum_over_measured": {"mean": 0.9578, "min": 0.9596},
-      "istft_ms_per_frame": 0.0022
+      "stage_share_pct": {"duration": 0.33, "token_block": 14.64, "acoustic_frame": 24.88, "decoder": 59.25, "istft_naive_dft": 0.91},
+      "reconciliation_sum_over_measured": {"mean": 0.9634, "min": 0.9644},
+      "istft_ms_per_frame": 0.0024
     }
   ],
   "method": {

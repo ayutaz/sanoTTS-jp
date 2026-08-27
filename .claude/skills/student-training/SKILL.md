@@ -150,8 +150,24 @@ from saanotts_jp.labelpack import PackReader
 
 ```bash
 uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt
-make -C csrc test        # Pearson >= 0.98 が受け入れ条件
+make -C csrc all-test    # golden / stream G1〜G4 / FFT / int8
+make -C csrc run-bench   # レイテンシ（段別の内訳）
 ```
+
+## 9. 速度を測るとき（M-43）
+
+| 罠 | 症状 |
+|---|---|
+| **結果を使わないと最適化で消える** | ベンチが **0.000 ms** を出す。入力を毎回変え、出力を合計して印字する |
+| **同じ計算を 2 か所に書く** | 本体を FFT 化してもベンチの段別が naive DFT のままで、整合性が **8.9** に飛んだ |
+| **メモリを arena だけで測る** | FFT の **stack 4,224 B が計測外**。合算すると 200 KB を超えていた |
+| **η=1 の下限だけ見る** | fp32 は「0.93× RT であと少し」に見えるが、実測 η を転移すると **2.47× RT** |
+
+**メモリと速度はトレードオフ**。`o1539` を 1 フレームずつにすると 159 KB まで
+落ちるが **35% 遅くなる**。ESP32 では速度が律速なので速度を取った。
+
+⚠️ **手元では int8 の速度を検証できない。** Apple の SIMD は fp32 向きで、
+int8 にしても 0.86〜1.01 倍にしかならない。**PIE の効果は実機でしか測れない。**
 
 ```bash
 make -C csrc all-test    # 一括版の golden test + ストリーミングの G1〜G4

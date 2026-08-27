@@ -45,8 +45,8 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 [完了] int8 量子化           blob 624,692 B（論文比 −8.1%）（M-39）
 [完了] β スイープ            β=0 と 2 が候補。⚠️ **聴取待ち**（M-40）
 [完了] Phase D-1            C99 コア。Pearson 1.000000 / SNR 117.5 dB（M-41）
-[完了] Phase D-2            **ストリーミング化。1,258→197 KB で SRAM に載った**（M-42）
-[完了] Phase D-3a/b/c       FFT 1,435 倍 / 手元 **0.022× RT** / int8 カーネル（M-43）
+[完了] Phase D-2            **ストリーミング化。1,258→196.9 KB で SRAM に載った**（M-42）
+[完了] Phase D-3a/b/c       FFT 1,435 倍 / 手元 **0.023× RT** / int8 カーネル（M-43）
 [次]   Phase D-3c'          **PIE 最適化。fp32 のままだと ESP32 で 2.47× RT（間に合わない）**
 [未]   Phase D-3d           実機測定（ハードウェア待ち）
 ```
@@ -65,7 +65,9 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 | `yT` | EMA 適用版 | D-023 / M-33 |
 | 判別器 | 94,755 params（学習専用） | D-025 / M-31 |
 | 平坦度プローブ | `n_fft=1024 / guard=0 / power=1` | M-27 |
-| ストリーミング | ステート保持 / CHUNK=8。**197 KB で一括版と bit 一致** | D-029 / M-42 |
+| ストリーミング | ステート保持 / CHUNK=8。**196.9 KB で一括版と bit 一致** | D-029 / M-42 |
+| 逆 FFT | radix-2 自前 / float。naive の 1,435 倍 / SNR 138.7 dB | M-43 |
+| int8 | **W8A32**（重みだけ int8）。blob 624,692 B | M-43 |
 | 実行環境 | 手元の M4 Max（ラベル生成 CPU / 学習 MPS） | D-027 |
 | `Eρ` | Stage 2 で凍結、Stage 3 で decoder と学習 | D-028 |
 | CER | **かな CER**（表記 CER は符号が逆転する） | C-023 |
@@ -124,11 +126,15 @@ saanoTTS-jp/
 │   └── teacher_identity.py                piper-plus のコミット / ソース SHA-256 のピン留め
 ├── csrc/                                  **C99 推論コア（Phase D）**
 │   ├── saanotts.h / saanotts.c            一括版。依存は libm のみ。malloc を呼ばず arena を使う
-│   ├── saanotts_stream.h / .c             **ストリーミング版**（197 KB / SRAM に載る）
+│   ├── saanotts_stream.h / .c             **ストリーミング版**（196.9 KB / SRAM に載る）
 │   ├── saanotts_internal.h                両版で共有するカーネル（**2 回書かない**）
+│   ├── fft.h / fft.c                      radix-2 逆実 FFT（naive の 1,435 倍）
+│   ├── saanotts_int8.h / .c               int8 カーネル（⚠️ **PIE 未使用**）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
-│   ├── stream_test.c                      Phase D-2 の受け入れ条件 G1〜G4
-│   └── Makefile                           `make all-test`
+│   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
+│   ├── fft_test.c / int8_test.c           各カーネルの単体検証
+│   ├── bench.c                            レイテンシ測定（段別の内訳）
+│   └── Makefile                           `make all-test` / `make run-bench`
 ├── deploy/                                vast.ai 用（⚠️ 現在は使っていない、D-027）
 │   ├── vastai_bootstrap.sh                setup → parity → labels → train
 │   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す
