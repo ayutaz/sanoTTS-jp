@@ -82,7 +82,7 @@ make -C csrc run-bench    # レイテンシ（段別の内訳）
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 | [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-48。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-029 と**訂正履歴 C-001〜C-025** |
+| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-032 と**訂正履歴 C-001〜C-025** |
 | [`docs/plan/`](docs/plan/) | 作業計画 |
 | [`CLAUDE.md`](CLAUDE.md) | 実装時の要点（AI エージェント向けの運用ルールでもある） |
 

@@ -29,7 +29,8 @@ gh api repos/Ampixa/sanoTTS/contents/docs/repository-layout.md --jq '.content' |
 | ソースコードを読んでから書き直す | ⚠️ グレー。**特にアセンブリは表現の幅が狭い**ので避ける |
 
 **2026-08-28 時点でソースコードは 1 行も読んでいない。**
-読む必要が出たら、先にライセンス方針を決めること。
+この線引きは **D-032** として凍結し、`.claude/hooks/guard_bash.py` が機械的に強制する（ドキュメント取得は通し、ソース取得と `git clone` と `uv add sanotts` を deny。回帰 78 ケース）。
+読む必要が出たら、先に D-032 を撤回すること。
 
 ## 上流が持っているもの
 

@@ -10,8 +10,10 @@ arXiv:2608.21378 "sanoTTS: The Smallest Real-Time Neural TTS on a General-Purpos
 
 **公式実装 `github.com/Ampixa/sanoTTS` は存在する（GPL-3.0）。**
 ⚠️ 本リポジトリは MIT なので、**そのソースコードを読んでも書き写してもいけない**
-（GPL が伝播して MIT のまま配布できなくなる）。
-数値・ハイパーパラメータ・アーキテクチャ構成は著作権の対象外なので参照してよい。
+（GPL が伝播して MIT のまま配布できなくなる）。**D-032 として凍結**し、
+hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny する。
+数値・ハイパーパラメータ・アーキテクチャ構成は著作権の対象外なので参照してよく、
+**ドキュメントの取得は hook を通る。**
 
 したがって本リポジトリは**論文本文の数値からの clean-room 再実装**であり、
 論文に書かれていないハイパーパラメータ（`L_c` の `λ₂, λ_n, λ_Δ, λ_s`）はチューニング対象。
@@ -27,14 +29,19 @@ arXiv:2608.21378 "sanoTTS: The Smallest Real-Time Neural TTS on a General-Purpos
 | **このファイル** | 実装時の要点だけ。**コードを書く前に必ず読む** |
 | [`docs/measurements.md`](docs/measurements.md) | **数値の一次ソース**。全項目に再現コマンド付き。食い違ったらここが正 |
 | [`docs/decisions.md`](docs/decisions.md) | 決定の理由と**訂正履歴**（同じ間違いを繰り返さないため） |
-| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-11 と Phase 0〜D |
+| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-12 と Phase 0〜D。**§10 に残りのタスク** |
 | [`docs/vastai-runbook.md`](docs/vastai-runbook.md) | **次のフェーズの手順**。ラベル一括生成 → 本学習 |
 | [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-08-27）**: Phase 0 / A / B / C 完了、検証タスク **B-0 〜 B-11 も全部完了**。
-設計値は D-016 〜 D-028 として凍結。実行はすべて手元の M4 Max（D-027）。
+**現状（2026-08-28）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
+検証タスク **B-0 〜 B-12** と **D-4** も全部完了。
+設計値は D-016 〜 D-032 として凍結。実行はすべて手元の M4 Max（D-027）。
+
+**残りは 4 本**（`docs/plan/phase0-1-implementation-plan.md` §10）:
+**P-1** PIE カーネル（toolchain 待ち）/ **P-2** β の聴取（人が要る）/
+**E-1** DNSMOS（今できる）/ **E-2** decoder の教師初期化（設計判断が先）。
 
 **品質は目標に届いた。残るのはメモリとレイテンシ。**
 
@@ -535,8 +542,8 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 
 ## 未解決のブロッカー（優先順）
 
-**Phase 0 / A / B / C と検証タスク B-0 〜 B-11 はすべて決着した。**
-設計値は D-016 〜 D-028 として凍結。現在地は [`docs/README.md`](docs/README.md)。
+**Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
+設計値は D-016 〜 D-032 として凍結。現在地は [`docs/README.md`](docs/README.md)。
 
 1. **【次】PIE (SIMD) カーネル。** int8 カーネルは書けたが**移植可能 C** なので、
    ESP32-S3 の PIE を使うには intrinsic かアセンブリが要る。
