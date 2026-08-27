@@ -1,6 +1,6 @@
 ---
 name: evaluating-quality
-description: Use when measuring or reporting saanoTTS-jp audio quality — SCOREQ, UTMOS, CER, spectral flatness, or any comparison of student against teacher. Covers why the absolute numbers are not comparable to the paper and which metric configurations are actively wrong.
+description: Use when measuring or reporting sanoTTS-jp audio quality — SCOREQ, UTMOS, CER, spectral flatness, or any comparison of student against teacher. Covers why the absolute numbers are not comparable to the paper and which metric configurations are actively wrong.
 ---
 
 # 品質を測る・報告する

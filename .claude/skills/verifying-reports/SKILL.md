@@ -1,6 +1,6 @@
 ---
 name: verifying-reports
-description: Use when about to accept a measurement, finding, or recommendation produced by a subagent, a workflow, or an earlier session in saanoTTS-jp — before copying its numbers into docs, code, or a decision record.
+description: Use when about to accept a measurement, finding, or recommendation produced by a subagent, a workflow, or an earlier session in sanoTTS-jp — before copying its numbers into docs, code, or a decision record.
 ---
 
 # 他者の報告を受け取る

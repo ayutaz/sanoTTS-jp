@@ -1,11 +1,19 @@
-# saanoTTS-jp
+# sanoTTS-jp
 
 **567 K パラメータの日本語 TTS を ESP32-S3 で動かす**試み。
-[arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "saanoTTS" の蒸留レシピを日本語に適用し、
+[arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus) (MB-iSTFT-VITS2) を教師として蒸留する。
 
-⚠️ **論文の公式リポジトリ `github.com/Ampixa/saanotts` は 404** で参照実装が入手できない。
-これは**論文本文の数値からの再実装**であり、著者らの実装ではない。
+⚠️ **これは論文の再現実装であり、著者らの実装ではない。**
+
+公式実装 [`Ampixa/sanoTTS`](https://github.com/Ampixa/sanoTTS) は存在する（**GPL-3.0**）。
+本リポジトリは**そのソースコードを参照せずに**、論文本文の数値と
+piper-plus の実装から独立に書いたもの（MIT）。
+公式実装は英語・ネパール語・ヒンディー語・ベトナム語・インドネシア語・中国語に対応しており、
+**日本語は含まれていない**。
+
+公式リポジトリの**公開ドキュメントに記載された実測値**（ESP32-S3 で 0.22× RT など）は、
+本リポジトリの外挿値との突き合わせに使っている。**コードは参照していない。**
 
 ⚠️ **検証 (PoC) であり、モデルの重みは配布していない**（理由は [`NOTICE.md`](NOTICE.md)）。
 
@@ -73,8 +81,8 @@ make -C csrc run-bench    # レイテンシ（段別の内訳）
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-43。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-029 と**訂正履歴 C-001〜C-023** |
+| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-48。全項目に再現コマンド付き |
+| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-029 と**訂正履歴 C-001〜C-024** |
 | [`docs/plan/`](docs/plan/) | 作業計画 |
 | [`CLAUDE.md`](CLAUDE.md) | 実装時の要点（AI エージェント向けの運用ルールでもある） |
 

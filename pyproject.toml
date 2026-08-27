@@ -1,7 +1,7 @@
 [project]
 name = "saanotts-jp"
 version = "0.1.0"
-description = "arXiv:2608.21378 saanoTTS の蒸留レシピを日本語に適用し ESP32 で動かす (PoC)"
+description = "arXiv:2608.21378 sanoTTS の蒸留レシピを日本語に適用し ESP32 で動かす (PoC)"
 requires-python = ">=3.11"
 
 dependencies = [

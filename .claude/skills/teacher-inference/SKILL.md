@@ -1,6 +1,6 @@
 ---
 name: teacher-inference
-description: Use when running the piper-plus teacher model in saanoTTS-jp — generating distillation labels (dT/zT/yT), synthesizing reference audio, or comparing teacher output. Covers the six silent failure modes that produce wrong labels without raising an exception.
+description: Use when running the piper-plus teacher model in sanoTTS-jp — generating distillation labels (dT/zT/yT), synthesizing reference audio, or comparing teacher output. Covers the six silent failure modes that produce wrong labels without raising an exception.
 ---
 
 # 教師モデルを正しく呼ぶ

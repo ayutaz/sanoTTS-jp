@@ -64,7 +64,20 @@ MIT ライセンス（[`LICENSE`](LICENSE)）が適用されるのは**このリ
 
 ## 論文
 
-再実装の対象は **arXiv:2608.21378** "saanoTTS: The Smallest Real-Time Neural TTS on a
-General-Purpose Microcontroller" です。⚠️ **公式リポジトリ
-`github.com/Ampixa/saanotts` は 404** で参照実装が入手できないため、
-本リポジトリは**論文本文の数値からの再実装**であり、著者らの実装ではありません。
+再実装の対象は **arXiv:2608.21378** "sanoTTS: The Smallest Real-Time Neural TTS on a
+General-Purpose Microcontroller" です。
+
+## 公式実装との関係
+
+公式実装 [`Ampixa/sanoTTS`](https://github.com/Ampixa/sanoTTS) は **GPL-3.0** で公開されています。
+
+**本リポジトリ（MIT）は公式実装のソースコードを一切参照していません。**
+論文本文の数値と piper-plus の実装から独立に書いた clean-room 再実装であり、
+著者らの実装ではありません。
+
+公式リポジトリの**公開ドキュメント（README / docs）に記載された実測値と
+ハイパーパラメータ**は、本リポジトリの外挿値の検証に使っています。
+これらは事実であって著作権の対象ではありません。**ソースコードは参照していません。**
+
+公式実装は英語・ネパール語・ヒンディー語・ベトナム語・インドネシア語・中国語に対応しており、
+日本語は含まれていません。

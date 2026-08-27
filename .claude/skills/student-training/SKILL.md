@@ -1,6 +1,6 @@
 ---
 name: student-training
-description: Use when writing or changing the saanoTTS-jp student model, its losses, or the training loop — Duration/Acoustic/Decoder, iSTFT framing, the c-line, lambda weights, the discriminator, or anything that reads a teacher label pack. Covers the silent misalignments that produce numbers without producing a working model.
+description: Use when writing or changing the sanoTTS-jp student model, its losses, or the training loop — Duration/Acoustic/Decoder, iSTFT framing, the c-line, lambda weights, the discriminator, or anything that reads a teacher label pack. Covers the silent misalignments that produce numbers without producing a working model.
 ---
 
 # 生徒モデルを触る

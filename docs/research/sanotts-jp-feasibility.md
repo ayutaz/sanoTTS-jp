@@ -1,9 +1,9 @@
-# saanoTTS 日本語モデル 実現可能性調査
+# sanoTTS 日本語モデル 実現可能性調査
 
 - 調査日: 2026-08-26
-- 論文: Ashish Thapa (Ampixa Labs), *"saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpose Microcontroller"*, [arXiv:2608.21378v1 \[cs.SD\]](https://arxiv.org/abs/2608.21378) (2026-07-14 submitted)
+- 論文: Ashish Thapa (Ampixa Labs), *"sanoTTS: The Smallest Real-Time Neural TTS on a General-Purpose Microcontroller"*, [arXiv:2608.21378v1 \[cs.SD\]](https://arxiv.org/abs/2608.21378) (2026-07-14 submitted)
 - 教師モデル供給元: [`~/Documents/piper-plus`](file://~/Documents/piper-plus) (piper-plus v2.0.0)
-- 論文の公式リポジトリ `https://github.com/Ampixa/saanotts` は **2026-08-26 時点で 404**（非公開または未公開）。**参照実装は入手できない前提で計画する。**
+- ⚠️ **この行は誤りだった（C-024）。** 当時「`Ampixa/saanotts` は 404」と記録したが、**綴り間違い**で、正しくは [`Ampixa/sanoTTS`](https://github.com/Ampixa/sanoTTS)。**公式実装は実在する**（GPL-3.0）。ただし本リポジトリは MIT なので**ソースコードは参照せず** clean-room で進める。上流から得た事実は [`../upstream-sanotts.md`](../upstream-sanotts.md) を見ること
 
 > **⚠️ 本書は初期調査（着手判断のための資料）。** その後の実測でいくつかの結論が
 > 更新されている（特に §3.1 の G2P と §4 の決定事項）。
@@ -567,7 +567,7 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 | **教師コーパスのライセンス** | **本プロジェクトでは非ブロッカー** | 検証目的・生成物を配布しないため着手を止めない（2026-08-26 ユーザー判断）。**公開する段になったら要再確認**: `data-sources.yml` によると つくよみちゃんコーパスは `CC-BY-4.0 / verified: false`（規約は [tyc.rei-yumesaki.net/about/terms/](https://tyc.rei-yumesaki.net/about/terms/)）、MOE-Speech (20 speakers) は `CC-BY-SA-4.0 / verified: false` で、**CC-BY-SA は蒸留物への継承の議論がある** |
 | ~~**日本語 G2P が MCU に載らない**~~ | **解消済み** | 辞書枝刈りは 40 MiB 必要で不成立だったが、入力を「ひらがな + アクセント記号 + 無声化マーク」に変更して**端末側 951 B** で解決した（D-009 〜 D-011、`scripts/kana_g2p.py`） |
 | ~~ESP32 のメモリ~~ | **中止材料なし** | I2S 逐次出力なら arena 約 96 KB（SRAM 512 KB のうち 416 KB が残る）。実機測定は C99 コアが出来てから（M-16） |
-| 参照実装が入手できない | 中 | `github.com/Ampixa/saanotts` が 404。論文の数値からの再実装になる。`λ₂, λ_n, λ_Δ, λ_s` など**論文に書かれていないハイパーパラメータがある** |
+| 参照実装をコードとして使えない | 中 | ⚠️ **当初「404」と書いたのは綴り間違い（C-024）。公式実装は実在するが GPL-3.0 で、MIT の本リポジトリには取り込めない。**論文の数値からの clean-room 再実装になる。`λ₂, λ_n, λ_Δ, λ_s` など**論文に書かれていないハイパーパラメータがある** |
 | **G2P の言語誤ルーティング** | **高** | `MultilingualPhonemizer` がかなを文全体で判定するため、かなを含まない行が丸ごと中国語音素になる。コーパスの **5.36% (1,247行)** が該当し、**例外も警告も出ない**。計画書 §2 B-1 |
 | **`prosody_features` の無警告ズレ** | **高** | `PiperEncoder._convert_prosody` が長さを強制的に揃えるため `strict=True` が発火しない。ラテン混じり文で prosody がずれたまま通る。prosody は総フレームを 8〜9% 動かす実効入力。計画書 §2 B-2 |
 | **教師音声の品質ベースラインが低い** | **高** | 短尺 8 文の暫定計測で SCOREQ 2.06 / UTMOS 1.62（論文の教師は 4.68）。クリップ長・パディング・教師品質のどれが原因か未切り分け。**生徒は教師を超えない**ので期待値設定に直結。計画書 §2 B-5 |

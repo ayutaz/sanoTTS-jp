@@ -1,0 +1,97 @@
+# 公式実装 `Ampixa/sanoTTS` から得た事実
+
+作成 2026-08-28 / 対象 commit `27c912252bef` (2026-08-20T12:15:30Z)
+
+## このドキュメントの位置づけ
+
+⚠️ **ここに載っている数値はすべて「上流の申告値」であり、私たちは再現していない。**
+`docs/measurements.md` の M-番号（自己実測）とは**別扱い**にすること。
+突き合わせの材料であって、うちの実測値を上書きする根拠ではない。
+
+出所は公開ドキュメントのみ:
+
+```bash
+gh api repos/Ampixa/sanoTTS/contents/README.md --jq '.content' | base64 -d
+gh api repos/Ampixa/sanoTTS/contents/docs/distillation-recipe.md --jq '.content' | base64 -d
+gh api repos/Ampixa/sanoTTS/contents/docs/mcu-classes-and-porting.md --jq '.content' | base64 -d
+gh api repos/Ampixa/sanoTTS/contents/docs/roota-language-porting-recipe.md --jq '.content' | base64 -d
+gh api repos/Ampixa/sanoTTS/contents/docs/repository-layout.md --jq '.content' | base64 -d
+```
+
+## ⚠️ ライセンス — ソースコードを読まない
+
+公式実装は **GPL-3.0**。本リポジトリは **MIT** で公開済み。
+
+| 行為 | 可否 |
+|---|---|
+| 公開ドキュメントの**数値・ハイパーパラメータ・アーキテクチャ構成**を参照 | ✅ 事実は著作権の対象外 |
+| ソースコード（`.c` / `.py` / `.S`）をコピー | ❌ GPL が伝播し MIT で配布できない |
+| ソースコードを読んでから書き直す | ⚠️ グレー。**特にアセンブリは表現の幅が狭い**ので避ける |
+
+**2026-08-28 時点でソースコードは 1 行も読んでいない。**
+読む必要が出たら、先にライセンス方針を決めること。
+
+## 上流が持っているもの
+
+6 言語 9 音声（en / ne / hi / vi / id / zh）の製品リポジトリ。
+**日本語は含まれない。** Python パッケージ・npm・Arduino ライブラリ・WASM デモを配布。
+
+ポーティングレシピは「音素ID in / 波形 out」を境界としており、
+上流自身が *"A complete arbitrary-text product still needs the language frontend
+packaged or reimplemented"* と書いている。
+**うちの 951 B オンデバイス G2P はこの穴を埋めるもので、上流に対応物が無い**
+（上流は espeak-ng を同梱。`en_dict` だけで 168,204 B）。
+
+## 上流申告値 vs うちの実測値
+
+| 項目 | 上流（**申告値・未再現**） | うち（**自己実測**） | 出典 |
+|---|---:|---:|---|
+| ESP32-S3 / int8 + PIE | **0.22× RT**（float との相関 0.985） | 未測定 | M-43 |
+| ESP32-C3 / スカラ C・FPU 無し | **5.72× RT** | — | — |
+| 移植可能 C / fp32 の外挿 | — | **2.47× RT** | M-43 |
+| int8 重み | ~680 KB | **624,692 B** | M-39 |
+| RAM（ストリーミング） | 130〜160 KB | **196.9 KB** | M-42 |
+| RAM（一括） | ~300 KB | 1,258 KB → 197 KB に削減済み | M-42 |
+| 演算量 | ~45 MMAC/s | **43.618 MMAC/s** | M-26 |
+| 合計 params | 1.40M（quality）/ 745k（MCU int8） | **559,008** | D-016 |
+
+**うちの「fp32 では届かない、int8 + PIE が必須」という結論は上流の申告と整合する。**
+上流は Tier C3（FPU 無しスカラ）について *"the float glue, not the MACs, dominates"*
+と書いており、これもうちの η_host=0.364 の解釈と同じ向き。
+
+⚠️ **未解決だった「45 MMAC/s との 12% 乖離」（自前計算 43.618）は、
+上流が「~45」と概数で書いているだけだった可能性が高い。**
+ただし上流の内訳は公開されていないので、**確認したわけではない**。
+
+## 蒸留レシピの差分
+
+| 項目 | 上流（英語） | うち（日本語） |
+|---|---|---|
+| duration | hidden 32〜64 / depth 3 / kernel 5 | width 32 / 3 blocks |
+| acoustic | token-context / hidden 64〜96（~359k） | width 48（~199,536） |
+| **decoder** | ~1.0M / **教師からチャネル切り出しで初期化** | 331,308 / **ゼロから学習** |
+| decoder 学習 | recovery → z-mix → joint の 3 段 × **40k step** | 4 段 × 20k step |
+| z-mix | `--acoustic-latent-mix-prob 0.5`（確率で切替） | ランダムな混合比 |
+| β（式7） | **6.0**（英語・耳で決定） | sweep 0/2/4/6/8 → 候補 **0 と 2** |
+| **de-metal 段** | MPD + iSTFT 位相損失の追加 fine-tune | **無い** |
+| 評価指標 | SCOREQ + UTMOS + **DNSMOS** | SCOREQ + UTMOS |
+| データ配分 | acoustic ~8k 行 / **decoder は ~512 行** | 20,790 行を一律 |
+| 教師の与え方 | ONNX を **decoder-cut** して `generator_input → 波形` の graph を作る | `.ckpt` を PyTorch で読む |
+
+## ⚠️ 追試すべき 2 点
+
+### 1. decoder の教師初期化
+
+上流は *"Teacher-init the decoder. It survives channel-pruning;
+from-scratch sub-400k decoders are a dead class."* と書いている。
+
+**うちの `Gγ` は 331,308 params をゼロから学習して SCOREQ 教師比 0.611 を出している。**
+上流の主張と噛み合わない。どちらかの前提が違う。**未検証。**
+
+### 2. DNSMOS を測っていない
+
+上流は *"a metallic artifact scores high on SCOREQ and low on DNSMOS"* と書いている。
+**うちは DNSMOS を測っていないので、生徒に金属的な尾があっても現在の指標では見えない。**
+これは `docs/decisions.md` D-020（主指標 = SCOREQ synthetic/nr）の穴。**未検証。**
+
+どちらもライセンスと無関係に検証できる（数値と手法は著作権の対象外）。

@@ -1,6 +1,6 @@
 ---
 name: recording-measurements
-description: Use when about to write any number, size, rate, or capability claim into saanoTTS-jp docs, code comments, or a report — including when the value seems obvious from a filename, a directory listing, an author's affiliation, or a config match
+description: Use when about to write any number, size, rate, or capability claim into sanoTTS-jp docs, code comments, or a report — including when the value seems obvious from a filename, a directory listing, an author's affiliation, or a config match
 ---
 
 # 実測を記録する
@@ -9,7 +9,7 @@ description: Use when about to write any number, size, rate, or capability claim
 
 **このプロジェクトの数値はすべて実測である。** 推測は数値として書かない。
 
-訂正は 21 件（`docs/decisions.md` C-001〜C-021）。**ほぼ全部が同じ形**:
+訂正は 24 件（`docs/decisions.md` C-001〜C-024）。**ほぼ全部が同じ形**:
 **1 コマンド打てば分かることを、打たずに推論した。**
 
 残りは 3 つの別の形をしている。これも同じくらい踏む:
@@ -84,6 +84,7 @@ PY
 | ディレクトリ全体のサイズだけ見た | 65% が TTS に不要な feature 文字列だった (C-008) | ヘッダをパースして内訳を出す |
 | 「線形には縮まない」と注記しつつ線形の数字を載せた | **1.50〜2.74 倍の過小評価** (C-009) | 実際にビルドして stat |
 | 「pip パッケージが見つからない」と書いた | **PyPI に普通にあった** (C-016) | `curl -s https://pypi.org/pypi/<pkg>/json` |
+| 論文名の綴りから URL を組み立て、404 を「非公開」と解釈した | **綴り違い。公式実装は 59 MB / 447 ファイルで実在した** (C-024) | arXiv API で正式名を引く |
 | n=1 の SNR を代表値として skill と docs に書いた | 実文では 14.5 dB。**その 1 文は canonical でない入力**だった (C-017) | n を増やして分布を見る |
 | 「306 vs 116」の食い違いをどちらが正しいかで論じた | **単位が 3 つあった**（トークン / 音素 / 符号化後 ID） (C-019) | 3 系列を同時に出す |
 | 論文の教師比 0.63 を SCOREQ に適用した | それは UTMOS 比。SCOREQ は 0.5427 で **目標が 16.7% 過大**になった | 指標ごとに分母を確認 |
@@ -97,7 +98,8 @@ PY
 - 「言語学的に考えて〜」→ C-004 の入口
 - 「⚠️ 未検証と書いておけば数字は載せてよい」→ **C-009 の入口。注記は免罪符にならない**
 - 「ディレクトリサイズを見た」→ 内訳を見ていない。C-008 の入口
-- 「探したが見つからない」→ **探した範囲を書いていない。C-016 の入口**
+- 「探したが見つからない」→ **探した範囲を書いていない。C-016 / C-024 の入口**
+- 「固有名詞から URL やパスを組み立てた」→ **綴りを一次ソースで確認したか。C-024 の入口**
 - 「暫定値として 1.0 を置く」→ **値を決めていない状態を隠している。C-021 の入口**
 - 「n は小さいが傾向は明らか」→ C-004 / C-017 の入口。**傾向は CI で語る**
 - 「この 2 つの数字はどちらが正しいのか」→ **単位が違う可能性。C-019 の入口**

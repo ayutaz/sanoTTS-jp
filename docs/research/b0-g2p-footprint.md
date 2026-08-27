@@ -1,6 +1,6 @@
 # B-0: オンデバイス日本語 G2P のフットプリント — 結論レポート
 
-作成 2026-08-26 / 対象 arXiv:2608.21378 saanoTTS の日本語適用 (PoC・非配布)
+作成 2026-08-26 / 対象 arXiv:2608.21378 sanoTTS の日本語適用 (PoC・非配布)
 
 一次データ:
 `reports/b0_size.json` / `reports/b0_coverage.json` / `reports/b0_alternatives.json` /
@@ -155,7 +155,7 @@
 | **2' 数値スロット 0〜100 × 24 助数詞** | 42,381 B | 単独形は正しい（3本/6本/8日/20日/1人/2人 の不規則形を確認）が、**テンプレートに差し込むと 1,440 組合せ中 36.1% が壊れる** | measured（反証済み、§7） | △ 要再設計。テンプレート × スロット値の組でコンパイルする |
 | **3 ハイブリッド（頻出語 + かなフォールバック）** | 7.13 MB 相当 | 全語が辞書内 or OOV が全部かな、の文が 63.83% | measured | ✗ 追加機構ではなく mecab + unk.dic が既にやっていること。**漢字 OOV は誤読ではなく無音脱落**（§6） |
 | **4 ホスト側 G2P** | **0 B** | **教師と同一（定義上 100%）** | measured | ◎ 採用。回線 68 B/文。最悪ケース BLE 4.2（約 660 B/s、算術）でも 0.10 s。音声を Opus で流すと 2,000 B/s 必要で同じ回線を 3 倍超過するので、**端末で合成する利点は保たれる** |
-| **5 ニューラル G2P（`ayousanz/nn-g2p-jp` M9）** | **23,022,916 params / int8 ONNX 20,398,854 B**（fp32 57 MB） | リポジトリ申告値のみ（未再現） | params は measured、時間は estimated | ✗ (a) 20.4 MB は辞書予算超過、(b) 626 MMAC/文（beam=1 の下限。設定は beam=5）は saanoTTS 本体 178 MMAC/文 の 3.5 倍、(c) **決定打**: 自己回帰デコードで 1 文 386 MB の flash トラフィック → QIO 80 MHz で 9.7 s/文（算術）。(d) **出力記号系が piper-plus と不一致**（§7） |
+| **5 ニューラル G2P（`ayousanz/nn-g2p-jp` M9）** | **23,022,916 params / int8 ONNX 20,398,854 B**（fp32 57 MB） | リポジトリ申告値のみ（未再現） | params は measured、時間は estimated | ✗ (a) 20.4 MB は辞書予算超過、(b) 626 MMAC/文（beam=1 の下限。設定は beam=5）は sanoTTS 本体 178 MMAC/文 の 3.5 倍、(c) **決定打**: 自己回帰デコードで 1 文 386 MB の flash トラフィック → QIO 80 MHz で 9.7 s/文（算術）。(d) **出力記号系が piper-plus と不一致**（§7） |
 
 **推奨構成: 案4 + 案2。** 端末側の G2P 資産は「定型文の音素ID blob 40.4 B/文」だけになり、辞書枝刈りは不要になる。案1a の規則表 20 KiB は、ホストが到達できないオフライン時のかな入力フォールバックとしてなら意味があるが（アクセントは平坦になる）、必須ではない。
 
@@ -163,7 +163,7 @@
 
 ## 5. ESP32 のフラッシュ予算
 
-出所 `reports/b0_flash_budget.json`。パーティション固定オーバーヘッドは ESP-IDF release/v5.3 のソースから確定（**measured**: bootloader offset 0x0 for S3, partition table 0x8000, 最初の app 0x10000 → 固定 64 KB はボード容量によらず一定）。app 枠 2,048 KB/slot と model パーティション 768 KB は **estimated**（Espressif 自身の実績値 esp-tflite-micro 1,920 KB/slot からの見積もりで、saanoTTS ファームの実ビルドではない）。
+出所 `reports/b0_flash_budget.json`。パーティション固定オーバーヘッドは ESP-IDF release/v5.3 のソースから確定（**measured**: bootloader offset 0x0 for S3, partition table 0x8000, 最初の app 0x10000 → 固定 64 KB はボード容量によらず一定）。app 枠 2,048 KB/slot と model パーティション 768 KB は **estimated**（Espressif 自身の実績値 esp-tflite-micro 1,920 KB/slot からの見積もりで、sanoTTS ファームの実ビルドではない）。
 
 | シナリオ | app 合計 | 4 MB | 8 MB | **16 MB** | 32 MB |
 |---|---:|---:|---:|---:|---:|
