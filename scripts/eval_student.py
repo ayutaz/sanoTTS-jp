@@ -80,49 +80,61 @@ def measure(paths: list[str]) -> dict:
     return out
 
 
-def main() -> int:
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--ckpt", required=True)
-    ap.add_argument("--texts", default="data/splits/corpus_heldout.tsv")
-    ap.add_argument("--n", type=int, default=24)
-    ap.add_argument("--out", default="reports/eval_student")
-    ap.add_argument("--beta", type=float, default=0.0)
-    ap.add_argument("--s-v", type=float, default=None)
-    ap.add_argument("--device", default=None)
-    ap.add_argument("--seed", type=int, default=0)
-    args = ap.parse_args()
+def pick_rows(texts: str, n: int, seed: int):
+    """B-10 の汚染を除外して n 文を選ぶ。**seed が同じなら同じ文**。"""
+    import gen_teacher_labels as G  # noqa: PLC0415
 
-    import gen_teacher_labels as G
-    import kana_g2p as K
-    import synthesize_student as SS
-
-    device = args.device or (
-        "mps" if torch.backends.mps.is_available() else "cpu")
-    outdir = pathlib.Path(args.out)
-    (outdir / "student").mkdir(parents=True, exist_ok=True)
-    (outdir / "teacher").mkdir(parents=True, exist_ok=True)
-
-    # --- 文を選ぶ（B-10 の汚染を除外） ---
     excluded = G.load_exclusions()
     rows = []
-    for r in csv.reader(open(args.texts), delimiter="\t"):
+    for r in csv.reader(open(texts), delimiter="\t"):
         if not r or not r[-1] or r[0] == "source" or (len(r) >= 3 and r[1] in excluded):
             continue
         rows.append((r[1], r[-1]))
-    rng = np.random.default_rng(args.seed)
-    rows = [rows[i] for i in rng.choice(len(rows), min(args.n, len(rows)), replace=False)]
-    print(f"{len(rows)} 文（汚染除外後 / seed {args.seed}）")
+    rng = np.random.default_rng(seed)
+    return [rows[i] for i in rng.choice(len(rows), min(n, len(rows)), replace=False)]
 
-    # --- 教師（EMA 適用、prosody=zeros。ラベル生成と同一条件） ---
+
+def load_teacher():
+    """教師と音素表を返す。**β に依存しないので使い回す**（プロセスを分けない）。"""
+    import gen_teacher_labels as G  # noqa: PLC0415
+    import kana_g2p as K  # noqa: PLC0415
+
     table = K.build_mora_table()
     G.ENCODE_TABLE = table
     snap = G.snapshot()
     ckpt = torch.load(snap + G.CKPT, map_location="cpu", weights_only=False)
     pim = json.load(open(snap + "config.json"))["phoneme_id_map"]
-    teacher = G.build_teacher(ckpt)
+    return G.build_teacher(ckpt), table, pim
 
-    # --- 生徒 ---
-    *models, ck = SS.load_student(args.ckpt, device)
+
+def run_eval(ckpt_path, out, *, rows, teacher_bundle=None, student_bundle=None,
+             beta=0.0, s_v=None, device=None, seed=0, quiet=False) -> dict:
+    """1 条件ぶんの評価。`teacher_bundle` / `student_bundle` を渡すと使い回す。
+
+    ⚠️ **使い回すのは重要。** β スイープで毎回プロセスを起動すると、
+    教師 ckpt (927 MB) + UTMOS + SCOREQ の読み込みが積み上がって
+    **SIGABRT で落ちる**（n=16 / 5 条件で実際に落ちた）。
+    """
+    import gen_teacher_labels as G  # noqa: PLC0415
+    import kana_g2p as K  # noqa: PLC0415
+    import synthesize_student as SS  # noqa: PLC0415
+
+    device = device or ("mps" if torch.backends.mps.is_available() else "cpu")
+    outdir = pathlib.Path(out)
+    (outdir / "student").mkdir(parents=True, exist_ok=True)
+    (outdir / "teacher").mkdir(parents=True, exist_ok=True)
+
+    teacher, table, pim = teacher_bundle or load_teacher()
+    if student_bundle is None:
+        student_bundle = SS.load_student(ckpt_path, device)
+    *models, ck = student_bundle
+
+    class _A:
+        pass
+    args = _A()
+    args.ckpt, args.beta, args.seed = ckpt_path, beta, seed
+    args.s_v, args.device, args.out = s_v, device, str(outdir)
+    args.n = len(rows)
     sigma_c = ck.get("c_stats", {}).get("sigma") if isinstance(ck.get("c_stats"), dict) else None
     s_v = args.s_v if args.s_v is not None else SS.S_V
     gen = torch.Generator(device=device).manual_seed(args.seed)
@@ -225,6 +237,8 @@ def main() -> int:
         "utterances": utts,
     }
     (outdir / "eval.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
+    if quiet:
+        return rep
 
     print(f"\n=== 品質（n={len(utts)}）===")
     for k, v in summary.items():
@@ -247,6 +261,25 @@ def main() -> int:
         print(f"  {k:<12} {st['sfm_mean']:9.4f} {t['sfm_mean']:9.4f} "
               f"{r['sfm']:7.4f} {rr:>8}  {st['n']}{flag}")
     print(f"\n→ {outdir}/eval.json")
+    return rep
+
+
+def main() -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--ckpt", required=True)
+    ap.add_argument("--texts", default="data/splits/corpus_heldout.tsv")
+    ap.add_argument("--n", type=int, default=24)
+    ap.add_argument("--out", default="reports/eval_student")
+    ap.add_argument("--beta", type=float, default=0.0)
+    ap.add_argument("--s-v", type=float, default=None)
+    ap.add_argument("--device", default=None)
+    ap.add_argument("--seed", type=int, default=0)
+    a = ap.parse_args()
+
+    rows = pick_rows(a.texts, a.n, a.seed)
+    print(f"{len(rows)} 文（汚染除外後 / seed {a.seed}）")
+    run_eval(a.ckpt, a.out, rows=rows, beta=a.beta, s_v=a.s_v,
+             device=a.device, seed=a.seed)
     return 0
 
 

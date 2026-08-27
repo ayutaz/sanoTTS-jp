@@ -1,0 +1,144 @@
+{
+ "ckpt": "runs/v2/stage4.pt",
+ "n_utterances": 16,
+ "betas": [
+  0.0,
+  2.0,
+  4.0,
+  6.0,
+  8.0
+ ],
+ "objective": "J(β) = mean_c |SFM_c(生徒)/SFM_c(教師) − 1| over fricative, affricate, devoiced",
+ "guard": {
+  "scoreq": ">= 0.95 x 0.6186",
+  "utmos": ">= 0.975 x 0.7485"
+ },
+ "rows": [
+  {
+   "beta": 0.0,
+   "J": 0.01653333333333336,
+   "sfm_ratio_target": {
+    "fricative": 1.0006,
+    "affricate": 1.0153,
+    "devoiced": 1.0337
+   },
+   "band_rms_ratio_target": {
+    "fricative": 0.7941,
+    "affricate": 0.9748,
+    "devoiced": 0.9503
+   },
+   "sfm_ratio_guard": {
+    "vowel": 1.0447,
+    "nasal": 1.0917,
+    "stop": 1.0396,
+    "approximant": 1.0516
+   },
+   "scoreq_ratio": 0.6186,
+   "utmos_ratio": 0.7485,
+   "passes_guard": true
+  },
+  {
+   "beta": 2.0,
+   "J": 0.02293333333333336,
+   "sfm_ratio_target": {
+    "fricative": 0.9965,
+    "affricate": 1.0093,
+    "devoiced": 1.056
+   },
+   "band_rms_ratio_target": {
+    "fricative": 0.8314,
+    "affricate": 0.8298,
+    "devoiced": 1.3252
+   },
+   "sfm_ratio_guard": {
+    "vowel": 1.0448,
+    "nasal": 1.0922,
+    "stop": 1.0396,
+    "approximant": 1.0515
+   },
+   "scoreq_ratio": 0.5988,
+   "utmos_ratio": 0.7445,
+   "passes_guard": true
+  },
+  {
+   "beta": 4.0,
+   "J": 0.02273333333333331,
+   "sfm_ratio_target": {
+    "fricative": 0.9832,
+    "affricate": 0.9959,
+    "devoiced": 1.0473
+   },
+   "band_rms_ratio_target": {
+    "fricative": 1.0461,
+    "affricate": 0.8614,
+    "devoiced": 1.5419
+   },
+   "sfm_ratio_guard": {
+    "vowel": 1.0446,
+    "nasal": 1.0919,
+    "stop": 1.0393,
+    "approximant": 1.0515
+   },
+   "scoreq_ratio": 0.5783,
+   "utmos_ratio": 0.7339,
+   "passes_guard": false
+  },
+  {
+   "beta": 6.0,
+   "J": 0.03530000000000003,
+   "sfm_ratio_target": {
+    "fricative": 0.9676,
+    "affricate": 0.9679,
+    "devoiced": 1.0414
+   },
+   "band_rms_ratio_target": {
+    "fricative": 1.3352,
+    "affricate": 1.174,
+    "devoiced": 1.7244
+   },
+   "sfm_ratio_guard": {
+    "vowel": 1.0452,
+    "nasal": 1.0916,
+    "stop": 1.039,
+    "approximant": 1.0513
+   },
+   "scoreq_ratio": 0.5485,
+   "utmos_ratio": 0.7297,
+   "passes_guard": false
+  },
+  {
+   "beta": 8.0,
+   "J": 0.040500000000000015,
+   "sfm_ratio_target": {
+    "fricative": 0.9525,
+    "affricate": 0.9533,
+    "devoiced": 1.0273
+   },
+   "band_rms_ratio_target": {
+    "fricative": 1.4752,
+    "affricate": 1.3733,
+    "devoiced": 2.3415
+   },
+   "sfm_ratio_guard": {
+    "vowel": 1.0454,
+    "nasal": 1.0913,
+    "stop": 1.0386,
+    "approximant": 1.0513
+   },
+   "scoreq_ratio": 0.5151,
+   "utmos_ratio": 0.7206,
+   "passes_guard": false
+  }
+ ],
+ "candidates_for_listening": [
+  0.0,
+  2.0
+ ],
+ "decision": "⚠️ **未決。最終決定は聴取（CMOS）でやる。**",
+ "warnings": [
+  "**J(β) は代理指標**。論文は聴取で β=6 を選び、SCOREQ はむしろ下がった",
+  "**power 計算をしていない。** ガードの 5% / 2.5% の差を n=16 で分離できるかは未検証（計画書 §Phase 5 の指摘）",
+  "破擦音 {ts, ch} は閉鎖＋摩擦の複合。閉鎖部への注入は劣化しうるが、論文はこの区別をしていない。時間マスクは未実装"
+ ],
+ "repro": "uv run --extra eval python scripts/b_beta_sweep.py --ckpt runs/v2/stage4.pt --betas 0,2,4,6,8 --n 16 --out reports/beta_sweep"
+}

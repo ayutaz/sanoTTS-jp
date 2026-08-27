@@ -1,0 +1,120 @@
+{
+ "ckpt": "runs/v2/stage4.pt",
+ "scheme": "symmetric int8 / per-output-channel。embedding・LayerNorm・1-D (bias/LayerScale) は fp32（論文の指定）",
+ "vocab": 57,
+ "blobs": {
+  "duration": {
+   "int8_weight_bytes": 30752,
+   "scale_bytes": 772,
+   "fp32_bytes": 8848,
+   "total_bytes": 40372,
+   "n_params_int8": 30752,
+   "n_params_fp32": 2212,
+   "n_params": 32964
+  },
+  "acoustic": {
+   "int8_weight_bytes": 186240,
+   "scale_bytes": 3232,
+   "fp32_bytes": 33984,
+   "total_bytes": 223456,
+   "n_params_int8": 186240,
+   "n_params_fp32": 8496,
+   "n_params": 194736
+  },
+  "decoder": {
+   "int8_weight_bytes": 327300,
+   "scale_bytes": 17532,
+   "fp32_bytes": 16032,
+   "total_bytes": 360864,
+   "n_params_int8": 327300,
+   "n_params_fp32": 4008,
+   "n_params": 331308
+  }
+ },
+ "two_blob_layout": {
+  "blob1_duration_plus_acoustic": 263828,
+  "blob2_decoder": 360864,
+  "total": 624692,
+  "paper_en_vocab157": {
+   "blob1": 280288,
+   "blob2": 399544,
+   "total": 679832
+  },
+  "delta_vs_paper": {
+   "blob1": -16460,
+   "blob2": -38680,
+   "total": -55140
+  }
+ },
+ "quantization_error": {
+  "n_probes": 8,
+  "log_d_snr_db": 37.87551164627075,
+  "c_snr_db": 38.22499418258667,
+  "wave_snr_db": 25.81162118911743,
+  "d_exact_match": 3,
+  "probes": [
+   {
+    "n_ids": 106,
+    "log_d_snr_db": 39.128028869628906,
+    "c_snr_db": 37.15903854370117,
+    "wave_snr_db": 23.510555267333984,
+    "d_exact_match": false
+   },
+   {
+    "n_ids": 35,
+    "log_d_snr_db": 38.29608917236328,
+    "c_snr_db": 39.327091217041016,
+    "wave_snr_db": 28.68879508972168,
+    "d_exact_match": false
+   },
+   {
+    "n_ids": 113,
+    "log_d_snr_db": 37.58465576171875,
+    "c_snr_db": 38.40190124511719,
+    "wave_snr_db": 24.265718460083008,
+    "d_exact_match": true
+   },
+   {
+    "n_ids": 41,
+    "log_d_snr_db": 38.13376235961914,
+    "c_snr_db": 37.72791290283203,
+    "wave_snr_db": 27.414138793945312,
+    "d_exact_match": false
+   },
+   {
+    "n_ids": 104,
+    "log_d_snr_db": 37.8958740234375,
+    "c_snr_db": 37.616519927978516,
+    "wave_snr_db": 25.516983032226562,
+    "d_exact_match": false
+   },
+   {
+    "n_ids": 62,
+    "log_d_snr_db": 37.850685119628906,
+    "c_snr_db": 39.452613830566406,
+    "wave_snr_db": 26.457927703857422,
+    "d_exact_match": false
+   },
+   {
+    "n_ids": 101,
+    "log_d_snr_db": 37.44594955444336,
+    "c_snr_db": 38.94130325317383,
+    "wave_snr_db": 25.740379333496094,
+    "d_exact_match": true
+   },
+   {
+    "n_ids": 107,
+    "log_d_snr_db": 36.66904830932617,
+    "c_snr_db": 37.1735725402832,
+    "wave_snr_db": 24.89847183227539,
+    "d_exact_match": true
+   }
+  ]
+ },
+ "warnings": [
+  "**PTQ のシミュレーションであって ESP32 のカーネルではない。**実機の演算順序・丸めは別に検証が要る",
+  "**プローブはランダムな音素ID列**。実テキストでの品質劣化は eval_student.py を int8 モデルで回して測ること",
+  "論文の blob サイズは英語（語彙 157）。日本語は 57 なので埋め込みが 100 行少ない（fp32 なので差は大きい）"
+ ],
+ "repro": "uv run python scripts/quantize_student.py --ckpt runs/v2/stage4.pt --out reports/quant_v2"
+}
