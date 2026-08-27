@@ -178,10 +178,21 @@ int main(int argc, char **argv) {
     }
     bad += !same;
 
-    /* G3: 発話長に対して RAM が O(1) */
+    /* G3: 発話長に対して RAM が O(1)
+     *
+     * ⚠️ **測るのは「パイプライン定常部」**（init 完了時点の arena 使用量）。
+     * `peak_used` は arena の高水位なので、`saan_stream_init` の冒頭で
+     * `saan_run_duration` が確保してすぐ返す **O(n_ids) の一時領域**
+     * （h/t1/t2 で 3 × 32 × 4 = 384 B/id）を含む。この一時領域は
+     * `saan_stream_arena_needed` が最初から数えているので**確保漏れではない**が、
+     * 「RAM が O(1)」という主張の対象でもない（duration は発話全体を一度に見る段）。
+     * 両方を並べて出す。 */
     printf("\n  G3 発話長に対する RAM:\n");
+    printf("      %5s %7s  %9s  %9s  %9s\n",
+           "ids", "frames", "定常部", "-8B/id", "高水位");
     size_t prev = 0;
     int g3 = 1;
+    int cross = 0;
     for (int rep = 1; rep <= 16; rep *= 2) {
         int m = n_ids * rep;
         int32_t *idm = malloc(sizeof(int32_t) * (size_t)m);
@@ -192,20 +203,27 @@ int main(int argc, char **argv) {
         saan_arena_init(&C, am, nd);
         saan_stream s2;
         if (saan_stream_init(&s2, &W, &C, idm, m, SAAN_S_V) != SAAN_OK) { bad++; break; }
+        const size_t pipe = C.used;      /* パイプライン定常部（duration の一時は返済済み） */
         float tmp[SAAN_CHUNK * SAAN_HOP];
         int32_t k;
         while (saan_stream_pull(&s2, tmp, &k) == SAAN_OK && k > 0) { }
         /* ids に比例して残るのは log_d と d_hat（8 B/id）だけ。
          * それを引いた分が発話長に依存しなければ O(1) */
-        const size_t fixed = s2.peak_used - (size_t)m * 8;
-        printf("      %5d ids / %5d frames  ピーク %7.1f KB  ids 比例を除く %7.1f KB\n",
-               m, s2.n_frames, (double)s2.peak_used / 1024.0, (double)fixed / 1024.0);
+        const size_t fixed = pipe - (size_t)m * 8;
+        printf("      %5d %7d  %6.1f KB  %6.1f KB  %6.1f KB%s\n",
+               m, s2.n_frames, (double)pipe / 1024.0, (double)fixed / 1024.0,
+               (double)s2.peak_used / 1024.0,
+               s2.peak_used > pipe ? "  ← duration の一時が上回る" : "");
+        if (s2.peak_used > pipe) cross = 1;
         if (prev && (fixed > prev + 2048 || fixed + 2048 < prev)) g3 = 0;
         prev = fixed;
         free(am); free(idm);
     }
-    printf("  %s G3 発話長に対して RAM が O(1)（ids 比例分 8 B/id を除いて一定）\n",
-           g3 ? "OK " : "NG!");
+    printf("  %s G3 パイプライン定常部が発話長に対して O(1)"
+           "（ids 比例分 8 B/id を除いて一定）\n", g3 ? "OK " : "NG!");
+    if (cross)
+        printf("      ⚠️ 高水位は duration の一時領域 384 B/id で O(n_ids)。"
+               "D-017 の実用最大 350 ids では定常部が上回るので G1 は影響を受けない\n");
     bad += !g3;
 
     printf("\n%s\n", bad ? "受け入れ条件を満たしていない" : "Phase D-2 の受け入れ条件を満たした");

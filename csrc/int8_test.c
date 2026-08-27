@@ -519,29 +519,55 @@ int main(int argc, char **argv) {
         }
     }
 
-    /* ---- 5. 既存の fp32 コアに int8 ブロブを渡したときの挙動 ----
-     * **黙って別物を出さないこと**を確かめる（saan_tf は dtype 0 以外を NULL にする）。 */
+    /* ---- 5. コアが両方のブロブを受け付けるか（D-3c'-2 で意味が反転した） ----
+     *
+     * ⚠️ **以前はここで「fp32 コアに int8 を渡すと SAAN_ERR_MISSING」を確認していた。**
+     * `saan_w()` によるディスパッチを入れた今、**同じバイナリが両方を走らせるのが正**。
+     * 代わりに確かめるのは「引けなかったものを黙って NULL にしない」こと —
+     * フォールバックにすると名前の打ち間違いでその層だけ消えた音声が出る。 */
+    printf("\n== 5. コアのディスパッチ（fp32 / int8 の両方を受け付ける） ==\n");
     {
         int32_t ids[4] = {1, 2, 3, 4};
         const size_t need = saan_arena_needed(4);
         void *ab = malloc(need);
         saan_arena A;
-        saan_arena_init(&A, ab, need);
         saan_output o;
-        const saan_status st = saan_synthesize(&I, &A, ids, 4, SAAN_S_V, &o);
-        const int ok = (st == SAAN_ERR_MISSING);
-        printf("\n== 5. fp32 コア + int8 ブロブ ==\n  %s %s（黙って走らない）\n",
-               ok ? "OK " : "NG!", saan_strerror(st));
-        jp(" \"fp32_core_rejects_int8_blob\": {\"status\": \"%s\", \"is_missing\": %s},\n",
-           saan_strerror(st), ok ? "true" : "false");
-        if (!ok) ++bad;
+        saan_arena_init(&A, ab, need);
+        const saan_status s_i8 = saan_synthesize(&I, &A, ids, 4, SAAN_S_V, &o);
+        saan_arena_init(&A, ab, need);
+        const saan_status s_f32 = saan_synthesize(&F, &A, ids, 4, SAAN_S_V, &o);
+        const int ok_run = (s_i8 == SAAN_OK && s_f32 == SAAN_OK);
+        printf("  %s int8 %s / fp32 %s\n", ok_run ? "OK " : "NG!",
+               saan_strerror(s_i8), saan_strerror(s_f32));
+        if (!ok_run) ++bad;
+
+        /* 名前の打ち間違い → **両方 NULL**（黙って通さない） */
+        const saan_wref bogus = saan_w(&I, "duration.does.not.exist");
+        /* scale（dtype 2）を重みとして掴まない */
+        const saan_wref sc_as_w = saan_w(&I, "duration.proj.weight.scale");
+        /* 正しい名前は int8 で引ける / fp32 ブロブでは fp32 で引ける */
+        const saan_wref good_i8 = saan_w(&I, "duration.proj.weight");
+        const saan_wref good_f32 = saan_w(&F, "duration.proj.weight");
+        const int ok_ref = !SAAN_W_OK(bogus) && !SAAN_W_OK(sc_as_w)
+                         && good_i8.q && good_i8.scale && !good_i8.f32
+                         && good_f32.f32 && !good_f32.q;
+        printf("  %s saan_w: 打ち間違い→NULL / scale を重みにしない / "
+               "int8 は q+scale / fp32 は f32\n", ok_ref ? "OK " : "NG!");
+        if (!ok_ref) ++bad;
+
+        jp(" \"core_dispatch\": {\"int8_blob\": \"%s\", \"fp32_blob\": \"%s\","
+           " \"both_run\": %s, \"wref_rules_ok\": %s,\n"
+           "  \"note\": \"D-3c'-2 で意味が反転。旧テストは「fp32 コアが int8 を拒む」"
+           "だったが、今は同じバイナリが両方を走らせるのが正\"},\n",
+           saan_strerror(s_i8), saan_strerror(s_f32),
+           ok_run ? "true" : "false", ok_ref ? "true" : "false");
         free(ab);
     }
 
     jp(" \"scheme\": {\n");
     jp("  \"weights\": \"symmetric int8 / per-output-channel。scale[o] = max|W[o]|/127、丸めは rintf (half-to-even, torch.round と同じ。roundf だと 544,292 値中 5 個が exporter と食い違う)\",\n");
     jp("  \"fp32_kept\": \"embedding / pos / LayerNorm / bias / LayerScale\",\n");
-    jp("  \"activation_default\": \"W8A32（activation は fp32 のまま）\",\n");
+    jp("  \"activation_default\": \"W8A32（activation は fp32 のまま）。`SAAN_INT8_ACT` で切り替える（既定 0）\",\n");
     jp("  \"activation_optional\": \"W8A8（per-frame 対称量子化・タップごとに int32 累積）\",\n");
     jp("  \"act_layout\": \"量子化 activation は転置 [T][C]。fp32 の [C][T] と取り違えると黙って別物になる\"\n");
     jp(" },\n");

@@ -1,5 +1,7 @@
-/* saanoTTS-jp int8 カーネル。詳細は saanotts_int8.h */
+/* sanoTTS-jp int8 カーネル。詳細は saanotts_int8.h */
 #include "saanotts_int8.h"
+
+#include "saanotts_internal.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -204,4 +206,94 @@ const int8_t *saan_ti8(const saan_weights *w, const float **scale,
         *scale = (const float *)sp;
     }
     return (const int8_t *)p;
+}
+
+/* --- fp32 / int8 のディスパッチ（D-3c'-2） --------------------------------
+ *
+ * ここに置くのは **`saanotts.c` を int8 に依存させない**ため。
+ * 一括版もストリーミング版も `saan_conv1d_w` だけを呼べばよく、
+ * どちらの経路を通るかは読み込んだブロブの dtype が決める。
+ */
+
+saan_wref saan_w(const saan_weights *w, const char *fmt, ...) {
+    char buf[I8_NAME_LEN];
+    char sbuf[I8_NAME_LEN + 8];
+    saan_wref r = {NULL, NULL, NULL};
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+
+    uint32_t dt = 0;
+    const void *p = saan_tensor(w, buf, &dt, NULL, NULL);
+    if (!p) return r;                       /* 名前が無い = 両方 NULL のまま */
+    if (dt == 0u) { r.f32 = (const float *)p; return r; }
+    if (dt != 1u) return r;                 /* scale(2) を重みとして掴まない */
+
+    snprintf(sbuf, sizeof sbuf, "%s.scale", buf);
+    uint32_t sdt = 0;
+    const void *sp = saan_tensor(w, sbuf, &sdt, NULL, NULL);
+    if (!sp || sdt != 2u) return r;         /* scale が無いなら「引けなかった」 */
+    r.q = (const int8_t *)p;
+    r.scale = (const float *)sp;
+    return r;
+}
+
+size_t saan_act_scratch_needed(int cin, int T) {
+#if SAAN_INT8_ACT
+    /* qx [T][cin] と sx [T] を別々に saan_alloc するので、境界も別々に数える */
+    return SAAN_ALIGN16((size_t)cin * (size_t)T)
+         + SAAN_ALIGN16(sizeof(float) * (size_t)T);
+#else
+    (void)cin; (void)T;
+    return 0;
+#endif
+}
+
+saan_status saan_conv1d_w(float *y, const float *x, saan_wref W, const float *b,
+                          int cin, int cout, int ksz, int T, saan_arena *a) {
+    if (W.f32) {                            /* fp32 ブロブ: 既存カーネルそのもの */
+        saan_conv1d(y, x, W.f32, b, cin, cout, ksz, T);
+        return SAAN_OK;
+    }
+    if (!W.q || !W.scale) return SAAN_ERR_MISSING;
+#if SAAN_INT8_ACT
+    if (!a) return SAAN_ERR_ARENA;
+    {
+        const size_t mark = a->used;
+        int8_t *qx = (int8_t *)saan_alloc(a, (size_t)cin * (size_t)T);
+        float *sx = (float *)saan_alloc(a, sizeof(float) * (size_t)T);
+        if (!qx || !sx) { a->used = mark; return SAAN_ERR_ARENA; }
+        saan_conv1d_i8a(y, x, W.q, W.scale, b, cin, cout, ksz, T, qx, sx);
+        a->used = mark;
+    }
+#else
+    (void)a;
+    saan_conv1d_i8(y, x, W.q, W.scale, b, cin, cout, ksz, T);
+#endif
+    return SAAN_OK;
+}
+
+saan_status saan_dwconv1d_w(float *y, const float *x, saan_wref W,
+                            int ch, int ksz, int T, saan_arena *a) {
+    if (W.f32) {
+        saan_dwconv1d(y, x, W.f32, ch, ksz, T);
+        return SAAN_OK;
+    }
+    if (!W.q || !W.scale) return SAAN_ERR_MISSING;
+#if SAAN_INT8_ACT
+    if (!a) return SAAN_ERR_ARENA;
+    {
+        const size_t mark = a->used;
+        int8_t *qx = (int8_t *)saan_alloc(a, (size_t)ch * (size_t)T);
+        float *sx = (float *)saan_alloc(a, sizeof(float) * (size_t)T);
+        if (!qx || !sx) { a->used = mark; return SAAN_ERR_ARENA; }
+        saan_dwconv1d_i8a(y, x, W.q, W.scale, ch, ksz, T, qx, sx);
+        a->used = mark;
+    }
+#else
+    (void)a;
+    saan_dwconv1d_i8(y, x, W.q, W.scale, ch, ksz, T);
+#endif
+    return SAAN_OK;
 }

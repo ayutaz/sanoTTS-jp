@@ -72,19 +72,20 @@
  "c_quantizer_matches_python": {"n_values": 544292, "value_mismatch": 0, "scale_mismatch": 0}, 
  "real_activation": {"layer": "decoder.inp", "T": 106, "w8a32_db": 47.1387, "w8a8_db": 44.8192},
  "speed": {"host": "darwin/arm64 (cc -O2)", "note": "ESP32-S3 では測れない", "rows": [
-  {"shape": "ac  c1 48->48 k5", "macs": 1221120, "fp32_ns": 78915, "w8a32_ns": 77840, "w8a8_ns": 77540, "w8a32_over_fp32": 0.986, "w8a8_over_fp32": 0.983, "fp32_ps_per_mac": 64.6, "w8a32_ps_per_mac": 63.7, "w8a8_ps_per_mac": 63.5},
-  {"shape": "dec inp 40->76 k3", "macs": 966720, "fp32_ns": 64160, "w8a32_ns": 67660, "w8a8_ns": 58860, "w8a32_over_fp32": 1.055, "w8a8_over_fp32": 0.917, "fp32_ps_per_mac": 66.4, "w8a32_ps_per_mac": 70.0, "w8a8_ps_per_mac": 60.9},
-  {"shape": "dec pw1 76->304 k1", "macs": 2449024, "fp32_ns": 162485, "w8a32_ns": 170525, "w8a8_ns": 102550, "w8a32_over_fp32": 1.049, "w8a8_over_fp32": 0.631, "fp32_ps_per_mac": 66.3, "w8a32_ps_per_mac": 69.6, "w8a8_ps_per_mac": 41.9},
-  {"shape": "dec pw2 304->76 k1", "macs": 2449024, "fp32_ns": 165370, "w8a32_ns": 166335, "w8a8_ns": 85385, "w8a32_over_fp32": 1.006, "w8a8_over_fp32": 0.516, "fp32_ps_per_mac": 67.5, "w8a32_ps_per_mac": 67.9, "w8a8_ps_per_mac": 34.9},
-  {"shape": "dec hout 48->1539", "macs": 7830432, "fp32_ns": 520310, "w8a32_ns": 566625, "w8a8_ns": 472245, "w8a32_over_fp32": 1.089, "w8a8_over_fp32": 0.908, "fp32_ps_per_mac": 66.4, "w8a32_ps_per_mac": 72.4, "w8a8_ps_per_mac": 60.3}
+  {"shape": "ac  c1 48->48 k5", "macs": 1221120, "fp32_ns": 87895, "w8a32_ns": 78645, "w8a8_ns": 77970, "w8a32_over_fp32": 0.895, "w8a8_over_fp32": 0.887, "fp32_ps_per_mac": 72.0, "w8a32_ps_per_mac": 64.4, "w8a8_ps_per_mac": 63.9},
+  {"shape": "dec inp 40->76 k3", "macs": 966720, "fp32_ns": 62525, "w8a32_ns": 60720, "w8a8_ns": 55935, "w8a32_over_fp32": 0.971, "w8a8_over_fp32": 0.895, "fp32_ps_per_mac": 64.7, "w8a32_ps_per_mac": 62.8, "w8a8_ps_per_mac": 57.9},
+  {"shape": "dec pw1 76->304 k1", "macs": 2449024, "fp32_ns": 157270, "w8a32_ns": 166495, "w8a8_ns": 102910, "w8a32_over_fp32": 1.059, "w8a8_over_fp32": 0.654, "fp32_ps_per_mac": 64.2, "w8a32_ps_per_mac": 68.0, "w8a8_ps_per_mac": 42.0},
+  {"shape": "dec pw2 304->76 k1", "macs": 2449024, "fp32_ns": 163185, "w8a32_ns": 163775, "w8a8_ns": 82460, "w8a32_over_fp32": 1.004, "w8a8_over_fp32": 0.505, "fp32_ps_per_mac": 66.6, "w8a32_ps_per_mac": 66.9, "w8a8_ps_per_mac": 33.7},
+  {"shape": "dec hout 48->1539", "macs": 7830432, "fp32_ns": 510830, "w8a32_ns": 544155, "w8a8_ns": 466440, "w8a32_over_fp32": 1.065, "w8a8_over_fp32": 0.913, "fp32_ps_per_mac": 65.2, "w8a32_ps_per_mac": 69.5, "w8a8_ps_per_mac": 59.6}
  ]},
- "all_conv_layers": {"T": 106, "reps": 50, "fp32_ms": 3.8278, "w8a32_ms": 3.8906, "w8a8_ms": 3.2837, "w8a32_over_fp32": 1.016, "w8a8_over_fp32": 0.858, "mac_share_ksz1": 0.5833, "note": "iSTFT・埋め込み・LayerNorm は含まない"},
+ "all_conv_layers": {"T": 106, "reps": 50, "fp32_ms": 3.7444, "w8a32_ms": 3.7771, "w8a8_ms": 3.2086, "w8a32_over_fp32": 1.009, "w8a8_over_fp32": 0.857, "mac_share_ksz1": 0.5833, "note": "iSTFT・埋め込み・LayerNorm は含まない"},
  "blob_size": {"fp32_file_bytes": 2249792, "fp32_payload_bytes": 2236032, "int8_file_bytes": 643936, "int8_payload_bytes": 624692, "int8_payload_int8": 544292, "int8_payload_scale": 21536, "int8_payload_fp32": 58864, "payload_ratio": 3.579, "matches_M39_quant_json": true},
- "fp32_core_rejects_int8_blob": {"status": "必要なテンソルが無い", "is_missing": true},
+ "core_dispatch": {"int8_blob": "ok", "fp32_blob": "ok", "both_run": true, "wref_rules_ok": true,
+  "note": "D-3c'-2 で意味が反転。旧テストは「fp32 コアが int8 を拒む」だったが、今は同じバイナリが両方を走らせるのが正"},
  "scheme": {
   "weights": "symmetric int8 / per-output-channel。scale[o] = max|W[o]|/127、丸めは rintf (half-to-even, torch.round と同じ。roundf だと 544,292 値中 5 個が exporter と食い違う)",
   "fp32_kept": "embedding / pos / LayerNorm / bias / LayerScale",
-  "activation_default": "W8A32（activation は fp32 のまま）",
+  "activation_default": "W8A32（activation は fp32 のまま）。`SAAN_INT8_ACT` で切り替える（既定 0）",
   "activation_optional": "W8A8（per-frame 対称量子化・タップごとに int32 累積）",
   "act_layout": "量子化 activation は転置 [T][C]。fp32 の [C][T] と取り違えると黙って別物になる"
  },

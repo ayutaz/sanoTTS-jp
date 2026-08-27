@@ -1,0 +1,158 @@
+{
+ "n_utts": 24,
+ "texts": "data/splits/corpus_heldout.tsv",
+ "limit": 24,
+ "blob": {
+  "path": "reports/tmp/re_ids.bin",
+  "n_tensors": 24,
+  "bytes": 12384,
+  "sha256": "4f31a54e989583346bda9754a1b72773d1d23ad818cb7ee45042e16e0883868a"
+ },
+ "utts": [
+  {
+   "k": 0,
+   "uid": "sentence_collector_00787",
+   "text": "<redacted: corpus text>",
+   "n_ids": 89
+  },
+  {
+   "k": 1,
+   "uid": "sentence_collector_02210",
+   "text": "<redacted: corpus text>",
+   "n_ids": 90
+  },
+  {
+   "k": 2,
+   "uid": "sentence_collector_00883",
+   "text": "<redacted: corpus text>",
+   "n_ids": 77
+  },
+  {
+   "k": 3,
+   "uid": "sentence_collector_04975",
+   "text": "<redacted: corpus text>",
+   "n_ids": 47
+  },
+  {
+   "k": 4,
+   "uid": "sentence_collector_01564",
+   "text": "<redacted: corpus text>",
+   "n_ids": 200
+  },
+  {
+   "k": 5,
+   "uid": "sentence_collector_04967",
+   "text": "<redacted: corpus text>",
+   "n_ids": 268
+  },
+  {
+   "k": 6,
+   "uid": "sentence_collector_09299",
+   "text": "<redacted: corpus text>",
+   "n_ids": 127
+  },
+  {
+   "k": 7,
+   "uid": "sentence_collector_03100",
+   "text": "<redacted: corpus text>",
+   "n_ids": 86
+  },
+  {
+   "k": 8,
+   "uid": "sentence_collector_02145",
+   "text": "<redacted: corpus text>",
+   "n_ids": 57
+  },
+  {
+   "k": 9,
+   "uid": "sentence_collector_00947",
+   "text": "<redacted: corpus text>",
+   "n_ids": 39
+  },
+  {
+   "k": 10,
+   "uid": "sentence_collector_00708",
+   "text": "<redacted: corpus text>",
+   "n_ids": 124
+  },
+  {
+   "k": 11,
+   "uid": "sentence_collector_02027",
+   "text": "<redacted: corpus text>",
+   "n_ids": 114
+  },
+  {
+   "k": 12,
+   "uid": "sentence_collector_04345",
+   "text": "<redacted: corpus text>",
+   "n_ids": 97
+  },
+  {
+   "k": 13,
+   "uid": "sentence_collector_02674",
+   "text": "<redacted: corpus text>",
+   "n_ids": 71
+  },
+  {
+   "k": 14,
+   "uid": "sentence_collector_01946",
+   "text": "<redacted: corpus text>",
+   "n_ids": 65
+  },
+  {
+   "k": 15,
+   "uid": "sentence_collector_00218",
+   "text": "<redacted: corpus text>",
+   "n_ids": 61
+  },
+  {
+   "k": 16,
+   "uid": "sentence_collector_00168",
+   "text": "<redacted: corpus text>",
+   "n_ids": 57
+  },
+  {
+   "k": 17,
+   "uid": "sentence_collector_06581",
+   "text": "<redacted: corpus text>",
+   "n_ids": 57
+  },
+  {
+   "k": 18,
+   "uid": "sentence_collector_09301",
+   "text": "<redacted: corpus text>",
+   "n_ids": 136
+  },
+  {
+   "k": 19,
+   "uid": "sentence_collector_03253",
+   "text": "<redacted: corpus text>",
+   "n_ids": 81
+  },
+  {
+   "k": 20,
+   "uid": "sentence_collector_08299",
+   "text": "<redacted: corpus text>",
+   "n_ids": 53
+  },
+  {
+   "k": 21,
+   "uid": "sentence_collector_07245",
+   "text": "<redacted: corpus text>",
+   "n_ids": 179
+  },
+  {
+   "k": 22,
+   "uid": "sentence_collector_04735",
+   "text": "<redacted: corpus text>",
+   "n_ids": 63
+  },
+  {
+   "k": 23,
+   "uid": "sentence_collector_04552",
+   "text": "<redacted: corpus text>",
+   "n_ids": 187
+  }
+ ],
+ "repro": "uv run python scripts/export_c_ids.py --limit 24 --out reports/tmp/re_ids.bin"
+}

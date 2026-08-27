@@ -1,0 +1,84 @@
+{
+  "task": "D-3b",
+  "what": "csrc のストリーミング推論のレイテンシ（ホスト実測）。段別内訳つき",
+  "host_label": "int8-w8a32",
+  "compiler": "Apple LLVM 17.0.0 (clang-1700.3.19.1)",
+  "cflags": "-std=c99 -O2 -Wall -Wextra",
+  "clock": "clock_gettime(CLOCK_MONOTONIC)",
+  "weights": {"path": "student_i8.bin", "bytes": 643936, "n_tensors": 183, "dtype": "int8-w8a32"},
+  "sample_rate": 22050, "hop": 256, "n_fft": 1024, "chunk_frames": 8,
+  "reps_total": 10, "reps_stage": 7, "warmup": 1,
+  "cases": [
+    {
+      "name": "short",
+      "n_ids": 53,
+      "n_frames": 106,
+      "chunks": 21,
+      "audio_sec": 1.2307,
+      "total_measured": {"ms_mean": 45.0996, "ms_sd": 0.5136, "ms_median": 44.8845, "ms_min": 44.7560, "ms_max": 46.4540, "n": 10, "xrt_mean": 0.03665, "xrt_min": 0.03637},
+      "stages_model": {
+      "duration": {"ms_mean": 0.1611, "ms_sd": 0.0028, "ms_median": 0.1620, "ms_min": 0.1580, "ms_max": 0.1660, "n": 7, "xrt_mean": 0.00013, "xrt_min": 0.00013},
+      "token_block": {"ms_mean": 4.7159, "ms_sd": 0.4852, "ms_median": 4.5390, "ms_min": 4.3790, "ms_max": 5.8000, "n": 7, "xrt_mean": 0.00383, "xrt_min": 0.00356},
+      "acoustic_frame": {"ms_mean": 11.0500, "ms_sd": 0.1635, "ms_median": 10.9807, "ms_min": 10.9312, "ms_max": 11.3124, "n": 7, "xrt_mean": 0.00898, "xrt_min": 0.00888},
+      "decoder": {"ms_mean": 27.3409, "ms_sd": 0.2708, "ms_median": 27.2091, "ms_min": 27.0782, "ms_max": 27.7305, "n": 7, "xrt_mean": 0.02222, "xrt_min": 0.02200},
+      "istft": {"ms_mean": 0.2555, "ms_sd": 0.0198, "ms_median": 0.2473, "ms_min": 0.2473, "ms_max": 0.3003, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00020},
+      "_sum": {"ms_mean": 43.5235, "ms_min": 42.7938, "xrt_mean": 0.03537, "xrt_min": 0.03477}
+      },
+      "stage_share_pct": {"duration": 0.37, "token_block": 10.23, "acoustic_frame": 25.54, "decoder": 63.28, "istft_naive_dft": 0.58},
+      "reconciliation_sum_over_measured": {"mean": 0.9651, "min": 0.9562},
+      "istft_ms_per_frame": 0.0023
+    },
+    {
+      "name": "medium",
+      "n_ids": 150,
+      "n_frames": 323,
+      "chunks": 48,
+      "audio_sec": 3.7500,
+      "total_measured": {"ms_mean": 106.1531, "ms_sd": 1.0290, "ms_median": 106.0895, "ms_min": 104.7350, "ms_max": 108.3260, "n": 10, "xrt_mean": 0.02831, "xrt_min": 0.02793},
+      "stages_model": {
+      "duration": {"ms_mean": 0.2941, "ms_sd": 0.0056, "ms_median": 0.2920, "ms_min": 0.2900, "ms_max": 0.3060, "n": 7, "xrt_mean": 0.00008, "xrt_min": 0.00008},
+      "token_block": {"ms_mean": 13.2974, "ms_sd": 0.1685, "ms_median": 13.2410, "ms_min": 13.1020, "ms_max": 13.5740, "n": 7, "xrt_mean": 0.00355, "xrt_min": 0.00349},
+      "acoustic_frame": {"ms_mean": 25.2090, "ms_sd": 0.1674, "ms_median": 25.2197, "ms_min": 24.8974, "ms_max": 25.4213, "n": 7, "xrt_mean": 0.00672, "xrt_min": 0.00664},
+      "decoder": {"ms_mean": 61.9884, "ms_sd": 0.6097, "ms_median": 62.1230, "ms_min": 60.7598, "ms_max": 62.7149, "n": 7, "xrt_mean": 0.01653, "xrt_min": 0.01620},
+      "istft": {"ms_mean": 0.7921, "ms_sd": 0.0212, "ms_median": 0.7806, "ms_min": 0.7806, "ms_max": 0.8344, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00021},
+      "_sum": {"ms_mean": 101.5811, "ms_min": 99.8298, "xrt_mean": 0.02709, "xrt_min": 0.02662}
+      },
+      "stage_share_pct": {"duration": 0.29, "token_block": 13.12, "acoustic_frame": 24.94, "decoder": 60.86, "istft_naive_dft": 0.78},
+      "reconciliation_sum_over_measured": {"mean": 0.9569, "min": 0.9532},
+      "istft_ms_per_frame": 0.0024
+    },
+    {
+      "name": "long",
+      "n_ids": 350,
+      "n_frames": 785,
+      "chunks": 105,
+      "audio_sec": 9.1138,
+      "total_measured": {"ms_mean": 235.7677, "ms_sd": 1.8774, "ms_median": 235.5865, "ms_min": 233.1740, "ms_max": 239.4440, "n": 10, "xrt_mean": 0.02587, "xrt_min": 0.02558},
+      "stages_model": {
+      "duration": {"ms_mean": 0.7087, "ms_sd": 0.0390, "ms_median": 0.7050, "ms_min": 0.6620, "ms_max": 0.7780, "n": 7, "xrt_mean": 0.00008, "xrt_min": 0.00007},
+      "token_block": {"ms_mean": 31.8806, "ms_sd": 0.2705, "ms_median": 31.8430, "ms_min": 31.4760, "ms_max": 32.2080, "n": 7, "xrt_mean": 0.00350, "xrt_min": 0.00345},
+      "acoustic_frame": {"ms_mean": 54.4206, "ms_sd": 0.3809, "ms_median": 54.4724, "ms_min": 53.9081, "ms_max": 54.9339, "n": 7, "xrt_mean": 0.00597, "xrt_min": 0.00591},
+      "decoder": {"ms_mean": 135.8118, "ms_sd": 1.7040, "ms_median": 135.2946, "ms_min": 133.6230, "ms_max": 138.1243, "n": 7, "xrt_mean": 0.01490, "xrt_min": 0.01466},
+      "istft": {"ms_mean": 1.9438, "ms_sd": 0.0529, "ms_median": 1.9298, "ms_min": 1.8971, "ms_max": 2.0606, "n": 7, "xrt_mean": 0.00021, "xrt_min": 0.00021},
+      "_sum": {"ms_mean": 224.7655, "ms_min": 221.5661, "xrt_mean": 0.02466, "xrt_min": 0.02431}
+      },
+      "stage_share_pct": {"duration": 0.30, "token_block": 14.21, "acoustic_frame": 24.33, "decoder": 60.31, "istft_naive_dft": 0.86},
+      "reconciliation_sum_over_measured": {"mean": 0.9533, "min": 0.9502},
+      "istft_ms_per_frame": 0.0024
+    }
+  ],
+  "method": {
+    "total": "公開 API のみ（saan_stream_init + saan_stream_pull を最後まで）。saanotts_stream.c は未編集。warmup 1 回のあと reps_total 回。これが唯一の直接計測",
+    "stages": "saanotts_stream.c を編集できないので、各段のカーネル列を同じ shape・同じ重みで bench.c 内に再現して単体計測し、実際の呼び出し回数（chunks / n_frames）を掛けたモデル",
+    "validity_check": "reconciliation_sum_over_measured = Σ段別 / 全体実測。mean と min の両方を出す。1.0 から離れるほど内訳の信頼度は下がる"
+  },
+  "limits": [
+    "段別はマイクロベンチの再現であり、saanotts_stream.c 内部を直接計測したものではない（既存ファイルを編集しない制約のため）",
+    "段別マイクロベンチの入力データは実際の中間出力ではなく合成値。saan_conv1d は重みが 0 の項をスキップするが重みは本物なので分岐挙動は同じ、一方 denormal の発生率は実データと違いうる",
+    "acoustic / decoder は 1 チャンクあたり一定として chunks 倍、iSTFT は 1 フレームあたり一定として n_frames 倍にスケールした（どちらも入力値に依存しない固定ループ）",
+    "zero_outside / obuf の詰め替え / pull のコピーなど、段に割り当てていない小さなコストがある。その分 Σ段別 は全体をわずかに下回る",
+    "ESP32 への外挿はしていない。ここの数値はホスト CPU のもの",
+    "重みは fp32。int8 カーネルは未計測",
+    "同一マシンで他プロセスが走ると mean と sd が上振れする（実測で sd が 1.3 ms から 398 ms まで悪化した実行があった）。ms_min と xrt_min が汚染に強い推定値"
+  ]
+}

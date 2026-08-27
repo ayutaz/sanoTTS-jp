@@ -1,5 +1,7 @@
-/* saanoTTS-jp 推論コア（C99 / 依存は libm のみ） */
+/* sanoTTS-jp 推論コア（C99 / 依存は libm のみ） */
 #include "saanotts.h"
+
+#include "saanotts_internal.h"
 
 #include "fft.h"
 
@@ -64,15 +66,24 @@ const float *saan_tf(const saan_weights *w, const char *fmt, ...) {
 /* --- arena --------------------------------------------------------------- */
 
 void saan_arena_init(saan_arena *a, void *buf, size_t size) {
-    a->buf = (uint8_t *)buf; a->size = size; a->used = 0;
+    a->buf = (uint8_t *)buf; a->size = size; a->used = 0; a->peak = 0;
+    a->failed = 0;
 }
-void saan_arena_reset(saan_arena *a) { a->used = 0; }
+/* ⚠️ `peak` は**戻さない**（発話をまたいだ高水位を測るため）。0 に戻すのは init。
+ * `failed` は**戻す** — 次の発話は小さいかもしれない */
+void saan_arena_reset(saan_arena *a) { a->used = 0; a->failed = 0; }
 
 void *saan_alloc(saan_arena *a, size_t n) {
     size_t need = ALIGN16(n);
-    if (a->used + need > a->size) return NULL;
+    /* ⚠️ **一度失敗したら以降すべて NULL を返す（粘着）。**
+     * これが無いと「大きい確保だけ失敗して後続の小さい確保は成功する」ため、
+     * 最後の 1 個しか NULL 検査していない呼び出し側で
+     * **init が成功を返したまま NULL を抱える**（arena 175〜191 KB の 15 サイズで実測）。 */
+    if (a->failed) return NULL;
+    if (a->used + need > a->size) { a->failed = 1; return NULL; }
     void *p = a->buf + a->used;
     a->used += need;
+    if (a->used > a->peak) a->peak = a->used;
     return p;
 }
 
@@ -92,6 +103,10 @@ size_t saan_arena_needed(int32_t n_ids) {
     s += 3 * ALIGN16(sizeof(float) * SAAN_NBINS * T);       /* mag/cos/sin */
     s += ALIGN16(sizeof(float) * S);                        /* pcm */
     s += ALIGN16(sizeof(float) * SAAN_NFFT * 4);            /* iSTFT の作業 */
+    /* W8A8（`-DSAAN_INT8_ACT=1`）のとき conv 1 本ぶんの activation 作業領域。
+     * 使い終わりに arena へ返すので**同時に 1 本ぶんだけ**。最大は
+     * `decoder.pw2`（cin=304）。W8A32（既定）では 0 が返る */
+    s += saan_act_scratch_needed(304, (int)T);
     return s + 4096;
 }
 
@@ -177,10 +192,10 @@ void saan_gelu(float *x, size_t n) {
 saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
                                 const int32_t *ids, int T, float *log_d) {
     const int W = SAAN_DUR_W;
-    const float *emb = saan_tf(w, "duration.emb.weight");
-    const float *pw = saan_tf(w, "duration.proj.weight");
+    const float *emb = saan_tf(w, "duration.emb.weight");   /* 表引きは fp32 */
+    const saan_wref pw = saan_w(w, "duration.proj.weight");
     const float *pb = saan_tf(w, "duration.proj.bias");
-    if (!emb || !pw || !pb) return SAAN_ERR_MISSING;
+    if (!emb || !SAAN_W_OK(pw) || !pb) return SAAN_ERR_MISSING;
 
     float *h = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
     float *t1 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
@@ -193,31 +208,31 @@ saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
     }
 
     for (int bi = 0; bi < 3; ++bi) {
-        const float *c1w = saan_tf(w, "duration.blocks.%d.c1.weight", bi);
+        const saan_wref c1w = saan_w(w, "duration.blocks.%d.c1.weight", bi);
         const float *c1b = saan_tf(w, "duration.blocks.%d.c1.bias", bi);
-        const float *c2w = saan_tf(w, "duration.blocks.%d.c2.weight", bi);
+        const saan_wref c2w = saan_w(w, "duration.blocks.%d.c2.weight", bi);
         const float *c2b = saan_tf(w, "duration.blocks.%d.c2.bias", bi);
         const float *ng = saan_tf(w, "duration.blocks.%d.norm.weight", bi);
         const float *nb = saan_tf(w, "duration.blocks.%d.norm.bias", bi);
         const float *gm = saan_tf(w, "duration.blocks.%d.gamma", bi);
-        if (!c1w || !c2w || !ng || !gm) return SAAN_ERR_MISSING;
+        if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng || !gm) return SAAN_ERR_MISSING;
 
-        saan_conv1d(t1, h, c1w, c1b, W, W, 5, T);
+        SAAN_TRY(saan_conv1d_w(t1, h, c1w, c1b, W, W, 5, T, a));
         saan_relu(t1, (size_t)W * T);
         float *t2 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
         if (!t2) return SAAN_ERR_ARENA;
-        saan_conv1d(t2, t1, c2w, c2b, W, W, 5, T);
+        SAAN_TRY(saan_conv1d_w(t2, t1, c2w, c2b, W, W, 5, T, a));
         saan_layernorm_c(t2, ng, nb, W, T);
         /* LayerScale 付き残差: x + γ·f(x) */
         for (size_t i = 0; i < (size_t)W * T; ++i) h[i] += gm[0] * t2[i];
         a->used -= ALIGN16(sizeof(float) * (size_t)W * T);   /* t2 を返す */
     }
 
-    for (int t = 0; t < T; ++t) {
-        float s = pb[0];
-        for (int c = 0; c < W; ++c) s += pw[c] * h[(size_t)c * T + t];
-        log_d[t] = s;
-    }
+    /* proj は nn.Conv1d(32, 1, 1)。**インライン内積で書かない** —
+     * 書くと 52 個の int8 テンソルのうちこれだけが量子化経路に載らない
+     * （D-3c の照合で発覚。c'-1）。積和の順序は cin 昇順で同一なので
+     * fp32 では bit 一致する */
+    SAAN_TRY(saan_conv1d_w(log_d, h, pw, pb, W, 1, 1, T, a));
     return SAAN_OK;
 }
 
@@ -226,21 +241,21 @@ saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
 static saan_status ac_block(const saan_weights *w, saan_arena *a, float *h,
                             const char *kind, int bi, int T) {
     const int W = SAAN_AC_W;
-    const float *c1w = saan_tf(w, "acoustic.%s.%d.c1.weight", kind, bi);
+    const saan_wref c1w = saan_w(w, "acoustic.%s.%d.c1.weight", kind, bi);
     const float *c1b = saan_tf(w, "acoustic.%s.%d.c1.bias", kind, bi);
-    const float *c2w = saan_tf(w, "acoustic.%s.%d.c2.weight", kind, bi);
+    const saan_wref c2w = saan_w(w, "acoustic.%s.%d.c2.weight", kind, bi);
     const float *c2b = saan_tf(w, "acoustic.%s.%d.c2.bias", kind, bi);
     const float *ng = saan_tf(w, "acoustic.%s.%d.norm.weight", kind, bi);
     const float *nb = saan_tf(w, "acoustic.%s.%d.norm.bias", kind, bi);
-    if (!c1w || !c2w || !ng) return SAAN_ERR_MISSING;
+    if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng) return SAAN_ERR_MISSING;
 
     const size_t sz = sizeof(float) * (size_t)W * T;
     float *t1 = (float *)saan_alloc(a, sz);
     float *t2 = (float *)saan_alloc(a, sz);
     if (!t1 || !t2) return SAAN_ERR_ARENA;
-    saan_conv1d(t1, h, c1w, c1b, W, W, 5, T);
+    SAAN_TRY(saan_conv1d_w(t1, h, c1w, c1b, W, W, 5, T, a));
     saan_relu(t1, (size_t)W * T);
-    saan_conv1d(t2, t1, c2w, c2b, W, W, 5, T);
+    SAAN_TRY(saan_conv1d_w(t2, t1, c2w, c2b, W, W, 5, T, a));
     saan_layernorm_c(t2, ng, nb, W, T);
     /* acoustic 側は LayerScale 無しの素の残差（参照実装 AcBlock と同じ） */
     for (size_t i = 0; i < (size_t)W * T; ++i) h[i] += t2[i];
@@ -270,9 +285,9 @@ static saan_status run_acoustic(const saan_weights *w, saan_arena *a,
                                 const int32_t *ids, int L, const int32_t *d,
                                 int T, float *c_out) {
     const int W = SAAN_AC_W;
-    const float *pos = saan_tf(w, "acoustic.pos.weight");
-    const float *ow = saan_tf(w, "acoustic.out.weight");     /* bias 無し */
-    if (!pos || !ow) return SAAN_ERR_MISSING;
+    const float *pos = saan_tf(w, "acoustic.pos.weight");    /* 表引きは fp32 */
+    const saan_wref ow = saan_w(w, "acoustic.out.weight");   /* bias 無し */
+    if (!pos || !SAAN_W_OK(ow)) return SAAN_ERR_MISSING;
 
     float *ht = (float *)saan_alloc(a, sizeof(float) * (size_t)W * L);
     if (!ht) return SAAN_ERR_ARENA;
@@ -298,7 +313,7 @@ static saan_status run_acoustic(const saan_weights *w, saan_arena *a,
         if (s != SAAN_OK) return s;
     }
     /* out: 1x1 conv, bias 無し */
-    saan_conv1d(c_out, hf, ow, NULL, W, SAAN_CDIM, 1, T);
+    SAAN_TRY(saan_conv1d_w(c_out, hf, ow, NULL, W, SAAN_CDIM, 1, T, a));
     return SAAN_OK;
 }
 
@@ -308,13 +323,13 @@ static saan_status run_decoder(const saan_weights *w, saan_arena *a,
                                const float *c, int T,
                                float *mag, float *cosv, float *sinv) {
     const int W = SAAN_DEC_W, E = SAAN_DEC_E, R = SAAN_DEC_R;
-    const float *iw = saan_tf(w, "decoder.inp.weight");
+    const saan_wref iw = saan_w(w, "decoder.inp.weight");
     const float *ib = saan_tf(w, "decoder.inp.bias");
-    const float *hdw = saan_tf(w, "decoder.hdown.weight");
+    const saan_wref hdw = saan_w(w, "decoder.hdown.weight");
     const float *hdb = saan_tf(w, "decoder.hdown.bias");
-    const float *how = saan_tf(w, "decoder.hout.weight");
+    const saan_wref how = saan_w(w, "decoder.hout.weight");
     const float *hob = saan_tf(w, "decoder.hout.bias");
-    if (!iw || !hdw || !how) return SAAN_ERR_MISSING;
+    if (!SAAN_W_OK(iw) || !SAAN_W_OK(hdw) || !SAAN_W_OK(how)) return SAAN_ERR_MISSING;
 
     float *h = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
     float *tw = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
@@ -323,40 +338,41 @@ static saan_status run_decoder(const saan_weights *w, saan_arena *a,
     float *tg = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
     if (!h || !tw || !te || !tr || !tg) return SAAN_ERR_ARENA;
 
-    saan_conv1d(h, c, iw, ib, SAAN_CDIM, W, 3, T);
+    SAAN_TRY(saan_conv1d_w(h, c, iw, ib, SAAN_CDIM, W, 3, T, a));
 
     for (int i = 0; i < 5; ++i) {
-        const float *dw = saan_tf(w, "decoder.dw.%d.weight", i);        /* bias 無し */
-        const float *p1w = saan_tf(w, "decoder.pw1.%d.weight", i);
+        const saan_wref dw = saan_w(w, "decoder.dw.%d.weight", i);      /* bias 無し */
+        const saan_wref p1w = saan_w(w, "decoder.pw1.%d.weight", i);
         const float *p1b = saan_tf(w, "decoder.pw1.%d.bias", i);
-        const float *p2w = saan_tf(w, "decoder.pw2.%d.weight", i);
+        const saan_wref p2w = saan_w(w, "decoder.pw2.%d.weight", i);
         const float *p2b = saan_tf(w, "decoder.pw2.%d.bias", i);
-        const float *cdw = saan_tf(w, "decoder.cdown.%d.weight", i);
+        const saan_wref cdw = saan_w(w, "decoder.cdown.%d.weight", i);
         const float *cdb = saan_tf(w, "decoder.cdown.%d.bias", i);
-        const float *cuw = saan_tf(w, "decoder.cup.%d.weight", i);
+        const saan_wref cuw = saan_w(w, "decoder.cup.%d.weight", i);
         const float *cub = saan_tf(w, "decoder.cup.%d.bias", i);
         const float *gm = saan_tf(w, "decoder.gamma.%d", i);
-        if (!dw || !p1w || !p2w || !cdw || !cuw || !gm) return SAAN_ERR_MISSING;
+        if (!SAAN_W_OK(dw) || !SAAN_W_OK(p1w) || !SAAN_W_OK(p2w)
+            || !SAAN_W_OK(cdw) || !SAAN_W_OK(cuw) || !gm) return SAAN_ERR_MISSING;
 
         /* rank-12 の条件付け: g = cup(cdown(c))。**c は毎段の元の入力**を使う
          * （h ではない。参照実装 Decoder.forward と同じ） */
-        saan_conv1d(tr, c, cdw, cdb, SAAN_CDIM, R, 1, T);
-        saan_conv1d(tg, tr, cuw, cub, R, W, 1, T);
+        SAAN_TRY(saan_conv1d_w(tr, c, cdw, cdb, SAAN_CDIM, R, 1, T, a));
+        SAAN_TRY(saan_conv1d_w(tg, tr, cuw, cub, R, W, 1, T, a));
 
-        saan_dwconv1d(tw, h, dw, W, 7, T);
+        SAAN_TRY(saan_dwconv1d_w(tw, h, dw, W, 7, T, a));
         for (size_t k = 0; k < (size_t)W * T; ++k) tw[k] += tg[k];
-        saan_conv1d(te, tw, p1w, p1b, W, E, 1, T);
+        SAAN_TRY(saan_conv1d_w(te, tw, p1w, p1b, W, E, 1, T, a));
         saan_gelu(te, (size_t)E * T);
-        saan_conv1d(tw, te, p2w, p2b, E, W, 1, T);
+        SAAN_TRY(saan_conv1d_w(tw, te, p2w, p2b, E, W, 1, T, a));
         for (size_t k = 0; k < (size_t)W * T; ++k) h[k] += gm[0] * tw[k];
     }
 
     float *hr = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_HEAD * T);
     float *o = (float *)saan_alloc(a, sizeof(float) * (size_t)1539 * T);
     if (!hr || !o) return SAAN_ERR_ARENA;
-    saan_conv1d(hr, h, hdw, hdb, W, SAAN_DEC_HEAD, 1, T);
+    SAAN_TRY(saan_conv1d_w(hr, h, hdw, hdb, W, SAAN_DEC_HEAD, 1, T, a));
     saan_gelu(hr, (size_t)SAAN_DEC_HEAD * T);
-    saan_conv1d(o, hr, how, hob, SAAN_DEC_HEAD, 1539, 1, T);
+    SAAN_TRY(saan_conv1d_w(o, hr, how, hob, SAAN_DEC_HEAD, 1539, 1, T, a));
 
     memcpy(mag,  o,                                sizeof(float) * (size_t)513 * T);
     memcpy(cosv, o + (size_t)513 * T,              sizeof(float) * (size_t)513 * T);
@@ -440,6 +456,12 @@ static saan_status istft(saan_arena *a, const float *mag, const float *cosv,
 saan_status saan_synthesize(const saan_weights *w, saan_arena *a,
                             const int32_t *ids, int32_t n_ids,
                             float s_v, saan_output *out) {
+    return saan_synthesize_d(w, a, ids, n_ids, s_v, NULL, out);
+}
+
+saan_status saan_synthesize_d(const saan_weights *w, saan_arena *a,
+                              const int32_t *ids, int32_t n_ids, float s_v,
+                              const int32_t *d_fixed, saan_output *out) {
     if (n_ids <= 0) return SAAN_ERR_SHAPE;
     memset(out, 0, sizeof *out);
     out->n_ids = n_ids;
@@ -455,6 +477,13 @@ saan_status saan_synthesize(const saan_weights *w, saan_arena *a,
 
     int32_t T = 0;
     for (int i = 0; i < n_ids; ++i) {
+        if (d_fixed) {                       /* 測定用に外から d̂ を固定する */
+            if (d_fixed[i] < SAAN_CLIP_LO || d_fixed[i] > SAAN_CLIP_HI)
+                return SAAN_ERR_RANGE;
+            out->d_hat[i] = d_fixed[i];
+            T += out->d_hat[i];
+            continue;
+        }
         /* d̂ = clip[1,80](round(s_v · exp(log_d)))。**round は half-away-from-zero**
          * （C の roundf）。PyTorch の torch.round は half-to-even なので、
          * ちょうど .5 のときだけ結果が割れる。golden test で検出する */

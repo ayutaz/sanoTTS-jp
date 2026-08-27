@@ -11,6 +11,9 @@
 !/data/splits/corpus_charstats.json
 # 除外 uid のリスト（本文は含めない）。再現に要るので追跡する
 !/data/splits/exclusions_*.txt
+# アクセント型ミニマルペアの評価セット（D-030）。自作の 32 語 + テンプレート 2 本で
+# コーパス本文を含まない。**凍結物なので追跡する**
+!/data/splits/accent_pairs.tsv
 /labels/
 
 # reports/ は B-0 等の一次データ (JSON、数百 KB) なので追跡する。
@@ -46,6 +49,8 @@ __pycache__/
 # 合成音声
 /reports/eval_*/
 /reports/student_wav/
+/reports/_fake_idf/
+/reports/esp32_hoststub/
 
 # C コアのビルド成果物とエクスポート（再生成できる）
 /csrc/golden_test
@@ -58,6 +63,11 @@ __pycache__/
 /csrc/bench
 /csrc/fft_test
 /csrc/int8_test
+/csrc/int8_e2e_test
 /csrc/stream_test
+/csrc/arena_stress
 # モデルの重み。⚠️ 教師コーパスのライセンス継承の議論があるので配布しない
 /reports/**/*.pt
+
+# ESP-IDF のビルド成果物（実機作業で数百 MB になる）
+esp32/build/

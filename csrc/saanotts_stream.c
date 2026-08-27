@@ -130,6 +130,11 @@ size_t saan_stream_arena_needed(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(float) * (size_t)(CH + 4) * SAAN_HOP);
     s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT) * 2;
     s += SAAN_ALIGN16(sizeof(float) * NB) * 2;
+    /* W8A8（`-DSAAN_INT8_ACT=1`）のとき conv 1 本ぶんの activation 作業領域。
+     * conv の中で確保してすぐ返すので**同時に 1 本ぶん**。最大は
+     * `decoder.pw2`（cin=E=304）を AcBlock の窓幅 2*4+CH で見た上限。
+     * W8A32（既定）では 0 が返るので G1/G3 の実測値は変わらない */
+    s += saan_act_scratch_needed(E, 2 * 4 + CH);
     return s + 8192;
 }
 
@@ -161,27 +166,27 @@ static saan_status ac_step(saan_stream *st, int bi, const float *in,
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->ac[bi];
     const saan_weights *w = st->w;
-    const float *c1w = saan_tf(w, "acoustic.frame.%d.c1.weight", bi);
+    const saan_wref c1w = saan_w(w, "acoustic.frame.%d.c1.weight", bi);
     const float *c1b = saan_tf(w, "acoustic.frame.%d.c1.bias", bi);
-    const float *c2w = saan_tf(w, "acoustic.frame.%d.c2.weight", bi);
+    const saan_wref c2w = saan_w(w, "acoustic.frame.%d.c2.weight", bi);
     const float *c2b = saan_tf(w, "acoustic.frame.%d.c2.bias", bi);
     const float *ng = saan_tf(w, "acoustic.frame.%d.norm.weight", bi);
     const float *nb = saan_tf(w, "acoustic.frame.%d.norm.bias", bi);
-    if (!c1w || !c2w || !ng) return SAAN_ERR_MISSING;
+    if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng) return SAAN_ERR_MISSING;
 
     pipe_push(p, in);
     const int W = p->W;
     /* buf の先頭が対応する絶対時刻。中央の先頭 t_out から pad 引いた位置 */
     const int32_t t_buf = t_out - p->pad;
 
-    saan_conv1d(im->w_full, p->buf, c1w, c1b, AC_W, AC_W, 5, W);
+    SAAN_TRY(saan_conv1d_w(im->w_full, p->buf, c1w, c1b, AC_W, AC_W, 5, W, st->a));
     saan_relu(im->w_full, (size_t)AC_W * W);
     /* ⚠️ **c1 の出力にもゼロクリアが要る。** 一括版では c1 の配列は [0,T) しかなく、
      * c2（k=5）がその外を参照するとゼロになる。ストリーミングは c1 を窓幅で
      * 計算するので、発話外にも **bias 由来の非ゼロ**が残る。
      * 実測: これが無いと先頭 pad フレームが max|Δ| 0.49 ずれた */
     zero_outside_n(im->w_full, AC_W, W, W, t_buf, st->n_frames);
-    saan_conv1d(im->w_full2, im->w_full, c2w, c2b, AC_W, AC_W, 5, W);
+    SAAN_TRY(saan_conv1d_w(im->w_full2, im->w_full, c2w, c2b, AC_W, AC_W, 5, W, st->a));
     saan_layernorm_c(im->w_full2, ng, nb, AC_W, W);
     for (size_t i = 0; i < (size_t)AC_W * W; ++i) im->w_full2[i] += p->buf[i];
     pipe_center(p, im->w_full2, out);
@@ -194,9 +199,9 @@ static saan_status dec_inp_step(saan_stream *st, const float *c_in, float *h_out
                                 float *c_out, int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->dinp, *pc = &im->cdel[0];
-    const float *iw = saan_tf(st->w, "decoder.inp.weight");
+    const saan_wref iw = saan_w(st->w, "decoder.inp.weight");
     const float *ib = saan_tf(st->w, "decoder.inp.bias");
-    if (!iw) return SAAN_ERR_MISSING;
+    if (!SAAN_W_OK(iw)) return SAAN_ERR_MISSING;
 
     pipe_push(p, c_in);           /* inp の入力は c そのもの（C=CD） */
     pipe_push(pc, c_in);          /* 下流の条件付け用に同じ c を同期させる */
@@ -204,7 +209,7 @@ static saan_status dec_inp_step(saan_stream *st, const float *c_in, float *h_out
      * `w_full` を渡してくるので、同じ領域に conv 出力を書くと
      * ストライドの違い（W=10 vs CH=8）で**自分の読み込み元を壊す**。
      * 実測で ch=3 以降が壊れ、全サンプルが不一致になった */
-    saan_conv1d(im->w_g, p->buf, iw, ib, CD, DEC_W, 3, p->W);
+    SAAN_TRY(saan_conv1d_w(im->w_g, p->buf, iw, ib, CD, DEC_W, 3, p->W, st->a));
     /* h は [DEC_W][W]。中央を取る（pipe_center は p->C を使うので手で書く） */
     for (int ch = 0; ch < DEC_W; ++ch)
         memcpy(h_out + (size_t)ch * CH,
@@ -224,30 +229,31 @@ static saan_status dec_step(saan_stream *st, int i, const float *h_in,
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->dblk[i], *pc = &im->cdel[i + 1];
     const saan_weights *w = st->w;
-    const float *dw = saan_tf(w, "decoder.dw.%d.weight", i);
-    const float *p1w = saan_tf(w, "decoder.pw1.%d.weight", i);
+    const saan_wref dw = saan_w(w, "decoder.dw.%d.weight", i);
+    const saan_wref p1w = saan_w(w, "decoder.pw1.%d.weight", i);
     const float *p1b = saan_tf(w, "decoder.pw1.%d.bias", i);
-    const float *p2w = saan_tf(w, "decoder.pw2.%d.weight", i);
+    const saan_wref p2w = saan_w(w, "decoder.pw2.%d.weight", i);
     const float *p2b = saan_tf(w, "decoder.pw2.%d.bias", i);
-    const float *cdw = saan_tf(w, "decoder.cdown.%d.weight", i);
+    const saan_wref cdw = saan_w(w, "decoder.cdown.%d.weight", i);
     const float *cdb = saan_tf(w, "decoder.cdown.%d.bias", i);
-    const float *cuw = saan_tf(w, "decoder.cup.%d.weight", i);
+    const saan_wref cuw = saan_w(w, "decoder.cup.%d.weight", i);
     const float *cub = saan_tf(w, "decoder.cup.%d.bias", i);
     const float *gm = saan_tf(w, "decoder.gamma.%d", i);
-    if (!dw || !p1w || !cdw || !gm) return SAAN_ERR_MISSING;
+    if (!SAAN_W_OK(dw) || !SAAN_W_OK(p1w) || !SAAN_W_OK(p2w)
+        || !SAAN_W_OK(cdw) || !SAAN_W_OK(cuw) || !gm) return SAAN_ERR_MISSING;
 
     pipe_push(p, h_in);
     pipe_push(pc, c_in);
     const int W = p->W;
     /* 条件付けは 1x1 なので pad 不要。**pc の buf 全体**に掛けて h と同じ幅にする */
-    saan_conv1d(im->w_r, pc->buf, cdw, cdb, CD, SAAN_DEC_R, 1, W);
-    saan_conv1d(im->w_g, im->w_r, cuw, cub, SAAN_DEC_R, DEC_W, 1, W);
+    SAAN_TRY(saan_conv1d_w(im->w_r, pc->buf, cdw, cdb, CD, SAAN_DEC_R, 1, W, st->a));
+    SAAN_TRY(saan_conv1d_w(im->w_g, im->w_r, cuw, cub, SAAN_DEC_R, DEC_W, 1, W, st->a));
 
-    saan_dwconv1d(im->w_full, p->buf, dw, DEC_W, 7, W);
+    SAAN_TRY(saan_dwconv1d_w(im->w_full, p->buf, dw, DEC_W, 7, W, st->a));
     for (size_t k = 0; k < (size_t)DEC_W * W; ++k) im->w_full[k] += im->w_g[k];
-    saan_conv1d(im->w_e, im->w_full, p1w, p1b, DEC_W, E, 1, W);
+    SAAN_TRY(saan_conv1d_w(im->w_e, im->w_full, p1w, p1b, DEC_W, E, 1, W, st->a));
     saan_gelu(im->w_e, (size_t)E * W);
-    saan_conv1d(im->w_full2, im->w_e, p2w, p2b, E, DEC_W, 1, W);
+    SAAN_TRY(saan_conv1d_w(im->w_full2, im->w_e, p2w, p2b, E, DEC_W, 1, W, st->a));
     for (size_t k = 0; k < (size_t)DEC_W * W; ++k)
         im->w_full2[k] = p->buf[k] + gm[0] * im->w_full2[k];
 
@@ -391,7 +397,18 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
     im->re      = (float *)saan_alloc(a, sizeof(float) * NB);
     im->im      = (float *)saan_alloc(a, sizeof(float) * NB);
     im->frm     = (float *)saan_alloc(a, sizeof(float) * SAAN_NFFT);
-    if (!im->frm) return SAAN_ERR_ARENA;
+
+    /* ⚠️ **全部の確保を検査する。最後の 1 つだけでは足りない。**
+     * saan_alloc は入らなければ NULL を返すが `used` を進めないので、
+     * 途中で失敗しても**より小さい後続の確保は成功しうる**。
+     * 以前ここが `if (!im->frm)` だけだったため、arena 175〜191 KB の
+     * 15 サイズで **init が SAAN_OK を返したまま NULL を抱えて**
+     * あとから落ちていた（検証で発覚）。 */
+    if (!im->w_full || !im->w_full2 || !im->w_ch || !im->w_ch2 ||
+        !im->w_e || !im->w_r || !im->w_g || !im->o1539 || !im->hr ||
+        !im->ola || !im->olw || !im->win || !im->re || !im->im || !im->frm)
+        return SAAN_ERR_ARENA;
+
     memset(im->ola, 0, sizeof(float) * (size_t)im->ola_len);
     memset(im->olw, 0, sizeof(float) * (size_t)im->ola_len);
     for (int i = 0; i < SAAN_NFFT; ++i)
@@ -411,7 +428,7 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
     im->tok_out = (float *)saan_alloc(a, sizeof(float) * AC_W * CH);
     if (!im->obuf || !im->tok_out) return SAAN_ERR_ARENA;
     im->ofill = 0;
-    st->peak_used = a->used;
+    st->peak_used = a->peak;
     return SAAN_OK;
 }
 
@@ -448,18 +465,18 @@ static saan_status compute_tokens(saan_stream *st, int32_t i0, int32_t i1,
     }
 
     for (int bi = 0; bi < 3; ++bi) {
-        const float *c1w = saan_tf(w, "acoustic.token.%d.c1.weight", bi);
+        const saan_wref c1w = saan_w(w, "acoustic.token.%d.c1.weight", bi);
         const float *c1b = saan_tf(w, "acoustic.token.%d.c1.bias", bi);
-        const float *c2w = saan_tf(w, "acoustic.token.%d.c2.weight", bi);
+        const saan_wref c2w = saan_w(w, "acoustic.token.%d.c2.weight", bi);
         const float *c2b = saan_tf(w, "acoustic.token.%d.c2.bias", bi);
         const float *ng = saan_tf(w, "acoustic.token.%d.norm.weight", bi);
         const float *nb = saan_tf(w, "acoustic.token.%d.norm.bias", bi);
-        if (!c1w || !c2w || !ng) return SAAN_ERR_MISSING;
-        saan_conv1d(im->tok_w1, h, c1w, c1b, AC_W, AC_W, 5, n);
+        if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng) return SAAN_ERR_MISSING;
+        SAAN_TRY(saan_conv1d_w(im->tok_w1, h, c1w, c1b, AC_W, AC_W, 5, n, st->a));
         saan_relu(im->tok_w1, (size_t)AC_W * n);
         /* ⚠️ c1 の出力の発話外もゼロに（一括版では配列外＝ゼロ、frame 側と同じ理由） */
         zero_outside_n(im->tok_w1, AC_W, n, n, lo, st->n_ids);
-        saan_conv1d(im->tok_w2, im->tok_w1, c2w, c2b, AC_W, AC_W, 5, n);
+        SAAN_TRY(saan_conv1d_w(im->tok_w2, im->tok_w1, c2w, c2b, AC_W, AC_W, 5, n, st->a));
         saan_layernorm_c(im->tok_w2, ng, nb, AC_W, n);
         for (size_t x = 0; x < (size_t)AC_W * n; ++x) im->tok_w2[x] += h[x];
         zero_outside_n(im->tok_w2, AC_W, n, n, lo, st->n_ids);
@@ -518,12 +535,12 @@ static saan_status make_hf(saan_stream *st, int32_t f0, float *out) {
 /* パイプラインを CH フレーム進める。出力は `pcm`（CH * HOP サンプル） */
 static saan_status step_chunk(saan_stream *st, float *pcm) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
-    const float *ow = saan_tf(st->w, "acoustic.out.weight");
-    const float *hdw = saan_tf(st->w, "decoder.hdown.weight");
+    const saan_wref ow = saan_w(st->w, "acoustic.out.weight");
+    const saan_wref hdw = saan_w(st->w, "decoder.hdown.weight");
     const float *hdb = saan_tf(st->w, "decoder.hdown.bias");
-    const float *how = saan_tf(st->w, "decoder.hout.weight");
+    const saan_wref how = saan_w(st->w, "decoder.hout.weight");
     const float *hob = saan_tf(st->w, "decoder.hout.bias");
-    if (!ow || !hdw || !how) return SAAN_ERR_MISSING;
+    if (!SAAN_W_OK(ow) || !SAAN_W_OK(hdw) || !SAAN_W_OK(how)) return SAAN_ERR_MISSING;
 
     float *a = im->w_ch, *b = im->w_ch2;
     /* 今回入力するフレームの先頭時刻。**段を通るごとに pad ぶん過去にずれる** */
@@ -542,7 +559,7 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
     }
     /* acoustic.out は 1x1（bias 無し）。CH フレームに直接掛ける */
     float *c_cur = b;
-    saan_conv1d(c_cur, a, ow, NULL, AC_W, CD, 1, CH);
+    SAAN_TRY(saan_conv1d_w(c_cur, a, ow, NULL, AC_W, CD, 1, CH, st->a));
 
     if (st->dbg_c) {          /* デバッグ: c を絶対時刻で控える */
         for (int m = 0; m < CH; ++m) {
@@ -569,7 +586,7 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
         memcpy(c_sync, c_tmp, sizeof c_tmp);
     }
 
-    saan_conv1d(im->hr, h, hdw, hdb, DEC_W, SAAN_DEC_HEAD, 1, CH);
+    SAAN_TRY(saan_conv1d_w(im->hr, h, hdw, hdb, DEC_W, SAAN_DEC_HEAD, 1, CH, st->a));
     saan_gelu(im->hr, (size_t)SAAN_DEC_HEAD * CH);
 
     /* ⚠️ **hout は CH フレームまとめて計算する。** 1 フレームずつにすると
@@ -577,7 +594,7 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
      * 効率を落として**全体が 35% 遅くなる**（実測 0.023 → 0.031 × RT）。
      * ESP32 では速度が律速（移植可能 C で 0.93 × RT）なので**速度を取る**。
      * メモリは他の作業領域を正確に詰めて G1 を満たす。 */
-    saan_conv1d(im->o1539, im->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH);
+    SAAN_TRY(saan_conv1d_w(im->o1539, im->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH, st->a));
 
     const float *mag = im->o1539;
     const float *cosv = im->o1539 + (size_t)513 * CH;
@@ -610,7 +627,9 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
     while (im->ofill < CH) {
         saan_status s = step_chunk(st, pcm);
         if (s != SAAN_OK) return s;
-        if (st->a->used > st->peak_used) st->peak_used = st->a->used;
+        /* ⚠️ `used` ではなく `peak` を見る。W8A8 の activation 作業領域は
+         * conv の中で確保して**すぐ返す**ので、`used` では捕まらない */
+        if (st->a->peak > st->peak_used) st->peak_used = st->a->peak;
         /* 入力を出し切ってなお足りないなら打ち切る（無限ループ防止）。
          * ⚠️ **真に必要な余剰は遅延 SAAN_LATENCY + iSTFT の 2 フレームだけ。**
          * 以前は `+ 4*CH + 16` の安全マージンを積んでいたが、それは

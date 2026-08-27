@@ -1,0 +1,19 @@
+# saanoTTS-jp のパーティション表（8 MB flash 前提）
+#
+# ⚠️ **既定の partitions_singleapp.csv では足りない。** あれは factory app が
+#    1 MB しかなく、fp32 blob 2,249,792 B はそもそも app に入らない。
+#
+# ⚠️ **`model` の offset は 64 KB (0x10000) 境界に置くこと。**
+#    esp_partition_mmap() は MMU のページ境界（64 KB）に丸めてマップし、
+#    要求 offset に合わせて調整したポインタを返す。offset が 64 KB 境界なら
+#    返却ポインタも 64 KB アラインになり、コアが必要とする 4 バイト境界と、
+#    将来 PIE を使うときの 16 バイト境界（SOC_SIMD_PREFERRED_DATA_ALIGNMENT）を
+#    同時に満たす。半端な offset にすると blob 先頭がずれてアライン例外になる。
+#
+# 検査: uv run python scripts/check_partitions.py
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x200000,
+model,    data, 0x40,    0x210000, 0x300000,

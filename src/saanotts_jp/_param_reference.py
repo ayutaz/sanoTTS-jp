@@ -1,4 +1,4 @@
-"""saanoTTS (arXiv:2608.21378) Table I のパラメータ数を再現する層構成。
+"""sanoTTS (arXiv:2608.21378) Table I のパラメータ数を再現する層構成。
    torch: ~/Documents/piper-plus/.venv/bin/python で検証済み。
    D 36,164 / A 199,536 / G 331,308 / 合計 567,008 / E_rho 14,952 すべて delta 0。"""
 import torch, torch.nn as nn, torch.nn.functional as F

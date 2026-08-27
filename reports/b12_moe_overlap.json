@@ -1,0 +1,4948 @@
+{
+  "task": "B-12 教師の事前学習テキスト (MOE-Speech) との重複検査",
+  "repro": "uv run python scripts/b12_moe_overlap.py",
+  "generated_at_utc": "2026-08-27T15:55:24Z",
+  "why": "B-10 は教師の FT テキストしか見ていない。看板の SCOREQ 教師比 0.611 は heldout 24 文で測っており、その 24 文が教師の事前学習で見られていたら汚染になる。",
+  "moe": {
+    "repo": "ayousanz/moe-speech-20speakers-ljspeech",
+    "file": "metadata.csv",
+    "revision": "6cd2b0902884d7da31e93cd7ee3444baf8fafb64",
+    "local_path": "~/.cache/huggingface/hub/datasets--ayousanz--moe-speech-20speakers-ljspeech/snapshots/6cd2b0902884d7da31e93cd7ee3444baf8fafb64/metadata.csv",
+    "sha256": "00028b52442541edbf9289130fd6741aa036d50dc4bf46872274985a14757c0e",
+    "bytes": 6257602,
+    "rows": 60233,
+    "unique_norm": 59780,
+    "unique_canon": 59574,
+    "speakers": 20,
+    "note": "配布 metadata は 60,233 行。教師 v7 が実際に使ったのは 59,694 発話(handoff §5.1) なので、ここでの照合は**上位集合**に対するもの。重複を過小評価する方向の誤差は無い。",
+    "audio_downloaded": false
+  },
+  "normalization": {
+    "same_as": "scripts/b10_overlap.py の norm() / canon()",
+    "norm": "NFKC + 空白全除去",
+    "canon": "norm からさらに句読点・括弧・長音記号等を除去",
+    "near_dup": "canon の文字 5-gram Jaccard / 部分文字列包含 (>= 8 文字)"
+  },
+  "inputs": {
+    "corpus_heldout.tsv": {
+      "rows": 2333,
+      "sha256": "72b78b8ccbd20e6e8f74694f4dd978451a3f4d1059c13389711339059c29ca7c"
+    },
+    "corpus_embedded.tsv": {
+      "rows": 183,
+      "sha256": "5269ad5428ea87cd5fa0247b23098e29d0beacb0b2c84384cb67c45962ed8465"
+    },
+    "corpus_sibdense.tsv": {
+      "rows": 221,
+      "sha256": "62151915ea7d61ab2b3a674a5cc39e18bb174f3b03fbdd31c1e66b8903193db7"
+    },
+    "corpus_train.tsv": {
+      "rows": 20985,
+      "sha256": "691b33ccabb7b52c292614074e67daf777e5e5832dbc45897c142417e8a9897c"
+    }
+  },
+  "overlap_vs_moe": {
+    "heldout": {
+      "n_query_rows": 2333,
+      "exact_match_nfkc_nospace": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "exact_match_after_punct_strip_only": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "jaccard5gram": {
+        "max": 0.9167,
+        "n_ge_0.90": 1,
+        "n_ge_0.70": 1,
+        "n_ge_0.50": 2,
+        "n_ge_0.30": 20,
+        "top": [
+          {
+            "jaccard5gram": 0.9167,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00030",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "bbd90363_3376",
+              "spk": "bbd90363",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02628",
+              "len_canon": 7
+            },
+            "moe": {
+              "id": "ee093a4f_1168",
+              "spk": "ee093a4f",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.4667,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0345",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.4615,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0022",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.4286,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_06793",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "773a4156_1199",
+              "spk": "773a4156",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.4286,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04063",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "773a4156_1179",
+              "spk": "773a4156",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.4,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0600",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.375,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01723",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "18460462_1369",
+              "spk": "18460462",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.3636,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00947",
+              "len_canon": 8
+            },
+            "moe": {
+              "id": "2cf01874_3182",
+              "spk": "2cf01874",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.3529,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00885",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "1a5a3db8_1959",
+              "spk": "1a5a3db8",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.3478,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0091",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "773a4156_1635",
+              "spk": "773a4156",
+              "len_canon": 22
+            }
+          },
+          {
+            "jaccard5gram": 0.3333,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01398",
+              "len_canon": 6
+            },
+            "moe": {
+              "id": "36ea135b_2101",
+              "spk": "36ea135b",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.3333,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0371",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "ee093a4f_1531",
+              "spk": "ee093a4f",
+              "len_canon": 17
+            }
+          },
+          {
+            "jaccard5gram": 0.3214,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_03249",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "cc948b89_0633",
+              "spk": "cc948b89",
+              "len_canon": 30
+            }
+          },
+          {
+            "jaccard5gram": 0.3182,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0760",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "773a4156_0309",
+              "spk": "773a4156",
+              "len_canon": 18
+            }
+          },
+          {
+            "jaccard5gram": 0.3125,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07052",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "9febd2ae_0206",
+              "spk": "9febd2ae",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.3077,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02268",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "1a5a3db8_1749",
+              "spk": "1a5a3db8",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.3,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_03713",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "b8b5fe66_2458",
+              "spk": "b8b5fe66",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.3,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01734",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "cc948b89_1375",
+              "spk": "cc948b89",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.3,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02228",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "917feebd_1208",
+              "spk": "917feebd",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.2857,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04095",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "1a5a3db8_0768",
+              "spk": "1a5a3db8",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.2857,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01685",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "917feebd_0317",
+              "spk": "917feebd",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.2857,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0246",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "4e2f4ba6_1720",
+              "spk": "4e2f4ba6",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.28,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0047",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "2cf01874_0661",
+              "spk": "2cf01874",
+              "len_canon": 21
+            }
+          },
+          {
+            "jaccard5gram": 0.2778,
+            "a": {
+              "split": "heldout",
+              "source": "curated/question_eos",
+              "id": "QEOS_Q~T_007",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "1a5a3db8_2314",
+              "spk": "1a5a3db8",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.2727,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04110",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "4e2f4ba6_3048",
+              "spk": "4e2f4ba6",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.2727,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02231",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "18460462_2529",
+              "spk": "18460462",
+              "len_canon": 7
+            }
+          },
+          {
+            "jaccard5gram": 0.2727,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07065",
+              "len_canon": 7
+            },
+            "moe": {
+              "id": "18460462_0619",
+              "spk": "18460462",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.2667,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_09109",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "b8b5fe66_0851",
+              "spk": "b8b5fe66",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.2609,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02098",
+              "len_canon": 23
+            },
+            "moe": {
+              "id": "4e2f4ba6_1564",
+              "spk": "4e2f4ba6",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.25,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08197",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "b8b5fe66_0851",
+              "spk": "b8b5fe66",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.25,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02253",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "00163dc9_2503",
+              "spk": "00163dc9",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.25,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02444",
+              "len_canon": 8
+            },
+            "moe": {
+              "id": "18460462_0130",
+              "spk": "18460462",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.25,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0393",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "36ea135b_0263",
+              "spk": "36ea135b",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.2381,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_09299",
+              "len_canon": 24
+            },
+            "moe": {
+              "id": "18460462_0058",
+              "spk": "18460462",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.2381,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02241",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "1a5a3db8_0071",
+              "spk": "1a5a3db8",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.2353,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0788",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "b8b5fe66_0851",
+              "spk": "b8b5fe66",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.2174,
+            "a": {
+              "split": "heldout",
+              "source": "rohan4600",
+              "id": "ROHAN4600_2435",
+              "len_canon": 22
+            },
+            "moe": {
+              "id": "bbd90363_0653",
+              "spk": "bbd90363",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.2174,
+            "a": {
+              "split": "heldout",
+              "source": "rohan4600",
+              "id": "ROHAN4600_2436",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "940de876_3232",
+              "spk": "940de876",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.2143,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08158",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "9febd2ae_0723",
+              "spk": "9febd2ae",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.2143,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1748",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "b8b5fe66_0053",
+              "spk": "b8b5fe66",
+              "len_canon": 25
+            }
+          },
+          {
+            "jaccard5gram": 0.2143,
+            "a": {
+              "split": "heldout",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0476",
+              "len_canon": 26
+            },
+            "moe": {
+              "id": "bbd90363_3376",
+              "spk": "bbd90363",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.2105,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00721",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "bbd90363_0671",
+              "spk": "bbd90363",
+              "len_canon": 21
+            }
+          },
+          {
+            "jaccard5gram": 0.2105,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02321",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "1a5a3db8_2974",
+              "spk": "1a5a3db8",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.2083,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02067",
+              "len_canon": 23
+            },
+            "moe": {
+              "id": "bc778ddb_0750",
+              "spk": "bc778ddb",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.2,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07689",
+              "len_canon": 30
+            },
+            "moe": {
+              "id": "9febd2ae_0317",
+              "spk": "9febd2ae",
+              "len_canon": 26
+            }
+          },
+          {
+            "jaccard5gram": 0.2,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04775",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "00163dc9_2136",
+              "spk": "00163dc9",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.2,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01501",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "b8b5fe66_0851",
+              "spk": "b8b5fe66",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.2,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04294",
+              "len_canon": 7
+            },
+            "moe": {
+              "id": "00163dc9_2582",
+              "spk": "00163dc9",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.2,
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01422",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "6d565f54_0987",
+              "spk": "6d565f54",
+              "len_canon": 19
+            }
+          }
+        ]
+      },
+      "substring_containment": {
+        "count": 118,
+        "count_meaningful": 17,
+        "min_len_chars": 5,
+        "meaningful_min_contained_len": 8,
+        "meaningful_query_ids": [
+          "BASIC5000_0345",
+          "TRAVEL1000_0022",
+          "TRAVEL1000_0600",
+          "sentence_collector_00030",
+          "sentence_collector_00947",
+          "sentence_collector_01685",
+          "sentence_collector_04063"
+        ],
+        "pairs": [
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00030"
+            },
+            "moe": {
+              "id": "940de876_4585",
+              "spk": "940de876"
+            },
+            "contained_len": 15
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00030"
+            },
+            "moe": {
+              "id": "bbd90363_3376",
+              "spk": "bbd90363"
+            },
+            "contained_len": 15
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00030"
+            },
+            "moe": {
+              "id": "ee093a4f_2033",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 15
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0345"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00030"
+            },
+            "moe": {
+              "id": "bc778ddb_0888",
+              "spk": "bc778ddb"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0022"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0022"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0022"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0600"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0600"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "heldout",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0600"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04063"
+            },
+            "moe": {
+              "id": "ee093a4f_0278",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04063"
+            },
+            "moe": {
+              "id": "ee093a4f_0737",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04063"
+            },
+            "moe": {
+              "id": "ee093a4f_1770",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01685"
+            },
+            "moe": {
+              "id": "773a4156_0902",
+              "spk": "773a4156"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00947"
+            },
+            "moe": {
+              "id": "2cf01874_3182",
+              "spk": "2cf01874"
+            },
+            "contained_len": 8
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "heldout",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00947"
+            },
+            "moe": {
+              "id": "bc778ddb_0932",
+              "spk": "bc778ddb"
+            },
+            "contained_len": 8
+          }
+        ]
+      }
+    },
+    "embedded": {
+      "n_query_rows": 183,
+      "exact_match_nfkc_nospace": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "exact_match_after_punct_strip_only": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "jaccard5gram": {
+        "max": 0.3571,
+        "n_ge_0.90": 0,
+        "n_ge_0.70": 0,
+        "n_ge_0.50": 0,
+        "n_ge_0.30": 2,
+        "top": [
+          {
+            "jaccard5gram": 0.3571,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_001",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "bbd90363_3518",
+              "spk": "bbd90363",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.3333,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_009",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "00163dc9_0896",
+              "spk": "00163dc9",
+              "len_canon": 7
+            }
+          },
+          {
+            "jaccard5gram": 0.2857,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_005",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "36ea135b_0263",
+              "spk": "36ea135b",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.2222,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_010",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "773a4156_1825",
+              "spk": "773a4156",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.2143,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_014",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "773a4156_2056",
+              "spk": "773a4156",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.2,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_022",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "bbd90363_2341",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.1818,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_008",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "bbd90363_0196",
+              "spk": "bbd90363",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.1818,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_026",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "773a4156_1825",
+              "spk": "773a4156",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.1818,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/numstring",
+              "id": "EMB_numstring_011",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "773a4156_0954",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.1667,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/money",
+              "id": "EMB_money_006",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "773a4156_0954",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.1667,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/numstring",
+              "id": "EMB_numstring_012",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "773a4156_1086",
+              "spk": "773a4156",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.1667,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/numstring",
+              "id": "EMB_numstring_015",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "773a4156_0954",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.1579,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/question",
+              "id": "EMB_question_007",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "773a4156_0393",
+              "spk": "773a4156",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.1538,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/numstring",
+              "id": "EMB_numstring_010",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "773a4156_0954",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.1538,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/question",
+              "id": "EMB_question_005",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "773a4156_0698",
+              "spk": "773a4156",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.1538,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/question",
+              "id": "EMB_question_012",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "2cf01874_0704",
+              "spk": "2cf01874",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.1429,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_028",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "bbd90363_1264",
+              "spk": "bbd90363",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.1389,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_005",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "4e2f4ba6_1586",
+              "spk": "4e2f4ba6",
+              "len_canon": 33
+            }
+          },
+          {
+            "jaccard5gram": 0.1333,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_009",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "bbd90363_0266",
+              "spk": "bbd90363",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.1304,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_004",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "773a4156_0122",
+              "spk": "773a4156",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.1304,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/question",
+              "id": "EMB_question_002",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "773a4156_0393",
+              "spk": "773a4156",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/date",
+              "id": "EMB_date_003",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "ee093a4f_2081",
+              "spk": "ee093a4f",
+              "len_canon": 22
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_003",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "773a4156_0954",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_007",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "ee093a4f_1168",
+              "spk": "ee093a4f",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_003",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "36ea135b_0151",
+              "spk": "36ea135b",
+              "len_canon": 24
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/question",
+              "id": "EMB_question_004",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "6d565f54_2303",
+              "spk": "6d565f54",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.1143,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_001",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "773a4156_2017",
+              "spk": "773a4156",
+              "len_canon": 33
+            }
+          },
+          {
+            "jaccard5gram": 0.1071,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/money",
+              "id": "EMB_money_008",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "940de876_1451",
+              "spk": "940de876",
+              "len_canon": 21
+            }
+          },
+          {
+            "jaccard5gram": 0.0976,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_007",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "940de876_0452",
+              "spk": "940de876",
+              "len_canon": 37
+            }
+          },
+          {
+            "jaccard5gram": 0.0952,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_012",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "773a4156_2466",
+              "spk": "773a4156",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.0952,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_013",
+              "len_canon": 23
+            },
+            "moe": {
+              "id": "773a4156_0954",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.0857,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_010",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "bce2a5af_2775",
+              "spk": "bce2a5af",
+              "len_canon": 37
+            }
+          },
+          {
+            "jaccard5gram": 0.0833,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_011",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "8b6e7173_0331",
+              "spk": "8b6e7173",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.0769,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_005",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "bbd90363_0247",
+              "spk": "bbd90363",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.0769,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_012",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "8b6e7173_1789",
+              "spk": "8b6e7173",
+              "len_canon": 26
+            }
+          },
+          {
+            "jaccard5gram": 0.0741,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_011",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "b8b5fe66_0208",
+              "spk": "b8b5fe66",
+              "len_canon": 23
+            }
+          },
+          {
+            "jaccard5gram": 0.0714,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/money",
+              "id": "EMB_money_013",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "ee093a4f_2382",
+              "spk": "ee093a4f",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.0714,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_010",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "773a4156_1684",
+              "spk": "773a4156",
+              "len_canon": 23
+            }
+          },
+          {
+            "jaccard5gram": 0.0714,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/unit",
+              "id": "EMB_unit_016",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "773a4156_0502",
+              "spk": "773a4156",
+              "len_canon": 25
+            }
+          },
+          {
+            "jaccard5gram": 0.0714,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/unit",
+              "id": "EMB_unit_018",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "ee093a4f_1925",
+              "spk": "ee093a4f",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.069,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/unit",
+              "id": "EMB_unit_017",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "940de876_2604",
+              "spk": "940de876",
+              "len_canon": 25
+            }
+          },
+          {
+            "jaccard5gram": 0.0625,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/time",
+              "id": "EMB_time_010",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "8b6e7173_2248",
+              "spk": "8b6e7173",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.0625,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/date",
+              "id": "EMB_date_015",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "bce2a5af_0001",
+              "spk": "bce2a5af",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.0625,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_015",
+              "len_canon": 23
+            },
+            "moe": {
+              "id": "1a5a3db8_2872",
+              "spk": "1a5a3db8",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.0625,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/personname",
+              "id": "EMB_personname_003",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "bbd90363_0398",
+              "spk": "bbd90363",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.0606,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/time",
+              "id": "EMB_time_008",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "bbd90363_3041",
+              "spk": "bbd90363",
+              "len_canon": 33
+            }
+          },
+          {
+            "jaccard5gram": 0.0588,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/money",
+              "id": "EMB_money_003",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "36ea135b_0159",
+              "spk": "36ea135b",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.0588,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/notification",
+              "id": "EMB_notification_006",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "bbd90363_0266",
+              "spk": "bbd90363",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.0588,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/counter",
+              "id": "EMB_counter_020",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "46d6bf83_2356",
+              "spk": "46d6bf83",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.0571,
+            "a": {
+              "split": "embedded",
+              "source": "embedded/time",
+              "id": "EMB_time_011",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "773a4156_2071",
+              "spk": "773a4156",
+              "len_canon": 30
+            }
+          }
+        ]
+      },
+      "substring_containment": {
+        "count": 5,
+        "count_meaningful": 0,
+        "min_len_chars": 5,
+        "meaningful_min_contained_len": 8,
+        "meaningful_query_ids": [],
+        "pairs": []
+      }
+    },
+    "sibdense": {
+      "n_query_rows": 221,
+      "exact_match_nfkc_nospace": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "exact_match_after_punct_strip_only": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "jaccard5gram": {
+        "max": 0.3478,
+        "n_ge_0.90": 0,
+        "n_ge_0.70": 0,
+        "n_ge_0.50": 0,
+        "n_ge_0.30": 1,
+        "top": [
+          {
+            "jaccard5gram": 0.3478,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0091",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "773a4156_1635",
+              "spk": "773a4156",
+              "len_canon": 22
+            }
+          },
+          {
+            "jaccard5gram": 0.25,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08197",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "b8b5fe66_0851",
+              "spk": "b8b5fe66",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.2381,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02241",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "1a5a3db8_0071",
+              "spk": "1a5a3db8",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.1923,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04591",
+              "len_canon": 23
+            },
+            "moe": {
+              "id": "9febd2ae_1167",
+              "spk": "9febd2ae",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.1765,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02283",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "773a4156_2638",
+              "spk": "773a4156",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.1765,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08292",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "4e2f4ba6_2916",
+              "spk": "4e2f4ba6",
+              "len_canon": 29
+            }
+          },
+          {
+            "jaccard5gram": 0.1667,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00708",
+              "len_canon": 28
+            },
+            "moe": {
+              "id": "4e2f4ba6_2307",
+              "spk": "4e2f4ba6",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.1613,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0163",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "773a4156_0040",
+              "spk": "773a4156",
+              "len_canon": 25
+            }
+          },
+          {
+            "jaccard5gram": 0.16,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2069",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "00163dc9_0404",
+              "spk": "00163dc9",
+              "len_canon": 18
+            }
+          },
+          {
+            "jaccard5gram": 0.1579,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02646",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "2cf01874_4437",
+              "spk": "2cf01874",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.1579,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02285",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "bce2a5af_2347",
+              "spk": "bce2a5af",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.1538,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04223",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "9febd2ae_2300",
+              "spk": "9febd2ae",
+              "len_canon": 23
+            }
+          },
+          {
+            "jaccard5gram": 0.1538,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_05882",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "940de876_1691",
+              "spk": "940de876",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.1429,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00235",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "00163dc9_0710",
+              "spk": "00163dc9",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.1389,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0418",
+              "len_canon": 25
+            },
+            "moe": {
+              "id": "bbd90363_0607",
+              "spk": "bbd90363",
+              "len_canon": 24
+            }
+          },
+          {
+            "jaccard5gram": 0.1389,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2899",
+              "len_canon": 25
+            },
+            "moe": {
+              "id": "18460462_1347",
+              "spk": "18460462",
+              "len_canon": 24
+            }
+          },
+          {
+            "jaccard5gram": 0.1304,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08917",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "bc778ddb_1589",
+              "spk": "bc778ddb",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_05909",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "18460462_0691",
+              "spk": "18460462",
+              "len_canon": 17
+            }
+          },
+          {
+            "jaccard5gram": 0.125,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0451",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "940de876_3112",
+              "spk": "940de876",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.12,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02610",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "46d6bf83_0052",
+              "spk": "46d6bf83",
+              "len_canon": 17
+            }
+          },
+          {
+            "jaccard5gram": 0.1186,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04559",
+              "len_canon": 48
+            },
+            "moe": {
+              "id": "9febd2ae_0317",
+              "spk": "9febd2ae",
+              "len_canon": 26
+            }
+          },
+          {
+            "jaccard5gram": 0.1129,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01938",
+              "len_canon": 43
+            },
+            "moe": {
+              "id": "bbd90363_3542",
+              "spk": "bbd90363",
+              "len_canon": 34
+            }
+          },
+          {
+            "jaccard5gram": 0.1111,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1659",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "bc778ddb_1609",
+              "spk": "bc778ddb",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.1111,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_09269",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "cc948b89_1990",
+              "spk": "cc948b89",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.1111,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1273",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "9febd2ae_0303",
+              "spk": "9febd2ae",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.1053,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_05470",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "36ea135b_0567",
+              "spk": "36ea135b",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.1029,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_06431",
+              "len_canon": 57
+            },
+            "moe": {
+              "id": "9febd2ae_0317",
+              "spk": "9febd2ae",
+              "len_canon": 26
+            }
+          },
+          {
+            "jaccard5gram": 0.1026,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2150",
+              "len_canon": 24
+            },
+            "moe": {
+              "id": "18460462_0607",
+              "spk": "18460462",
+              "len_canon": 27
+            }
+          },
+          {
+            "jaccard5gram": 0.102,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_03869",
+              "len_canon": 43
+            },
+            "moe": {
+              "id": "9febd2ae_0558",
+              "spk": "9febd2ae",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.102,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_05061",
+              "len_canon": 43
+            },
+            "moe": {
+              "id": "9febd2ae_0558",
+              "spk": "9febd2ae",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.1,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02497",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "cc948b89_1958",
+              "spk": "cc948b89",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.0968,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/yumie-text-1",
+              "id": "yumie-text-1_00782",
+              "len_canon": 56
+            },
+            "moe": {
+              "id": "ee093a4f_1017",
+              "spk": "ee093a4f",
+              "len_canon": 21
+            }
+          },
+          {
+            "jaccard5gram": 0.0968,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_03165",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "1a5a3db8_0343",
+              "spk": "1a5a3db8",
+              "len_canon": 25
+            }
+          },
+          {
+            "jaccard5gram": 0.0968,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_4688",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "b8b5fe66_1040",
+              "spk": "b8b5fe66",
+              "len_canon": 25
+            }
+          },
+          {
+            "jaccard5gram": 0.0952,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2196",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "18460462_0359",
+              "spk": "18460462",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.0952,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0620",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "bbd90363_2530",
+              "spk": "bbd90363",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.0952,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1902",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "bbd90363_0004",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.0952,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07067",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "36ea135b_2510",
+              "spk": "36ea135b",
+              "len_canon": 34
+            }
+          },
+          {
+            "jaccard5gram": 0.093,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/yumie-text-1",
+              "id": "yumie-text-1_01343",
+              "len_canon": 39
+            },
+            "moe": {
+              "id": "4e2f4ba6_1700",
+              "spk": "4e2f4ba6",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.0909,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/yumie-text-1",
+              "id": "yumie-text-1_01552",
+              "len_canon": 58
+            },
+            "moe": {
+              "id": "940de876_1525",
+              "spk": "940de876",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.0909,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1128",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "bbd90363_0444",
+              "spk": "bbd90363",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.0893,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07499",
+              "len_canon": 50
+            },
+            "moe": {
+              "id": "9febd2ae_0558",
+              "spk": "9febd2ae",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.087,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1132",
+              "len_canon": 38
+            },
+            "moe": {
+              "id": "18460462_2833",
+              "spk": "18460462",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.087,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07615",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "917feebd_0154",
+              "spk": "917feebd",
+              "len_canon": 13
+            }
+          },
+          {
+            "jaccard5gram": 0.087,
+            "a": {
+              "split": "sibdense",
+              "source": "rohan4600",
+              "id": "ROHAN4600_1695",
+              "len_canon": 24
+            },
+            "moe": {
+              "id": "bbd90363_3066",
+              "spk": "bbd90363",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.0857,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2608",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "18460462_2008",
+              "spk": "18460462",
+              "len_canon": 29
+            }
+          },
+          {
+            "jaccard5gram": 0.0857,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04791",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "00163dc9_0937",
+              "spk": "00163dc9",
+              "len_canon": 28
+            }
+          },
+          {
+            "jaccard5gram": 0.0833,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02978",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "9febd2ae_1361",
+              "spk": "9febd2ae",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.0816,
+            "a": {
+              "split": "sibdense",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0130",
+              "len_canon": 35
+            },
+            "moe": {
+              "id": "18460462_0992",
+              "spk": "18460462",
+              "len_canon": 26
+            }
+          },
+          {
+            "jaccard5gram": 0.0816,
+            "a": {
+              "split": "sibdense",
+              "source": "cv/yumie-text-1",
+              "id": "yumie-text-1_00690",
+              "len_canon": 48
+            },
+            "moe": {
+              "id": "bbd90363_0055",
+              "spk": "bbd90363",
+              "len_canon": 13
+            }
+          }
+        ]
+      },
+      "substring_containment": {
+        "count": 0,
+        "count_meaningful": 0,
+        "min_len_chars": 5,
+        "meaningful_min_contained_len": 8,
+        "meaningful_query_ids": [],
+        "pairs": []
+      }
+    },
+    "train": {
+      "n_query_rows": 20985,
+      "exact_match_nfkc_nospace": {
+        "count": 0,
+        "query_ids": [],
+        "pairs": []
+      },
+      "exact_match_after_punct_strip_only": {
+        "count": 6,
+        "query_ids": [
+          "sentence_collector_00410",
+          "sentence_collector_00411",
+          "sentence_collector_00412",
+          "sentence_collector_01079",
+          "sentence_collector_01361",
+          "sentence_collector_01370"
+        ],
+        "pairs": [
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01361",
+              "len_canon": 8
+            },
+            "moe": {
+              "id": "bc778ddb_2428",
+              "spk": "bc778ddb",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "9febd2ae_1207",
+              "spk": "9febd2ae",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00410",
+              "len_canon": 4
+            },
+            "moe": {
+              "id": "773a4156_2752",
+              "spk": "773a4156",
+              "len_canon": 4
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01370",
+              "len_canon": 5
+            },
+            "moe": {
+              "id": "773a4156_2741",
+              "spk": "773a4156",
+              "len_canon": 5
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01079",
+              "len_canon": 6
+            },
+            "moe": {
+              "id": "6d565f54_2182",
+              "spk": "6d565f54",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00412",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "9febd2ae_1207",
+              "spk": "9febd2ae",
+              "len_canon": 9
+            }
+          }
+        ]
+      },
+      "jaccard5gram": {
+        "max": 1.0,
+        "n_ge_0.90": 6,
+        "n_ge_0.70": 13,
+        "n_ge_0.50": 32,
+        "n_ge_0.30": 104,
+        "top": [
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01361",
+              "len_canon": 8
+            },
+            "moe": {
+              "id": "bc778ddb_2428",
+              "spk": "bc778ddb",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "9febd2ae_1207",
+              "spk": "9febd2ae",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00410",
+              "len_canon": 4
+            },
+            "moe": {
+              "id": "773a4156_2752",
+              "spk": "773a4156",
+              "len_canon": 4
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01370",
+              "len_canon": 5
+            },
+            "moe": {
+              "id": "773a4156_2741",
+              "spk": "773a4156",
+              "len_canon": 5
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01079",
+              "len_canon": 6
+            },
+            "moe": {
+              "id": "6d565f54_2182",
+              "spk": "6d565f54",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 1.0,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00412",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "9febd2ae_1207",
+              "spk": "9febd2ae",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.8333,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02029",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "917feebd_1929",
+              "spk": "917feebd",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.7857,
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0631",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "940de876_0797",
+              "spk": "940de876",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.7778,
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0095",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.75,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01455",
+              "len_canon": 8
+            },
+            "moe": {
+              "id": "00163dc9_2344",
+              "spk": "00163dc9",
+              "len_canon": 7
+            }
+          },
+          {
+            "jaccard5gram": 0.7,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08645",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "ad28b91b_2735",
+              "spk": "ad28b91b",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.7,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00941",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "00163dc9_1014",
+              "spk": "00163dc9",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.7,
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0101",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.6667,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_06399",
+              "len_canon": 7
+            },
+            "moe": {
+              "id": "917feebd_1688",
+              "spk": "917feebd",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.6667,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02104",
+              "len_canon": 6
+            },
+            "moe": {
+              "id": "1a5a3db8_1864",
+              "spk": "1a5a3db8",
+              "len_canon": 7
+            }
+          },
+          {
+            "jaccard5gram": 0.6667,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01754",
+              "len_canon": 6
+            },
+            "moe": {
+              "id": "2cf01874_2741",
+              "spk": "2cf01874",
+              "len_canon": 7
+            }
+          },
+          {
+            "jaccard5gram": 0.6,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02680",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.5882,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00265",
+              "len_canon": 14
+            },
+            "moe": {
+              "id": "940de876_4114",
+              "spk": "940de876",
+              "len_canon": 21
+            }
+          },
+          {
+            "jaccard5gram": 0.5714,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07582",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "773a4156_0305",
+              "spk": "773a4156",
+              "len_canon": 8
+            }
+          },
+          {
+            "jaccard5gram": 0.5714,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02089",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "bc778ddb_0902",
+              "spk": "bc778ddb",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.5455,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00946",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "46d6bf83_0537",
+              "spk": "46d6bf83",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.5455,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01351",
+              "len_canon": 10
+            },
+            "moe": {
+              "id": "773a4156_2548",
+              "spk": "773a4156",
+              "len_canon": 15
+            }
+          },
+          {
+            "jaccard5gram": 0.5455,
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0661",
+              "len_canon": 15
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.5385,
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2542",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.5238,
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1804",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "773a4156_1352",
+              "spk": "773a4156",
+              "len_canon": 20
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00374",
+              "len_canon": 5
+            },
+            "moe": {
+              "id": "ee093a4f_0360",
+              "spk": "ee093a4f",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01136",
+              "len_canon": 7
+            },
+            "moe": {
+              "id": "cc948b89_1778",
+              "spk": "cc948b89",
+              "len_canon": 7
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_03912",
+              "len_canon": 5
+            },
+            "moe": {
+              "id": "00163dc9_0609",
+              "spk": "00163dc9",
+              "len_canon": 6
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_05321",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "bbd90363_1458",
+              "spk": "bbd90363",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02686",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "cc948b89_0264",
+              "spk": "cc948b89",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "773a4156_1735",
+              "spk": "773a4156",
+              "len_canon": 18
+            }
+          },
+          {
+            "jaccard5gram": 0.5,
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1167",
+              "len_canon": 22
+            },
+            "moe": {
+              "id": "b8b5fe66_2646",
+              "spk": "b8b5fe66",
+              "len_canon": 19
+            }
+          },
+          {
+            "jaccard5gram": 0.4667,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01898",
+              "len_canon": 19
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.4615,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01382",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "4e2f4ba6_1206",
+              "spk": "4e2f4ba6",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.4615,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04672",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "bbd90363_2344",
+              "spk": "bbd90363",
+              "len_canon": 14
+            }
+          },
+          {
+            "jaccard5gram": 0.4615,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01085",
+              "len_canon": 17
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.4545,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02001",
+              "len_canon": 13
+            },
+            "moe": {
+              "id": "cc948b89_0264",
+              "spk": "cc948b89",
+              "len_canon": 11
+            }
+          },
+          {
+            "jaccard5gram": 0.4444,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02107",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "917feebd_1730",
+              "spk": "917feebd",
+              "len_canon": 12
+            }
+          },
+          {
+            "jaccard5gram": 0.4444,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_08644",
+              "len_canon": 20
+            },
+            "moe": {
+              "id": "b8b5fe66_2007",
+              "spk": "b8b5fe66",
+              "len_canon": 27
+            }
+          },
+          {
+            "jaccard5gram": 0.4286,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00370",
+              "len_canon": 8
+            },
+            "moe": {
+              "id": "1a5a3db8_0293",
+              "spk": "1a5a3db8",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.4286,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04514",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "1a5a3db8_0759",
+              "spk": "1a5a3db8",
+              "len_canon": 9
+            }
+          },
+          {
+            "jaccard5gram": 0.4286,
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0379",
+              "len_canon": 18
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.4211,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "b8b5fe66_1878",
+              "spk": "b8b5fe66",
+              "len_canon": 23
+            }
+          },
+          {
+            "jaccard5gram": 0.4167,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04098",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "18460462_0531",
+              "spk": "18460462",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.4167,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02669",
+              "len_canon": 9
+            },
+            "moe": {
+              "id": "8b6e7173_0602",
+              "spk": "8b6e7173",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.4118,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426",
+              "len_canon": 11
+            },
+            "moe": {
+              "id": "940de876_4114",
+              "spk": "940de876",
+              "len_canon": 21
+            }
+          },
+          {
+            "jaccard5gram": 0.4118,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00161",
+              "len_canon": 16
+            },
+            "moe": {
+              "id": "940de876_1264",
+              "spk": "940de876",
+              "len_canon": 16
+            }
+          },
+          {
+            "jaccard5gram": 0.4091,
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2336",
+              "len_canon": 21
+            },
+            "moe": {
+              "id": "2cf01874_1520",
+              "spk": "2cf01874",
+              "len_canon": 18
+            }
+          },
+          {
+            "jaccard5gram": 0.4,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02645",
+              "len_canon": 12
+            },
+            "moe": {
+              "id": "cc948b89_1958",
+              "spk": "cc948b89",
+              "len_canon": 10
+            }
+          },
+          {
+            "jaccard5gram": 0.4,
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04772",
+              "len_canon": 7
+            },
+            "moe": {
+              "id": "18460462_0644",
+              "spk": "18460462",
+              "len_canon": 8
+            }
+          }
+        ]
+      },
+      "substring_containment": {
+        "count": 792,
+        "count_meaningful": 171,
+        "min_len_chars": 5,
+        "meaningful_min_contained_len": 8,
+        "meaningful_query_ids": [
+          "BASIC5000_0059",
+          "BASIC5000_0341",
+          "BASIC5000_0492",
+          "BASIC5000_1314",
+          "BASIC5000_2336",
+          "BASIC5000_2542",
+          "BASIC5000_2755",
+          "ROHAN4600_2021",
+          "ROHAN4600_2876",
+          "ROHAN4600_3249",
+          "TRAVEL1000_0095",
+          "TRAVEL1000_0101",
+          "TRAVEL1000_0126",
+          "TRAVEL1000_0127",
+          "TRAVEL1000_0215",
+          "TRAVEL1000_0379",
+          "TRAVEL1000_0661",
+          "TRAVEL1000_0674",
+          "TRAVEL1000_0746",
+          "TRAVEL1000_0889",
+          "sentence_collector_00265",
+          "sentence_collector_00411",
+          "sentence_collector_00412",
+          "sentence_collector_00426",
+          "sentence_collector_00946",
+          "sentence_collector_01085",
+          "sentence_collector_01351",
+          "sentence_collector_01361",
+          "sentence_collector_01898",
+          "sentence_collector_02007",
+          "sentence_collector_02008",
+          "sentence_collector_02029",
+          "sentence_collector_02669",
+          "sentence_collector_02671",
+          "sentence_collector_02680",
+          "sentence_collector_04098",
+          "sentence_collector_06615",
+          "sentence_collector_07056",
+          "sentence_collector_07061",
+          "sentence_collector_07582",
+          "sentence_collector_08245",
+          "yumie-text-1_01086"
+        ],
+        "pairs": [
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00946"
+            },
+            "moe": {
+              "id": "773a4156_0693",
+              "spk": "773a4156"
+            },
+            "contained_len": 15
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00265"
+            },
+            "moe": {
+              "id": "773a4156_0982",
+              "spk": "773a4156"
+            },
+            "contained_len": 14
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00265"
+            },
+            "moe": {
+              "id": "773a4156_1811",
+              "spk": "773a4156"
+            },
+            "contained_len": 14
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00265"
+            },
+            "moe": {
+              "id": "940de876_4114",
+              "spk": "940de876"
+            },
+            "contained_len": 14
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "2cf01874_1315",
+              "spk": "2cf01874"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "2cf01874_3733",
+              "spk": "2cf01874"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "773a4156_1058",
+              "spk": "773a4156"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "940de876_4585",
+              "spk": "940de876"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "b8b5fe66_1116",
+              "spk": "b8b5fe66"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "b8b5fe66_1878",
+              "spk": "b8b5fe66"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02671"
+            },
+            "moe": {
+              "id": "b8b5fe66_2259",
+              "spk": "b8b5fe66"
+            },
+            "contained_len": 12
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426"
+            },
+            "moe": {
+              "id": "773a4156_0622",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426"
+            },
+            "moe": {
+              "id": "773a4156_0982",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426"
+            },
+            "moe": {
+              "id": "773a4156_1528",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426"
+            },
+            "moe": {
+              "id": "773a4156_1811",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426"
+            },
+            "moe": {
+              "id": "773a4156_2455",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00426"
+            },
+            "moe": {
+              "id": "940de876_4114",
+              "spk": "940de876"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07582"
+            },
+            "moe": {
+              "id": "ad28b91b_0092",
+              "spk": "ad28b91b"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07582"
+            },
+            "moe": {
+              "id": "b8b5fe66_2094",
+              "spk": "b8b5fe66"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01898"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_06615"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_0000",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_0647",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_0788",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1035",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1339",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1386",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1569",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1617",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1735",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_1826",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_2479",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_2551",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "773a4156_2643",
+              "spk": "773a4156"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "917feebd_2784",
+              "spk": "917feebd"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "b8b5fe66_1252",
+              "spk": "b8b5fe66"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02007"
+            },
+            "moe": {
+              "id": "bc778ddb_0293",
+              "spk": "bc778ddb"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_0492"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_1314"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2542"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0095"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0101"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0746"
+            },
+            "moe": {
+              "id": "bbd90363_1527",
+              "spk": "bbd90363"
+            },
+            "contained_len": 11
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00946"
+            },
+            "moe": {
+              "id": "46d6bf83_0537",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01085"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01085"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01085"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_07056"
+            },
+            "moe": {
+              "id": "36ea135b_0222",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01351"
+            },
+            "moe": {
+              "id": "773a4156_1987",
+              "spk": "773a4156"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01351"
+            },
+            "moe": {
+              "id": "773a4156_2548",
+              "spk": "773a4156"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_01351"
+            },
+            "moe": {
+              "id": "ee093a4f_1600",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02680"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02680"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02680"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2336"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2336"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/basic5000",
+              "id": "BASIC5000_2336"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0674"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0674"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0674"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0379"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0379"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0379"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0889"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0889"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0889"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0127"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0127"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0127"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0215"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0215"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0215"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0126"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0126"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0126"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0661"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0661"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "jsut/travel1000",
+              "id": "TRAVEL1000_0661"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "rohan4600",
+              "id": "ROHAN4600_3249"
+            },
+            "moe": {
+              "id": "36ea135b_0090",
+              "spk": "36ea135b"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "rohan4600",
+              "id": "ROHAN4600_3249"
+            },
+            "moe": {
+              "id": "46d6bf83_2264",
+              "spk": "46d6bf83"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "moe_in_query",
+            "a": {
+              "split": "train",
+              "source": "rohan4600",
+              "id": "ROHAN4600_3249"
+            },
+            "moe": {
+              "id": "ee093a4f_0491",
+              "spk": "ee093a4f"
+            },
+            "contained_len": 10
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04098"
+            },
+            "moe": {
+              "id": "18460462_0531",
+              "spk": "18460462"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_04098"
+            },
+            "moe": {
+              "id": "ad28b91b_1980",
+              "spk": "ad28b91b"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_02029"
+            },
+            "moe": {
+              "id": "917feebd_1929",
+              "spk": "917feebd"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "00163dc9_1084",
+              "spk": "00163dc9"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "2cf01874_1754",
+              "spk": "2cf01874"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "2cf01874_1778",
+              "spk": "2cf01874"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "2cf01874_2171",
+              "spk": "2cf01874"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "2cf01874_2361",
+              "spk": "2cf01874"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "2cf01874_3501",
+              "spk": "2cf01874"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "2cf01874_3651",
+              "spk": "2cf01874"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "773a4156_0953",
+              "spk": "773a4156"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "773a4156_2181",
+              "spk": "773a4156"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "8b6e7173_0015",
+              "spk": "8b6e7173"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "8b6e7173_0836",
+              "spk": "8b6e7173"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "8b6e7173_1768",
+              "spk": "8b6e7173"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "8b6e7173_2104",
+              "spk": "8b6e7173"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "8b6e7173_2194",
+              "spk": "8b6e7173"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "940de876_2093",
+              "spk": "940de876"
+            },
+            "contained_len": 9
+          },
+          {
+            "direction": "query_in_moe",
+            "a": {
+              "split": "train",
+              "source": "cv/sentence_collector",
+              "id": "sentence_collector_00411"
+            },
+            "moe": {
+              "id": "940de876_2264",
+              "spk": "940de876"
+            },
+            "contained_len": 9
+          }
+        ]
+      }
+    }
+  },
+  "detector_positive_control": {
+    "what": "MOE の行 200 件をそのまま query に入れて検出できるか",
+    "n": 200,
+    "n_exact_norm": 200,
+    "n_jaccard_eq_1.0": 200,
+    "verdict": "検出器は動いている。よって split 側の 0 件は検出漏れではない。"
+  },
+  "eval24": {
+    "source": "reports/eval_v2/eval.json",
+    "scoreq_ratio_reported": 0.6113,
+    "n": 24,
+    "n_exact_norm": 0,
+    "n_exact_canon": 0,
+    "n_jaccard_ge_0.70": 0,
+    "n_jaccard_ge_0.50": 0,
+    "max_jaccard": 0.2381,
+    "n_with_meaningful_substring": 0,
+    "note": "24 文は scripts/eval_student.py pick_rows() が corpus_heldout.tsv から B-10 除外を引いた上で seed 0 で無作為抽出したもの。",
+    "per_utterance": [
+      {
+        "uid": "ROHAN4600_4164",
+        "in_heldout": true,
+        "source": "rohan4600",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0182,
+        "best_moe_id": "00163dc9_1541",
+        "len_canon": 21,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_4197",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 25,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_1619",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.1304,
+        "best_moe_id": "4e2f4ba6_1967",
+        "len_canon": 17,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_09299",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.2381,
+        "best_moe_id": "18460462_0058",
+        "len_canon": 24,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_04854",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 7,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_02992",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0455,
+        "best_moe_id": "2cf01874_4261",
+        "len_canon": 17,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "ROHAN4600_2252",
+        "in_heldout": true,
+        "source": "rohan4600",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 15,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_05595",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 6,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_2314",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.025,
+        "best_moe_id": "2cf01874_0821",
+        "len_canon": 27,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_04850",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 7,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_03352",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 19,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_0083",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0847,
+        "best_moe_id": "940de876_3502",
+        "len_canon": 27,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_05500",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.15,
+        "best_moe_id": "773a4156_0344",
+        "len_canon": 13,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "sentence_collector_00225",
+        "in_heldout": true,
+        "source": "cv/sentence_collector",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.1111,
+        "best_moe_id": "bbd90363_0957",
+        "len_canon": 27,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "ROHAN4600_0850",
+        "in_heldout": true,
+        "source": "rohan4600",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 27,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_4093",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0571,
+        "best_moe_id": "bce2a5af_1730",
+        "len_canon": 30,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_2652",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0435,
+        "best_moe_id": "b8b5fe66_1568",
+        "len_canon": 18,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_4739",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0312,
+        "best_moe_id": "8b6e7173_1437",
+        "len_canon": 26,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_0377",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0455,
+        "best_moe_id": "bc778ddb_0486",
+        "len_canon": 25,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "ONOMATOPEE300_064",
+        "in_heldout": true,
+        "source": "jsut/onomatopee300",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0312,
+        "best_moe_id": "9febd2ae_0955",
+        "len_canon": 26,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "ROHAN4600_3325",
+        "in_heldout": true,
+        "source": "rohan4600",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0256,
+        "best_moe_id": "bc778ddb_0599",
+        "len_canon": 35,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "BASIC5000_0123",
+        "in_heldout": true,
+        "source": "jsut/basic5000",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0,
+        "best_moe_id": null,
+        "len_canon": 16,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "ROHAN4600_1788",
+        "in_heldout": true,
+        "source": "rohan4600",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0882,
+        "best_moe_id": "773a4156_1516",
+        "len_canon": 28,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      },
+      {
+        "uid": "ROHAN4600_3629",
+        "in_heldout": true,
+        "source": "rohan4600",
+        "exact_norm": false,
+        "exact_canon": false,
+        "best_jaccard5gram": 0.0385,
+        "best_moe_id": "bbd90363_0398",
+        "len_canon": 25,
+        "n_meaningful_substring": 0,
+        "substring_hits": []
+      }
+    ]
+  },
+  "caveats": [
+    "照合したのは配布版 metadata (60,233 行)。教師 v7 の実使用は 59,694 発話で、filtered で落ちた 539 行は配布版に含まれる。上位集合なので取りこぼしは無い。",
+    "教師の事前学習は 6 言語 497,519 発話だが、日本語以外 (437,825 発話) は本文が日本語 split と重なり得ないので照合していない。",
+    "5-gram 転置インデックスを候補生成に使うので、包含される側が 5 文字未満のペアは構造上見つからない (MEANINGFUL_SUB_LEN=8 なので結論には影響しない)。",
+    "MOE-Speech の本文は JSON に一切書いていない (ライセンス上再配布不可)。uid のみ。"
+  ],
+  "elapsed_sec": 1.69
+}

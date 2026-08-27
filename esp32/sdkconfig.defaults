@@ -1,0 +1,39 @@
+# sanoTTS-jp / ESP32-S3 の既定設定（c'-4）
+#
+# ⚠️ **一度も menuconfig にかけていない。** オプション名の綴りは IDF の
+#    バージョンで変わることがある。`idf.py menuconfig` で実在を確認すること。
+#    特に S3 のキャッシュ設定は IDF v5.0 と v5.2+ で名前が違う。
+
+CONFIG_IDF_TARGET="esp32s3"
+
+# --- 速度 ---
+# 公式 performance/speed.rst が -O2 を推奨している
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# --- スタック ---
+# ⚠️ csrc/fft.c の saan_irfft_1024 は自動変数 zr[512]+zi[512] (float) だけで
+#    **4,096 B** 使う（arm64 clang -O2 の実フレーム 4,224 B を otool -tv で実測。
+#    ⚠️ Xtensa では別の値）。IDF の小さい既定スタックでは足りない。
+#    合成本体は app_main ではなく専用タスク（main.c の SAAN_TASK_STACK）で回すが、
+#    app_main 側も余裕を持たせておく。
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+CONFIG_FREERTOS_HZ=1000
+
+# --- パーティション ---
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+
+# --- キャッシュ ---
+# ⚠️ 重みを flash から mmap して読むので D-cache がそのまま効く。
+#    reports/d3_esp32_model.json が「decoder の 1 層 69 KB が D-cache に
+#    入りきらず thrash するかもしれない（**未検証**）」と書いている。
+#    実機で最初に触るつまみがこれ。
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+
+# --- 無効にしておくもの ---
+# ⚠️ WiFi / BT を有効にすると内部 DRAM が数十 KB 消える。arena は 208 KB を
+#    .bss に静的確保するので、余裕を食い潰さないよう既定のまま無効にしておく。
+CONFIG_ESP_TASK_WDT_INIT=n

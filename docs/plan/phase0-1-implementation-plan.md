@@ -1,4 +1,4 @@
-# saanoTTS-jp 実装計画
+# sanoTTS-jp 実装計画
 
 - 作成 2026-08-26 / 最終更新 2026-08-27（Phase D-3a/b/c 完了時点）
 - 対象: `arXiv:2608.21378` の蒸留レシピの日本語適用（PoC・非配布）
@@ -23,9 +23,21 @@
 ✅ Phase D-3a FFT 化                    naive の **1,435 倍** / SNR 138.7 dB（M-43）
 ✅ Phase D-3b レイテンシ初測定           手元 **0.023× RT**。iSTFT 88% → 0.9%（M-43）
 ✅ Phase D-3c int8 カーネル（C 版）      逆量子化と 100 dB 超で一致。⚠️ **PIE 未使用**
-▶  次        Phase D-3c' PIE 最適化      **fp32 のままでは ESP32 で 2.47× RT = 間に合わない**
+✅ Phase D-3c'-1/2 int8 end-to-end      fp32 比 平均 25.88 dB。ブロブ −71.4%。RAM は不変（M-45）
+✅ Phase D-3c'-4 ESP-IDF 雛形            ⚠️ **一度もビルドしていない**（toolchain 不在）（M-46）
+✅ D-4      アクセント型ミニマルペア       符号一致 35/36。生徒はアクセントを再現している（M-44）
+✅ B-12     教師の事前学習との重複検査      **看板の 24 文は汚染ゼロ**。陽性対照 200/200（M-47）
+✅ 敵対的検証 空虚に通るゲート 2 件 + silent failure 1 件を修正（M-48）
+▶  次        Phase D-3c'-3 PIE 最適化    **fp32 のままでは ESP32 で 2.47× RT = 間に合わない**
+                                        ⚠️ xtensa toolchain が無くコンパイルすら通せない
    Phase D-3d 実機                      ⚠️ ハードウェア待ち
 ```
+
+⚠️ **公式実装 `Ampixa/sanoTTS` が実在すると判明した**（C-024。それまで「404」と誤記録）。
+GPL-3.0 なので**ソースは読まない**が、公開ドキュメントの実測値は
+[`../upstream-sanotts.md`](../upstream-sanotts.md) に集約した。
+上流は ESP32-S3 で **0.22× RT を実測**と申告しており、
+**「fp32 では届かない / int8 + PIE が必須」といううちの結論と整合する。**
 
 **プロジェクトの主目的（ESP32 で日本語 TTS が動く）に対する現在地**:
 
@@ -268,26 +280,44 @@ int8 なら η 14% で足りる。**論文が int8 blob を配っていること
 
 | # | 作業 | 手元で検証できること | できないこと |
 |---|---|---|---|
-| **c'-1** | `duration.proj.weight` を int8 経路に載せる | fp32 版との SNR | — |
-| **c'-2** | int8 経路の end-to-end 統合（W8A32） | 波形 SNR ≥ 25 dB（M-39 の PTQ 実測と同水準） | 速度 |
+| ~~**c'-1**~~ | ~~`duration.proj.weight` を int8 経路に載せる~~ **完了 (M-45)** | fp32 で bit 一致（125.91/131.37/117.50 dB が桁まで不変） | — |
+| ~~**c'-2**~~ | ~~int8 経路の end-to-end 統合（W8A32）~~ **完了 (M-45)** | **主ゲート**: fake-quant golden と pcm **115.91 dB**／波形 SNR 24 文平均 **25.88 dB** 最小 **23.27 dB** | 速度 |
 | **c'-3** | PIE intrinsic 版のカーネル | **正しさのみ**（C 版と bit 一致 or 高 SNR） | ⚠️ **速度は実機待ち** |
-| **c'-4** | ESP-IDF プロジェクト雛形 | ビルドが通ること | 動作 |
+| **c'-4** | ESP-IDF プロジェクト雛形 | ✅ CMake 構文 / ホスト stub ビルドで **C コアと bit 一致** / コアにホスト専用 API が無いこと / arena の実測（M-46） | ⚠️ **`idf.py build`・flash・実 SRAM・実 xRT・I2S 実レート — すべて未検証**（この環境に ESP-IDF も xtensa toolchain も無い） |
 
 ⚠️ **c'-3 は「動くか分からないコードを書く」ことになる。** このプロジェクトの
 実測主義に反するので、**実機が手に入るまで着手しない**という判断もありうる。
 c'-1 と c'-2 は手元で完結するので先にやる。
 
-**c'-1 の詳細**（D-3c の照合で判明）: `duration.proj.weight` は 52 個の int8
+**c'-1 の詳細**（D-3c の照合で判明 → M-45 で解消）: `duration.proj.weight` は 52 個の int8
 テンソルの 1 つなのに `saan_conv1d` を通らず `saanotts.c` の**インライン内積**で
-使われている。「conv カーネルを差し替えるだけ」では int8 経路に載らない。
-現状は `SAAN_ERR_MISSING` で**安全に止まる**ので、壊れてはいない。
+使われていた。`nn.Conv1d(32,1,1)` なので conv 化するだけで意味論が一致する。
+**先に fp32 のまま置換して積和順序が変わらないことを単独で確かめた**（先に int8 化すると切り分け不能）。
+
+**c'-2 のゲート文言を実測に合わせて訂正した（M-45）**:
+
+- ⚠️ **「波形 SNR ≥ 25 dB」は 1 文ごとの判定としては達成できない。** 量子化そのものの
+  性質で、正しい実装でも held-out **24 文中 9 文**が 23.27〜24.99 dB に入る。
+  判定は「**24 文の平均 ≥ 25 dB かつ最小 ≥ 23 dB**」（`csrc/int8_e2e_test.c` に凍結）
+- **主ゲートは 25 dB ではない。** c'-2 が本当に制御しているのは
+  「**C の int8 経路が PyTorch の fake-quant と一致するか**」。
+  `make -C csrc int8-golden` で **pcm ≥ 100 dB**（実測 115.91 dB）を見る。
+  ⚠️ この相手（`csrc/golden_i8.bin`）は**この作業まで存在しなかった** —
+  `--int8` を付けても golden は fp32 参照のままで、層を 1 つ fp32 に置き忘れても
+  量子化誤差 26 dB に紛れて検出できなかった
+- ⚠️ **d̂ は fp32 側に固定して測る。** 固定しないと held-out 24 文中 15 文で
+  フレーム数が変わり、波形 SNR がそもそも定義できない
 
 **W8A32 と W8A8 の選択**（D-3c / 照合で決着）:
-- **既定は W8A32**（重みだけ int8 / activation は fp32）
+- **既定は W8A32**（重みだけ int8 / activation は fp32）。
+  M-45 で `SAAN_INT8_ACT`（既定 0）というコンパイル時スイッチにした（散文だけだったのを実体化）
 - 理由は「W8A8 が危険だから」**ではない** — end-to-end の差は 2.59 dB で
   層ごとの差と同じ（**30 層直列でも蓄積しない**、照合で実測）
 - 理由は「**flash が 1 バイトも減らず**（重みのビット幅だけで決まる）、
   速度利得もホストでは 0.86 倍しかない」から。実機で足りなければ切り替える
+- **M-45 で end-to-end の代償も実測**: W8A8 は波形 SNR 平均 25.88 → **23.24 dB**、
+  さらに activation の作業領域 4.2 KB で **G1 が 196.9 → 201.1 KB** と 200 KB を超える。
+  ⚠️ W8A8 の正しさは現在の fake-quant golden では検証できない（golden の activation は fp32）
 
 #### D-3 の当初計画（記録）
 
@@ -740,7 +770,7 @@ EOF
 
 ### P0-1 環境の分離と固定
 
-piper-plus は**読み取り専用**（`checkout` / `commit` / ファイル編集の禁止）。ラベル生成は piper-plus の `.venv` を read-only で起動、評価は saanoTTS-jp 側の独立 venv。
+piper-plus は**読み取り専用**（`checkout` / `commit` / ファイル編集の禁止）。ラベル生成は piper-plus の `.venv` を read-only で起動、評価は sanoTTS-jp 側の独立 venv。
 
 ```bash
 # ラベル生成側（piper-plus venv を read-only 起動）
@@ -1180,7 +1210,7 @@ S_ja = {s, sh, ts, ch, z, j, h, hy, f, I, U}       ← A/E/O は 0 出現なの�
 ### Phase 6: 量子化 ✅ シミュレーション完了（M-39）
 
 - symmetric int8 / per-output-channel、activations は per-frame
-- **Embeddings, normalization affines, iSTFT support code は fp32 のまま**（論文 `saanoTTS.txt:261-264`）
+- **Embeddings, normalization affines, iSTFT support code は fp32 のまま**（論文 `sanoTTS.txt:261-264`）
 
 | blob | 本実装（語彙 57） | 論文（語彙 157） | 差 |
 |---|---:|---:|---:|
@@ -1295,7 +1325,7 @@ S_ja = {s, sh, ts, ch, z, j, h, hy, f, I, U}       ← A/E/O は 0 出現なの�
 **代替案 B**（拡張幅 `E=255` に落として dense head 維持、delta −62）も同等に妥当。
 
 **⚠️ 反証 4: 論文には「Table I と本文 4 文」以外にも層仕様がある。**
-`saanoTTS.txt:261-264`「Embeddings, **normalization affines**, and the inverse-STFT support code remain in floating point」は**正規化層の affine が存在すること**を明言する。ところが採用案 C は `nLN=0`（5 ブロックすべて正規化層なし）で、この記述と噛み合わない。しかも `Dα` / `Aβ` の採用解はブロックごとに LayerNorm を置いており、**同一論文の 3 モジュールで設計が不整合**。
+`sanoTTS.txt:261-264`「Embeddings, **normalization affines**, and the inverse-STFT support code remain in floating point」は**正規化層の affine が存在すること**を明言する。ところが採用案 C は `nLN=0`（5 ブロックすべて正規化層なし）で、この記述と噛み合わない。しかも `Dα` / `Aβ` の採用解はブロックごとに LayerNorm を置いており、**同一論文の 3 モジュールで設計が不整合**。
 
 ### 未使用の最強制約: int8 blob のバイト数
 
@@ -1312,7 +1342,7 @@ S_ja = {s, sh, ts, ch, z, j, h, hy, f, I, U}       ← A/E/O は 0 出現なの�
 
 | 項目 | 状態 |
 |---|---|
-| **iSTFT のフレーミング規約** | ⚠️ 参照実装は `center=True` で `256·(T−1)` サンプルを出す（`c[1,40,14] → pcm[1,3328] = 256×13`）。論文の golden utterance は **100,096 = 391×256** と **34,304 = 134×256** で **256 の厳密な倍数**。`saanoTTS.txt:257` の「periodic overlap-add envelope」と合わせると、**デプロイ版は非 center 方式で `256·T` を出す可能性が高い**。教師ラベル（piper-plus の hop 256 出力）とのアラインメントに直結するので、蒸留のフレーム対応表を作る前に決める |
+| **iSTFT のフレーミング規約** | ⚠️ 参照実装は `center=True` で `256·(T−1)` サンプルを出す（`c[1,40,14] → pcm[1,3328] = 256×13`）。論文の golden utterance は **100,096 = 391×256** と **34,304 = 134×256** で **256 の厳密な倍数**。`sanoTTS.txt:257` の「periodic overlap-add envelope」と合わせると、**デプロイ版は非 center 方式で `256·T` を出す可能性が高い**。教師ラベル（piper-plus の hop 256 出力）とのアラインメントに直結するので、蒸留のフレーム対応表を作る前に決める |
 | **総計 45 MMAC/s との整合** | ⚠️ 採用構成は 39.7 MMAC/s で 12% 不足。しかも 45 は「**token block も含め 8 ブロック全部をフレームレートで動かす**」読み（44.66）のほうがよく合う。これは「token block = 音素レート、length regulator を token/frame の間に置く」という採用解釈を否定する材料になる |
 | **`μ_T` / `σ_T` の扱い** | ⚠️ 式(3) の `N_T` と式(7) の `σT_k` はチャネルごと 40 個（z-line なら 192 個）の定数。デプロイグラフに含まれるのか（= 567,008 の内訳のどこか）、外部定数なのかが未決。パラメータ勘定に効く |
 | **rank-12 conditioning の共有/per-block** | down 射影(40→12) をブロック共有にすると 1,968 params 浮き、別ノブで埋める必要がある |
@@ -1418,7 +1448,7 @@ VOWEL     = {"a","i","u","e","o","a:","i:","u:","e:","o:"}
 ├── CLAUDE.md                          # §1.3 の訂正を反映
 ├── pyproject.toml
 ├── docs/
-│   ├── research/saanotts-jp-feasibility.md    # canonical。§1.3 の訂正を反映
+│   ├── research/sanotts-jp-feasibility.md    # canonical。§1.3 の訂正を反映
 │   ├── plan/phase0-1-implementation-plan.md   # 本文書
 │   ├── decisions/                     # ADR。各判断の根拠と実測値を凍結
 │   │   ├── D0-target-tier.md          # 567K vs 1.4M

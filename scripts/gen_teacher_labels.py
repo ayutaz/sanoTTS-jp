@@ -60,10 +60,12 @@ CKPT = "epoch=499-step=22000.ckpt"
 
 
 def snapshot() -> str:
-    hits = glob.glob(
+    # ⚠️ glob は `~` を展開しない。expanduser を通さないと、キャッシュが
+    # 実在しても必ず SystemExit した（実測 2026-08-27）
+    hits = glob.glob(os.path.expanduser(
         "~/.cache/huggingface/hub/"
         "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"
-    )
+    ))
     if not hits:
         raise SystemExit("教師 ckpt が HF キャッシュに無い")
     return hits[0]

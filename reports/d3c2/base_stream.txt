@@ -1,0 +1,21 @@
+cc -std=c99 -O2 -Wall -Wextra  -o stream_test stream_test.c saanotts.c saanotts_stream.c fft.c -lm
+./stream_test student.bin golden.bin
+一括版      : 106 frames / 27136 sample / arena 990.3 KB
+stream 版   : 106 frames 出力 / arena ピーク 190.5 KB (確保 218.4 KB)
+  [切り分け] c-line vs 一括版: OK   0/4240 不一致
+
+  OK  G1 ピーク RAM < 200 KB
+        テスト文   53 ids /  106 frames : arena  190.5 KB
+        実用最大  350 ids /  785 frames : arena  192.8 KB + FFT stack 4.1 KB
+        合計  196.9 KB  ← 判定はこちら（SRAM 512 KB の 38%）
+  OK  G2 一括版と bit 完全一致         27136 sample すべて一致
+
+  G3 発話長に対する RAM:
+         53 ids /   106 frames  ピーク   190.5 KB  ids 比例を除く   190.1 KB
+        106 ids /   227 frames  ピーク   190.9 KB  ids 比例を除く   190.1 KB
+        212 ids /   469 frames  ピーク   191.7 KB  ids 比例を除く   190.0 KB
+        424 ids /   953 frames  ピーク   193.4 KB  ids 比例を除く   190.0 KB
+        848 ids /  1921 frames  ピーク   196.7 KB  ids 比例を除く   190.0 KB
+  OK  G3 発話長に対して RAM が O(1)（ids 比例分 8 B/id を除いて一定）
+
+Phase D-2 の受け入れ条件を満たした

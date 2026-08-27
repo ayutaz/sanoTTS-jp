@@ -33,6 +33,7 @@ import torch
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")
 from saanotts_jp._param_reference import Acoustic, Decoder, Duration  # noqa: E402
+from saanotts_jp.ptq import dequantize, quantize_tensor  # noqa: E402
 from saanotts_jp.vocab import V as VOCAB  # noqa: E402
 
 MAGIC = b"SAAN"
@@ -81,13 +82,7 @@ class Writer:
                 "sha256": hashlib.sha256(bytes(buf)).hexdigest()}
 
 
-def quantize(w: torch.Tensor):
-    """symmetric int8 / per-output-channel（`quantize_student.py` と同一）。"""
-    flat = w.reshape(w.shape[0], -1).to(torch.float32)
-    scale = flat.abs().amax(dim=1) / 127.0
-    scale = torch.where(scale == 0, torch.ones_like(scale), scale)
-    q = torch.clamp(torch.round(flat / scale[:, None]), -127, 127).to(torch.int8)
-    return q.reshape(w.shape).numpy(), scale.numpy().astype(np.float32)
+# 量子化の規則は `src/saanotts_jp/ptq.py`（唯一の定義）。ここに式を書き写さない。
 
 
 def main() -> int:
@@ -97,8 +92,17 @@ def main() -> int:
     ap.add_argument("--golden", default="csrc/golden.bin")
     ap.add_argument("--int8", action="store_true",
                     help="重みを int8 にする（既定は fp32。まず fp32 で C を通す）")
+    ap.add_argument("--golden-from-quantized", action="store_true",
+                    help="golden を **fake-quant した重み**で計算する（--int8 が必要）。"
+                         "int8 経路の C を突き合わせる相手はこちらでないと、"
+                         "層を 1 つ fp32 に置き忘れても量子化誤差に紛れて検出できない")
+    ap.add_argument("--report", default="csrc/export.json",
+                    help="メタ情報の書き出し先。**int8 の実行で fp32 の記録を潰さない**"
+                         "（fp32: csrc/export.json / int8: csrc/export_i8.json）")
     ap.add_argument("--golden-text", default="今日は良い天気ですね。")
     args = ap.parse_args()
+    if args.golden_from_quantized and not args.int8:
+        raise SystemExit("--golden-from-quantized は --int8 と一緒に使う")
 
     ck = torch.load(args.ckpt, map_location="cpu", weights_only=False)
     models = {}
@@ -108,17 +112,32 @@ def main() -> int:
         models[name] = m
 
     w = Writer()
+    # blob に int8 で載せたものを控える。**fake-quant golden はこの集合をそのまま使う** —
+    # 規則を 2 度書くと「blob は int8 なのに golden は fp32」がここでずれる
+    faked: dict[str, dict[str, torch.Tensor]] = {}
     for mod, m in models.items():
         for k, v in m.state_dict().items():
             full = f"{mod}.{k}"
             # 埋め込み・1-D（bias / LayerNorm / LayerScale）は fp32 のまま（論文の指定）
             if args.int8 and v.dim() >= 2 and "emb" not in k and "pos" not in k:
-                q, sc = quantize(v)
-                w.add(full, q, DT_I8)
+                q2d, sc = quantize_tensor(v)
+                w.add(full, q2d.reshape(tuple(v.shape)), DT_I8)
                 w.add(full + ".scale", sc, DT_SCALE)
+                faked.setdefault(mod, {})[k] = dequantize(q2d, sc, v.shape)
             else:
                 w.add(full, v.numpy().astype(np.float32), DT_F32)
     meta = w.write(pathlib.Path(args.out))
+
+    n_faked = 0
+    if args.golden_from_quantized:
+        # ⚠️ **blob を書いたあとに書き戻す。** 順序を逆にしても値は同じ
+        # （量子化は冪等）だが、blob が「量子化の一次ソース」であることを崩さない
+        for mod, tensors in faked.items():
+            sd = models[mod].state_dict()
+            sd.update(tensors)
+            models[mod].load_state_dict(sd)
+            n_faked += len(tensors)
+        assert n_faked == sum(len(t) for t in faked.values())
 
     # --- ゴールデン: 1 文の中間出力を全部落とす（C 側の突き合わせ用） ---
     import gen_teacher_labels as G
@@ -153,16 +172,24 @@ def main() -> int:
 
     rep = {
         "ckpt": args.ckpt, "vocab": VOCAB, "int8": args.int8,
+        "golden_from_quantized": args.golden_from_quantized,
+        "n_tensors_faked": n_faked,
         "weights": meta, "golden": {**gmeta, "text": args.golden_text,
                                     "n_ids": len(ids), "frames": int(d_hat.sum()),
                                     "samples": int(pcm.shape[-1])},
         "s_v": S_V, "clip": [CLIP_LO, CLIP_HI],
         "format": "SAAN v1。ヘッダに name/dtype/shape/offset を持つ自己記述形式",
-        "repro": f"uv run python scripts/export_c_weights.py --ckpt {args.ckpt}",
+        "repro": ("uv run python scripts/export_c_weights.py"
+                  f" --ckpt {args.ckpt} --out {args.out} --golden {args.golden}"
+                  + (" --int8" if args.int8 else "")
+                  + (" --golden-from-quantized" if args.golden_from_quantized else "")
+                  + f" --report {args.report}"),
     }
-    pathlib.Path("csrc/export.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
+    pathlib.Path(args.report).write_text(json.dumps(rep, ensure_ascii=False, indent=1))
     print(f"重み  : {meta['n_tensors']:>3} tensor / {meta['bytes']:>9,} B  "
           f"sha256 {meta['sha256'][:16]}…")
+    if args.golden_from_quantized:
+        print(f"golden は fake-quant（{n_faked} テンソルを逆量子化して書き戻し）")
     print(f"golden: {gmeta['n_tensors']:>3} tensor / {gmeta['bytes']:>9,} B  "
           f"「{args.golden_text}」 {len(ids)} ids → {int(d_hat.sum())} frames "
           f"→ {int(pcm.shape[-1])} sample ({pcm.shape[-1]/22050:.3f} s)")

@@ -109,7 +109,7 @@ def _check_write_for(cmd: str, PIPER_PLUS: str) -> None:
         deny(
             f"piper-plus への書き込みリダイレクトを検出しました。\n"
             f"{PIPER_PLUS} は**読み取り専用の依存**です（docs/decisions.md D-003）。\n"
-            f"成果物は saanoTTS-jp 側に書いてください。"
+            f"成果物は sanoTTS-jp 側に書いてください。"
         )
 
     # 破壊的コマンド + piper-plus パス。

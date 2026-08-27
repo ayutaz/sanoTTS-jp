@@ -1,0 +1,11 @@
+cc -std=c99 -O2 -Wall -Wextra  -o golden_test golden_test.c saanotts.c fft.c -lm
+./golden_test student.bin golden.bin
+入力 53 ids / arena 38.66 MB を確保
+arena 実使用 0.97 MB / 106 frames / 27136 sample (1.231 s)
+
+  OK  d_hat 完全一致           53/53
+  OK  out.log_d                Pearson 1.000000  SNR  125.91 dB  max|Δ| 7.227e-07  n=53
+  OK  out.c                    Pearson 1.000000  SNR  131.37 dB  max|Δ| 7.153e-07  n=4240
+  OK  out.pcm                  Pearson 1.000000  SNR  117.50 dB  max|Δ| 5.811e-07  n=27136
+
+参照実装と一致（Pearson >= 0.98）

@@ -1,0 +1,30 @@
+  最悪 W8A32 41.95 dB (acoustic.frame.4.c2.weight) / 最悪 W8A8 39.52 dB (decoder.pw2.2.weight)
+
+== 2c. saan_quantize_w_i8 と scripts/export_c_weights.py の一致 ==
+  OK  int8 値 544292/544292 一致 / scale の不一致 0
+
+== 2b. 実 activation（golden out.c, 40x106）で decoder.inp ==
+  decoder.inp (T=106)  W8A32 47.14 dB   W8A8 44.82 dB
+
+== 3. 速度（このホスト。⚠️ ESP32-S3 では別の順位になる） ==
+shape                      fp32 ns    W8A32 ns     W8A8 ns  A32/f32   A8/f32  f32 ps/M  A32 ps/M   A8 ps/M
+ac  c1 48->48 k5             85590       77780       72120     0.91     0.84      70.1      63.7      59.1
+dec inp 40->76 k3            62195       60545       54210     0.97     0.87      64.3      62.6      56.1
+dec pw1 76->304 k1          155490      163160       95190     1.05     0.61      63.5      66.6      38.9
+dec pw2 304->76 k1          156825      160665       78030     1.02     0.50      64.0      65.6      31.9
+dec hout 48->1539           497165      529090      451650     1.06     0.91      63.5      67.6      57.7
+
+== 3b. 実重みの全 conv 層（T=106 を 1 回ずつ）の合計 ==
+  fp32 3.656 ms / W8A32 3.734 ms (1.02x) / W8A8 3.043 ms (0.83x)
+  MAC の内訳: ksz=1 が 58.3% / ksz>1 が 41.7%
+
+== 4. ブロブのサイズ ==
+  fp32   2249792 B (payload 2236032 B)
+  int8    643936 B (payload 624692 B = int8 544292 + scale 21536 + fp32 58864)
+  payload 比 3.58x / ファイル比 3.49x
+
+== 5. fp32 コア + int8 ブロブ ==
+  OK  必要なテンソルが無い（黙って走らない）
+
+OK: int8 カーネルは逆量子化 fp32 と 100 dB 超で一致
+JSON: ../reports/d3c_int8.json (12347 B)

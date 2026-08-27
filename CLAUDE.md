@@ -4,13 +4,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## プロジェクトの目的
 
-arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpose Microcontroller"
+arXiv:2608.21378 "sanoTTS: The Smallest Real-Time Neural TTS on a General-Purpose Microcontroller"
 のレシピを **日本語**に適用し、piper-plus (MB-iSTFT-VITS2) を教師とした
 蒸留生徒モデルを作る。
 
-論文の公式リポジトリ `github.com/Ampixa/saanotts` は 404 で参照実装が入手できないため、
-**論文本文の数値からの再実装**になる。論文に書かれていないハイパーパラメータ
-（`L_c` の `λ₂, λ_n, λ_Δ, λ_s`）はチューニング対象。
+**公式実装 `github.com/Ampixa/sanoTTS` は存在する（GPL-3.0）。**
+⚠️ 本リポジトリは MIT なので、**そのソースコードを読んでも書き写してもいけない**
+（GPL が伝播して MIT のまま配布できなくなる）。
+数値・ハイパーパラメータ・アーキテクチャ構成は著作権の対象外なので参照してよい。
+
+したがって本リポジトリは**論文本文の数値からの clean-room 再実装**であり、
+論文に書かれていないハイパーパラメータ（`L_c` の `λ₂, λ_n, λ_Δ, λ_s`）はチューニング対象。
+
+⚠️ **かつて「公式リポジトリは 404」と記録していたが、綴り間違い**（`saanotts` ではなく
+`sanoTTS`。sano = ネパール語で「小さい」）**による誤りだった**（C-024）。
+公式実装から得た事実は [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) に集約する。
 
 ## ドキュメントの読み方
 
@@ -22,7 +30,7 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
 | [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-11 と Phase 0〜D |
 | [`docs/vastai-runbook.md`](docs/vastai-runbook.md) | **次のフェーズの手順**。ラベル一括生成 → 本学習 |
 | [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
-| [`docs/research/saanotts-jp-feasibility.md`](docs/research/saanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
+| [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
 **現状（2026-08-27）**: Phase 0 / A / B / C 完了、検証タスク **B-0 〜 B-11 も全部完了**。
@@ -38,6 +46,11 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
 
 ⚠️ **n=24。** 絶対値は日本語で較正されていないので論文の 2.54 と比べない（D-020）。
 
+**アクセント型も再現できている**（M-44 / D-030、n=38 ペア / 15 群）:
+教師ゲート通過 36 ペアで**符号一致 35/36 = 0.972** [0.897, 1.000]、
+3 メンバー群（箸/橋/端・牡蠣/柿/垣）の同定 **4/4**（chance 1/6）。
+⚠️ **chance は 0.5 ではない**（経験的ヌル 0.614）。**聴取は未実施。**
+
 **C99 コアは ESP32-S3 の SRAM に載った**: ストリーミング化で
 **1,258 KB → 197 KB**、一括版と **bit 完全一致**（M-42）。
 **残るのはレイテンシだけ** — `irfft` が naive DFT (O(N²)) なので一度も測っていない。
@@ -48,7 +61,7 @@ uv run python scripts/phase0_verify_teacher.py     # 教師の疎通（6 チェ�
 uv run python scripts/test_losses.py               # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（57 ケース）
+uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（60 ケース）
 make -C csrc test                                  # C99 コアの golden test
 ```
 
@@ -181,6 +194,13 @@ A1/A2/A3 を `prosody_dim=16` で注入しているが、論文の duration stud
 不足なら生徒 duration net に A1/A2/A3 の3スカラーを足す（width 32 なので増分は数百 params）。
 **この良し悪しはアクセント型のミニマルペア（橋/箸/端、雨/飴）を評価セットに入れないと検出できない。**
 
+✅ **記号だけで足りた**（M-44 / D-030）。**A1/A2/A3 の追加は不要**なので D-014 と
+入力仕様 D-010 / D-011 をそのまま維持できる。評価は
+`uv run python scripts/d4_accent_pairs.py --ckpt runs/v2/stage4.pt`（18 秒）。
+⚠️ **「A と B の音が違う」は再現の証拠にならない** — `[` `]` `#` は教師で実フレームを
+持つので、アクセントを無視するモデルでも音は変わる。**判定は必ず教師との向きの一致**
+（`cos > 0`）で行い、**chance を 0.5 と書かない**（経験的ヌル 0.614）。
+
 **摩擦音と無声化母音。** 論文は SCOREQ 4.09 の裏で sibilant が whistly になる欠陥を見逃した
 （音素クラス別の 2–8 kHz スペクトル平坦度で初めて検出: 教師 0.689 → 生徒 0.590）。
 日本語は摩擦音が多いうえ**無声化母音 `A/I/U/E/O` が音響的にほぼ摩擦雑音**で、
@@ -254,13 +274,13 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `student-training` | 生徒・損失・学習ループを触るとき（語彙写像 / iSTFT / λ / PAD） |
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** を deny（**57 ケース**の回帰テスト付き） |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** を deny（**60 ケース**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
 hook を変えたら必ず回帰テストを通すこと（誤検知があると全 Bash が止まる）:
 
 ```bash
-uv run python .claude/hooks/test_guard_bash.py     # 58/58 期待通り
+uv run python .claude/hooks/test_guard_bash.py     # 60/60 期待通り
 ```
 
 ⚠️ **誤検知は 4 回踏んでいる**（C-011 で 3 回、C-020 で 1 回）。C-020 は
@@ -520,14 +540,26 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 
 1. **【次】PIE (SIMD) カーネル。** int8 カーネルは書けたが**移植可能 C** なので、
    ESP32-S3 の PIE を使うには intrinsic かアセンブリが要る。
-   **移植可能 C のままだと 0.93× RT で実時間ぎりぎり**（M-43）
-3. **`β`（式7）の決定。** 候補は β=0 と 2（M-40）。**聴取で決める**（論文も同様）。
+   ⚠️ **この環境に xtensa toolchain が無く、コンパイルすら通せない。**
+   `idf.py` 不在 / `IDF_PATH` 未設定 / `~/.espressif` 無し。**実機と toolchain 待ち**
+2. **`β`（式7）の決定。** 候補は β=0 と 2（M-40）。**聴取で決める**（論文も同様）。
    聴取セットは `reports/listening_beta/` に用意済み（40 試行）。
-   ⚠️ この生徒は **β=0 で既に教師と一致**しており、式7 が要らない可能性が高い
-4. **int8 カーネル（Phase D-3）。** blob は 624,692 B に落ちているが
-   **C コアは fp32 で読んでいる**
-5. **アクセント型の再現性。** ミニマルペア（橋/箸/端、雨/飴）の評価が未実施。
-   **入れないと検出できない**
+   ⚠️ この生徒は **β=0 で既に教師と一致**しており、式7 が要らない可能性が高い。
+   ⚠️ 上流（英語）は **β=6.0** を採用している（`docs/upstream-sanotts.md`）
+3. ~~**int8 カーネル。**~~ **決着した**（M-45）。ブロブ 2,249,792 → 643,936 B（**−71.4%**）、
+   fp32 経路に対し held-out 24 文で平均 **25.88 dB**。
+   ⚠️ **最小 23.27 dB / 9 文が 25 dB 未満**。⚠️ **実行時 RAM は減らない**（W8A32 なので flash だけ）
+4. **DNSMOS を測っていない。** 上流いわく「金属的アーティファクトは SCOREQ で高得点・
+   DNSMOS で低得点」。**現在の指標構成（D-020）では見えない欠陥がありうる**（未検証）
+5. **decoder を教師で初期化していない。** 上流は「from-scratch な sub-400k decoder は
+   死んだクラス」と書くが、うちは 331,308 params をゼロから学習して教師比 0.611 を出している。
+   **噛み合わない**（未検証）
+6. ~~**アクセント型の再現性。**~~ **決着した**（M-44 / D-030）。ミニマルペア 15 群
+   32 語 64 文で、教師ゲート通過 36 ペアの**符号一致 35/36 = 0.972**
+   （CI95 [0.897, 1.000]、経験的ヌル 0.614）、3 メンバー群の同定 **4/4**（chance 1/6）。
+   **記号 `[` `]` `#` だけで足りており、duration net への A1/A2/A3 追加は不要**。
+   残るのは (a) **聴取していない** (b) 2 型の下降核が n=13〜16 でしか測れておらず
+   `]` 単独の AUC（教師 0.6526 / 生徒 0.5895）だけペアコントラストと食い違う
 
 **優先度を下げたもの**: `λ_Δ/λ_s/λ_T` の探索（初期値のまま目標に届いた）/
 1.4 M z-line（上限を測る必要が薄れた）/ 学習の延長（Stage 2 はまだ下がる余地あり）。

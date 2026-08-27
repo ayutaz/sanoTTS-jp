@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Phase 6: 生徒を int8 に量子化し、blob サイズと品質劣化を測る。
 
-論文の方式（`saanoTTS.txt:261-264`）:
+論文の方式（`sanoTTS.txt:261-264`）:
 
 * **symmetric int8 / per-output-channel** の重み
 * activations は per-frame
@@ -33,27 +33,15 @@ import torch.nn as nn
 
 sys.path.insert(0, "src")
 from saanotts_jp._param_reference import Acoustic, Decoder, Duration  # noqa: E402
+from saanotts_jp.ptq import dequantize, quantize_tensor  # noqa: E402
 from saanotts_jp.vocab import V as VOCAB  # noqa: E402
 
 #: fp32 のまま残すもの（論文の指定）
 FP32_KINDS = (nn.Embedding, nn.LayerNorm)
 
 
-def quantize_tensor(w: torch.Tensor) -> tuple[np.ndarray, np.ndarray]:
-    """symmetric int8 / per-output-channel。**出力チャネルは dim 0**。
-
-    scale は fp32 で 1 出力チャネルにつき 1 個持つ（論文の per-output-channel）。
-    """
-    flat = w.reshape(w.shape[0], -1).to(torch.float32)
-    scale = flat.abs().amax(dim=1) / 127.0
-    scale = torch.where(scale == 0, torch.ones_like(scale), scale)
-    q = torch.clamp(torch.round(flat / scale[:, None]), -127, 127).to(torch.int8)
-    return q.numpy(), scale.numpy().astype(np.float32)
-
-
-def dequantize(q: np.ndarray, scale: np.ndarray, shape) -> torch.Tensor:
-    return torch.from_numpy(
-        (q.astype(np.float32) * scale[:, None])).reshape(shape).to(torch.float32)
+# ⚠️ 量子化の規則は `src/saanotts_jp/ptq.py` に一本化した。
+# ここと `scripts/export_c_weights.py` に同じ式を書き写さないこと。
 
 
 def walk(module: nn.Module, prefix: str = ""):

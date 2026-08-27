@@ -1,0 +1,10 @@
+/* ホスト stub — ヒープ計測は意味を持たないので 0 を返す。
+ * ⚠️ **だからホストの数字を「実機の SRAM 実測」と読んではいけない。** */
+#ifndef SAAN_STUB_ESP_HEAP_CAPS_H
+#define SAAN_STUB_ESP_HEAP_CAPS_H
+#include <stddef.h>
+#define MALLOC_CAP_INTERNAL 0x1
+#define MALLOC_CAP_8BIT     0x2
+static inline size_t heap_caps_get_free_size(unsigned c) { (void)c; return 0; }
+static inline size_t heap_caps_get_largest_free_block(unsigned c) { (void)c; return 0; }
+#endif

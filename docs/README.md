@@ -1,6 +1,6 @@
-# saanoTTS-jp ドキュメント
+# sanoTTS-jp ドキュメント
 
-arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32 上で動く
+arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 上で動く
 日本語 TTS** を作るプロジェクトの調査・設計・実測記録。
 
 ## 読む順序
@@ -9,16 +9,19 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-029 と**訂正履歴 C-001〜C-023** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-43。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-030 と**訂正履歴 C-001〜C-024** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-48。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-11 の検証タスクと Phase 0〜D の状態 | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
+| 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | **vast.ai 実行手順**。ラベル一括生成 → 本学習。教師の同一性照合とゲート | 実行時 |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
-| 5 | [`research/saanotts-jp-feasibility.md`](research/saanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
+| 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
-**数値が食い違ったら [`measurements.md`](measurements.md) が正**。他のドキュメントは
-そこからの引用または解釈として扱う。
+**数値が食い違ったら [`measurements.md`](measurements.md) が正**。
+他のドキュメントはそこからの引用または解釈として扱う。
+
+⚠️ 例外は [`upstream-sanotts.md`](upstream-sanotts.md)。**あれは上流の申告値であって、うちの実測ではない。** M-番号と混ぜないこと。
 
 ## 現在地（2026-08-27 時点）
 
@@ -47,7 +50,12 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 [完了] Phase D-1            C99 コア。Pearson 1.000000 / SNR 117.5 dB（M-41）
 [完了] Phase D-2            **ストリーミング化。1,258→196.9 KB で SRAM に載った**（M-42）
 [完了] Phase D-3a/b/c       FFT 1,435 倍 / 手元 **0.023× RT** / int8 カーネル（M-43）
-[次]   Phase D-3c'          **PIE 最適化。fp32 のままだと ESP32 で 2.47× RT（間に合わない）**
+[完了] Phase D-3c'-1/2      **int8 end-to-end**。fp32 比 平均 25.88 dB / ブロブ −71.4%（M-45）
+[完了] Phase D-3c'-4        ESP-IDF 雛形。⚠️ **一度もビルドしていない**（toolchain 不在）（M-46）
+[完了] D-4                  アクセント型ミニマルペア。符号一致 35/36 で**再現している**（M-44）
+[完了] B-12                 教師の事前学習との重複検査。**看板の 24 文は汚染ゼロ**（M-47）
+[完了] 敵対的検証            空虚に通るゲート 2 件 + silent failure 1 件を修正（M-48）
+[次]   Phase D-3c'-3        **PIE 最適化。⚠️ xtensa toolchain が無くコンパイルも通せない**
 [未]   Phase D-3d           実機測定（ハードウェア待ち）
 ```
 
@@ -92,7 +100,10 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
    ⚠️ ただし fp32。int8 カーネルにすればさらに減る
 3. **`β`（式7）** — **聴取で決める。** 候補は β=0 と 2（M-40）。
    ⚠️ この生徒は β=0 で既に教師と一致しており、**式7 が要らない可能性が高い**
-4. **アクセント型の再現性** — ⚠️ ミニマルペア（橋/箸/端）の評価が未実施
+4. ~~アクセント型の再現性~~ — ✅ **符号一致 35/36 = 0.972**（M-44 / D-030、
+   ミニマルペア 15 群 32 語 64 文）。**記号 `[` `]` `#` だけで足りており、
+   duration net への A1/A2/A3 追加は不要**。
+   ⚠️ 聴取は未実施 / 2 型の下降核は n=13〜16 でしか測れていない
 
 **品質は目標に届いた**（SCOREQ 教師比 0.611 > 論文の英語比 0.5427、M-37）。
 ⚠️ ただし **n=24** で、絶対値は日本語で較正されていない。聴取も未実施。
@@ -101,19 +112,20 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 ## リポジトリ構成
 
 ```
-saanoTTS-jp/
+sanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-025 + 訂正履歴 C-001〜C-021
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-34
+│   ├── decisions.md                       決定記録 D-001〜D-030 + 訂正履歴 C-001〜C-024
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-48
+│   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（次のフェーズ）
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/phase-a-decisions.md          Phase A の決定
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
-│       └── saanotts-jp-feasibility.md     初期調査
+│       └── sanotts-jp-feasibility.md     初期調査
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
@@ -122,6 +134,7 @@ saanoTTS-jp/
 │   ├── labelpack.py                       ラベルパックの読み書き + 13 ゲート
 │   ├── durations.py                       全行 duration の読み込み
 │   ├── flatness.py                        音素クラス別 SFM（設定と教師ベースラインを凍結）
+│   ├── accent.py                          アクセント型ミニマルペア評価（設定を凍結・D-030）
 │   ├── scoreq_metric.py                   SCOREQ ラッパ（torchcodec 回避）
 │   └── teacher_identity.py                piper-plus のコミット / ソース SHA-256 のピン留め
 ├── csrc/                                  **C99 推論コア（Phase D）**
@@ -141,7 +154,7 @@ saanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（57 ケースのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（60 ケースのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                          student-training / evaluating-quality / verifying-reports
 ├── reports/                               一次データ (JSON)。⚠️ 全行ダンプは追跡しない
@@ -191,7 +204,7 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器（10 �
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（57 ケース）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（60 ケース）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 
 # C99 推論コア（Phase D）

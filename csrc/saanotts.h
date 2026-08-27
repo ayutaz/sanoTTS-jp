@@ -1,4 +1,4 @@
-/* saanoTTS-jp 推論コア（C99 / 依存なし）
+/* sanoTTS-jp 推論コア（C99 / 依存なし）
  *
  * 論文 arXiv:2608.21378 の 3 段構成をそのまま実装する:
  *
@@ -59,6 +59,15 @@ typedef struct {
     uint8_t *buf;
     size_t size;
     size_t used;
+    /* 高水位。`used` は mark/rollback で戻るので、**一時確保を見落とさない**
+     * ためにこちらで測る（W8A8 の activation 作業領域がそれ）。init で 0 に戻る */
+    size_t peak;
+    /* **粘着する失敗フラグ。** 一度でも確保に失敗したら以降の `saan_alloc` は
+     * 必ず NULL を返す。これが無いと「大きい確保だけ失敗して、後続の小さい
+     * 確保は成功する」ため、**呼び出し側が最後の 1 個しか NULL 検査していないと
+     * init が成功を返したまま NULL を抱える**（実際に踏んだ。arena 175〜191 KB の
+     * 15 サイズで再現）。ESP32 では「ログ無しで再起動」に化ける */
+    int failed;
 } saan_arena;
 
 /* 1 発話の中間結果へのポインタ（すべて arena 上） */
@@ -91,6 +100,17 @@ size_t saan_arena_needed(int32_t n_ids);
 saan_status saan_synthesize(const saan_weights *w, saan_arena *a,
                             const int32_t *ids, int32_t n_ids,
                             float s_v, saan_output *out);
+
+/* `d_fixed` に [n_ids] の d̂ を渡すと duration の推定を**上書き**する（NULL なら内部計算）。
+ *
+ * ⚠️ **測定専用の入口**。fp32 と int8 で d̂ が 1 トークンでもずれるとフレーム数が
+ * 変わり、波形 SNR が定義できなくなる（held-out 24 文中 15 文でずれる）。
+ * 「SNR が出ない = 実装バグ」と誤読しないため、比較時は fp32 側の d̂ に固定する。
+ * `log_d` は上書きしても計算する（どれだけずれたかを見るため）。
+ * 本番は `saan_synthesize`（= これに NULL を渡す薄いラッパ）を使う。 */
+saan_status saan_synthesize_d(const saan_weights *w, saan_arena *a,
+                              const int32_t *ids, int32_t n_ids, float s_v,
+                              const int32_t *d_fixed, saan_output *out);
 
 const char *saan_strerror(saan_status s);
 

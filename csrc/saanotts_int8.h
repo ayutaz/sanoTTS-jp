@@ -1,4 +1,4 @@
-/* saanoTTS-jp int8 カーネル（C99 / 依存は libm のみ）
+/* sanoTTS-jp int8 カーネル（C99 / 依存は libm のみ）
  *
  * 方式（論文 §II-C / M-39 のシミュレーションと同一）:
  *   - 重み  : **symmetric int8 / per-output-channel**。scale[o] = max|W[o,:,:]| / 127

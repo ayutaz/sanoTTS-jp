@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import glob
 import json
+import os
 import platform
 import subprocess
 import sys
@@ -78,8 +79,10 @@ CLASS_NAMES_EXT = CLASS_NAMES + ["fricative_noz"]
 
 
 def build_id2tok() -> dict[int, str]:
-    hits = glob.glob("~/.cache/huggingface/hub/"
-                     "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")
+    # ⚠️ glob は `~` を展開しない
+    hits = glob.glob(os.path.expanduser(
+        "~/.cache/huggingface/hub/"
+        "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"))
     if not hits:
         raise SystemExit("教師 ckpt スナップショットが HF キャッシュに無い")
     pim = json.load(open(hits[0] + "config.json"))["phoneme_id_map"]

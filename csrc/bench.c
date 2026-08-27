@@ -130,7 +130,31 @@ typedef struct {
     /* iSTFT */
     float *mag, *cosv, *sinv, *re, *im, *frm, *win, *ola, *olw, *pop;
     int ola_len;
+    /* W8A8（`-DSAAN_INT8_ACT=1`）のときだけ使う activation の作業領域。
+     * W8A32（既定）では 1 バイトも触られない */
+    saan_arena wa;
 } work_t;
+
+/* ⚠️ **NULL を黙って conv に渡さない。** int8 ブロブを渡すと `saan_tf` が
+ * dtype 1 に NULL を返すので、以前はここで落ちていた（D-3c' の照合で発覚）。
+ * ベンチは正しさを測る場ではないが、**黙って別物を測るのが一番まずい**ので
+ * 引けなかったら止める */
+#define BNEED(p, nm) do { if (!(p)) { \
+        fprintf(stderr, "重みが引けない: %s\n", (nm)); exit(1); } } while (0)
+
+static void bconv(float *y, const float *x, saan_wref W, const float *b,
+                  int cin, int cout, int ksz, int T, saan_arena *a, const char *nm) {
+    if (!SAAN_W_OK(W)) { fprintf(stderr, "重みが引けない: %s\n", nm); exit(1); }
+    const saan_status st = saan_conv1d_w(y, x, W, b, cin, cout, ksz, T, a);
+    if (st != SAAN_OK) { fprintf(stderr, "%s: %s\n", nm, saan_strerror(st)); exit(1); }
+}
+
+static void bdw(float *y, const float *x, saan_wref W,
+                int ch, int ksz, int T, saan_arena *a, const char *nm) {
+    if (!SAAN_W_OK(W)) { fprintf(stderr, "重みが引けない: %s\n", nm); exit(1); }
+    const saan_status st = saan_dwconv1d_w(y, x, W, ch, ksz, T, a);
+    if (st != SAAN_OK) { fprintf(stderr, "%s: %s\n", nm, saan_strerror(st)); exit(1); }
+}
 
 static float *fz(size_t n) {
     float *p = (float *)calloc(n, sizeof(float));
@@ -183,6 +207,10 @@ static void work_init(work_t *k) {
     k->ola  = fz((size_t)k->ola_len);
     k->olw  = fz((size_t)k->ola_len);
     k->pop  = fz((size_t)HOP);
+    {   /* W8A8 の作業領域。最大は decoder.pw2（cin=304）を窓幅 16 で見た分 */
+        const size_t wa = saan_act_scratch_needed(DECE, AC_W_BUF) + 4096;
+        saan_arena_init(&k->wa, wa ? malloc(wa) : NULL, wa);
+    }
     for (int i = 0; i < NFFT; ++i)
         k->win[i] = 0.5f - 0.5f * cosf(2.0f * (float)M_PI * (float)i / (float)NFFT);
     /* cos/sin は [-1,1] に収める（本物の decoder 出力と同じレンジ） */
@@ -212,43 +240,48 @@ static void mb_acoustic(const saan_weights *w, work_t *k) {
     const int W = AC_W_BUF;
     float *a = k->ac_a, *b = k->ac_b;
     for (int bi = 0; bi < 5; ++bi) {
-        const float *c1w = saan_tf(w, "acoustic.frame.%d.c1.weight", bi);
+        const saan_wref c1w = saan_w(w, "acoustic.frame.%d.c1.weight", bi);
         const float *c1b = saan_tf(w, "acoustic.frame.%d.c1.bias", bi);
-        const float *c2w = saan_tf(w, "acoustic.frame.%d.c2.weight", bi);
+        const saan_wref c2w = saan_w(w, "acoustic.frame.%d.c2.weight", bi);
         const float *c2b = saan_tf(w, "acoustic.frame.%d.c2.bias", bi);
         const float *ng  = saan_tf(w, "acoustic.frame.%d.norm.weight", bi);
         const float *nb  = saan_tf(w, "acoustic.frame.%d.norm.bias", bi);
+        BNEED(c1b, "acoustic.frame.c1.bias"); BNEED(c2b, "acoustic.frame.c2.bias");
+        BNEED(ng, "acoustic.frame.norm.weight"); BNEED(nb, "acoustic.frame.norm.bias");
         bpush(k->ac_buf, ACW, W, a);
-        saan_conv1d(k->ac_f1, k->ac_buf, c1w, c1b, ACW, ACW, 5, W);
+        bconv(k->ac_f1, k->ac_buf, c1w, c1b, ACW, ACW, 5, W, &k->wa, "acoustic.frame.c1");
         saan_relu(k->ac_f1, (size_t)ACW * W);
-        saan_conv1d(k->ac_f2, k->ac_f1, c2w, c2b, ACW, ACW, 5, W);
+        bconv(k->ac_f2, k->ac_f1, c2w, c2b, ACW, ACW, 5, W, &k->wa, "acoustic.frame.c2");
         saan_layernorm_c(k->ac_f2, ng, nb, ACW, W);
         for (size_t i = 0; i < (size_t)ACW * W; ++i) k->ac_f2[i] += k->ac_buf[i];
         bcenter(k->ac_f2, ACW, W, AC_PAD, b);
         float *t = a; a = b; b = t;
     }
-    const float *ow = saan_tf(w, "acoustic.out.weight");
-    saan_conv1d(k->c_cur, a, ow, NULL, ACW, CD, 1, CH);
+    const saan_wref ow = saan_w(w, "acoustic.out.weight");
+    bconv(k->c_cur, a, ow, NULL, ACW, CD, 1, CH, &k->wa, "acoustic.out");
 }
 
 /* --- 段別: token block（1 チャンク。span はチャンクごとに違う） ------------ */
 static void mb_token(const saan_weights *w, work_t *k, int span) {
     const int n = span + 2 * TOK_HALO;
     for (int bi = 0; bi < 3; ++bi) {
-        const float *c1w = saan_tf(w, "acoustic.token.%d.c1.weight", bi);
+        const saan_wref c1w = saan_w(w, "acoustic.token.%d.c1.weight", bi);
         const float *c1b = saan_tf(w, "acoustic.token.%d.c1.bias", bi);
-        const float *c2w = saan_tf(w, "acoustic.token.%d.c2.weight", bi);
+        const saan_wref c2w = saan_w(w, "acoustic.token.%d.c2.weight", bi);
         const float *c2b = saan_tf(w, "acoustic.token.%d.c2.bias", bi);
         const float *ng  = saan_tf(w, "acoustic.token.%d.norm.weight", bi);
         const float *nb  = saan_tf(w, "acoustic.token.%d.norm.bias", bi);
-        saan_conv1d(k->tk_w1, k->tk_h, c1w, c1b, ACW, ACW, 5, n);
+        BNEED(c1b, "acoustic.token.c1.bias"); BNEED(c2b, "acoustic.token.c2.bias");
+        BNEED(ng, "acoustic.token.norm.weight"); BNEED(nb, "acoustic.token.norm.bias");
+        bconv(k->tk_w1, k->tk_h, c1w, c1b, ACW, ACW, 5, n, &k->wa, "acoustic.token.c1");
         saan_relu(k->tk_w1, (size_t)ACW * n);
-        saan_conv1d(k->tk_w2, k->tk_w1, c2w, c2b, ACW, ACW, 5, n);
+        bconv(k->tk_w2, k->tk_w1, c2w, c2b, ACW, ACW, 5, n, &k->wa, "acoustic.token.c2");
         saan_layernorm_c(k->tk_w2, ng, nb, ACW, n);
         for (size_t x = 0; x < (size_t)ACW * n; ++x) k->tk_w2[x] += k->tk_h[x];
         memcpy(k->tk_h, k->tk_w2, sizeof(float) * (size_t)ACW * n);
     }
     const float *pos = saan_tf(w, "acoustic.pos.weight");
+    BNEED(pos, "acoustic.pos.weight");
     for (int m = 0; m < CH; ++m)
         for (int c = 0; c < ACW; ++c)
             k->ac_a[(size_t)c * CH + m] =
@@ -257,11 +290,12 @@ static void mb_token(const saan_weights *w, work_t *k, int span) {
 
 /* --- 段別: decoder（1 チャンク。iSTFT は含まない） ------------------------- */
 static void mb_decoder(const saan_weights *w, work_t *k) {
-    const float *iw = saan_tf(w, "decoder.inp.weight");
+    const saan_wref iw = saan_w(w, "decoder.inp.weight");
     const float *ib = saan_tf(w, "decoder.inp.bias");
+    BNEED(ib, "decoder.inp.bias");
     bpush(k->dinp_buf, CD, DINP_W_BUF, k->c_cur);
     bpush(k->cdel0,    CD, DINP_W_BUF, k->c_cur);
-    saan_conv1d(k->w_g, k->dinp_buf, iw, ib, CD, DECW, 3, DINP_W_BUF);
+    bconv(k->w_g, k->dinp_buf, iw, ib, CD, DECW, 3, DINP_W_BUF, &k->wa, "decoder.inp");
     for (int ch = 0; ch < DECW; ++ch)
         memcpy(k->h + (size_t)ch * CH,
                k->w_g + (size_t)ch * DINP_W_BUF + DINP_PAD, sizeof(float) * CH);
@@ -269,25 +303,28 @@ static void mb_decoder(const saan_weights *w, work_t *k) {
 
     const int W = DBLK_W_BUF;
     for (int i = 0; i < 5; ++i) {
-        const float *dw  = saan_tf(w, "decoder.dw.%d.weight", i);
-        const float *p1w = saan_tf(w, "decoder.pw1.%d.weight", i);
+        const saan_wref dw  = saan_w(w, "decoder.dw.%d.weight", i);
+        const saan_wref p1w = saan_w(w, "decoder.pw1.%d.weight", i);
         const float *p1b = saan_tf(w, "decoder.pw1.%d.bias", i);
-        const float *p2w = saan_tf(w, "decoder.pw2.%d.weight", i);
+        const saan_wref p2w = saan_w(w, "decoder.pw2.%d.weight", i);
         const float *p2b = saan_tf(w, "decoder.pw2.%d.bias", i);
-        const float *cdw = saan_tf(w, "decoder.cdown.%d.weight", i);
+        const saan_wref cdw = saan_w(w, "decoder.cdown.%d.weight", i);
         const float *cdb = saan_tf(w, "decoder.cdown.%d.bias", i);
-        const float *cuw = saan_tf(w, "decoder.cup.%d.weight", i);
+        const saan_wref cuw = saan_w(w, "decoder.cup.%d.weight", i);
         const float *cub = saan_tf(w, "decoder.cup.%d.bias", i);
         const float *gm  = saan_tf(w, "decoder.gamma.%d", i);
+        BNEED(p1b, "decoder.pw1.bias"); BNEED(p2b, "decoder.pw2.bias");
+        BNEED(cdb, "decoder.cdown.bias"); BNEED(cub, "decoder.cup.bias");
+        BNEED(gm, "decoder.gamma");
         bpush(k->dblk[i], DECW, W, k->h);
         bpush(k->cdel[i], CD,   W, k->c_sync);
-        saan_conv1d(k->w_r, k->cdel[i], cdw, cdb, CD, DECR, 1, W);
-        saan_conv1d(k->w_g, k->w_r, cuw, cub, DECR, DECW, 1, W);
-        saan_dwconv1d(k->w_full, k->dblk[i], dw, DECW, 7, W);
+        bconv(k->w_r, k->cdel[i], cdw, cdb, CD, DECR, 1, W, &k->wa, "decoder.cdown");
+        bconv(k->w_g, k->w_r, cuw, cub, DECR, DECW, 1, W, &k->wa, "decoder.cup");
+        bdw(k->w_full, k->dblk[i], dw, DECW, 7, W, &k->wa, "decoder.dw");
         for (size_t x = 0; x < (size_t)DECW * W; ++x) k->w_full[x] += k->w_g[x];
-        saan_conv1d(k->w_e, k->w_full, p1w, p1b, DECW, DECE, 1, W);
+        bconv(k->w_e, k->w_full, p1w, p1b, DECW, DECE, 1, W, &k->wa, "decoder.pw1");
         saan_gelu(k->w_e, (size_t)DECE * W);
-        saan_conv1d(k->w_full2, k->w_e, p2w, p2b, DECE, DECW, 1, W);
+        bconv(k->w_full2, k->w_e, p2w, p2b, DECE, DECW, 1, W, &k->wa, "decoder.pw2");
         for (size_t x = 0; x < (size_t)DECW * W; ++x)
             k->w_full2[x] = k->dblk[i][x] + gm[0] * k->w_full2[x];
         bcenter(k->w_full2, DECW, W, DBLK_PAD, k->h_tmp);
@@ -295,13 +332,14 @@ static void mb_decoder(const saan_weights *w, work_t *k) {
         memcpy(k->h, k->h_tmp, sizeof(float) * (size_t)DECW * CH);
         memcpy(k->c_sync, k->c_tmp, sizeof(float) * (size_t)CD * CH);
     }
-    const float *hdw = saan_tf(w, "decoder.hdown.weight");
+    const saan_wref hdw = saan_w(w, "decoder.hdown.weight");
     const float *hdb = saan_tf(w, "decoder.hdown.bias");
-    const float *how = saan_tf(w, "decoder.hout.weight");
+    const saan_wref how = saan_w(w, "decoder.hout.weight");
     const float *hob = saan_tf(w, "decoder.hout.bias");
-    saan_conv1d(k->hr, k->h, hdw, hdb, DECW, SAAN_DEC_HEAD, 1, CH);
+    BNEED(hdb, "decoder.hdown.bias"); BNEED(hob, "decoder.hout.bias");
+    bconv(k->hr, k->h, hdw, hdb, DECW, SAAN_DEC_HEAD, 1, CH, &k->wa, "decoder.hdown");
     saan_gelu(k->hr, (size_t)SAAN_DEC_HEAD * CH);
-    saan_conv1d(k->o1539, k->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH);
+    bconv(k->o1539, k->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH, &k->wa, "decoder.hout");
 }
 
 /* --- 段別: iSTFT（1 フレーム = 逆実 FFT + overlap-add + 1 hop 取り出し） ----
@@ -568,7 +606,7 @@ int main(int argc, char **argv) {
     const char *names[3] = { "short", "medium", "long" };
     case_t cases[3];
 
-    printf("saanoTTS-jp D-3b レイテンシ測定\n");
+    printf("sanoTTS-jp D-3b レイテンシ測定\n");
     printf("  host label : %s\n", label);
     printf("  compiler   : %s\n", __VERSION__);
     printf("  weights    : %s (%zu B, %u tensors)\n", wpath, wsz, W.n_tensors);
@@ -613,8 +651,16 @@ int main(int argc, char **argv) {
         fprintf(f, "  \"compiler\": \"%s\",\n", __VERSION__);
         fprintf(f, "  \"cflags\": \"-std=c99 -O2 -Wall -Wextra\",\n");
         fprintf(f, "  \"clock\": \"clock_gettime(CLOCK_MONOTONIC)\",\n");
-        fprintf(f, "  \"weights\": {\"path\": \"%s\", \"bytes\": %zu, \"n_tensors\": %u, \"dtype\": \"fp32\"},\n",
-                wpath, wsz, W.n_tensors);
+        /* ⚠️ dtype はブロブから読む。以前ここが文字列リテラルの "fp32" だったため、
+         * int8 ブロブの計測結果が JSON 上は fp32 と記録されていた（検証で発覚）。 */
+        {
+            uint32_t probe_dt = 99u;
+            const char *dt_name = "unknown";
+            if (saan_tensor(&W, "duration.blocks.0.c1.weight", &probe_dt, NULL, NULL))
+                dt_name = (probe_dt == 0u) ? "fp32" : (probe_dt == 1u) ? "int8-w8a32" : "other";
+            fprintf(f, "  \"weights\": {\"path\": \"%s\", \"bytes\": %zu, \"n_tensors\": %u, \"dtype\": \"%s\"},\n",
+                    wpath, wsz, W.n_tensors, dt_name);
+        }
         fprintf(f, "  \"sample_rate\": %d, \"hop\": %d, \"n_fft\": %d, \"chunk_frames\": %d,\n",
                 SAAN_SR, HOP, NFFT, CH);
         fprintf(f, "  \"reps_total\": %d, \"reps_stage\": %d, \"warmup\": 1,\n", reps, OUTER);

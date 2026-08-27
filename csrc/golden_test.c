@@ -106,10 +106,13 @@ int main(int argc, char **argv) {
             }
     }
 
-    struct { const char *name; const float *got; size_t n; double min_r; } chk[] = {
-        {"out.log_d", out.log_d, (size_t)n_ids, 0.98},
-        {"out.c", out.c, (size_t)SAAN_CDIM * out.n_frames, 0.98},
-        {"out.pcm", out.pcm, (size_t)out.n_samples, 0.98},
+    /* ⚠️ Pearson だけで判定してはいけない。Pearson はスケールとオフセットに
+     * 不変なので、層を 1 つ落としても 0.98 を超えることがある（検証で実証済み）。
+     * SNR を必ず併せて見る。しきい値は「桁が違えば落ちる」水準に置く。 */
+    struct { const char *name; const float *got; size_t n; double min_r; double min_snr; } chk[] = {
+        {"out.log_d", out.log_d, (size_t)n_ids, 0.98, 40.0},
+        {"out.c", out.c, (size_t)SAAN_CDIM * out.n_frames, 0.98, 40.0},
+        {"out.pcm", out.pcm, (size_t)out.n_samples, 0.98, 40.0},
     };
     for (size_t i = 0; i < sizeof chk / sizeof chk[0]; ++i) {
         const float *ref = get(&G, chk[i].name, &nb);
@@ -121,13 +124,17 @@ int main(int argc, char **argv) {
             continue;
         }
         cmp_t c = compare(chk[i].got, ref, rn);
-        const int ok = c.pearson >= chk[i].min_r;
+        const int ok_r = c.pearson >= chk[i].min_r;
+        const int ok_s = c.snr_db >= chk[i].min_snr;
+        const int ok = ok_r && ok_s;
         bad += !ok;
-        printf("  %s %-24s Pearson %.6f  SNR %7.2f dB  max|Δ| %.3e  n=%zu\n",
-               ok ? "OK " : "NG!", chk[i].name, c.pearson, c.snr_db, c.max_abs, rn);
+        printf("  %s %-24s Pearson %.6f  SNR %7.2f dB  max|Δ| %.3e  n=%zu%s\n",
+               ok ? "OK " : "NG!", chk[i].name, c.pearson, c.snr_db, c.max_abs, rn,
+               ok ? "" : (!ok_r ? "  ← Pearson 不足" : "  ← SNR 不足"));
     }
 
-    printf("\n%s\n", bad ? "一致しない項目がある" : "参照実装と一致（Pearson >= 0.98）");
+    printf("\n%s\n", bad ? "一致しない項目がある"
+                          : "参照実装と一致（Pearson >= 0.98 かつ SNR >= 40 dB）");
     free(wbuf); free(gbuf); free(abuf); free(ids);
     return bad ? 1 : 0;
 }
