@@ -130,6 +130,8 @@ model.dec.remove_weight_norm()   # ← 必ず EMA 適用の「後」
 
 `remove_weight_norm()` が `weight_g`/`weight_v` を融合してしまうため**順序が逆だと効かない**。
 適用有無で `yT` の SNR は 12.53 dB（`zT` / `dT` は bit 一致）。
+⚠️ **この 12.53 dB は n=1・intersperse padding 無しの退化入力での値**。
+実文では **14.48 dB (n=24) / 14.65 dB (n=59)**、最小 13.53 dB（C-017 / M-33）。
 
 ---
 
@@ -183,7 +185,8 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 ```
 
 **`language_id_map` を渡すと multilingual に auto-promote され、トークン間に `_` の
-intersperse padding が入る**（`len(ids) ≒ 2*tokens + 3`）。これを飛ばすと発話が約 2.4 倍速になる
+intersperse padding が入る**（⚠️ 厳密には `2*n_phonemes + 3 + PAD音素数`。C-019 / M-23）。
+これを飛ばすと発話が約 2.4 倍速になる
 （M-5 参照）。
 
 ### M-4.2 音素表の3つの落とし穴

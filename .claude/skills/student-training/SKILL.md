@@ -106,13 +106,46 @@ from saanotts_jp.labelpack import PackReader
   実測の裏付けは無い。`L_adv` が発散したら `norm="weight"` を試す
 - 立ち上がりに 100〜200 step かかるのは正常。60 step で gap が出なくても壊れていない
 
-## 学習を回す前に
+## 6. 「損失が下がった」は成果物が出来た証明ではない
+
+旧実装は**スモークテスト全通過なのに本学習に使えなかった**（C-022）:
+重みを保存せず、段の間で引き継がず、Stage 3/4 が `Aβ` を使わず
+（predicted-code mixing の代理がガウスノイズ）、式3 の統計がダミーだった。
+**どの欠陥も損失を下げる。** むしろ引き継がないほうが初期損失が高く、下げ幅が大きく見える。
+
+判定に入れること:
+
+- Stage 4 の ckpt で**デプロイ対象 3 つが揃い、合計 559,008 と一致する**ことを assert
+- 前段の ckpt が無ければ**止める**（黙って新規初期化しない）
+- **held-out での検証損失**を並記する
+- `c_rank` / `c_std` を毎回ログに出す（`Eρ` の自明解の監視、D-028）
+
+## `Eρ` の扱い（論文に無い / D-028）
+
+`c` の意味を決めるのは decoder であって `Eρ` 単独ではない。Stage 2 で両方を
+自由に動かすと**両方が定数を出す自明解**がある。
+
+| Stage | `Eρ` |
+|---|---|
+| 2 | **凍結**。`Aβ` だけが追う |
+| 3 | **学習**。decoder と一緒に動かして `c` の意味を決める |
+| 4 | 凍結。`Aβ` が追い直す（式6 の第 2 項がアンカー） |
+
+`c_rank` が下がり続けるなら潰れている。別案（再構成損失を足す / 順序を変える）は未検証。
+
+## 学習を回す
 
 ```bash
-uv run python scripts/train_student.py --pack data/pack_sibdense --smoke
+uv run python scripts/train_student.py --run runs/v1 --all --steps 20000
+uv run python scripts/synthesize_student.py --ckpt runs/v1/stage4.pt \
+    --texts data/splits/corpus_heldout.tsv --limit 24 --out reports/student_wav
 ```
 
-⚠️ **スモークは「回ること」の確認であって品質の確認ではない。**
-12 step では何も学習していない。損失が下がったことを品質の根拠に書かない。
+**手元の M4 Max で完結する**（D-027。ラベル生成は CPU で 40 分、学習は MPS で約 1.3 時間）。
+ラベル生成に MPS を使わないのは CPU と bit 一致しないため（M-21）。
 
-**ローカルで本学習しない**（D-012）。vast.ai の手順は `docs/vastai-runbook.md`。
+⚠️ **スモークは「回ること」の確認であって品質の確認ではない。**
+損失が下がったことを品質の根拠に書かない。
+
+⚠️ **合成には教師を呼ばない。** `synthesize_student.py` は生徒だけで動く。
+ここで教師を混ぜると評価が意味を失う。

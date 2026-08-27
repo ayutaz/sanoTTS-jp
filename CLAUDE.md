@@ -26,8 +26,8 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
 **現状（2026-08-27）**: Phase 0 / A / B / C の実装と、検証タスク **B-0 〜 B-11 が全部完了**。
-設計値は D-016 〜 D-025 として凍結してある。
-**次は vast.ai での本番ラベル生成と本学習**（[`docs/vastai-runbook.md`](docs/vastai-runbook.md)）。
+設計値は D-016 〜 D-028 として凍結してある。
+**本番ラベル生成と本学習は手元の M4 Max で行う**（D-027。vast.ai は不要だった）。
 
 ```bash
 uv sync --extra eval
@@ -78,7 +78,7 @@ out = model.infer(x, x_lengths,
                   noise_scale=0.0,         # z_p = m_p になる
                   noise_scale_w=0.0,       # SDP が決定的になる
                   length_scale=1.0,
-                  prosody_features=prosody,  # 実 A1/A2/A3。ゼロ埋めは別物になる
+                  prosody_features=torch.zeros(1, len(ids), 3),  # D-014。下記
                   speaker_embeddings=None)   # ← None。理由は下記
 ```
 
@@ -91,11 +91,18 @@ out = model.infer(x, x_lengths,
 (decay 0.9995 / num_updates 11000 / shadow 53 params) は `load_state_dict` では適用されない。
 `piper_train.export_onnx.apply_ema_shadow_params(model.dec, ...)` を
 **`remove_weight_norm()` より前に**呼ぶ（`remove_weight_norm()` が weight_g/weight_v を
-融合してしまうため）。適用有無で `yT` の SNR は 12.53 dB しかない（`zT` / `dT` は bit 一致）。
+融合してしまうため）。適用有無で `yT` の SNR は **14.5 dB** しかない
+（`zT` / `dT` は bit 一致）。**適用件数を assert すること** —
+`applied == len(shadow) and skipped == 0`。順序を間違えると 53 個中 23 個だけ当たり、
+**EMA が半分載った第三の重み**になる（D-023）。
 
-**`prosody_features` にゼロテンソルを渡すのは「prosody 無し」ではない。**
-`prosody_proj(0) = bias`（非ゼロ）が concat されるため、None / ゼロ / 実 prosody で
-総フレーム数が 3 通りとも変わる。ラベル生成では必ず実 A1/A2/A3 を渡す。
+**`prosody_features` は本プロジェクトでは一律ゼロ**（D-014）。デバイスは A1/A2/A3 を
+供給できないので、教師と生徒の条件を揃える。held-out 24 文の UTMOS は
+実 prosody 1.730 / zeros 1.740 で**有意差なし (p=0.72)**。
+
+⚠️ **ゼロは「prosody 無し」ではない。** `prosody_proj(0) = bias`（非ゼロ）が
+concat されるため、None / ゼロ / 実 prosody で総フレーム数が 3 通りとも変わる。
+**3 つのうちどれかで一貫させる**という決定であって、ゼロが中立なのではない。
 
 **チャネルごとの `μ_T`, `σ_T` をラベルパックと一緒に保存すること。**
 `L_c` のチャネル正規化項と、推論時の摩擦音ノイズ注入 `σT_k` の両方で必要になる。
@@ -142,9 +149,10 @@ TTS に必要なのは **読み・アクセント型・アクセント結合規�
 | 30,000 | 3.7 MB | 〜1.8 MB |
 | 60,000 | 7.5 MB | 〜3.7 MB |
 
-ESP32-S3 (16 MB flash) はアプリ + IDF を引いても 12 MB 前後残るので、**数 MB の TTS 特化辞書は
-物理的に載る**。⚠️ ただし上表は平均バイト数からの線形概算で、darts trie は線形には縮まない。
-**実際に枝刈り辞書をビルドしてサイズと未知語率を実測すること**（計画書の最優先タスク）。
+⚠️ **この路線は B-0 で不成立と判定済み**（D-009）。枝刈り辞書を実際にビルドすると
+線形概算の **1.50〜2.74 倍**になり（C-009）、必要精度を出すには 40 MiB 要った。
+**解決したのは辞書ではなく入力仕様の変更**（下記「入力仕様」節、端末側 1,786 B）。
+上の表は「なぜ辞書路線を捨てたか」の記録として残してある。
 
 **ピッチアクセント。** piper-plus の日本語 duration predictor は OpenJTalk の
 A1/A2/A3 を `prosody_dim=16` で注入しているが、論文の duration student は音素IDしか見ない。
@@ -257,25 +265,32 @@ uv add <pkg>                  # 依存追加（pip install しない）
 環境差の影響は実測済み。piper-plus venv (py3.13.9/torch2.11) と
 uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する（M-15）。
 
-### 学習は vast.ai で行う
+### 学習とラベル生成は手元の M4 Max で行う（D-027）
 
-ローカル（macOS / MPS）では学習しない。
+実測すると手元で完結する。**vast.ai は不要**（D-012 の実行環境部分を撤回）。
 
-**ラベル生成も vast.ai 側で実行する。** ラベルパックは 20,946 文で
-**4.42 GB (fp16+int16) / 8.83 GB (fp32)** になるが、入力テキストは **1.2 MB** しかない。
-ローカルで生成して転送するより、テキストだけ渡して向こうで生成するほうが桁違いに安い。
+| 工程 | device | 実測 |
+|---|---|---|
+| ラベル生成 train 20,894 文 | **CPU** | 116 ms/文 → **約 40 分** / 4.5 GB |
+| 学習 4 段（各 20k step） | **MPS** | 58 / 81 / 58 / 39 ms/step → 約 1.3 時間 |
 
+```bash
+uv run python scripts/gen_teacher_labels.py --split train   --out data/pack
+uv run python scripts/gen_teacher_labels.py --split heldout --out data/pack_heldout
+uv run python scripts/train_student.py --run runs/v1 --all --steps 20000
+uv run python scripts/synthesize_student.py --ckpt runs/v1/stage4.pt \
+    --texts data/splits/corpus_heldout.tsv --limit 24 --out reports/student_wav
 ```
-アップロード : テキスト 1.2 MB のみ（ckpt 927 MB は HF から直接取得）
-インスタンス : ラベル生成 → 学習 → 生徒の重みだけ持ち帰る（数 MB）
-ダウンロード : 生徒の重み + 学習ログ
-```
 
-⚠️ **GPU 推論の bit 一致は未検証**（M-15 の照合は CPU 同士）。
-ラベル生成は一度だけ実行し、パックに SHA-256 を付けて固定すること。
-生成に使った環境（Python / torch / CUDA のバージョン）も manifest に記録する。
+⚠️ **ラベル生成は CPU。MPS を使わない。** CPU と MPS は bit 一致しない
+（M-21、SNR 97〜106 dB）。CPU 生成は M-15 で piper-plus venv と bit 完全一致が
+確認済みで、**未検証の CUDA parity ゲートも回避できる**。40 分なら CPU で困らない。
 
-要求スペックの目安は [`docs/requirements.md`](docs/requirements.md) §8.4。
+⚠️ **ラベルは一度だけ生成し、SHA-256 と生成環境を manifest に固定する**（D-015）。
+hook が本番パック `data/pack` の破棄と再生成を deny する。
+
+vast.ai は λ の並列探索や長時間学習で使う。手順は
+[`docs/vastai-runbook.md`](docs/vastai-runbook.md)（**CUDA parity ゲートは未通過**）。
 
 ## piper-plus の参照点
 
@@ -419,18 +434,33 @@ import sys; sys.path.insert(0, "/Users/s19447/Documents/piper-plus/src/python")
 **アクセントと無声化を規則で推定してはいけない。** ひらがなのみだと
 フル 103 MB 辞書を積んでもアクセント一致は **15%**、無声化の規則推定は 170 箇所を過剰適用した。
 
-## 教師ラベル生成も canonical 経路を使う（自前で組まない）
+## 符号化規則は canonical と同一にする
+
+教師は学習時に **トークン間に `_` の intersperse padding が入った列**を見ている。
+これを飛ばして自前で音素→ID を組むと **発話が約 2.4 倍速になる**
+（実測 17.7 mora/s、正常は 7.6〜8.4 mora/s。C-007）。**例外は出ない。**
+
+厳密な関係式（全 23,297 発話で成立、`scripts/b4_length_hist.py` が assert する）:
+
+```
+len(ids) == 2 * n_phonemes + 3 + (PAD 音素の数)
+```
+
+⚠️ **`2 * n_tokens + 3` ではない。** 1 モーラが 1〜2 音素になる（`きょ` → `ky` `o`）。
+PAD 項は `#` 句境界などで**音素そのものが PAD になる**件数で、canonical 規則
+「PAD の後ろに PAD を挟まない」により 1 個で済む（C-019）。
+
+疎通確認だけなら canonical 関数がそのまま使える（`language_id_map` を必ず渡す）:
 
 ```python
 from piper_train.infer_onnx import text_to_phoneme_ids_and_prosody
 ids, prosody = text_to_phoneme_ids_and_prosody(
-    text, phoneme_id_map, language="ja", language_id_map=lim)   # lim を必ず渡す
+    text, phoneme_id_map, language="ja", language_id_map=lim)
 ```
 
-**`language_id_map` を渡すと multilingual に auto-promote され、トークン間に `_` の
-intersperse padding が入る**（`len(ids) ≒ 2*tokens + 3`）。これを飛ばして自前で
-音素→ID を組むと **発話が約 2.4 倍速になる**（実測 17.7 mora/s、正常は 7.6〜8.4 mora/s）。
-`scripts/phase0_verify_teacher.py` が速度チェックを含む実装例。
+⚠️ **ただしラベル生成では使わない。** この関数は漢字文を直接受けるので、
+デバイスが作る入力（かな中間表現）と経路が違ってしまう。本番は次節の経路。
+`scripts/phase0_verify_teacher.py` が canonical 側の実装例。
 
 ## ラベル生成の経路（確定・D-014）
 

@@ -12,8 +12,8 @@
 4. **本番ラベルパックの破棄・再生成** — ラベルは一度だけ生成して SHA-256 で固定する
    決まり（D-015）。消してしまうと、同じデバイス・同じ piper-plus commit を
    再現しない限り**同じラベルは二度と作れない**。
-5. **ローカルでの本番ラベル生成** — 学習もラベル生成も vast.ai 側で行う（D-012）。
-   手元で 20,946 文を回すと数時間かかるうえ、そのパックは使われない。
+5. **本番ラベルパックへの再生成** — 既存ディレクトリに追記されると
+   manifest と SHA-256 が実体と食い違う（D-015）。
 
 stdin に hook の JSON を受け取り、判定を JSON で返す。
 """
@@ -177,21 +177,29 @@ def check_production_pack(cmd: str) -> None:
                 )
 
 
-def check_local_label_generation(cmd: str) -> None:
-    """ローカルでの本番ラベル生成を止める（--limit 無しの train split）。"""
+def check_label_regeneration(cmd: str) -> None:
+    """既にある本番パックへの再生成を止める（D-015: ラベルは一度だけ）。
+
+    ⚠️ **ローカル生成そのものは止めない。** D-027 で手元 (M4 Max) 実行に切り替えた。
+    止めるのは「既にあるパックの上書き」だけ。`gen_teacher_labels.py` 自身は
+    既存ディレクトリに追記してしまうので、ここで塞ぐ。
+    """
     if "gen_teacher_labels.py" not in cmd:
         return
-    if not re.search(r"--split\s+train\b", cmd):
+    m = re.search(r"--out\s+(\S+)", cmd)
+    if not m:
         return
-    if re.search(r"--limit\s+\d", cmd):
-        return          # 疎通確認は通す
+    out = m.group(1).strip("\"'").rstrip("/")
+    if out not in PRODUCTION_PACKS:
+        return
+    import os
+    if not os.path.isdir(out):
+        return          # まだ無いなら本番生成そのもの。通す
     deny(
-        "手元で train split のラベルを丸ごと生成しようとしています。\n"
-        "**ラベル生成も学習も vast.ai 側で行います**（D-012）。\n"
-        "20,946 文はローカルで約 1 時間、パックは 4.42 GB になり、しかも\n"
-        "**そのパックは本番に使われません**（生成デバイスを manifest に固定するため）。\n\n"
-        "手順: docs/vastai-runbook.md\n"
-        "疎通確認だけなら `--limit 20` を付けるか `--split heldout` を使ってください。"
+        f"`{out}` は既に存在します。**ラベルは一度だけ生成する**決まりです（D-015）。\n"
+        "同じディレクトリに再生成すると既存 shard に追記され、manifest と\n"
+        "SHA-256 が実体と食い違ったパックができます。\n\n"
+        "作り直す必要が本当にあるなら、理由を記録してから手で消してください。"
     )
 
 
@@ -237,7 +245,7 @@ def main() -> int:
     check_pip(cmd)
     check_python_invocation(cmd)
     check_production_pack(cmd)
-    check_local_label_generation(cmd)
+    check_label_regeneration(cmd)
     return 0
 
 

@@ -149,7 +149,7 @@ Pearson 相関 0.98 以上）が受け入れ条件。**RAM ピークとレイテ
 | 話者埋め込み | **`speaker_embeddings=None` で呼ぶ。`spk_tsukuyomi.npy` は渡しても bit 完全に無視される** | `spk_proj` / `emb_g` が state_dict に 0 件。None / npy / ランダム 192次元 の 3 通りで `audio`/`z`/`durations` が bit 一致 |
 | 言語条件 | **`lid=0` (ja) 固定は必須。lid は焼き込まれていない** | `g = lang_emb` が enc_p / dp / flow / dec 全部に渡る。lid=1 で総フレーム 115→106、z も別物 |
 | ロード | `VitsModel.load_from_checkpoint(ckpt, dataset=None, strict=False)` → missing 0 / unexpected 0 / `cond_migrated` 0 | 実測 |
-| **EMA** | `ema_generator_state` (decay 0.9995, num_updates 11000, shadow 53 params) は **`load_from_checkpoint` では適用されない**。`apply_ema_shadow_params(model_g.dec, ...)` を **`remove_weight_norm()` の前に**明示的に呼ぶ | 適用有無で `yT` の SNR は 12.53 dB しかない。`zT` / `dT` は bit 一致 |
+| **EMA** | `ema_generator_state` (decay 0.9995, num_updates 11000, shadow 53 params) は **`load_from_checkpoint` では適用されない**。`apply_ema_shadow_params(model_g.dec, ...)` を **`remove_weight_norm()` の前に**明示的に呼ぶ | 適用有無で `yT` の SNR は **14.5 dB** しかない（12.53 dB は n=1 の退化入力、C-017）。`zT` / `dT` は bit 一致。**適用件数を assert すること**（D-023） |
 | 決定性 | `noise_scale=0` で `z_p == m_p` bit 一致、2 回実行で `audio`/`z` bit 一致 | 実測 |
 | フレーム整合 | **`ceil(dT).sum() == zT.shape[1] == len(yT)/256`** がラベルパック 8 件すべてで厳密一致。`attn.argmax(-1)` も ceil 累積和と完全一致 | 実測。`src/python_run/piper_plus/timing.py` は ceil しないので**使わない** |
 | 音素表 | ckpt 同梱 `config.json` の `phoneme_id_map` (185 entry) を使う。**有効 id は 0..172**。日本語在庫 65 エントリは全部 id ≤ 64 で安全。id 173..184 の 12 個は非日本語 (ɧ ɵ ʏ + 韓国語 PUA) | 実測 |
@@ -884,7 +884,7 @@ WebAssembly で解決済みなので対象外。
 ただし**成果物は 567 K** であることを見失わないこと。
 
 **判断を先送りできる分割**: `zT` / `dT` は EMA 非依存で bit 一致するので、
-c-line / z-line ターゲットを先に固め、`yT`（EMA の有無で SNR 12.53 dB 差）の
+c-line / z-line ターゲットを先に固め、`yT`（EMA の有無で SNR 14.5 dB 差）の
 方針を後回しにする進め方が取れる。
 
 ### D0-b: メモリ ✅ 見積もり完了 (2026-08-26)

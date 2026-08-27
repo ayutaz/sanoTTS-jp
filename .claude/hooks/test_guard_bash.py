@@ -91,13 +91,14 @@ CASES: list[tuple[str, str, str]] = [
     ("allow", "ls data/pack", "読み取りは通す"),
     ("allow", "du -sh data/pack", "サイズ確認は通す"),
     ("allow", "cat data/pack/manifest.json", "manifest の確認は通す"),
-    # --- ローカルでの本番ラベル生成（D-012） ---
-    ("deny", "uv run python scripts/gen_teacher_labels.py --split train --out data/pack",
-     "手元での本番生成"),
+    # --- 本番ラベルの再生成（D-015）。ローカル生成そのものは D-027 で許可 ---
+    # ⚠️ **このケースは実ファイルシステムを見る**（既存パックへの追記だけを止める）。
+    # 期待値は data/pack があるかどうかで変わるので、下の main() で動的に決める。
+    ("__depends_on_pack__",
+     "uv run python scripts/gen_teacher_labels.py --split train --out data/pack",
+     "既存なら deny / 無ければ allow"),
     ("allow", "uv run python scripts/gen_teacher_labels.py --split train --limit 20 --out /tmp/p",
-     "--limit 付きの疎通確認は通す"),
-    ("allow", "uv run python scripts/gen_teacher_labels.py --split heldout --out data/pack_heldout",
-     "heldout は 2,334 行なので通す"),
+     "疎通確認は通す"),
     ("allow", "uv run python scripts/gen_teacher_labels.py --split sibdense --out data/pack_sibdense",
      "評価セットは通す"),
 ]
@@ -117,8 +118,15 @@ def decide(command: str) -> str:
 
 
 def main() -> int:
+    import os
+
     failures = 0
     for expected, command, note in CASES:
+        if expected == "__depends_on_pack__":
+            # 既存パックへの再生成だけを止める。期待値は実際の有無で決まる
+            exists = os.path.isdir("data/pack")
+            expected = "deny" if exists else "allow"
+            note = note + ("（今: 既存）" if exists else "（今: 無し）")
         got = decide(command)
         ok = got == expected
         failures += not ok
