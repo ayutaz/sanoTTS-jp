@@ -9,9 +9,9 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-030 と**訂正履歴 C-001〜C-024** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-030 と**訂正履歴 C-001〜C-025** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-48。全数値に再現コマンド付き | 実測のたび |
-| 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-11 の検証タスクと Phase 0〜D の状態 | フェーズ移行時 |
+| 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | **vast.ai 実行手順**。ラベル一括生成 → 本学習。教師の同一性照合とゲート | 実行時 |
@@ -55,9 +55,17 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [完了] D-4                  アクセント型ミニマルペア。符号一致 35/36 で**再現している**（M-44）
 [完了] B-12                 教師の事前学習との重複検査。**看板の 24 文は汚染ゼロ**（M-47）
 [完了] 敵対的検証            空虚に通るゲート 2 件 + silent failure 1 件を修正（M-48）
-[次]   Phase D-3c'-3        **PIE 最適化。⚠️ xtensa toolchain が無くコンパイルも通せない**
+[次]   P-1 Phase D-3c'-3    **PIE 最適化。⚠️ xtensa toolchain が無くコンパイルも通せない**
+[待]   P-2 β の聴取決定      候補 β=0 と 2。⚠️ 上流（英語）は 6.0。**人が要る**
+[今]   E-1 DNSMOS           ⚠️ **未測定。金属的アーティファクトは SCOREQ では見えない**
+[要判断] E-2 decoder 教師初期化 ⚠️ **教師とトポロジが違い切り出せない**。まず 3 仮説の切り分け
 [未]   Phase D-3d           実機測定（ハードウェア待ち）
 ```
+
+**残りは 4 本**。詳細は
+[`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
+**E-1 → E-2 の順が良い** — 金属的な尾が実際に出ているなら、それが E-2 の仮説 (a)
+（論文の `Gγ` 逆算が間違っている）の証拠になる。
 
 ### 凍結した設計値（2026-08-27）
 
@@ -117,7 +125,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-030 + 訂正履歴 C-001〜C-024
+│   ├── decisions.md                       決定記録 D-001〜D-030 + 訂正履歴 C-001〜C-025
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-48
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（次のフェーズ）
@@ -154,7 +162,7 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（60 ケースのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（63 ケースのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                          student-training / evaluating-quality / verifying-reports
 ├── reports/                               一次データ (JSON)。⚠️ 全行ダンプは追跡しない
@@ -204,7 +212,7 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器（10 �
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（60 ケース）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（63 ケース）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 
 # C99 推論コア（Phase D）

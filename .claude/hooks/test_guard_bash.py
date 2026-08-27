@@ -83,6 +83,18 @@ CASES: list[tuple[str, str, str]] = [
     ("deny", "sed -i '' 's/a/b/' ~/Documents/piper-plus/src/python/x.py", "sed -i は書き込み"),
     ("deny", "sed --in-place 's/a/b/' ~/Documents/piper-plus/x.py", "sed --in-place は書き込み"),
     ("allow", "sed -n '1,5p' scripts/x.py", "自リポの sed -n"),
+    # C-025: `-i` を**コマンド文字列全体**から探していたため、同じブロックの
+    # 別の行の `perl -i` に反応して piper-plus の読み取りまで deny していた。
+    # C-015 / C-020 と同じ根（走査範囲を 1 コマンドに閉じていない）で 3 度目の再発。
+    ("allow",
+     "perl -i -pe 's/a/b/' docs/x.md\nsed -n '133p' ~/Documents/piper-plus/src/python/x.py",
+     "別の行の perl -i に引きずられて sed の読み取りを止めない"),
+    ("allow",
+     "sed -i '' 's/a/b/' README.md; sed -n '9p' ~/Documents/piper-plus/README.md",
+     "同じ行の別の sed -i に引きずられない"),
+    ("deny",
+     "cat README.md\nsed -i '' 's/a/b/' ~/Documents/piper-plus/src/python/x.py",
+     "本物の sed -i は改行を跨いでも止める"),
     # --- 本番ラベルパックの保護（D-015） ---
     ("deny", "rm -rf data/pack", "本番パックの削除"),
     ("deny", "rm -rf data/pack_heldout", "本番パック(heldout)の削除"),

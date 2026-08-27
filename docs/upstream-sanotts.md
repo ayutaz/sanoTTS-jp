@@ -78,9 +78,11 @@ packaged or reimplemented"* と書いている。
 | データ配分 | acoustic ~8k 行 / **decoder は ~512 行** | 20,790 行を一律 |
 | 教師の与え方 | ONNX を **decoder-cut** して `generator_input → 波形` の graph を作る | `.ckpt` を PyTorch で読む |
 
-## ⚠️ 追試すべき 2 点
+## ⚠️ 追試すべき 2 点（**E-1 / E-2** として計画に起票済み）
 
-### 1. decoder の教師初期化
+作業内容は [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
+
+### E-2. decoder の教師初期化
 
 上流は *"Teacher-init the decoder. It survives channel-pruning;
 from-scratch sub-400k decoders are a dead class."* と書いている。
@@ -88,7 +90,21 @@ from-scratch sub-400k decoders are a dead class."* と書いている。
 **うちの `Gγ` は 331,308 params をゼロから学習して SCOREQ 教師比 0.611 を出している。**
 上流の主張と噛み合わない。どちらかの前提が違う。**未検証。**
 
-### 2. DNSMOS を測っていない
+⚠️ **そのままでは実行できない。トポロジが違う**（自分でソースを読んで確認）:
+
+| | 教師 `MBiSTFTGenerator` | 生徒 `Gγ` |
+|---|---|---|
+| 定義 | `~/Documents/piper-plus/src/python/piper_train/vits/mb_istft.py:133` | `src/saanotts_jp/_param_reference.py:79` |
+| 構造 | `conv_pre` → `ConvTranspose1d` ×2 → `ResBlock2` → PQMF 4 サブバンド合成 | 深さ方向分離 conv ×5 + rank-12 FiLM + 分解出力ヘッド |
+| 時間方向 | **アップサンプルする**（`upsample_rates=(4,4)`） | **しない**（フレームごとに 1539ch を直接出す） |
+| 幅 | `upsample_initial_channel = 256` | `W=76 / E=304` |
+
+**チャネル切り出しで初期化するには `Gγ` を「教師を細くしたコピー」にする必要があり、
+論文 Table I の 331,308 params を捨てることになる。**
+切り分けるべき 3 仮説は
+[`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10 E-2。
+
+### E-1. DNSMOS を測っていない
 
 上流は *"a metallic artifact scores high on SCOREQ and low on DNSMOS"* と書いている。
 **うちは DNSMOS を測っていないので、生徒に金属的な尾があっても現在の指標では見えない。**

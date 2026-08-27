@@ -61,7 +61,7 @@ uv run python scripts/phase0_verify_teacher.py     # 教師の疎通（6 チェ�
 uv run python scripts/test_losses.py               # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（60 ケース）
+uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（63 ケース）
 make -C csrc test                                  # C99 コアの golden test
 ```
 
@@ -274,18 +274,17 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `student-training` | 生徒・損失・学習ループを触るとき（語彙写像 / iSTFT / λ / PAD） |
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** を deny（**60 ケース**の回帰テスト付き） |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** を deny（**63 ケース**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
 hook を変えたら必ず回帰テストを通すこと（誤検知があると全 Bash が止まる）:
 
 ```bash
-uv run python .claude/hooks/test_guard_bash.py     # 60/60 期待通り
+uv run python .claude/hooks/test_guard_bash.py     # 63/63 期待通り
 ```
 
-⚠️ **誤検知は 4 回踏んでいる**（C-011 で 3 回、C-020 で 1 回）。C-020 は
-C-015 で直したはずの改行の扱いが**別の関数に残っていた**再発だった。
-**区切り文字の定義を 2 か所に散らさないこと。**
+⚠️ **誤検知は 5 回踏んでいる**（C-011 で 3 回、C-020 で 1 回、C-025 で 1 回）。C-020 と C-025 はどちらも **C-015 で直したはずの「走査範囲を 1 コマンドに閉じる」が別の場所に残っていた**再発。
+**「このコマンドの引数」を見る判定は、必ず先にコマンド単位へ切り出してから行うこと。**
 
 ## 開発環境のルール
 
@@ -549,17 +548,28 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 3. ~~**int8 カーネル。**~~ **決着した**（M-45）。ブロブ 2,249,792 → 643,936 B（**−71.4%**）、
    fp32 経路に対し held-out 24 文で平均 **25.88 dB**。
    ⚠️ **最小 23.27 dB / 9 文が 25 dB 未満**。⚠️ **実行時 RAM は減らない**（W8A32 なので flash だけ）
-4. **DNSMOS を測っていない。** 上流いわく「金属的アーティファクトは SCOREQ で高得点・
-   DNSMOS で低得点」。**現在の指標構成（D-020）では見えない欠陥がありうる**（未検証）
-5. **decoder を教師で初期化していない。** 上流は「from-scratch な sub-400k decoder は
-   死んだクラス」と書くが、うちは 331,308 params をゼロから学習して教師比 0.611 を出している。
-   **噛み合わない**（未検証）
+4. **【追試 E-1・今できる】DNSMOS を測っていない。** 上流いわく「金属的アーティファクトは
+   SCOREQ で**高**得点・DNSMOS で低得点」。**現在の指標構成（D-020）では原理的に見えない
+   欠陥がありうる**。`speechmos` (PyPI 0.0.1.1) で測れる。
+   ⚠️ **まず実人間の日本語音声で天井を測る**（較正されていない指標を絶対値で比べて
+   判断を誤った前例がある。C-012）
+5. **【追試 E-2・設計判断が先】decoder を教師で初期化していない。** 上流は「from-scratch な
+   sub-400k decoder は死んだクラス」と書くが、うちは 331,308 params をゼロから学習して
+   教師比 0.611 を出している。⚠️ **そのままでは実行できない** —
+   教師 `MBiSTFTGenerator`（ResBlock + アップサンプル）と生徒 `Gγ`（深さ方向分離 conv +
+   rank-12 FiLM、アップサンプルしない）は**トポロジが違い、チャネル切り出しができない**。
+   詳細と 3 つの仮説は [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) §10
+
 6. ~~**アクセント型の再現性。**~~ **決着した**（M-44 / D-030）。ミニマルペア 15 群
    32 語 64 文で、教師ゲート通過 36 ペアの**符号一致 35/36 = 0.972**
    （CI95 [0.897, 1.000]、経験的ヌル 0.614）、3 メンバー群の同定 **4/4**（chance 1/6）。
    **記号 `[` `]` `#` だけで足りており、duration net への A1/A2/A3 追加は不要**。
    残るのは (a) **聴取していない** (b) 2 型の下降核が n=13〜16 でしか測れておらず
    `]` 単独の AUC（教師 0.6526 / 生徒 0.5895）だけペアコントラストと食い違う
+
+**残りは 4 本だけ**（同 §10）: **P-1** PIE カーネル（toolchain 待ち）/ **P-2** β の聴取（人が要る）/
+**E-1** DNSMOS（今できる）/ **E-2** decoder の教師初期化（設計判断が先）。
+**E-1 → E-2 の順が良い** — 金属的な尾が実際に出ているなら、それが E-2 の (a) の証拠になる。
 
 **優先度を下げたもの**: `λ_Δ/λ_s/λ_T` の探索（初期値のまま目標に届いた）/
 1.4 M z-line（上限を測る必要が薄れた）/ 学習の延長（Stage 2 はまだ下がる余地あり）。
