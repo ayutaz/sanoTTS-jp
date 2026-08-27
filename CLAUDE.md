@@ -27,6 +27,7 @@ arXiv:2608.21378 "saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpo
 
 **現状（2026-08-27）**: Phase 0 / A / B / C の実装と、検証タスク **B-0 〜 B-11 が全部完了**。
 設計値は D-016 〜 D-028 として凍結してある。
+**本番ラベルパックは生成済み**（train 20,790 / heldout 2,314 発話、SHA-256 固定、M-35）。
 **本番ラベル生成と本学習は手元の M4 Max で行う**（D-027。vast.ai は不要だった）。
 
 ```bash
