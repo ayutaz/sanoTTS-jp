@@ -336,7 +336,8 @@ piper-plus は `[tool.uv.sources]` の **path 依存 (editable)** で参照す�
 
 ### vast.ai
 
-ローカル（macOS / MPS）では学習しない。**ラベル生成も vast.ai 側で実行する。**
+~~ローカル（macOS / MPS）では学習しない。ラベル生成も vast.ai 側で実行する。~~
+→ **2026-08-27 に撤回（D-027）。** 実測すると手元の M4 Max で完結した。
 
 理由はデータ量の非対称性:
 

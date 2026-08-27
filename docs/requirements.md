@@ -294,36 +294,42 @@ piper-plus は `[tool.uv.sources]` の path 依存 (editable) で参照し、**�
 | piper-plus `.venv` | 3.13.9 | 2.11.0 | 基準 |
 | 本プロジェクト `uv` | 3.14.0 | 2.13.0 | **bit 完全一致**（実測） |
 
-#### 学習は vast.ai で行う
+#### 学習とラベル生成は手元の M4 Max で行う（D-027）
 
-ローカル（macOS / MPS）では学習しない。**ラベル生成も vast.ai 側で実行する。**
+実測すると手元で完結する。**vast.ai は不要だった。**
 
-| 転送方向 | 内容 | サイズ |
-|---|---|---:|
-| upload | 学習テキスト | **1.2 MB** |
-| インスタンス内で取得 | 教師 ckpt（HF から直接） | 927 MB |
-| インスタンス内で生成 | ラベルパック | 4.42 GB (fp16+int16) |
-| download | 生徒の重み + ログ | 数 MB |
+| 工程 | device | 実測 |
+|---|---|---|
+| ラベル生成 train 20,894 文 | **CPU** | 116 ms/文 → 約 40 分 / 4.5 GB |
+| 学習 4 段（各 20k step） | **MPS** | 58 / 81 / 58 / 39 ms/step → 約 1.3 時間 |
 
-**ラベルパックは転送しない。** ローカル生成 → アップロードだと 4.4〜8.8 GB になる。
+マシン: Apple M4 Max / 16 core / 64 GB / 空き 222 GB。
 
-### 8.4 vast.ai インスタンスの要件
+⚠️ **ラベル生成は CPU。MPS は使わない。** CPU と MPS は bit 一致しない
+（M-21、SNR 97〜106 dB）。CPU 生成は M-15 で piper-plus venv と bit 完全一致が
+確認済みで、**未検証の CUDA parity ゲートも回避できる**。
+
+### 8.4 vast.ai インスタンスの要件（現在は使っていない）
+
+λ の並列探索や長時間学習で使う場合の要件。手順は
+[`vastai-runbook.md`](vastai-runbook.md)。⚠️ **CUDA parity ゲートは未通過。**
 
 | 項目 | 要求 | 根拠 |
 |---|---|---|
-| ディスク | **≥ 40 GB** | ラベル fp32 8.83 GB + ckpt 0.93 GB + 環境 + 中間生成物 |
-| GPU VRAM | **≥ 16 GB** | 生徒は 567 K と小さいが、decoder 学習が multi-resolution STFT (FFT 512/1024/2048) + 判別器を持つ。**未実測** |
-| GPU | CUDA 対応（世代不問） | 生徒が小さいので最新世代は不要。**要ベンチマーク** |
+| ディスク | **≥ 40 GB** | ラベル fp16+int16 4.5 GB + ckpt 0.93 GB + 環境 + 中間生成物 |
+| GPU VRAM | **≥ 16 GB** | 生徒は 559 K と小さいが、decoder 学習が multi-resolution STFT (FFT 512/1024/2048) + 判別器を持つ。**未実測** |
+| GPU | CUDA 対応（世代不問） | 生徒が小さいので最新世代は不要 |
 | Python | 3.11 以上 | `pyproject.toml` の `requires-python` |
 | 事前準備 | HF トークン（教師 ckpt は private repo） | |
 
-**ラベル生成の所要時間**: M3 Pro CPU で 186 ms/文 → 20,946 文で **1.1 時間**。
-GPU ならさらに短縮されるが、⚠️ **GPU 推論が CPU と bit 一致するかは未検証**。
+転送するもの: 学習テキスト **1.2 MB** のみ（ckpt 927 MB は HF から直接、
+ラベルパック 4.5 GB はインスタンス内で生成）。持ち帰るのは生徒の重み数 MB。
 
-**再現性の要件**:
-1. ラベル生成は**一度だけ**実行し、パックに SHA-256 を付けて固定する
-2. 生成環境（Python / torch / CUDA のバージョン）を manifest に記録する
+**再現性の要件**（実行場所によらず守る）:
+1. ラベル生成は**一度だけ**実行し、パックに SHA-256 を付けて固定する（D-015）
+2. 生成環境（Python / torch / device）を manifest に記録する
 3. 乱数シードとフラグを run レポートに残す（論文の "audited" 方針を踏襲）
+4. piper-plus のコミットを `src/saanotts_jp/teacher_identity.py` で照合する
 
 ### 8.5 未知語は「無音で消える」
 
