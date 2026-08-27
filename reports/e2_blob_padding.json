@@ -1,0 +1,134 @@
+{
+ "paper": {
+  "blob1": 280288,
+  "blob2": 399544,
+  "total": 679832,
+  "params": 567008
+ },
+ "paper_pdf_sha256": "64b0d426b585e05f87867375928755a79d02ffc989374c08f1aa52c37267eab1",
+ "ja_V57": {
+  "duration": {
+   "payload_bytes": 40372,
+   "n_tensors": 31,
+   "n_int8_tensors": 7,
+   "params": 32964
+  },
+  "acoustic": {
+   "payload_bytes": 223456,
+   "n_tensors": 68,
+   "n_int8_tensors": 17,
+   "params": 194736
+  },
+  "decoder": {
+   "payload_bytes": 360864,
+   "n_tensors": 84,
+   "n_int8_tensors": 28,
+   "params": 331308
+  },
+  "blob1_dur_plus_ac": 263828,
+  "blob2_decoder": 360864,
+  "total_payload": 624692,
+  "total_params": 559008
+ },
+ "en_V157": {
+  "duration": {
+   "payload_bytes": 53172,
+   "n_tensors": 31,
+   "n_int8_tensors": 7,
+   "params": 36164
+  },
+  "acoustic": {
+   "payload_bytes": 242656,
+   "n_tensors": 68,
+   "n_int8_tensors": 17,
+   "params": 199536
+  },
+  "decoder": {
+   "payload_bytes": 360864,
+   "n_tensors": 84,
+   "n_int8_tensors": 28,
+   "params": 331308
+  },
+  "blob1_dur_plus_ac": 295828,
+  "blob2_decoder": 360864,
+  "total_payload": 656692,
+  "total_params": 567008
+ },
+ "declared_padding_models": {
+  "align_4B": {
+   "blob1_max": 297,
+   "blob2_max": 252
+  },
+  "align_16B": {
+   "blob1_max": 1485,
+   "blob2_max": 1260
+  },
+  "align_64B": {
+   "blob1_max": 6237,
+   "blob2_max": 5292
+  }
+ },
+ "declared_istft_support": {
+  "hann_1024_fp32": 4096,
+  "rfft_twiddle_512c_fp32": 4096,
+  "full_fft_twiddle_1024c_fp32": 8192,
+  "bitrev_1024_u32": 4096,
+  "min": 8192,
+  "max": 16384
+ },
+ "reachability": {
+  "blob2_ours": 360864,
+  "blob2_max_with_align64_and_istft": 382540,
+  "blob2_paper": 399544,
+  "blob2_still_short_by": 17004,
+  "blob2_reachable": false,
+  "blob1_ours_min": 295828,
+  "blob1_paper": 280288,
+  "blob1_excess_ours_minus_paper": 15540,
+  "blob1_reachable": false,
+  "note": "padding は**増やすことしかできない**ので、うちの blob1 が論文より大きいことは padding では説明できない"
+ },
+ "total_reachability_by_alignment": {
+  "align_4B": {
+   "available": 16933,
+   "reachable": false
+  },
+  "align_16B": {
+   "available": 19129,
+   "reachable": false
+  },
+  "align_64B": {
+   "available": 27913,
+   "reachable": true
+  }
+ },
+ "total_reachability": {
+  "our_total_payload": 656692,
+  "paper_total": 679832,
+  "need": 23140,
+  "available_align64_plus_istft_max": 27913,
+  "reachable": true,
+  "slack": 4773,
+  "note": "⚠️ 論文は blob の中身（どのモジュールがどちらに入るか）を書いていない。したがって**合計**が到達可能かどうかが (a1) の本命の判定になる"
+ },
+ "G8_positive_control": {
+  "target": 360864,
+  "recomputed": 360864,
+  "ok": true,
+  "note": "同じ規則で 2 回計算して一致するか（探索器が対象を測っていることの確認）",
+  "negative_control_drop_one_dw": 360028,
+  "negative_control_differs": true
+ },
+ "split_hypothesis": {
+  "our_assumption": "blob1 = Dα + Aβ / blob2 = Gγ",
+  "per_module_bytes": {
+   "duration": 53172,
+   "acoustic": 242656,
+   "decoder": 360864
+  },
+  "paper_blob1_minus_our_blob1": -15540,
+  "paper_blob2_minus_our_blob2": 38680,
+  "paper_total_minus_our_total": 23140
+ },
+ "repro": "uv run python reports/e2_blob_padding.py"
+}

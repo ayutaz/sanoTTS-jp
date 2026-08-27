@@ -1,0 +1,36 @@
+warning: The `tool.uv.dev-dependencies` field (used in `/Users/s19447/Documents/piper-plus/pyproject.toml`) is deprecated and will be removed in a future release; use `dependency-groups.dev` instead
+Using cache found in /Users/s19447/.cache/torch/hub/tarepan_SpeechMOS_v1.2.0
+  L0_teacher を測定中… (n=200)
+SCOREQ (ONNX) initialized on provider: CPUExecutionProvider
+SCOREQ (ONNX) initialized on provider: CPUExecutionProvider
+  L_repr を測定中… (n=200)
+  L1_c_s3 を測定中… (n=200)
+  L1_c_s4 を測定中… (n=200)
+  L2_oracle_d を測定中… (n=200)
+  L3_student を測定中… (n=200)
+
+=== レーン別（n=200）===
+  lane                SCOREQ       utmosDNS.ovrl_mos DNS.sig_mos DNS.bak_mosDNS.p808_mos
+  L0_teacher          1.9972      1.8094      2.7845      3.0504      3.9160      3.3688
+  L_repr              2.0038      1.8056      2.7773      3.0421      3.9154      3.3697
+  L1_c_s3             1.6318      1.4939      2.4477      2.6849      3.8261      3.1930
+  L1_c_s4             1.6022      1.4972      2.4454      2.6834      3.8229      3.1892
+  L2_oracle_d         1.3194      1.3622      2.2360      2.4055      3.8789      3.1046
+  L3_student          1.2678      1.3577      2.1736      2.3316      3.8732      3.0359
+
+=== 隣接レーン差（対応のある bootstrap 95% CI）— scoreq_synthetic_nr ===
+  L0_teacher__minus__L1_c_s4               +0.3950  CI [0.3736, 0.4163]  半幅 0.0213
+  L1_c_s4__minus__L2_oracle_d              +0.2828  CI [0.2632, 0.3027]  半幅 0.0198
+  L2_oracle_d__minus__L3_student           +0.0516  CI [0.0336, 0.0695]  半幅 0.0180
+  G7_L1_c_s4__minus__L1_c_s3               -0.0296  CI [-0.039, -0.02]  半幅 0.0095
+
+=== gap の大小関係（対応のある bootstrap）— scoreq_synthetic_nr ===
+  decoder__minus__acoustic                 +0.1123  CI [0.0819, 0.1424] ★
+  decoder__minus__duration                 +0.3434  CI [0.3152, 0.3714] ★
+  acoustic__minus__duration                +0.2311  CI [0.2007, 0.2616] ★
+  _sum_of_gaps                             0.7294
+  _total_gap_L0_minus_L3                   0.7294
+
+G6 検出力: OK 最大半幅 0.0213 (しきい値 0.10)
+
+→ reports/e2_ladder_n200/metrics.json

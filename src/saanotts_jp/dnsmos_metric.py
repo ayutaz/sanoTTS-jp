@@ -26,6 +26,20 @@ SIG 1.1421→4.0101 / BAK 1.0814→4.3580 / OVRL 1.0938→3.9318 に写す。
    順序と決定性を保つ。
 6. **`INPUT_LENGTH` / `SR` はライブラリから import して assert する**
    （9.01 / 16000 をハードコードしない）。
+7. ⚠️ **最大の罠: パッケージ名の衝突。** UTMOS の torch.hub リポジトリ
+   `tarepan/SpeechMOS:v1.2.0` は **`speechmos` という名前のパッケージを自前で同梱**
+   している（`~/.cache/torch/hub/tarepan_SpeechMOS_v1.2.0/speechmos/utmos22/`）。
+   PyPI の `speechmos`（DNSMOS）と**同じ名前**なので、素直に import すると
+   **先に読んだ方が勝ち、もう一方が同一プロセスで永久に import できなくなる**
+   （本タスクで両方向を実測）:
+
+       UTMOS を先に → `import speechmos.dnsmos`  → ModuleNotFoundError
+       DNSMOS を先に → torch.hub.load(UTMOS)     → ModuleNotFoundError: speechmos.utmos22
+
+   → **`speechmos` という名前を一切使わずに**、`importlib.metadata` で
+   site-packages 上の `speechmos/dnsmos.py` の実ファイルを引き当て、
+   `spec_from_file_location` で**別名のモジュールとして**読み込む。
+   `dnsmos.py` は相対 import を持たないのでこれで完結する。
 
 `p808_mos` は**別モデル**（`model_v8.onnx`、log-mel 入力）の独立予測。
 前処理感度が 1 桁大きいので **4 スコアの平均を取らない**。
@@ -38,6 +52,11 @@ SIG 1.1421→4.0101 / BAK 1.0814→4.3580 / OVRL 1.0938→3.9318 に写す。
 
 from __future__ import annotations
 
+import importlib.util
+import pathlib
+import sys
+from importlib.metadata import distribution
+
 import numpy as np
 import soundfile as sf
 
@@ -48,17 +67,54 @@ POLICIES = ("self_tile", "zero_pad")
 SCORE_KEYS = ("sig_mos", "bak_mos", "ovrl_mos", "p808_mos")
 
 _D = None
+_ISOLATED_NAME = "saanotts_jp._speechmos_dnsmos_isolated"
+
+
+def dnsmos_source_path() -> pathlib.Path:
+    """site-packages 上の `speechmos/dnsmos.py` の実ファイルを引き当てる。
+
+    `import speechmos` を**一度も行わない**（行うと UTMOS 側と衝突する）。
+    `importlib.metadata` は `*.dist-info` を探すので、dist-info を持たない
+    torch.hub の同名ディレクトリを掴むことはない。
+    """
+    dist = distribution("speechmos")
+    files = list(dist.files or [])
+    cands = [f for f in files
+             if f.parts[-1] == "dnsmos.py" and f.parts[0] == "speechmos"]
+    if len(cands) != 1:
+        raise RuntimeError(
+            f"speechmos/dnsmos.py を一意に特定できない: {cands}")
+    loc = pathlib.Path(str(dist.locate_file(cands[0]))).resolve()
+    if not loc.is_file():
+        raise RuntimeError(f"実ファイルが無い: {loc}")
+    if "torch" in loc.parts and "hub" in loc.parts:
+        raise RuntimeError(f"torch.hub 側を掴んでいる: {loc}")
+    return loc
 
 
 def _lib():
-    """`speechmos.dnsmos` を取得し、前提定数を assert する。"""
+    """DNSMOS 実装を**別名モジュールとして**読み、前提定数を assert する。"""
     global _D
     if _D is None:
-        import speechmos.dnsmos as D
-
-        assert D.SR == 16000, f"SR が変わった: {D.SR}"
-        assert D.INPUT_LENGTH == 9.01, f"INPUT_LENGTH が変わった: {D.INPUT_LENGTH}"
-        _D = D
+        if _ISOLATED_NAME in sys.modules:
+            _D = sys.modules[_ISOLATED_NAME]
+        else:
+            loc = dnsmos_source_path()
+            spec = importlib.util.spec_from_file_location(_ISOLATED_NAME, loc)
+            mod = importlib.util.module_from_spec(spec)
+            sys.modules[_ISOLATED_NAME] = mod
+            try:
+                spec.loader.exec_module(mod)
+            except BaseException:
+                sys.modules.pop(_ISOLATED_NAME, None)
+                raise
+            _D = mod
+        assert _D.SR == 16000, f"SR が変わった: {_D.SR}"
+        assert _D.INPUT_LENGTH == 9.01, f"INPUT_LENGTH が変わった: {_D.INPUT_LENGTH}"
+        assert hasattr(_D, "run") and hasattr(_D, "DNSMOS")
+        # モデルは __file__ 相対で解決される。別名 import でも壊れないことを確かめる
+        mdl = pathlib.Path(_D.__file__).parent / "dnsmos_models" / "sig_bak_ovr.onnx"
+        assert mdl.is_file(), f"同梱 ONNX が見つからない: {mdl}"
     return _D
 
 

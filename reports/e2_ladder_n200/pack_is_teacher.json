@@ -1,0 +1,350 @@
+{
+ "task": "G1 強陽性対照: pack の yT/zT/dT が教師の出力そのものか",
+ "pack": "data/pack_heldout",
+ "n": 24,
+ "device": "cpu",
+ "piper_plus_source_mismatch": {},
+ "positive": [
+  {
+   "uid": "sentence_collector_08490",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 103
+  },
+  {
+   "uid": "sentence_collector_05383",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 228
+  },
+  {
+   "uid": "sentence_collector_08710",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 177
+  },
+  {
+   "uid": "sentence_collector_04559",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 599
+  },
+  {
+   "uid": "yumie-text-1_00393",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 557
+  },
+  {
+   "uid": "ROHAN4600_3742",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 321
+  },
+  {
+   "uid": "BASIC5000_0051",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 267
+  },
+  {
+   "uid": "yumie-text-1_01195",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 853
+  },
+  {
+   "uid": "ROHAN4600_1691",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 270
+  },
+  {
+   "uid": "UT-PARAPHRASE-sent241-phrase2",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 330
+  },
+  {
+   "uid": "ROHAN4600_4546",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 273
+  },
+  {
+   "uid": "sentence_collector_01938",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 507
+  },
+  {
+   "uid": "sentence_collector_07411",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 330
+  },
+  {
+   "uid": "sentence_collector_01221",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 406
+  },
+  {
+   "uid": "BASIC5000_2701",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 318
+  },
+  {
+   "uid": "sentence_collector_04129",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 364
+  },
+  {
+   "uid": "RECITATION324_232",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 190
+  },
+  {
+   "uid": "RECITATION324_123",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 167
+  },
+  {
+   "uid": "sentence_collector_01920",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 256
+  },
+  {
+   "uid": "sentence_collector_02431",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 441
+  },
+  {
+   "uid": "sentence_collector_06022",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 249
+  },
+  {
+   "uid": "sentence_collector_01495",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 400
+  },
+  {
+   "uid": "BASIC5000_1026",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 294
+  },
+  {
+   "uid": "TRAVEL1000_0440",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 281
+  }
+ ],
+ "negative_control": [
+  {
+   "pack_uid": "sentence_collector_08490",
+   "teacher_uid": "sentence_collector_05383",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_05383",
+   "teacher_uid": "sentence_collector_08710",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_08710",
+   "teacher_uid": "sentence_collector_04559",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_04559",
+   "teacher_uid": "yumie-text-1_00393",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "yumie-text-1_00393",
+   "teacher_uid": "ROHAN4600_3742",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_3742",
+   "teacher_uid": "BASIC5000_0051",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_0051",
+   "teacher_uid": "yumie-text-1_01195",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "yumie-text-1_01195",
+   "teacher_uid": "ROHAN4600_1691",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_1691",
+   "teacher_uid": "UT-PARAPHRASE-sent241-phrase2",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "UT-PARAPHRASE-sent241-phrase2",
+   "teacher_uid": "ROHAN4600_4546",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_4546",
+   "teacher_uid": "sentence_collector_01938",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_01938",
+   "teacher_uid": "sentence_collector_07411",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_07411",
+   "teacher_uid": "sentence_collector_01221",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_01221",
+   "teacher_uid": "BASIC5000_2701",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_2701",
+   "teacher_uid": "sentence_collector_04129",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_04129",
+   "teacher_uid": "RECITATION324_232",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "RECITATION324_232",
+   "teacher_uid": "RECITATION324_123",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "RECITATION324_123",
+   "teacher_uid": "sentence_collector_01920",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_01920",
+   "teacher_uid": "sentence_collector_02431",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_02431",
+   "teacher_uid": "sentence_collector_06022",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_06022",
+   "teacher_uid": "sentence_collector_01495",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_01495",
+   "teacher_uid": "BASIC5000_1026",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_1026",
+   "teacher_uid": "TRAVEL1000_0440",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "TRAVEL1000_0440",
+   "teacher_uid": "sentence_collector_08490",
+   "bitexact": false
+  }
+ ],
+ "ok": true,
+ "uid_source": "reports/e2_ladder_n200/ladder.json",
+ "repro": "uv run python scripts/e2_pack_is_teacher.py --n 24 --uids-from reports/e2_ladder_n200/ladder.json --out reports/e2_ladder_n200/pack_is_teacher.json"
+}

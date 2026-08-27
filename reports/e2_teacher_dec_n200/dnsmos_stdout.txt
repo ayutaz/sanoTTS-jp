@@ -1,0 +1,11 @@
+warning: The `tool.uv.dev-dependencies` field (used in `/Users/s19447/Documents/piper-plus/pyproject.toml`) is deprecated and will be removed in a future release; use `dependency-groups.dev` instead
+  T0_dec_zT …
+  T1_dec_lift_cT …
+  T2_dec_lift_chat …
+
+  set             ovrl_mos   sig_mos   bak_mos  p808_mos
+  T0_dec_zT         2.7726    3.0335    3.9203    3.3699
+  T1_dec_lift_cT    2.7407    3.0012    3.9065    3.3999
+  T2_dec_lift_chat    2.3827    2.6127    3.8268    3.3485
+
+→ reports/e2_teacher_dec_n200/dnsmos.json

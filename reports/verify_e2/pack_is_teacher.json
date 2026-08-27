@@ -1,0 +1,350 @@
+{
+ "task": "G1 強陽性対照: pack の yT/zT/dT が教師の出力そのものか",
+ "pack": "data/pack_heldout",
+ "n": 24,
+ "device": "cpu",
+ "piper_plus_source_mismatch": {},
+ "positive": [
+  {
+   "uid": "ROHAN4600_4164",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 324
+  },
+  {
+   "uid": "BASIC5000_4197",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 412
+  },
+  {
+   "uid": "BASIC5000_1619",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 258
+  },
+  {
+   "uid": "sentence_collector_09299",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 273
+  },
+  {
+   "uid": "sentence_collector_04854",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 116
+  },
+  {
+   "uid": "sentence_collector_02992",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 188
+  },
+  {
+   "uid": "ROHAN4600_2252",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 216
+  },
+  {
+   "uid": "sentence_collector_05595",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 107
+  },
+  {
+   "uid": "BASIC5000_2314",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 340
+  },
+  {
+   "uid": "sentence_collector_04850",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 121
+  },
+  {
+   "uid": "sentence_collector_03352",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 192
+  },
+  {
+   "uid": "BASIC5000_0083",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 329
+  },
+  {
+   "uid": "sentence_collector_05500",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 157
+  },
+  {
+   "uid": "sentence_collector_00225",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 355
+  },
+  {
+   "uid": "ROHAN4600_0850",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 318
+  },
+  {
+   "uid": "BASIC5000_4093",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 381
+  },
+  {
+   "uid": "BASIC5000_2652",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 262
+  },
+  {
+   "uid": "BASIC5000_4739",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 339
+  },
+  {
+   "uid": "BASIC5000_0377",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 355
+  },
+  {
+   "uid": "ONOMATOPEE300_064",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 343
+  },
+  {
+   "uid": "ROHAN4600_3325",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 413
+  },
+  {
+   "uid": "BASIC5000_0123",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 222
+  },
+  {
+   "uid": "ROHAN4600_1788",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 327
+  },
+  {
+   "uid": "ROHAN4600_3629",
+   "len_match": true,
+   "yT_int16_bitexact": true,
+   "yT_max_abs_lsb": 0,
+   "zT_f16_bitexact": true,
+   "dT_bitexact": true,
+   "frames": 273
+  }
+ ],
+ "negative_control": [
+  {
+   "pack_uid": "ROHAN4600_4164",
+   "teacher_uid": "BASIC5000_4197",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_4197",
+   "teacher_uid": "BASIC5000_1619",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_1619",
+   "teacher_uid": "sentence_collector_09299",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_09299",
+   "teacher_uid": "sentence_collector_04854",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_04854",
+   "teacher_uid": "sentence_collector_02992",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_02992",
+   "teacher_uid": "ROHAN4600_2252",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_2252",
+   "teacher_uid": "sentence_collector_05595",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_05595",
+   "teacher_uid": "BASIC5000_2314",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_2314",
+   "teacher_uid": "sentence_collector_04850",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_04850",
+   "teacher_uid": "sentence_collector_03352",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_03352",
+   "teacher_uid": "BASIC5000_0083",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_0083",
+   "teacher_uid": "sentence_collector_05500",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_05500",
+   "teacher_uid": "sentence_collector_00225",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "sentence_collector_00225",
+   "teacher_uid": "ROHAN4600_0850",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_0850",
+   "teacher_uid": "BASIC5000_4093",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_4093",
+   "teacher_uid": "BASIC5000_2652",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_2652",
+   "teacher_uid": "BASIC5000_4739",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_4739",
+   "teacher_uid": "BASIC5000_0377",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_0377",
+   "teacher_uid": "ONOMATOPEE300_064",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ONOMATOPEE300_064",
+   "teacher_uid": "ROHAN4600_3325",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_3325",
+   "teacher_uid": "BASIC5000_0123",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "BASIC5000_0123",
+   "teacher_uid": "ROHAN4600_1788",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_1788",
+   "teacher_uid": "ROHAN4600_3629",
+   "bitexact": false
+  },
+  {
+   "pack_uid": "ROHAN4600_3629",
+   "teacher_uid": "ROHAN4600_4164",
+   "bitexact": false
+  }
+ ],
+ "ok": true,
+ "uid_source": "reports/eval_v2/eval.json",
+ "repro": "uv run python scripts/e2_pack_is_teacher.py --n 24 --uids-from reports/eval_v2/eval.json --out reports/verify_e2/pack_is_teacher.json"
+}

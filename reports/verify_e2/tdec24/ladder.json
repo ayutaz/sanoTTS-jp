@@ -1,0 +1,355 @@
+{
+ "task": "S-7: 教師 decoder に別の潜在を通す（c-line と decoder の分離）",
+ "pack": "data/pack_heldout",
+ "n": 24,
+ "lanes": [
+  "T0_dec_zT",
+  "T1_dec_lift_cT",
+  "T2_dec_lift_chat"
+ ],
+ "lift": {
+  "kind": "linear least squares c(40)+bias -> z(192)",
+  "fit_utts": 300,
+  "disjoint_from_eval": true,
+  "n_frames_fit": 88245,
+  "n_utts_fit": 300,
+  "r2_mean": 0.9804343212296224,
+  "r2_median": 0.9824073220576072,
+  "r2_min": 0.9131503649257107,
+  "r2_max": 0.9959556823021449
+ },
+ "modules": {
+  "erho_sha256": "ebc471223c21d84a58ee596f8148713d84ba877fbcc5086e80adc140f2963dc5",
+  "decoder_s3_sha256": "d550c91198d4af85ec4bf6521ac3d8ce1c94f94887bfb0013cdc20bea574d1b8",
+  "decoder_s4_sha256": "5bf5c619d39acde43bc63118ef16ccb6ebf1aa144ffe11fdc5294844a9dafd05",
+  "acoustic_s4_sha256": "104c796d03b3e0b9a5d60e72426ae47568a9814ddb3d0f187384b5e0609348d5",
+  "erho_identical_s3_s4": true,
+  "decoder_identical_s3_s4": false
+ },
+ "gates": {
+  "T0_positive_control_fp32_z": {
+   "n": 3,
+   "ok": true,
+   "detail": [
+    {
+     "uid": "ROHAN4600_4164",
+     "dec_of_fp32_z_bitexact_vs_pack_yT": true,
+     "dec_of_fp16_z_snr_db_vs_pack_yT": 73.4
+    },
+    {
+     "uid": "BASIC5000_4197",
+     "dec_of_fp32_z_bitexact_vs_pack_yT": true,
+     "dec_of_fp16_z_snr_db_vs_pack_yT": 72.92
+    },
+    {
+     "uid": "BASIC5000_1619",
+     "dec_of_fp32_z_bitexact_vs_pack_yT": true,
+     "dec_of_fp16_z_snr_db_vs_pack_yT": 73.77
+    }
+   ],
+   "note": "パックの zT は fp16。fp32 の z を入れれば yT と bit 一致するはずで、しなければ decode 経路（g / y_mask / EMA）が違う"
+  },
+  "T0_fp16_storage_floor": {
+   "n": 24,
+   "bitexact_vs_pack_yT": 0,
+   "snr_db_mean": 73.58,
+   "note": "⚠️ これが T レーン全体のノイズ床。T1 / T2 はこれより下でしか議論できない"
+  },
+  "T0_negative_control_bitexact_must_be_0": 0
+ },
+ "utterances": [
+  {
+   "uid": "ROHAN4600_4164",
+   "frames": 324,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 4,
+   "T0_dec_zT_samples": 82944,
+   "T0_dec_zT_snr_db": 73.39686619200629,
+   "T1_dec_lift_cT_samples": 82944,
+   "T1_dec_lift_cT_snr_db": 16.262145166677378,
+   "T2_dec_lift_chat_samples": 82944,
+   "T2_dec_lift_chat_snr_db": 0.07115627916163243
+  },
+  {
+   "uid": "BASIC5000_4197",
+   "frames": 412,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 105472,
+   "T0_dec_zT_snr_db": 72.91549498280362,
+   "T1_dec_lift_cT_samples": 105472,
+   "T1_dec_lift_cT_snr_db": 13.695490677018435,
+   "T2_dec_lift_chat_samples": 105472,
+   "T2_dec_lift_chat_snr_db": -0.6988274819553715
+  },
+  {
+   "uid": "BASIC5000_1619",
+   "frames": 258,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 66048,
+   "T0_dec_zT_snr_db": 73.76573475947379,
+   "T1_dec_lift_cT_samples": 66048,
+   "T1_dec_lift_cT_snr_db": 11.763774037586888,
+   "T2_dec_lift_chat_samples": 66048,
+   "T2_dec_lift_chat_snr_db": 0.14855494828111235
+  },
+  {
+   "uid": "sentence_collector_09299",
+   "frames": 273,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 69888,
+   "T0_dec_zT_snr_db": 73.89907149496024,
+   "T1_dec_lift_cT_samples": 69888,
+   "T1_dec_lift_cT_snr_db": 16.20140246025583,
+   "T2_dec_lift_chat_samples": 69888,
+   "T2_dec_lift_chat_snr_db": -1.135379487594839
+  },
+  {
+   "uid": "sentence_collector_04854",
+   "frames": 116,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 29696,
+   "T0_dec_zT_snr_db": 73.90802557178624,
+   "T1_dec_lift_cT_samples": 29696,
+   "T1_dec_lift_cT_snr_db": 11.280376376947,
+   "T2_dec_lift_chat_samples": 29696,
+   "T2_dec_lift_chat_snr_db": -1.3868444758339102
+  },
+  {
+   "uid": "sentence_collector_02992",
+   "frames": 188,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 5,
+   "T0_dec_zT_samples": 48128,
+   "T0_dec_zT_snr_db": 70.6075683205396,
+   "T1_dec_lift_cT_samples": 48128,
+   "T1_dec_lift_cT_snr_db": 16.05531019831135,
+   "T2_dec_lift_chat_samples": 48128,
+   "T2_dec_lift_chat_snr_db": -0.6656850226924407
+  },
+  {
+   "uid": "ROHAN4600_2252",
+   "frames": 216,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 55296,
+   "T0_dec_zT_snr_db": 72.83262433743995,
+   "T1_dec_lift_cT_samples": 55296,
+   "T1_dec_lift_cT_snr_db": 16.190920022410026,
+   "T2_dec_lift_chat_samples": 55296,
+   "T2_dec_lift_chat_snr_db": -0.2891436562684322
+  },
+  {
+   "uid": "sentence_collector_05595",
+   "frames": 107,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 27392,
+   "T0_dec_zT_snr_db": 73.58565802582929,
+   "T1_dec_lift_cT_samples": 27392,
+   "T1_dec_lift_cT_snr_db": 16.619385277219497,
+   "T2_dec_lift_chat_samples": 27392,
+   "T2_dec_lift_chat_snr_db": 0.14239949134444407
+  },
+  {
+   "uid": "BASIC5000_2314",
+   "frames": 340,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 87040,
+   "T0_dec_zT_snr_db": 73.06554099756205,
+   "T1_dec_lift_cT_samples": 87040,
+   "T1_dec_lift_cT_snr_db": 15.451467244531916,
+   "T2_dec_lift_chat_samples": 87040,
+   "T2_dec_lift_chat_snr_db": 1.025155180910475
+  },
+  {
+   "uid": "sentence_collector_04850",
+   "frames": 121,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 30976,
+   "T0_dec_zT_snr_db": 74.35510380172575,
+   "T1_dec_lift_cT_samples": 30976,
+   "T1_dec_lift_cT_snr_db": 16.247006136508006,
+   "T2_dec_lift_chat_samples": 30976,
+   "T2_dec_lift_chat_snr_db": 0.860453789044249
+  },
+  {
+   "uid": "sentence_collector_03352",
+   "frames": 192,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 49152,
+   "T0_dec_zT_snr_db": 74.27067827152493,
+   "T1_dec_lift_cT_samples": 49152,
+   "T1_dec_lift_cT_snr_db": 14.882972224336509,
+   "T2_dec_lift_chat_samples": 49152,
+   "T2_dec_lift_chat_snr_db": 0.7826967762814134
+  },
+  {
+   "uid": "BASIC5000_0083",
+   "frames": 329,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 84224,
+   "T0_dec_zT_snr_db": 73.39055678068394,
+   "T1_dec_lift_cT_samples": 84224,
+   "T1_dec_lift_cT_snr_db": 16.14327045817632,
+   "T2_dec_lift_chat_samples": 84224,
+   "T2_dec_lift_chat_snr_db": -0.014179915187059657
+  },
+  {
+   "uid": "sentence_collector_05500",
+   "frames": 157,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 4,
+   "T0_dec_zT_samples": 40192,
+   "T0_dec_zT_snr_db": 72.64449789171108,
+   "T1_dec_lift_cT_samples": 40192,
+   "T1_dec_lift_cT_snr_db": 15.024182858271322,
+   "T2_dec_lift_chat_samples": 40192,
+   "T2_dec_lift_chat_snr_db": -0.32596255621468906
+  },
+  {
+   "uid": "sentence_collector_00225",
+   "frames": 355,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 90880,
+   "T0_dec_zT_snr_db": 73.88042144237887,
+   "T1_dec_lift_cT_samples": 90880,
+   "T1_dec_lift_cT_snr_db": 16.080344525775658,
+   "T2_dec_lift_chat_samples": 90880,
+   "T2_dec_lift_chat_snr_db": 0.6337042731620591
+  },
+  {
+   "uid": "ROHAN4600_0850",
+   "frames": 318,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 81408,
+   "T0_dec_zT_snr_db": 74.64736738994566,
+   "T1_dec_lift_cT_samples": 81408,
+   "T1_dec_lift_cT_snr_db": 15.224065383284476,
+   "T2_dec_lift_chat_samples": 81408,
+   "T2_dec_lift_chat_snr_db": 0.05583643771519351
+  },
+  {
+   "uid": "BASIC5000_4093",
+   "frames": 381,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 97536,
+   "T0_dec_zT_snr_db": 73.28060605444168,
+   "T1_dec_lift_cT_samples": 97536,
+   "T1_dec_lift_cT_snr_db": 15.54572202776699,
+   "T2_dec_lift_chat_samples": 97536,
+   "T2_dec_lift_chat_snr_db": -0.4941143520085653
+  },
+  {
+   "uid": "BASIC5000_2652",
+   "frames": 262,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 4,
+   "T0_dec_zT_samples": 67072,
+   "T0_dec_zT_snr_db": 73.10014647890137,
+   "T1_dec_lift_cT_samples": 67072,
+   "T1_dec_lift_cT_snr_db": 16.989269553105192,
+   "T2_dec_lift_chat_samples": 67072,
+   "T2_dec_lift_chat_snr_db": 0.6200689109949394
+  },
+  {
+   "uid": "BASIC5000_4739",
+   "frames": 339,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 86784,
+   "T0_dec_zT_snr_db": 74.80844884350982,
+   "T1_dec_lift_cT_samples": 86784,
+   "T1_dec_lift_cT_snr_db": 16.26801205947539,
+   "T2_dec_lift_chat_samples": 86784,
+   "T2_dec_lift_chat_snr_db": 0.15807618458132974
+  },
+  {
+   "uid": "BASIC5000_0377",
+   "frames": 355,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 90880,
+   "T0_dec_zT_snr_db": 73.6483506006989,
+   "T1_dec_lift_cT_samples": 90880,
+   "T1_dec_lift_cT_snr_db": 15.450700530833899,
+   "T2_dec_lift_chat_samples": 90880,
+   "T2_dec_lift_chat_snr_db": 0.2312072457862196
+  },
+  {
+   "uid": "ONOMATOPEE300_064",
+   "frames": 343,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 3,
+   "T0_dec_zT_samples": 87808,
+   "T0_dec_zT_snr_db": 74.37666847478039,
+   "T1_dec_lift_cT_samples": 87808,
+   "T1_dec_lift_cT_snr_db": 16.07408008104993,
+   "T2_dec_lift_chat_samples": 87808,
+   "T2_dec_lift_chat_snr_db": 0.23182194467785844
+  },
+  {
+   "uid": "ROHAN4600_3325",
+   "frames": 413,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 4,
+   "T0_dec_zT_samples": 105728,
+   "T0_dec_zT_snr_db": 73.82668832125292,
+   "T1_dec_lift_cT_samples": 105728,
+   "T1_dec_lift_cT_snr_db": 14.848143538478062,
+   "T2_dec_lift_chat_samples": 105728,
+   "T2_dec_lift_chat_snr_db": -0.06014149657817935
+  },
+  {
+   "uid": "BASIC5000_0123",
+   "frames": 222,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 56832,
+   "T0_dec_zT_snr_db": 74.68633940753848,
+   "T1_dec_lift_cT_samples": 56832,
+   "T1_dec_lift_cT_snr_db": 13.930222986210538,
+   "T2_dec_lift_chat_samples": 56832,
+   "T2_dec_lift_chat_snr_db": -0.8974986445023745
+  },
+  {
+   "uid": "ROHAN4600_1788",
+   "frames": 327,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 2,
+   "T0_dec_zT_samples": 83712,
+   "T0_dec_zT_snr_db": 73.61487776147852,
+   "T1_dec_lift_cT_samples": 83712,
+   "T1_dec_lift_cT_snr_db": 14.771396807909653,
+   "T2_dec_lift_chat_samples": 83712,
+   "T2_dec_lift_chat_snr_db": -0.8123734468714345
+  },
+  {
+   "uid": "ROHAN4600_3629",
+   "frames": 273,
+   "T0_bitexact_vs_pack": false,
+   "T0_max_abs_lsb": 5,
+   "T0_dec_zT_samples": 69888,
+   "T0_dec_zT_snr_db": 73.41952721988336,
+   "T1_dec_lift_cT_samples": 69888,
+   "T1_dec_lift_cT_snr_db": 15.281192812507062,
+   "T2_dec_lift_chat_samples": 69888,
+   "T2_dec_lift_chat_snr_db": -0.15479632314018496
+  }
+ ],
+ "caveats": [
+  "lift は線形。T1 が高ければ『40 次元 c-line で足りる』の証拠になるが、低くても『c-line が悪い』の証拠にはならない（非対称）",
+  "T1 / T2 は教師 decoder を通しているので、うちの Gγ の能力は測っていない"
+ ],
+ "repro": "uv run python scripts/e2_teacher_decoder_lanes.py --out reports/verify_e2/tdec24"
+}

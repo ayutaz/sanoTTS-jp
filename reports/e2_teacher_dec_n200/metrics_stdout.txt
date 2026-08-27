@@ -1,0 +1,26 @@
+warning: The `tool.uv.dev-dependencies` field (used in `/Users/s19447/Documents/piper-plus/pyproject.toml`) is deprecated and will be removed in a future release; use `dependency-groups.dev` instead
+Using cache found in /Users/s19447/.cache/torch/hub/tarepan_SpeechMOS_v1.2.0
+  T0_dec_zT を測定中… (n=200)
+SCOREQ (ONNX) initialized on provider: CPUExecutionProvider
+SCOREQ (ONNX) initialized on provider: CPUExecutionProvider
+  T1_dec_lift_cT を測定中… (n=200)
+  T2_dec_lift_chat を測定中… (n=200)
+
+=== レーン別（n=200）===
+  lane                SCOREQ       utmosDNS.ovrl_mos DNS.sig_mos DNS.bak_mosDNS.p808_mos
+  T0_dec_zT           2.0049      1.8017      2.7726      3.0335      3.9203      3.3699
+  T1_dec_lift_cT      1.9806      1.7745      2.7407      3.0012      3.9065      3.3999
+  T2_dec_lift_chat      1.4969      1.4082      2.3827      2.6127      3.8268      3.3485
+
+=== 隣接レーン差（対応のある bootstrap 95% CI）— scoreq_synthetic_nr ===
+  T0_dec_zT__minus__T1_dec_lift_cT         +0.0243  CI [0.0148, 0.0338]  半幅 0.0095
+  T1_dec_lift_cT__minus__T2_dec_lift_chat  +0.4837  CI [0.4557, 0.5125]  半幅 0.0284
+
+=== gap の大小関係（対応のある bootstrap）— scoreq_synthetic_nr ===
+  cline__minus__acoustic                   -0.4594  CI [-0.489, -0.4303] ★
+  _sum_of_gaps                             0.508
+  _total_gap_T0_dec_zT_minus_T2_dec_lift_chat 0.508
+
+G6 検出力: OK 最大半幅 0.0284 (しきい値 0.10)
+
+→ reports/e2_teacher_dec_n200/metrics.json

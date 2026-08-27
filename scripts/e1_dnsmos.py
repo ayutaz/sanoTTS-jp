@@ -49,6 +49,9 @@ T_b5 を足す理由: (1) 人間天井（SCOREQ 2.4983 / UTMOS 2.3047）は T_b5
 ゲート（すべて「落ちる壊し方」を持っている）
 ============================================================================
 
+G0 名前衝突      UTMOS の torch.hub リポが同名 `speechmos` を同梱している。
+                 素の import は**両方向で落ちる**（陽性対照）。ラッパの分離 import が
+                 両方向で通り、素の import と同値であること
 G1 決定性        別プロセス 2 回で 4 スコアが float64 で完全一致
 G2 リサンプラ    wrapper == 明示 soxr_hq + ndarray == ライブラリのパス経路
 G3 16 kHz 化     sr==22050 / subtype==PCM_16 / n_out == ceil(n_in*16000/sr)
@@ -130,6 +133,36 @@ SCORES = DM.SCORE_KEYS
 # ==========================================================================
 # レーン
 # ==========================================================================
+def _verify_against_wheel(pkg_dir: pathlib.Path) -> dict:
+    """uv が入れた実体が `reports/r1_dnsmos/speechmos.whl` と一致するか照合する。
+
+    ⚠️ ホイール自体の出自（同梱 ONNX が microsoft/DNS-Challenge のものか）は
+    **照合していない**。ここで言えるのは「同じホイールが入っている」だけ。
+    """
+    import zipfile
+
+    whl = pathlib.Path("reports/r1_dnsmos/speechmos.whl")
+    if not whl.is_file():
+        return {"checked": False, "reason": f"{whl} が無い"}
+    z = zipfile.ZipFile(whl)
+    names = [n for n in z.namelist()
+             if n.startswith("speechmos/") and (n.endswith(".py") or n.endswith(".onnx"))]
+    site = pkg_dir.parent
+    mismatch = []
+    for n in names:
+        f = site / n
+        if not f.is_file():
+            mismatch.append([n, "missing"])
+        elif hashlib.sha256(z.read(n)).hexdigest() != sha256(f):
+            mismatch.append([n, "differ"])
+    return {"checked": True, "wheel": str(whl),
+            "wheel_sha256": hashlib.sha256(whl.read_bytes()).hexdigest(),
+            "n_files_compared": len(names), "mismatch": mismatch,
+            "match": not mismatch,
+            "note": "ホイールの出自（同梱 ONNX が microsoft/DNS-Challenge 由来か）は"
+                    "**照合していない**。言えるのは『同じホイールが入っている』だけ"}
+
+
 def sha256(path) -> str:
     h = hashlib.sha256()
     with open(path, "rb") as fh:
@@ -438,14 +471,18 @@ def main() -> int:
     scratch.mkdir(exist_ok=True)
 
     # ---- 環境 -------------------------------------------------------------
+    # ⚠️ **`import speechmos` を書かないこと。** UTMOS の torch.hub リポジトリが
+    # 同名パッケージを同梱していて、先に読んだ方が勝つ（G0 参照）。
     import librosa
     import onnxruntime
-    import speechmos
+    from importlib.metadata import version as _pkg_version
 
-    mdl_dir = pathlib.Path(speechmos.__file__).parent / "dnsmos_models"
+    src = DM.dnsmos_source_path()
+    mdl_dir = src.parent / "dnsmos_models"
     env = {
-        "speechmos_version": getattr(speechmos, "__version__", "0.0.1.1 (uv add で導入)"),
-        "speechmos_path": str(pathlib.Path(speechmos.__file__).parent),
+        "speechmos_version": _pkg_version("speechmos"),
+        "speechmos_path": str(src.parent),
+        "speechmos_wheel_check": _verify_against_wheel(src.parent),
         "dnsmos_SR": DM.sr_target(),
         "dnsmos_INPUT_LENGTH": DM.input_length_sec(),
         "onnx_models": {p.name: p.stat().st_size for p in sorted(mdl_dir.glob("*.onnx"))},
@@ -467,6 +504,67 @@ def main() -> int:
     print(f"G3 (16 kHz 化) {'PASS' if gates['G3_pass'] else 'FAIL'}   "
           f"G4 (レーン同一性) {'PASS' if gates['G4_pass'] else 'FAIL'} "
           f"unique sha {gates['G4_n_unique_sha']}/{gates['G4_n_files']}")
+
+    # ---- G0 パッケージ名の衝突（UTMOS の torch.hub リポと同名） ----------
+    # `tarepan/SpeechMOS:v1.2.0` は `speechmos` という名前のパッケージを同梱する。
+    # 素の `import speechmos.dnsmos` を使うと **同一プロセスで UTMOS と共存できない**。
+    # ここでは (a) 衝突が実在すること（陽性対照）と (b) ラッパの分離 import が
+    # 両方向で通ること、(c) 分離 import と素の import が同値であることを見る。
+    def _sub(code):
+        return subprocess.run([sys.executable, "-c", code],
+                              capture_output=True, text=True, cwd=os.getcwd())
+
+    hub = ("import torch; torch.hub.load('tarepan/SpeechMOS:v1.2.0',"
+           "'utmos22_strong', trust_repo=True)")
+    pre = ("import sys; sys.path.insert(0,'src'); "
+           "from saanotts_jp.dnsmos_metric import score_path; ")
+    probe = "reports/eval_v2/teacher/BASIC5000_0083.wav"
+    naive_after_utmos = _sub(f"{hub}\nimport speechmos.dnsmos as D; print('OK')")
+    utmos_after_naive = _sub(f"import speechmos.dnsmos as D\n{hub}\nprint('OK')")
+    wrap_then_utmos = _sub(
+        f"{pre}r=score_path('{probe}')\n{hub}\nprint('OK', repr(r['ovrl_mos']))")
+    utmos_then_wrap = _sub(
+        f"import sys; sys.path.insert(0,'src')\n{hub}\n"
+        f"from saanotts_jp.dnsmos_metric import score_path\n"
+        f"r=score_path('{probe}')\nprint('OK', repr(r['ovrl_mos']))")
+    naive_only = _sub(
+        "import speechmos.dnsmos as D\n"
+        f"print(repr(float(D.run(__import__('librosa').load('{probe}', sr=16000)[0],"
+        " 16000)['ovrl_mos'])))")
+    wrap_vals = [c.stdout.strip().split()[-1] for c in (wrap_then_utmos, utmos_then_wrap)
+                 if c.returncode == 0 and c.stdout.strip()]
+    naive_val = naive_only.stdout.strip() if naive_only.returncode == 0 else None
+    g0 = {
+        "collision_is_real_naive_dnsmos_after_utmos_fails":
+            naive_after_utmos.returncode != 0,
+        "collision_is_real_utmos_after_naive_dnsmos_fails":
+            utmos_after_naive.returncode != 0,
+        "wrapper_then_utmos_ok": wrap_then_utmos.returncode == 0,
+        "utmos_then_wrapper_ok": utmos_then_wrap.returncode == 0,
+        "wrapper_equals_naive": bool(
+            naive_val is not None and len(wrap_vals) == 2
+            and wrap_vals[0] == wrap_vals[1] == naive_val),
+        "naive_value": naive_val, "wrapper_values": wrap_vals,
+        "hub_package_path":
+            os.path.expanduser("~/.cache/torch/hub/tarepan_SpeechMOS_v1.2.0/speechmos"),
+        "error_naive_after_utmos": naive_after_utmos.stderr.strip().splitlines()[-1]
+            if naive_after_utmos.returncode != 0 else None,
+        "error_utmos_after_naive": utmos_after_naive.stderr.strip().splitlines()[-1]
+            if utmos_after_naive.returncode != 0 else None,
+    }
+    gates["G0_pass"] = all([g0["collision_is_real_naive_dnsmos_after_utmos_fails"],
+                            g0["collision_is_real_utmos_after_naive_dnsmos_fails"],
+                            g0["wrapper_then_utmos_ok"], g0["utmos_then_wrapper_ok"],
+                            g0["wrapper_equals_naive"]])
+    gates["G0_detail"] = g0
+    gates["G0_rule"] = ("(陽性対照) 素の import は両方向で落ちる / "
+                        "(本題) ラッパ経由なら両方向で通り、しかも素の import と"
+                        "**同一の値**（repr 一致）を返す")
+    print(f"G0 (speechmos 名前衝突) {'PASS' if gates['G0_pass'] else 'FAIL'}  "
+          f"衝突実在 {g0['collision_is_real_naive_dnsmos_after_utmos_fails']}/"
+          f"{g0['collision_is_real_utmos_after_naive_dnsmos_fails']}  "
+          f"ラッパ両方向 {g0['wrapper_then_utmos_ok']}/{g0['utmos_then_wrapper_ok']}  "
+          f"素と同値 {g0['wrapper_equals_naive']}")
 
     # ---- G2 リサンプラの 3 経路一致 ---------------------------------------
     g2_rows = []
@@ -588,14 +686,17 @@ def main() -> int:
     for fam, steps in ladders.items():
         g6[fam] = {"steps": [], "monotone_sig": None, "monotone_ovrl": None}
         prev_sig = prev_ovr = None
-        ok_sig = ok_ovr = True
+        prev_bak = prev_p8 = None
+        ok_sig = ok_ovr = ok_bak = ok_p8 = True
         for label, fn in steps:
-            vals, snrs, gains = [], [], []
+            vals, snrs, gains, rmsr = [], [], [], []
             for x in base:
                 y, g = fn(x)
                 vals.append(DM.score_array(y, SR_SRC))
                 snrs.append(snr_db(x, y))
                 gains.append(g)
+                rmsr.append(float(np.sqrt(np.mean(y.astype(np.float64) ** 2))
+                                  / np.sqrt(np.mean(x.astype(np.float64) ** 2))))
             sig = float(np.mean([v["sig_mos"] for v in vals]))
             ovr = float(np.mean([v["ovrl_mos"] for v in vals]))
             bak = float(np.mean([v["bak_mos"] for v in vals]))
@@ -603,22 +704,48 @@ def main() -> int:
             if prev_sig is not None:
                 ok_sig &= sig < prev_sig
                 ok_ovr &= ovr < prev_ovr
-            prev_sig, prev_ovr = sig, ovr
+                ok_bak &= bak < prev_bak
+                ok_p8 &= p808 < prev_p8
+            prev_sig, prev_ovr, prev_bak, prev_p8 = sig, ovr, bak, p808
             g6[fam]["steps"].append({
                 "label": label, "sig": round(sig, 4), "bak": round(bak, 4),
                 "ovrl": round(ovr, 4), "p808": round(p808, 4),
                 "snr_db_mean": round(float(np.mean(snrs)), 3),
-                "gain_min": round(float(np.min(gains)), 4)})
+                "gain_min": round(float(np.min(gains)), 4),
+                "rms_ratio_mean": round(float(np.mean(rmsr)), 4)})
         b_sig = float(np.mean([r["sig_mos"] for r in base_scores]))
         b_ovr = float(np.mean([r["ovrl_mos"] for r in base_scores]))
+        b_bak = float(np.mean([r["bak_mos"] for r in base_scores]))
+        b_p8 = float(np.mean([r["p808_mos"] for r in base_scores]))
         ok_sig &= g6[fam]["steps"][0]["sig"] < b_sig
         ok_ovr &= g6[fam]["steps"][0]["ovrl"] < b_ovr
+        ok_bak &= g6[fam]["steps"][0]["bak"] < b_bak
+        ok_p8 &= g6[fam]["steps"][0]["p808"] < b_p8
         g6[fam]["monotone_sig"] = bool(ok_sig)
         g6[fam]["monotone_ovrl"] = bool(ok_ovr)
+        g6[fam]["monotone_bak"] = bool(ok_bak)
+        g6[fam]["monotone_p808"] = bool(ok_p8)
+        g6[fam]["source_mean"] = {"sig": round(b_sig, 4), "bak": round(b_bak, 4),
+                                  "ovrl": round(b_ovr, 4), "p808": round(b_p8, 4)}
         print(f"  {fam:<20} 原音 SIG {b_sig:.3f} OVRL {b_ovr:.3f} → " + " → ".join(
             f"{s['label']}: {s['sig']:.3f}/{s['ovrl']:.3f}" for s in g6[fam]["steps"])
             + f"   単調 SIG {ok_sig} OVRL {ok_ovr}")
     g6_pass = all(v["monotone_sig"] and v["monotone_ovrl"] for v in g6.values())
+    g6_breakdown = {
+        "n_families": len(g6),
+        "monotone_sig_families": sum(1 for v in g6.values() if v["monotone_sig"]),
+        "monotone_ovrl_families": sum(1 for v in g6.values() if v["monotone_ovrl"]),
+        "failed_sig": [k for k, v in g6.items() if not v["monotone_sig"]],
+        "failed_ovrl": [k for k, v in g6.items() if not v["monotone_ovrl"]],
+        "monotone_bak_families": sum(1 for v in g6.values() if v["monotone_bak"]),
+        "monotone_p808_families": sum(1 for v in g6.values() if v["monotone_p808"]),
+        "failed_bak": [k for k, v in g6.items() if not v["monotone_bak"]],
+        "failed_p808": [k for k, v in g6.items() if not v["monotone_p808"]],
+        "note": ("P.835 の SIG は『背景雑音を無視して音声信号の歪みだけを見る』軸なので、"
+                 "加法雑音で下がらないのは設計どおりでもありうる。BAK の落ち方と"
+                 "並べて読むこと。**ゲートは緩めない** — 満たさなかったと記録する"),
+    }
+    gates["G6_breakdown"] = g6_breakdown
     gates["G6_pass"] = g6_pass
     gates["G6_rule"] = ("原音 → 段 1 → 段 2 → 段 3 が SIG も OVRL も厳密に単調減少。"
                         "絶対値のしきい値は使わない（日本語で較正されていないため）")
@@ -788,11 +915,10 @@ def main() -> int:
         delta_corr[f"dSCOREQ_vs_d{k}"] = corr_ci(d_scoreq, d)
         delta_corr[f"dUTMOS_vs_d{k}"] = corr_ci(d_utmos, d)
     # 食い違った発話（順位が最も食い違う 3 本）
-    r_sc = np.argsort(np.argsort(d_scoreq))
-    r_dn = np.argsort(np.argsort([np.mean(x) for x in
-                                  (np.array([r["ovrl_mos"] for r in main_rows["S_v2"]])
-                                   - np.array([r["ovrl_mos"] for r in main_rows["T_v2"]])
-                                   ).reshape(-1, 1)]))
+    d_ovrl = np.array([r["ovrl_mos"] for r in main_rows["S_v2"]]) - \
+        np.array([r["ovrl_mos"] for r in main_rows["T_v2"]])
+    r_sc = np.argsort(np.argsort(d_scoreq))     # 0 = 最も生徒が落ちた発話
+    r_dn = np.argsort(np.argsort(d_ovrl))
     disagree_idx = np.argsort(-np.abs(r_sc - r_dn))[:3]
     ev = json.loads(pathlib.Path("reports/eval_v2/eval.json").read_text())
     uids = [u["uid"] for u in ev["utterances"]]
@@ -804,8 +930,78 @@ def main() -> int:
         "rank_scoreq": int(r_sc[i]), "rank_dnsmos_ovrl": int(r_dn[i]),
     } for i in disagree_idx]
 
+    # ---- M-49（別レーンの先行測定）との照合 --------------------------------
+    # ⚠️ E-1 は **M-49 で一度測られている**（`scripts/e2_dnsmos.py`）。
+    # あちらは `torchaudio.transforms.Resample` を使っており、こちらは soxr_hq。
+    # **同じ人間 24 本で両方のリサンプラを回して、差がリサンプラで説明できるか**を見る。
+    M49_HUMAN = {"ovrl_mos": 2.7866, "sig_mos": 3.1111,
+                 "bak_mos": 3.7973, "p808_mos": 3.6667}
+
+    def _load_16k_torchaudio(path):
+        import torch
+        import torchaudio
+
+        wav, sr = sf.read(str(path), dtype="float32", always_2d=True)
+        t = torch.from_numpy(wav[:, 0]).unsqueeze(0)
+        if sr != DM.sr_target():
+            t = torchaudio.transforms.Resample(sr, DM.sr_target())(t)
+        return t[0].numpy().astype(np.float32)
+
+    tor = [DM.score_array(_load_16k_torchaudio(p), DM.sr_target())
+           for p in lanes["H"]]
+    recon = {"m49_recorded_human": M49_HUMAN, "soxr_hq": {}, "torchaudio": {},
+             "abs_delta_torchaudio_vs_m49": {}, "abs_delta_soxr_vs_m49": {}}
+    for k in SCORES:
+        s_ = float(np.mean([r[k] for r in main_rows["H"]]))
+        t_ = float(np.mean([r[k] for r in tor]))
+        recon["soxr_hq"][k] = round(s_, 4)
+        recon["torchaudio"][k] = round(t_, 4)
+        recon["abs_delta_torchaudio_vs_m49"][k] = float(f"{abs(t_ - M49_HUMAN[k]):.4g}")
+        recon["abs_delta_soxr_vs_m49"][k] = float(f"{abs(s_ - M49_HUMAN[k]):.4g}")
+    recon["torchaudio_reproduces_m49"] = all(
+        v < 5e-5 for v in recon["abs_delta_torchaudio_vs_m49"].values())
+    recon["note"] = (
+        "M-49（scripts/e2_dnsmos.py）は torchaudio.transforms.Resample を使っている。"
+        "同じ 24 本を torchaudio 経路で測ると M-49 の記録と一致する。"
+        "**M-49 の人間天井は再現できた。**残る差はリサンプラだけで、"
+        "OVRL では小さく p808 では 1 桁大きい。"
+        "⚠️ M-49 の L0_teacher は `reports/eval_v2/teacher` とは**別の wav**"
+        "（レーンを作り直しており、bit 一致は原理的に不可能・SNR 68.5 dB）なので、"
+        "T_v2 と L0_teacher の差はリサンプラだけでは説明できない")
+    print("\nM-49 との照合（人間 24 本）")
+    for k in SCORES:
+        print(f"  {k:<10} soxr_hq {recon['soxr_hq'][k]:.4f}  "
+              f"torchaudio {recon['torchaudio'][k]:.4f}  "
+              f"M-49 {M49_HUMAN[k]:.4f}  "
+              f"|Δtor−M49| {recon['abs_delta_torchaudio_vs_m49'][k]:.4g}")
+    print(f"  M-49 を再現: {recon['torchaudio_reproduces_m49']}")
+
     # ---- F0 交絡 ----------------------------------------------------------
     print("\nF0 交絡（2 推定器）…")
+    def _ensure_pkg_resources() -> bool:
+        """setuptools 84 で `pkg_resources` が消え `import pyworld` が落ちるので補う。
+
+        返り値は「shim を入れたか」。**環境は変更しない**（このプロセス内だけ）。
+        """
+        import importlib.util
+        import types
+
+        if importlib.util.find_spec("pkg_resources") is not None:
+            return False
+        from importlib.metadata import version as _v
+
+        m = types.ModuleType("pkg_resources")
+
+        class _Dist:
+            def __init__(self, v):
+                self.version = v
+
+        m.get_distribution = lambda n: _Dist(_v(n))
+        sys.modules["pkg_resources"] = m
+        return True
+
+    pkg_resources_shimmed = _ensure_pkg_resources()
+
     def mean_logf0_world(x):
         import pyworld
 
@@ -847,6 +1043,13 @@ def main() -> int:
         == np.sign(f0_corr["librosa_pyin"][f"corr_dlogf0_vs_d{k}"]["pearson_r"])
         for k in SCORES)
     f0_corr["two_estimators_sign_agree"] = bool(sign_agree)
+    f0_corr["pkg_resources_shimmed"] = bool(pkg_resources_shimmed)
+    f0_corr["pkg_resources_note"] = (
+        "setuptools 84.0.0 は pkg_resources を同梱しないため、この環境では "
+        "`import pyworld` が ModuleNotFoundError('pkg_resources') で落ちる。"
+        "本スクリプトはプロセス内だけの最小 shim を入れて回避している"
+        "（環境・uv.lock は変更していない）。⚠️ eval extra を使う他のスクリプトでも"
+        "同じ理由で pyworld が落ちる")
     for est in ("pyworld_harvest", "librosa_pyin"):
         print(f"  {est:<16} r(ΔlogF0, ΔOVRL) = "
               f"{f0_corr[est]['corr_dlogf0_vs_dovrl_mos']['pearson_r']:+.3f}")
@@ -873,8 +1076,16 @@ def main() -> int:
               f"CI[{ps['ci95_diff'][0]:+.4f},{ps['ci95_diff'][1]:+.4f}] "
               f"p={ps['paired_t_p']} 検出限界 {ps['smallest_significant_diff']:.4f}")
 
+    print("\n物差し（同一システムの標本間ばらつき）: "
+          f"OVRL T_b5 − T_v2 = "
+          f"{np.mean([r['ovrl_mos'] for r in main_rows['T_b5']]) - np.mean([r['ovrl_mos'] for r in main_rows['T_v2']]):+.4f}"
+          f"   生徒 − 教師（対応あり） = "
+          f"{stats_out['paired_T_v2_minus_S_v2']['ovrl_mos']['mean_diff']:+.4f}")
+    print("人間天井（この日本語コーパス）: " + "  ".join(
+        f"{k} {np.mean([r[k] for r in main_rows['H']]):.4f}" for k in SCORES))
+
     all_gates = {g: gates[f"{g}_pass"] for g in
-                 ("G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8")}
+                 ("G0", "G1", "G2", "G3", "G4", "G5", "G6", "G7", "G8")}
     print("\nゲート: " + "  ".join(f"{g} {'PASS' if v else 'FAIL'}"
                                     for g, v in all_gates.items()))
 
@@ -904,6 +1115,32 @@ def main() -> int:
         "positive_control_G6": g6,
         "metallic_specificity_G7": g7,
         "f0_confound": {"per_file": f0, "analysis": f0_corr},
+        "reconciliation_with_M49": recon,
+        "calibration_japanese": {
+            "human_ceiling_this_corpus": {
+                k: round(float(np.mean([r[k] for r in main_rows["H"]])), 4)
+                for k in SCORES},
+            "human_set": "つくよみちゃんコーパス VOICEACTRESS100_001..024（n=24）",
+            "teacher_over_human_ovrl": round(
+                float(np.mean([r["ovrl_mos"] for r in main_rows["T_v2"]])
+                      / np.mean([r["ovrl_mos"] for r in main_rows["H"]])), 4),
+            "T_b5_over_human_ovrl": round(
+                float(np.mean([r["ovrl_mos"] for r in main_rows["T_b5"]])
+                      / np.mean([r["ovrl_mos"] for r in main_rows["H"]])), 4),
+            "note": ("**実人間の日本語スタジオ録音でも OVRL は 3 に届かない。**"
+                     "しかも教師（TTS）のほうが実人間より高く出る組み合わせがある。"
+                     "絶対値を英語の公表値と並べてはいけない（C-012 の再発防止）"),
+        },
+        "same_system_ruler": {
+            "note": ("T_b5 と T_v2 はどちらも同じ教師の合成音（別の 24 文）。"
+                     "この差が n=24 での**標本間ばらつきの物差し**で、"
+                     "生徒差はこれと比べて読む"),
+            "ovrl_diff_T_b5_minus_T_v2": round(
+                float(np.mean([r["ovrl_mos"] for r in main_rows["T_b5"]])
+                      - np.mean([r["ovrl_mos"] for r in main_rows["T_v2"]])), 4),
+            "ovrl_paired_diff_student_minus_teacher":
+                stats_out["paired_T_v2_minus_S_v2"]["ovrl_mos"]["mean_diff"],
+        },
         "scale_note": ("DNSMOS は 5 点満点ではない。較正多項式の像は "
                        "SIG [1.1421, 4.0101] / BAK [1.0814, 4.3580] / "
                        "OVRL [1.0938, 3.9318]（raw ∈ [1,5] を代入して本タスクで確認）。"
@@ -913,6 +1150,18 @@ def main() -> int:
                       "4 スコアを平均しない"),
         "calibration_warning": DM.CALIBRATION_WARNING,
         "scoreq_utmos_calibration_warning": CALIBRATION_WARNING,
+        "interpretation_constraints": [
+            "**合否は決めない。** DNSMOS も日本語で較正されていない（D-013）",
+            "生徒の DNSMOS が低いことは金属的アーティファクトの証拠にならない"
+            "（事前登録どおり）。特異性は G7 の代理アームでしか測っていない",
+            "G7 が測ったのは**代理に対する感度**であって、うちの生徒に実在する欠陥に"
+            "対する感度ではない。Griffin-Lim / 86.13 Hz AM / フレーム凍結は文献の"
+            "機序から作った代理にすぎない",
+            "n=24。人間レーンは対応なし（テキストが違う）。"
+            "『有意差なし』を『差が無い』と書かない",
+            "G6 は満たさなかった。**指標が反応しない劣化が実在する**（下記 G6 参照）",
+            "p808_mos は別 ONNX の独立予測。他の 3 スコアと平均しない",
+        ],
         "not_measured": [
             "聴取（P-2 の担当）",
             "8–11 kHz の欠陥（DNSMOS の入力は 16 kHz、Nyquist 8 kHz。原理的に見えない）",

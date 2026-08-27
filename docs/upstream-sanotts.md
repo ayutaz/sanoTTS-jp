@@ -70,12 +70,12 @@ packaged or reimplemented"* と書いている。
 |---|---|---|
 | duration | hidden 32〜64 / depth 3 / kernel 5 | width 32 / 3 blocks |
 | acoustic | token-context / hidden 64〜96（~359k） | width 48（~199,536） |
-| **decoder** | ~1.0M / **教師からチャネル切り出しで初期化** | 331,308 / **ゼロから学習** |
+| **decoder** | ~1.0M / **教師からチャネル切り出しで初期化** | 331,308 / **ゼロから学習**（教師比 0.802 / M-49） |
 | decoder 学習 | recovery → z-mix → joint の 3 段 × **40k step** | 4 段 × 20k step |
 | z-mix | `--acoustic-latent-mix-prob 0.5`（確率で切替） | ランダムな混合比 |
 | β（式7） | **6.0**（英語・耳で決定） | sweep 0/2/4/6/8 → 候補 **0 と 2** |
 | **de-metal 段** | MPD + iSTFT 位相損失の追加 fine-tune | **無い** |
-| 評価指標 | SCOREQ + UTMOS + **DNSMOS** | SCOREQ + UTMOS |
+| 評価指標 | SCOREQ + UTMOS + **DNSMOS** | SCOREQ + UTMOS + **DNSMOS**（M-49 で追加） |
 | データ配分 | acoustic ~8k 行 / **decoder は ~512 行** | 20,790 行を一律 |
 | 教師の与え方 | ONNX を **decoder-cut** して `generator_input → 波形` の graph を作る | `.ckpt` を PyTorch で読む |
 
@@ -83,13 +83,37 @@ packaged or reimplemented"* と書いている。
 
 作業内容は [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
-### E-2. decoder の教師初期化
+### E-2. decoder の教師初期化 — **一部決着（M-49）**
 
 上流は *"Teacher-init the decoder. It survives channel-pruning;
 from-scratch sub-400k decoders are a dead class."* と書いている。
 
-**うちの `Gγ` は 331,308 params をゼロから学習して SCOREQ 教師比 0.611 を出している。**
-上流の主張と噛み合わない。どちらかの前提が違う。**未検証。**
+⚠️ **その「sub-400k」の根拠は論文本文では 357k の R8 = 波形領域の
+transposed-convolution decoder（522 MMAC/s）の測定であり、
+331k の iSTFT decoder（86 frames/s, 1024-pt iSTFT, 28 MMAC/s）に
+教師潜在を通したセルは論文に存在しない**（§IV-B を自分で読んで確認。
+PDF sha256 `64b0d426b585e05f87867375928755a79d02ffc989374c08f1aa52c37267eab1`）。
+論文が並べているのは
+
+| 潜在 → decoder | SCOREQ | 教師比 |
+|---|---:|---:|
+| 教師 z → 教師 decoder | 4.68 | — |
+| 教師 z → **357k R8**（波形 transposed-conv） | 3.20 | 0.684 |
+| 教師 z → **1.0M teacher-init** | 4.13 | 0.883 |
+| 生徒潜在 → 教師 decoder | 3.70 | 0.791 |
+
+の 4 セルで、**すべて z-line（192ch）**。
+
+**うちが埋めたのはまさに欠けているセル**（M-49、日本語 / n=200）:
+教師 z →（40 次元 c-line 経由）→ **331k iSTFT decoder** で**教師比 0.802**。
+生徒潜在 → 教師 decoder は **0.747**。
+⚠️ 言語も教師もレシピも違い、うちは 40 次元ボトルネックを挟んでいるので
+**上流の 0.684 / 0.883 と直接比較しない**（論文自身が絶対値の言語間比較を禁じ、
+教師比での報告を指示している）。
+
+→ **「sub-400k は死んだクラス」は、うちのアーキテクチャについての主張ではなかった。**
+ただしうちでも decoder は鎖分解で最大の単項（0.395 / 全体 0.729）である。**未再現**の
+部分（上流の 0.684 / 0.883 そのもの）は変わらず未再現。
 
 ⚠️ **そのままでは実行できない。トポロジが違う**（自分でソースを読んで確認）:
 
@@ -105,10 +129,15 @@ from-scratch sub-400k decoders are a dead class."* と書いている。
 切り分けるべき 3 仮説は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10 E-2。
 
-### E-1. DNSMOS を測っていない
+### E-1. DNSMOS — **測った（M-49）**
 
 上流は *"a metallic artifact scores high on SCOREQ and low on DNSMOS"* と書いている。
-**うちは DNSMOS を測っていないので、生徒に金属的な尾があっても現在の指標では見えない。**
-これは `docs/decisions.md` D-020（主指標 = SCOREQ synthetic/nr）の穴。**未検証。**
+
+**測った結果、そのパターンは日本語の生徒には出ていない。**
+実人間 2.7866 / 教師 2.7547 / L1 2.4493 / L2 2.1950 / 生徒 2.1071（OVRL, n=24）で、
+SCOREQ・UTMOS・DNSMOS の 3 指標が**同じ順序で単調に下がる**。
+⚠️ **教師/人間は DNSMOS で 0.989** と、SCOREQ の 0.820 / UTMOS の 0.758 より
+はるかに高い。**DNSMOS は日本語の教師をほぼ人間と同じに採点する。**
+⚠️ 上流の申告値そのもの（英語のどのモデルで何点か）は**未再現**。
 
 どちらもライセンスと無関係に検証できる（数値と手法は著作権の対象外）。

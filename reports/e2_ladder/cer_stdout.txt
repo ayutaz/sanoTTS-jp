@@ -1,0 +1,39 @@
+warning: The `tool.uv.dev-dependencies` field (used in `/Users/s19447/Documents/piper-plus/pyproject.toml`) is deprecated and will be removed in a future release; use `dependency-groups.dev` instead
+Whisper large-v3 を読み込み中…
+  ROHAN4600_4164             L0=0.091  L1=0.091  L2=0.091  L3=0.091
+  BASIC5000_4197             L0=0.189  L1=0.216  L2=0.216  L3=0.189
+  BASIC5000_1619             L0=0.038  L1=0.038  L2=0.115  L3=0.115
+  sentence_collector_09299   L0=0.031  L1=0.031  L2=0.031  L3=0.156
+  sentence_collector_04854   L0=0.455  L1=0.455  L2=0.364  L3=0.273
+  sentence_collector_02992   L0=0.056  L1=0.056  L2=0.056  L3=0.000
+  ROHAN4600_2252             L0=0.100  L1=0.100  L2=0.150  L3=0.250
+  sentence_collector_05595   L0=0.400  L1=0.600  L2=0.400  L3=0.500
+  BASIC5000_2314             L0=0.029  L1=0.029  L2=0.029  L3=0.029
+  sentence_collector_04850   L0=0.500  L1=0.667  L2=0.667  L3=0.083
+  sentence_collector_03352   L0=0.174  L1=0.217  L2=0.174  L3=0.304
+  BASIC5000_0083             L0=0.081  L1=0.135  L2=0.108  L3=0.243
+  sentence_collector_05500   L0=0.000  L1=0.062  L2=0.000  L3=0.062
+  sentence_collector_00225   L0=0.059  L1=0.059  L2=0.059  L3=0.118
+  ROHAN4600_0850             L0=0.111  L1=0.194  L2=0.333  L3=0.194
+  BASIC5000_4093             L0=0.216  L1=0.243  L2=0.270  L3=0.324
+  BASIC5000_2652             L0=0.080  L1=0.080  L2=0.040  L3=0.080
+  BASIC5000_4739             L0=0.000  L1=0.162  L2=0.135  L3=0.135
+  BASIC5000_0377             L0=0.062  L1=0.062  L2=0.094  L3=0.062
+  ONOMATOPEE300_064          L0=0.026  L1=0.026  L2=0.026  L3=0.026
+  ROHAN4600_3325             L0=0.205  L1=0.295  L2=0.432  L3=0.386
+  BASIC5000_0123             L0=0.048  L1=0.048  L2=0.048  L3=0.048
+  ROHAN4600_1788             L0=0.182  L1=0.242  L2=0.273  L3=0.333
+  ROHAN4600_3629             L0=0.129  L1=0.097  L2=0.129  L3=0.258
+
+=== かな CER（レーン別）===
+  L0_teacher     mean 0.1359  median 0.0860  n=24
+  L1_c_s4        mean 0.1753  median 0.0984  n=24
+  L2_oracle_d    mean 0.1766  median 0.1222  n=24
+  L3_student     mean 0.1776  median 0.1457  n=24
+
+=== 隣接レーン差（対応のある bootstrap）===
+  L1_c_s4__minus__L0_teacher               +0.0394  CI [0.0172, 0.0651]
+  L2_oracle_d__minus__L1_c_s4              +0.0013  CI [-0.0265, 0.0273]
+  L3_student__minus__L2_oracle_d           +0.0010  CI [-0.0643, 0.0485]
+
+→ reports/e2_ladder/cer.json  (750.2 s)

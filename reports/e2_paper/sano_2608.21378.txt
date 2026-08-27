@@ -1,0 +1,354 @@
+                                         saanoTTS: The Smallest Real-Time Neural TTS on
+                                                a General-Purpose Microcontroller
+                                                                                           Ashish Thapa
+                                                                                           Ampixa Labs
+                                                                                        ashish@ampixa.com
+
+
+                                   Abstract—This paper describes an audited neural text-to-          HiFi-GAN pipeline, but positions it for future custom hard-
+                               speech stack that runs from phoneme IDs to 22.05-kHz PCM on           ware rather than reporting execution on a physical microcon-
+                               general-purpose microcontrollers. Its deployed graph has 567,008      troller [8]. Here we time the full neural path, without an NPU,
+                               parameters, and its two int8 blobs occupy 679,832 bytes. On
+                               an ESP32-S3, the complete duration–acoustic–inverse-STFT path         on physical microcontrollers.
+                               generates 4.54 s of speech in 1.02 s (0.22× real time) without           The central deployment result is the 40-dimensional c-line.
+                               a neural accelerator. The same portable C core runs offline at        It joins a duration student, an acoustic student that predicts
+
+
+
+
+arXiv:2608.21378v1 [cs.SD] 14 Jul 2026
+                               5.72× real time on an FPU-less ESP32-C3. To our knowledge, this       the decoder contract directly, and a frame-domain inverse-
+                               is the smallest complete phoneme-to-waveform neural TTS graph
+                               demonstrated in real time on a general-purpose microcontroller        STFT decoder, for a total of exactly 567,008 inference param-
+                               without a neural accelerator. We derive the students from the         eters. A later 600,097-parameter z-line improved the automatic
+                               conditional-VAE objective of their Piper/VITS teachers and state      quality score, but its waveform-domain decoder requires 522
+                               the duration, latent-interface, waveform, adversarial, and joint-     MMAC/s. We therefore treat it as an ablation rather than as
+                               distillation losses used in training. The size and speed come with    an MCU deployment. Both models, along with a 1.396-M-
+                               an audible cost: on unseen text, the embedded stack distilled from
+                               en_US-kristin-medium scores 2.54 SCOREQ and 2.80 UTMOS,               parameter diagnostic package, were distilled from Kristin and
+                               compared with 4.68 and 4.42 for its teacher. A separate English       can be compared directly. The current quality release was
+                               quality package uses the stronger en_US-amy-medium teacher. Its       distilled from Amy: its 1.454-M model is the default English
+                               1,454,284-parameter Pareto point scores 4.13 SCOREQ and 4.10          voice, and a 1.834-M variant has the highest student SCOREQ.
+                               UTMOS; a 1,834,380-parameter variant scores 4.16 SCOREQ.              Results from the two teachers are kept separate throughout the
+                               A controlled capacity study with Kristin identifies the decoder,
+                               rather than the output representation, as the main constraint.        paper.
+                               Two evaluation failures also affected the work: a narrow, tem-           Our contributions are:
+                               plated test set overstated one early student’s SCOREQ by 1.35,
+                               and aggregate quality predictors missed a sibilant failure that was     1) a reproducible derivation from the VITS conditional
+                               evident in listening and in a phoneme-resolved spectral probe.             VAE to three deterministic students joined by an explicit
+                               Checksums cover the reported model blobs, runtime ports, and               latent interface;
+                               golden vectors.                                                         2) an evaluation protocol that separates teacher, decoder,
+                                   Index Terms—text-to-speech, knowledge distillation, varia-             acoustic, full-stack, and phoneme-class effects and ex-
+                               tional autoencoder, on-device inference, microcontrollers, quan-
+                               tization                                                                   poses test-set inflation;
+                                                                                                       3) a controlled capacity study using Kristin, followed by a
+                                                                                                          separate Amy replication; and
+                                                      I. I NTRODUCTION                                 4) an NPU-free deployment measured at 0.22× real time
+                                  Most neural TTS systems pair an acoustic model with a                   on ESP32-S3 and 5.72× on ESP32-C3, with both
+                               neural vocoder [1], [2]. Piper [3], built on VITS [4], pro-                outputs checked against floating-point golden audio at
+                               vides strong open teacher voices. Its roughly 15-M-parameter               correlation of at least 0.98.
+                               models, however, are intended for Linux-class devices. For a            The code, model manifests, exact binary fixtures, and eval-
+                               microcontroller target, parameter count answers only part of          uation tools are in the saanoTTS repository [9].
+                               the question. The model must also retain useful quality on
+                               unseen text and finish synthesis within the device’s compute
+                               and memory limits.                                                        II. F ROM E ACH T EACHER VAE TO D ETERMINISTIC
+                                  Knowledge distillation offers one route to that target be-                                 S TUDENTS
+                               cause it transfers a teacher’s behavior instead of only pruning
+                               its tensors [5]. Published embedded speech results do not                Let x denote a phoneme sequence, A its monotonic align-
+                               all use the same system boundary. The TinyTTS hardware                ment, y the waveform, and z the latent presented to the VITS
+                               module, for example, uses an Ethos-U55 neural accelera-               generator. Each voice v has its own teacher, frontend map,
+                               tor, whereas TinyVocos measures a mel-to-waveform vocoder             and student weights; for readability, we omit the superscript
+                               rather than a complete text-to-speech stack [6], [7]. SlimTTS         v. VITS is a conditional variational autoencoder with posterior
+                               reports an even smaller 562k-parameter phoneme-to-mel plus            qϕ (z | y) and text-conditioned prior pθ (z | x, A). Ignoring the
+separate duration and adversarial terms, the evidence lower             with hops 128, 256, and 512. Let R denote these resolution
+bound maximized by the teacher is                                       pairs and ŷ = Gγ (c̃). The core generator objective is
+          LVAE = Eqϕ (z|y) [log pθ (y | z)]                                                                λS X
+                                                                         LG (ŷ, y T ) = λw ∥ŷ − y T ∥1 +          ℓn,h
+                    − DKL (qϕ (z | y) ∥ pθ (z | x, A)) .          (1)                                      |R|
+                                                                                                               (n,h)∈R
+
+The normalizing flow gives the VITS prior its expressiveness,                          + λA Ladv + λF LFM ,
+and the generator maps a sample back to waveform space [4].                    ℓn,h = ∥ log(1 + |Sn,h (ŷ)|) − log(1 + |Sn,h (y T )|)∥1 ,
+Our students do not form a second VAE. We freeze the teacher                                                                          (5)
+and run deterministic inference, retaining its durations dT ,
+                                                                        where c̃ = cT or ĉ under predicted-code mixing, Ladv =
+one fixed prior sample z T , and waveform y T . Although the
+                                                                        LLSGAN (D(∆ŷ)) is the least-squares generator loss [10], and
+posterior qϕ is part of VAE training, the distillation labels
+                                                                        LFM matches discriminator features of ∆ŷ and ∆y T . Multi-
+come from the text-conditioned prior. For every promoted
+                                                                        resolution spectral loss follows the same motivation as Parallel
+pack, label generation sets the noise and duration-noise scales
+                                                                        WaveGAN [11]. The final c-line stage uses a first-difference
+to zero and the length scale to one. Each teacher therefore
+                                                                        discriminator and updates acoustic and decoder together:
+supplies a consistent set of labels, and no pack mixes labels
+from different voices.                                                                ŷ = Gγ (Aβ (x, ˆ
+                                                                                                     d)),
+A. Duration and latent-interface distillation                                    Ljoint = LG (ŷ, y T ) + λc ∥Aβ (x, ˆ
+                                                                                                                    d) − cT ∥1 .         (6)
+   The duration network emits log-duration ℓ̂i . Deployment             The packaged run uses
+applies a per-voice calibrated length scale sv and clips the
+result:                                                                      (λw , λS , λA , λF , λc ) = (0.1, 0.5, 0.025, 0.25, 0.5).
+
+    ri = max(1, eℓ̂i ),      dˆi = clip[1,80] (round(sv ri )) .         The final term anchors the interface while allowing the decoder
+                                                                        to adapt to errors from the acoustic student.
+Here sv = 1.08 for the released English quality voices and
+1.16 for the Vietnamese and Indonesian releases. The objective                 III. A RTIFACTS AND E VALUATION P ROTOCOL
+combines token accuracy with utterance-length conservation:                The project uses a separate teacher for each voice. The
+                                 "                        #2            controlled MCU study uses en_US-kristin-medium,
+                          T
+                                      X            X
+                                                        T               whereas the current English quality release uses
+ Ld = Huber0.25 (ℓ̂, log d ) + λT log     ri − log    di     .
+                                                                        en_US-amy-medium. The Vietnamese and Indonesian
+                                           i             i
+                                                             (2)        packages         use      vi_VN-vais1000-medium             and
+  For the embedded c-line, a training-only encoder contracts            id_ID-news_tts-medium, respectively. Each package
+the 192-channel teacher latent to cT = Eρ (z T ) ∈ R40×T . The          is trained from one teacher tuple and ships its own weights
+acoustic student predicts ĉ = Aβ (x, ˆ
+                                      d) directly. Let NT (u) =         and matching Piper/eSpeak phoneme-ID map; only the
+(u − µT )/σT denote channel normalization by the teacher-               training recipe is shared across languages [12]. All four
+pack statistics. Its loss is the weighted sum implemented by            voices generate 22.05-kHz audio.
+the trainer:                                                               Our primary English test set, diverse24, consists of 24
+                                                                        LJSpeech validation sentences that do not occur in train-
+  Lc = ∥ĉ − cT ∥1 + λ2 ∥ĉ − cT ∥22 + λn ∥NT (ĉ) − NT (cT )∥1         ing [13]. Metrics are computed on raw full-stack output. They
+          + λ∆ ∥∆ĉ − ∆cT ∥1 + λs Lstat ,                               include the synthetic, no-reference SCOREQ measure [14],
+                                                                        UTMOS [15], DNSMOS signal quality [16], and normalized
+           µ(ĉ) − µ(cT )     σ(ĉ) − σ(cT )
+Lstat =                     +                  .                  (3)   Whisper-small WER [17]. We also listened to the output of
+                 σT       1         σT       1                          every promoted model.
+The channel-normalized terms keep high-variance latent chan-               Table I distinguishes three systems that were conflated in
+nels from dominating the objective. In the Kristin diagnostic           earlier drafts. Counts include live neural tensors but exclude
+package and the Amy quality packages, the full 192-channel              the external text frontend and the training-only discriminators.
+z replaces c. These packages also use a hinge adversary to              The embedded count also excludes the 14,952-parameter z → c
+discourage conditional mean collapse:                                   encoder because it is used only in training; at deployment,
+                                                                        the acoustic model already emits c. Conversely, the deployed
+          LzD = E[(1 − Dz (z T ))+ ] + E[(1 + Dz (ẑ))+ ],              acoustic vocabulary has 157 entries, 30 more than the research
+      Lz,adv = − E[Dz (ẑ)].                                      (4)   configuration, and adds 1,440 embedding parameters. The
+                                                                        shipped graph therefore has 567,008 parameters rather than
+B. Decoder and joint distillation                                       the earlier count of 565,568. Its two blobs occupy 280,288 and
+   During training, the decoder receives both exact teacher             399,544 bytes. Padding, floating-point biases, and per-channel
+contracts and contracts predicted by the student. Its multi-            scales account for the difference between parameter count and
+resolution STFT term uses FFT sizes 512, 1024, and 2048,                binary size.
+            teacher phoneme IDs x −→ VITS alignment A, dT                     −→     pθ (z | x, A) / flow: z T        −→       generator: y T
+                                            deterministic teacher inference supplies aligned targets dT , z T , y T
+
+                 phoneme IDs x            −→        duration Dα : dˆ          −→ acoustic Aβ : ĉ ∈ R40×T             −→ iSTFT decoder Gγ : ŷ
+
+Fig. 1. Teacher-coherent supervision and the packaged embedded inference path. The teacher posterior in (1) is used during VAE training; distillation labels
+follow the text prior shown here. During decoder training a learned encoder produces cT = Eρ (z T ); at deployment the acoustic student predicts c directly,
+so Eρ is not counted or executed.
+
+
+
+                            TABLE I                                                                                                   Quality tier
+ AUDITED OPERATING POINTS FROM THE SAME K RISTIN TEACHER . T HE
+                                                                                         Embedded tier
+ FIRST AND THIRD ROWS ARE CURRENT ARTIFACTS ; R8 IS A HISTORICAL                         Kristin teacher                              Amy teacher
+                           ABLATION .                                                  567,008 parameters                        1,454,284 parameters
+                                                                                          680 KB int8                                2.91 MB fp16
+System                  Duration     Acoustic               Decoder / total                                                         SCOREQ 4.13
+                                                                                         SCOREQ 2.54
+embedded c-line           36,164      199,536         331,308 / 567,008                ESP32-S3: 0.22 RT                           browser / desktop
+R8 z-line ablation        36,164      206,408         357,525 / 600,097
+quality z-line            36,164      359,112      1,000,875 / 1,396,151         Fig. 2. The current deployment choices. Because the tiers use different
+                                                                                 teachers, this is a product frontier, not a controlled architecture ablation; the
+                                                                                 Kristin-only comparison in Table I supplies that control.
+                             TABLE II
+AUDITED TEACHER - TO - PACKAGE MAPPING . PARAMETERS ARE MANIFEST
+                                                                                                             TABLE III
+ TOTALS ; QUALITY EVIDENCE IS NOT COMPARED ACROSS LANGUAGES .
+                                                                                    E NGLISH QUALITY ON UNSEEN DIVERSE 24. UTMOS AND DNS-SIG
+                                                                                   WERE MEASURED ON THE SAME 24 RENDERS . K RISTIN ROWS FORM THE
+ Language      Teacher voice    Package           Params     Evidence                CONTROLLED MCU STUDY; A MY ROWS ARE A SEPARATE TEACHER
+                                                                                                           REPLICATION .
+ English       Kristin          MCU fixture       567,008    S3 measured
+ English       Amy              Pareto          1,454,284    SCOREQ 4.13
+ English       Amy              champion        1,834,380    SCOREQ 4.16           System                             Params   SCOREQ      UTMOS       DNS-SIG
+ Vietnamese    Vais1000         quality         1,565,484    0.82× teacher         embedded fixture             0.567 M           2.54          2.80        3.26
+ Indonesian    NewsTTS          quality         1,562,124    0.82× teacher         R8 ablation                  0.600 M           2.94            —           —
+                                                                                   Kristin diagnostic (β = 0)   1.396 M           4.09          3.98        3.58
+                                                                                   Kristin diagnostic (β = 6)   1.396 M           3.92          3.89        3.57
+                                                                                   Amy Pareto package           1.454 M           4.13          4.10        3.61
+   Table II records the teacher associated with each current                       Amy champion package         1.834 M           4.16          4.06        3.61
+artifact, as listed in the package manifests. On the common                        open TinyTTS                1.220 M∗           3.94          3.65        3.62
+English gate, Amy is the strongest Piper teacher we evaluated                      Kristin teacher              ∼15.7 M           4.68          4.42        3.59
+                                                                                   Amy teacher                   ∼15 M            4.71          4.47        3.65
+(SCOREQ 4.71). Its 1.834-M student has the highest student                         ∗ Folded ONNX initializers; PyTorch state is 1.62 M.
+score, 4.16, while the smaller 1.454-M package is the default
+release. For Vietnamese and Indonesian, we report only the
+ratio to the corresponding teacher because absolute SCOREQ                       4.68. In other words, the templated set overstated the student’s
+values are not calibrated for comparisons across languages.                      SCOREQ by 1.35. Expanding the teacher-labelled training set
+   The generated deployment headers fix the topology as well                     from 512 to 14,343 rows raised the diverse24 result to 2.54.
+as the weights. The duration model has width 32 and three                        We use that value for the current embedded artifact, rather
+kernel-5 residual blocks. The acoustic model has width 48,                       than its narrow-set score of 3.04.
+three token blocks, five frame blocks, and 40 output channels.                      We tested the interface separately with 512 training rows
+The decoder maps this contract to width 76 and applies five                      and matched model budgets. A merged text-to-waveform stu-
+kernel-7 blocks with 304-channel pointwise expansions and                        dent memorized the training rows but failed on held-out text,
+rank-12 conditioning. It then predicts 513 magnitude bins and                    scoring 1.06 SCOREQ with 0.28 WER. A factored model with
+1,026 phase coordinates for a 1024-point iSTFT with hop                          the explicit 40-dimensional interface scored 2.95 with zero
+256. Training the promoted c-line acoustic model used 14,343                     WER on the same 12 rows. At this data scale, the compact
+teacher-labelled text rows; its run reports record the exact                     merged network did not recover the generalization already
+seeds and flags.                                                                 present in the teacher latent.
+            IV. W HAT THE E VALUATION R EVEALED                                     For open TinyTTS, Table III uses the conservative inference
+                                                                                 count of 1,219,596 parameters [18]. By this count, neither
+A. How a narrow test set misled us                                               of our English quality packages is smaller. The Amy Pareto
+   Our first held-out set contained 12 templated sentences.                      package scores higher than TinyTTS on SCOREQ and UT-
+On that set, an early 565,568-parameter c-line scored 3.07,                      MOS, but slightly lower on DNSMOS-SIG (3.61 versus 3.62).
+which initially appeared promising. The result did not survive                   This disagreement is one reason we do not treat any single
+a change of text distribution: the same model scored only 1.72                   predictor as ground truth. Both Piper teachers, as well as the
+on diverse24. The teacher changed much less, from 4.82 to                        much larger Kokoro class, score above our students; we do
+not claim state-of-the-art quality [19]. With the committed                                     TABLE IV
+duration path, normalized WER is 14.8% for the embedded              M EASURED EXECUTION OF THE PACKAGED 567,008- PARAMETER GRAPH .
+                                                                     RTF IS COMPUTE TIME DIVIDED BY AUDIO DURATION ; LOWER IS FASTER .
+fixture and 11.7% for R8. We did not record WER for every
+subsequent comparison.                                                    Target / build                 audio (s)      compute (s)       RTF
+B. Decoder capacity defines the quality tier                              S3 first end-to-end                   4.54           6.685      1.47
+                                                                          S3 SIMD + residency                   4.54           3.161      0.70
+   To locate the remaining error, we passed teacher and student           S3 PIE + iFFT + dual core             4.54           1.405      0.31
+latents through teacher and student decoders. On diverse24,               S3 final                              4.54           1.021      0.22
+                                                                          ESP32-C3 first boot                   1.56          18.680     12.01
+the teacher latent z scores 4.68 through the teacher decoder.             C3 integer pipeline                   1.56           8.900      5.72
+Replacing it with the jointly trained acoustic model’s latent
+lowers the score to 3.70. In the other direction, teacher z scores
+                                                                                                                                RTF= 1
+3.20 through the 357k R8 decoder and 4.13 through the 1.0-                 Host C (M3 Pro)          d0.0042
+M teacher-initialized decoder. Thus the decoder gap at 357k is                                                d0.017
+                                                                             WASM / Node
+1.49, larger than the acoustic gap of 0.98. Joint co-adaptation
+                                                                             ESP32-S3 core                                  t0.22
+recovers some of the combined loss, but not enough to remove
+this capacity boundary.                                                      ESP32-C3 core                                               5.72 t
+
+   The deployment choice follows from the same comparison.
+R8 uses a 357k waveform-domain transposed-convolution de-                                    .001      .01            .1             1            10
+                                                                                                         real-time factor (log scale)
+coder and requires 522 MMAC/s. The 331k embedded decoder
+evaluates its learned convolutions at 86 frames/s and uses
+                                                                     Fig. 3. Final synthesis throughput across checked execution targets. Raw
+a 1024-point inverse STFT for sample-rate synthesis, reduc-          compute/audio times are 6.50 ms/1.556 s for host C and 0.079/4.539 s for
+ing the cost to 28 MMAC/s. This representation round-trips           WASM/Node (five-run medians on the M3 Pro), 1.021/4.539 s for S3, and
+teacher spectra within ±0.005 SCOREQ. Its lower student              8.900/1.556 s for C3. Filled markers are physical boards; open markers are
+                                                                     desktop portability checks, not MCU results.
+score therefore comes from prediction and model capacity,
+not from an inverse-STFT ceiling.
+                                                                     embedded reference audio with Pearson correlation of at least
+C. Aggregate scores miss phoneme-class failure
+                                                                     0.98.
+   The 1.396-M Kristin diagnostic package exposed a failure             Measurements were taken on a dual-core 240-MHz Xtensa
+that the aggregate scores did not: despite SCOREQ 4.09               LX7 ESP32-S3 and a single-core 160-MHz RV32IMC ESP32-
+and UTMOS 3.98, its sibilants sounded whistly. We used               C3. Wall time includes duration prediction, acoustic inference,
+the duration alignment to measure 2–8-kHz spectral flatness          decoding, and PCM generation, but not playback. The S3
+by phoneme class for the teacher, an oracle-decoder path             uses the 100,096-sample golden utterance (4.539 s). The C3’s
+(teacher latent through our decoder), and the full student. For      smaller arena requires a 34,304-sample utterance (1.556 s).
+sibilants, flatness fell from 0.689 in the teacher to 0.590 in       Real-time factor (RTF) normalizes this difference in length; it
+the student, while the oracle-decoder path reached 0.693. The        measures throughput, not latency to the first audio sample.
+acoustic student, rather than the decoder, had smoothed out             The complete graph performs about 45 MMAC for each
+the stochastic frication.                                            second of output audio. On the ESP32-S3, SIMD operands
+   At inference we restore only that missing variance:               have to be staged in internal SRAM; reading vectors through
+                                                                     the flash mapping produced plausible output but only 0.011
+  z̃t,k = ẑt,k + 1[xt ∈ S] β σkT ϵt,k ,   ϵt,k ∼ N (0, 1),   (7)
+                                                                     correlation with the reference. Hand-written PIE matrix-vector
+where S = {/s, sh, z, zh/} and σkT is the teacher’s calibrated       kernels, a half-size real iFFT, frozen normalization, fast math,
+standard deviation for latent channel k. We selected β = 6           dual-core column splits, and a periodic overlap-add envelope
+by listening. It raises sibilant flatness to 0.655 but reduces       reduced compute time for the same 4.54-s utterance from
+aggregate SCOREQ to 3.92 (Table III). Both values are                6.685 to 1.021 s (Table IV). The final output correlates 0.985
+reported because the repair improves the audible defect even         with the floating-point reference, and peak arena use is about
+though the aggregate predictor moves in the opposite direction.      289 KB.
+                                                                        The bottleneck is different on the scalar, FPU-less
+    V. M EASURED M ICROCONTROLLER D EPLOYMENT                        RV32IMC C3: floating-point support code, rather than int8
+   We export the embedded graph with symmetric int8 weights          MACs, dominates runtime. Replacing it with a block-scaled
+quantized per output channel, while activations are quantized        int32 iFFT, activation tables, integer requantization and phase,
+per frame. Embeddings, normalization affines, and the inverse-       and fixed-point magnitude reduces RTF from 12.01 to 5.72
+STFT support code remain in floating point. The portable             while retaining the 0.98 correlation threshold. The C3 never-
+C99 core uses a caller-owned arena. A small port interface           theless remains an offline target. The same weights and core
+provides the int8/int16 dot and matrix-vector kernels, memory-       pass the WebAssembly golden test at correlation 0.987. Host
+residency decisions, parallel execution, scratch selection, and      and WebAssembly timings appear in Fig. 3 only to show
+timing. To pass the golden test, each port must reproduce the        portability. RVV kernels pass 200/200 bit-exact tests under
+QEMU, and the RP2040 port compiles, but neither port has a         and claims were designed, executed, and verified by the author,
+synthesis-time measurement from physical silicon.                  who takes full responsibility.
+                      VI. L IMITATIONS                                                           R EFERENCES
+   Several limitations matter when interpreting these results.      [1] Y. Ren, C. Hu, X. Tan, T. Qin, S. Zhao, Z. Zhao, and T.-Y. Liu,
+                                                                        “FastSpeech 2: Fast and high-quality end-to-end text to speech,” in Proc.
+First, the embedded quality gap remains large and audible: its          International Conference on Learning Representations (ICLR), 2021.
+SCOREQ is 2.54, compared with 4.68 for the Kristin teacher.         [2] J. Kong, J. Kim, and J. Bae, “HiFi-GAN: Generative adversarial net-
+The 1.396-M Kristin diagnostic model closes much of this gap,           works for efficient and high fidelity speech synthesis,” in Advances in
+                                                                        Neural Information Processing Systems (NeurIPS), vol. 33, 2020, pp.
+but its sibilant repair has not been ported to the embedded             17 022–17 033.
+c-line. The Amy quality packages use another teacher and            [3] M. Hansen and The Rhasspy Project, “Piper: A fast, local neural text-to-
+were not run on the MCU, so they are not evidence for                   speech system,” https://github.com/rhasspy/piper, 2023, accessed: 2026-
+                                                                        06-29.
+controlled MCU scaling. All reported hardware quality and           [4] J. Kim, J. Kong, and J. Son, “Conditional variational autoencoder with
+speed measurements therefore remain Kristin-specific.                   adversarial learning for end-to-end text-to-speech,” in Proc. Interna-
+   Second, the Vietnamese and Indonesian releases demon-                tional Conference on Machine Learning (ICML), 2021, pp. 5530–5540.
+                                                                    [5] G. Hinton, O. Vinyals, and J. Dean, “Distilling the knowledge in a neural
+strate that the recipe can be retrained with separate teachers,         network,” arXiv preprint arXiv:1503.02531, 2015.
+weights, and frontends, but they do not yet have comparable         [6] Grovety and Elecrow, “TinyTTS kit: The first neural speech module
+cross-language perceptual tests. The automatic English gate             for makers,” https://www.elecrow.com/grc-tinytts-kit.html, 2025, himax
+                                                                        HX6538 (Arm Cortex-M55 + Ethos-U55 NPU); accessed 2026-07-06.
+contains only 24 sentences, and learned predictors cannot           [7] S. Ciapponi, F. Paissan, A. Ancilotto, and E. Farella, “TinyVocos: Neural
+replace a controlled MOS study. We also lack confidence                 vocoders on MCUs,” in Proc. IEEE 5th International Symposium on the
+intervals and energy measurements. Finally, the ESP32-S3 is             Internet of Sounds (IS2), 2024.
+                                                                    [8] A. de Beer and C. Gao, “SlimTTS: Parameter- and compute-efficient
+the only measured real-time target; the Arm and vector RISC-            neural text-to-speech synthesis for real-time inference,” in Proc. IEEE
+V results are projections or emulation checks. The standalone           International Symposium on Circuits and Systems (ISCAS), 2026, pp.
+on-chip eSpeak frontend introduces another practical gap: it            4588–4592.
+                                                                    [9] A. Thapa, “saanoTTS: Distilled neural text-to-speech for browser and
+raises end-to-end WER from 15.8% with desktop eSpeak                    microcontroller deployment,” https://github.com/Ampixa/saanotts, 2026,
+to 18.5%, owing to differences in frontend version and text             model manifests, evaluation artifacts, portable runtime, and golden
+normalization.                                                          fixtures; accessed 2026-07-14.
+                                                                   [10] X. Mao, Q. Li, H. Xie, R. Y. Lau, Z. Wang, and S. P. Smolley, “Least
+                                                                        squares generative adversarial networks,” in Proc. IEEE International
+                     VII. C ONCLUSION                                   Conference on Computer Vision (ICCV), 2017, pp. 2794–2802.
+   The 567,008-parameter, 679,832-byte graph demonstrates          [11] R. Yamamoto, E. Song, and J.-M. Kim, “Parallel WaveGAN: A fast
+                                                                        waveform generation model based on generative adversarial networks
+that a complete neural TTS path can run at 0.22× real time              with multi-resolution spectrogram,” in Proc. IEEE International Con-
+on a general-purpose ESP32-S3 without an NPU. It also makes             ference on Acoustics, Speech and Signal Processing (ICASSP), 2020,
+the cost of that deployment clear: on unseen text it scores 2.54        pp. 6199–6203.
+SCOREQ, well below its Kristin teacher. In the controlled
+Kristin comparison, most of the remaining loss comes from
+decoder capacity. Separately trained Amy packages show
+the quality available at a larger budget, reaching 4.13 with
+1,454,284 parameters and 4.16 with 1,834,380.
+   Under the boundary used here—external G2P excluded, all
+inference-time neural tensors included, and physical MCU tim-
+ing required—this is, to our knowledge, the smallest complete
+neural TTS graph demonstrated in real time on a general-
+purpose microcontroller without a neural accelerator. This is
+an empirical deployment claim, not a claim about the smallest
+possible model. The explicit latent interface and the duration,
+latent, waveform, adversarial, and joint objectives provide
+a repeatable path from each VITS teacher to its students.
+Evaluation on diverse text, followed by phoneme-level analysis
+when listening reveals a defect, keeps aggregate scores from
+concealing failure. Just as importantly, the released artifacts
+preserve the association among each teacher, its frontend, its
+student weights, and the hardware on which that student was
+measured.
+                        D ISCLOSURE
+ Generative AI tools assisted drafting and organizing experi-
+ment logs into tables. All experiments, code, numerical results,
+[12] eSpeak NG contributors, “eSpeak NG text-to-speech,” https://github.
+     com/espeak-ng/espeak-ng, 2024, accessed: 2026-06-29.
+[13] K. Ito and L. Johnson, “The LJ speech dataset,” https://keithito.com/
+     LJ-Speech-Dataset/, 2017.
+[14] A. Ragano, J. Skoglund, and A. Hines, “SCOREQ: Speech quality
+     assessment with contrastive regression,” in Advances in Neural Infor-
+     mation Processing Systems (NeurIPS), 2024.
+[15] T. Saeki, D. Xin, W. Nakata, T. Koriyama, S. Takamichi, and
+     H. Saruwatari, “UTMOS: UTokyo-SaruLab system for VoiceMOS chal-
+     lenge 2022,” in Proc. Interspeech, 2022, pp. 4521–4525.
+[16] C. K. A. Reddy, V. Gopal, and R. Cutler, “DNSMOS: A non-intrusive
+     perceptual objective speech quality metric to evaluate noise suppressors,”
+     in Proc. IEEE International Conference on Acoustics, Speech and Signal
+     Processing (ICASSP), 2021, pp. 6493–6497.
+[17] A. Radford, J. W. Kim, T. Xu, G. Brockman, C. McLeavey, and
+     I. Sutskever, “Robust speech recognition via large-scale weak supervi-
+     sion,” in Proc. International Conference on Machine Learning (ICML),
+     2023, pp. 28 492–28 518.
+[18] backtracking, “TinyTTS,” https://huggingface.co/backtracking/tiny-tts,
+     2025, accessed: 2026-06-29.
+[19] hexgrad, “Kokoro-82M,” https://huggingface.co/hexgrad/Kokoro-82M,
+     2025, accessed: 2026-06-29.
+

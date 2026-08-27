@@ -71,3 +71,16 @@ __pycache__/
 
 # ESP-IDF のビルド成果物（実機作業で数百 MB になる）
 esp32/build/
+/reports/e1_dnsmos/scratch/
+# ⚠️ 上流 (GPL-3.0) のドキュメントを**丸ごと複製しない**（D-032）。
+# 事実（数値・構成）の参照は可だが、文章そのものは MIT リポジトリに置けない。
+# 得た事実は docs/upstream-sanotts.md に自分の言葉で要約すること。
+reports/r3_upstream_*.md
+reports/upstream_*.md
+
+# 調査で取得したサードパーティの成果物（配布物なので追跡しない）
+reports/**/*.pdf
+reports/**/*.whl
+reports/r1_dnsmos/          # 論文 PDF の作業ディレクトリ。出典は docs 側に書く
+reports/verify_e2/          # 敵対的検証のスクラッチ
+reports/e1_dnsmos/scratch/
