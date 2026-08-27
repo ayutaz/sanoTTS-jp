@@ -48,7 +48,7 @@ const void *saan_tensor(const saan_weights *w, const char *name,
 }
 
 /* 名前を組み立てて fp32 テンソルを引く。**見つからなければ NULL** */
-static const float *tf(const saan_weights *w, const char *fmt, ...) {
+const float *saan_tf(const saan_weights *w, const char *fmt, ...) {
     char buf[NAME_LEN];
     va_list ap;
     va_start(ap, fmt);
@@ -66,7 +66,7 @@ void saan_arena_init(saan_arena *a, void *buf, size_t size) {
 }
 void saan_arena_reset(saan_arena *a) { a->used = 0; }
 
-static void *alloc(saan_arena *a, size_t n) {
+void *saan_alloc(saan_arena *a, size_t n) {
     size_t need = ALIGN16(n);
     if (a->used + need > a->size) return NULL;
     void *p = a->buf + a->used;
@@ -96,7 +96,7 @@ size_t saan_arena_needed(int32_t n_ids) {
 /* --- 基本カーネル -------------------------------------------------------- */
 
 /* y[o,t] = b[o] + Σ_i Σ_k W[o,i,k] · x[i, t + k - pad]  （ゼロパディング） */
-static void conv1d(float *y, const float *x, const float *W, const float *b,
+void saan_conv1d(float *y, const float *x, const float *W, const float *b,
                    int cin, int cout, int ksz, int T) {
     const int pad = ksz / 2;
     for (int o = 0; o < cout; ++o) {
@@ -119,7 +119,7 @@ static void conv1d(float *y, const float *x, const float *W, const float *b,
 }
 
 /* depthwise: 出力チャネル o は入力チャネル o だけを見る */
-static void dwconv1d(float *y, const float *x, const float *W,
+void saan_dwconv1d(float *y, const float *x, const float *W,
                      int ch, int ksz, int T) {
     const int pad = ksz / 2;
     for (int o = 0; o < ch; ++o) {
@@ -140,7 +140,7 @@ static void dwconv1d(float *y, const float *x, const float *W,
 /* PyTorch の LayerNorm は **チャネル方向**に正規化する（[B,T,C] の C）。
  * ここは [C,T] レイアウトなので、時刻ごとに C 本を見る。**軸を間違えると
  * 数値は出るが別物になる**（参照実装は h.transpose(1,2) して LayerNorm） */
-static void layernorm_c(float *x, const float *g, const float *b, int C, int T) {
+void saan_layernorm_c(float *x, const float *g, const float *b, int C, int T) {
     const float eps = 1e-5f;
     for (int t = 0; t < T; ++t) {
         float mean = 0.0f;
@@ -160,28 +160,28 @@ static void layernorm_c(float *x, const float *g, const float *b, int C, int T) 
     }
 }
 
-static void relu_(float *x, size_t n) {
+void saan_relu(float *x, size_t n) {
     for (size_t i = 0; i < n; ++i) if (x[i] < 0.0f) x[i] = 0.0f;
 }
 
 /* PyTorch の既定は tanh 近似ではなく erf 版 */
-static void gelu_(float *x, size_t n) {
+void saan_gelu(float *x, size_t n) {
     for (size_t i = 0; i < n; ++i)
         x[i] = 0.5f * x[i] * (1.0f + erff(x[i] * 0.70710678f));
 }
 
 /* --- Duration Dα --------------------------------------------------------- */
 
-static saan_status run_duration(const saan_weights *w, saan_arena *a,
+saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
                                 const int32_t *ids, int T, float *log_d) {
     const int W = SAAN_DUR_W;
-    const float *emb = tf(w, "duration.emb.weight");
-    const float *pw = tf(w, "duration.proj.weight");
-    const float *pb = tf(w, "duration.proj.bias");
+    const float *emb = saan_tf(w, "duration.emb.weight");
+    const float *pw = saan_tf(w, "duration.proj.weight");
+    const float *pb = saan_tf(w, "duration.proj.bias");
     if (!emb || !pw || !pb) return SAAN_ERR_MISSING;
 
-    float *h = (float *)alloc(a, sizeof(float) * (size_t)W * T);
-    float *t1 = (float *)alloc(a, sizeof(float) * (size_t)W * T);
+    float *h = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
+    float *t1 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
     if (!h || !t1) return SAAN_ERR_ARENA;
 
     /* 埋め込みは [V, W] 行優先。ここは [W, T] に置き換える */
@@ -191,21 +191,21 @@ static saan_status run_duration(const saan_weights *w, saan_arena *a,
     }
 
     for (int bi = 0; bi < 3; ++bi) {
-        const float *c1w = tf(w, "duration.blocks.%d.c1.weight", bi);
-        const float *c1b = tf(w, "duration.blocks.%d.c1.bias", bi);
-        const float *c2w = tf(w, "duration.blocks.%d.c2.weight", bi);
-        const float *c2b = tf(w, "duration.blocks.%d.c2.bias", bi);
-        const float *ng = tf(w, "duration.blocks.%d.norm.weight", bi);
-        const float *nb = tf(w, "duration.blocks.%d.norm.bias", bi);
-        const float *gm = tf(w, "duration.blocks.%d.gamma", bi);
+        const float *c1w = saan_tf(w, "duration.blocks.%d.c1.weight", bi);
+        const float *c1b = saan_tf(w, "duration.blocks.%d.c1.bias", bi);
+        const float *c2w = saan_tf(w, "duration.blocks.%d.c2.weight", bi);
+        const float *c2b = saan_tf(w, "duration.blocks.%d.c2.bias", bi);
+        const float *ng = saan_tf(w, "duration.blocks.%d.norm.weight", bi);
+        const float *nb = saan_tf(w, "duration.blocks.%d.norm.bias", bi);
+        const float *gm = saan_tf(w, "duration.blocks.%d.gamma", bi);
         if (!c1w || !c2w || !ng || !gm) return SAAN_ERR_MISSING;
 
-        conv1d(t1, h, c1w, c1b, W, W, 5, T);
-        relu_(t1, (size_t)W * T);
-        float *t2 = (float *)alloc(a, sizeof(float) * (size_t)W * T);
+        saan_conv1d(t1, h, c1w, c1b, W, W, 5, T);
+        saan_relu(t1, (size_t)W * T);
+        float *t2 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
         if (!t2) return SAAN_ERR_ARENA;
-        conv1d(t2, t1, c2w, c2b, W, W, 5, T);
-        layernorm_c(t2, ng, nb, W, T);
+        saan_conv1d(t2, t1, c2w, c2b, W, W, 5, T);
+        saan_layernorm_c(t2, ng, nb, W, T);
         /* LayerScale 付き残差: x + γ·f(x) */
         for (size_t i = 0; i < (size_t)W * T; ++i) h[i] += gm[0] * t2[i];
         a->used -= ALIGN16(sizeof(float) * (size_t)W * T);   /* t2 を返す */
@@ -224,39 +224,34 @@ static saan_status run_duration(const saan_weights *w, saan_arena *a,
 static saan_status ac_block(const saan_weights *w, saan_arena *a, float *h,
                             const char *kind, int bi, int T) {
     const int W = SAAN_AC_W;
-    const float *c1w = tf(w, "acoustic.%s.%d.c1.weight", kind, bi);
-    const float *c1b = tf(w, "acoustic.%s.%d.c1.bias", kind, bi);
-    const float *c2w = tf(w, "acoustic.%s.%d.c2.weight", kind, bi);
-    const float *c2b = tf(w, "acoustic.%s.%d.c2.bias", kind, bi);
-    const float *ng = tf(w, "acoustic.%s.%d.norm.weight", kind, bi);
-    const float *nb = tf(w, "acoustic.%s.%d.norm.bias", kind, bi);
+    const float *c1w = saan_tf(w, "acoustic.%s.%d.c1.weight", kind, bi);
+    const float *c1b = saan_tf(w, "acoustic.%s.%d.c1.bias", kind, bi);
+    const float *c2w = saan_tf(w, "acoustic.%s.%d.c2.weight", kind, bi);
+    const float *c2b = saan_tf(w, "acoustic.%s.%d.c2.bias", kind, bi);
+    const float *ng = saan_tf(w, "acoustic.%s.%d.norm.weight", kind, bi);
+    const float *nb = saan_tf(w, "acoustic.%s.%d.norm.bias", kind, bi);
     if (!c1w || !c2w || !ng) return SAAN_ERR_MISSING;
 
     const size_t sz = sizeof(float) * (size_t)W * T;
-    float *t1 = (float *)alloc(a, sz);
-    float *t2 = (float *)alloc(a, sz);
+    float *t1 = (float *)saan_alloc(a, sz);
+    float *t2 = (float *)saan_alloc(a, sz);
     if (!t1 || !t2) return SAAN_ERR_ARENA;
-    conv1d(t1, h, c1w, c1b, W, W, 5, T);
-    relu_(t1, (size_t)W * T);
-    conv1d(t2, t1, c2w, c2b, W, W, 5, T);
-    layernorm_c(t2, ng, nb, W, T);
+    saan_conv1d(t1, h, c1w, c1b, W, W, 5, T);
+    saan_relu(t1, (size_t)W * T);
+    saan_conv1d(t2, t1, c2w, c2b, W, W, 5, T);
+    saan_layernorm_c(t2, ng, nb, W, T);
     /* acoustic 側は LayerScale 無しの素の残差（参照実装 AcBlock と同じ） */
     for (size_t i = 0; i < (size_t)W * T; ++i) h[i] += t2[i];
     a->used -= ALIGN16(sz) * 2;
     return SAAN_OK;
 }
 
-static saan_status run_acoustic(const saan_weights *w, saan_arena *a,
-                                const int32_t *ids, int L, const int32_t *d,
-                                int T, float *c_out) {
+/* token レートの部分だけ。**ストリーミング版と共有する**（音素数ぶんなので小さい） */
+saan_status saan_run_acoustic_tokens(const saan_weights *w, saan_arena *a,
+                                     const int32_t *ids, int L, float *ht) {
     const int W = SAAN_AC_W;
-    const float *emb = tf(w, "acoustic.emb.weight");
-    const float *pos = tf(w, "acoustic.pos.weight");
-    const float *ow = tf(w, "acoustic.out.weight");     /* bias 無し */
-    if (!emb || !pos || !ow) return SAAN_ERR_MISSING;
-
-    float *ht = (float *)alloc(a, sizeof(float) * (size_t)W * L);
-    if (!ht) return SAAN_ERR_ARENA;
+    const float *emb = saan_tf(w, "acoustic.emb.weight");
+    if (!emb) return SAAN_ERR_MISSING;
     for (int t = 0; t < L; ++t) {
         if (ids[t] < 0 || ids[t] >= SAAN_VOCAB) return SAAN_ERR_RANGE;
         for (int ch = 0; ch < W; ++ch)
@@ -266,9 +261,24 @@ static saan_status run_acoustic(const saan_weights *w, saan_arena *a,
         saan_status s = ac_block(w, a, ht, "token", bi, L);
         if (s != SAAN_OK) return s;
     }
+    return SAAN_OK;
+}
+
+static saan_status run_acoustic(const saan_weights *w, saan_arena *a,
+                                const int32_t *ids, int L, const int32_t *d,
+                                int T, float *c_out) {
+    const int W = SAAN_AC_W;
+    const float *pos = saan_tf(w, "acoustic.pos.weight");
+    const float *ow = saan_tf(w, "acoustic.out.weight");     /* bias 無し */
+    if (!pos || !ow) return SAAN_ERR_MISSING;
+
+    float *ht = (float *)saan_alloc(a, sizeof(float) * (size_t)W * L);
+    if (!ht) return SAAN_ERR_ARENA;
+    saan_status s0 = saan_run_acoustic_tokens(w, a, ids, L, ht);
+    if (s0 != SAAN_OK) return s0;
 
     /* length regulator: 各トークンを d[i] フレームに複製し、音素内位置を足す */
-    float *hf = (float *)alloc(a, sizeof(float) * (size_t)W * T);
+    float *hf = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
     if (!hf) return SAAN_ERR_ARENA;
     int f = 0;
     for (int i = 0; i < L; ++i) {
@@ -286,7 +296,7 @@ static saan_status run_acoustic(const saan_weights *w, saan_arena *a,
         if (s != SAAN_OK) return s;
     }
     /* out: 1x1 conv, bias 無し */
-    conv1d(c_out, hf, ow, NULL, W, SAAN_CDIM, 1, T);
+    saan_conv1d(c_out, hf, ow, NULL, W, SAAN_CDIM, 1, T);
     return SAAN_OK;
 }
 
@@ -296,55 +306,55 @@ static saan_status run_decoder(const saan_weights *w, saan_arena *a,
                                const float *c, int T,
                                float *mag, float *cosv, float *sinv) {
     const int W = SAAN_DEC_W, E = SAAN_DEC_E, R = SAAN_DEC_R;
-    const float *iw = tf(w, "decoder.inp.weight");
-    const float *ib = tf(w, "decoder.inp.bias");
-    const float *hdw = tf(w, "decoder.hdown.weight");
-    const float *hdb = tf(w, "decoder.hdown.bias");
-    const float *how = tf(w, "decoder.hout.weight");
-    const float *hob = tf(w, "decoder.hout.bias");
+    const float *iw = saan_tf(w, "decoder.inp.weight");
+    const float *ib = saan_tf(w, "decoder.inp.bias");
+    const float *hdw = saan_tf(w, "decoder.hdown.weight");
+    const float *hdb = saan_tf(w, "decoder.hdown.bias");
+    const float *how = saan_tf(w, "decoder.hout.weight");
+    const float *hob = saan_tf(w, "decoder.hout.bias");
     if (!iw || !hdw || !how) return SAAN_ERR_MISSING;
 
-    float *h = (float *)alloc(a, sizeof(float) * (size_t)W * T);
-    float *tw = (float *)alloc(a, sizeof(float) * (size_t)W * T);
-    float *te = (float *)alloc(a, sizeof(float) * (size_t)E * T);
-    float *tr = (float *)alloc(a, sizeof(float) * (size_t)R * T);
-    float *tg = (float *)alloc(a, sizeof(float) * (size_t)W * T);
+    float *h = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
+    float *tw = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
+    float *te = (float *)saan_alloc(a, sizeof(float) * (size_t)E * T);
+    float *tr = (float *)saan_alloc(a, sizeof(float) * (size_t)R * T);
+    float *tg = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
     if (!h || !tw || !te || !tr || !tg) return SAAN_ERR_ARENA;
 
-    conv1d(h, c, iw, ib, SAAN_CDIM, W, 3, T);
+    saan_conv1d(h, c, iw, ib, SAAN_CDIM, W, 3, T);
 
     for (int i = 0; i < 5; ++i) {
-        const float *dw = tf(w, "decoder.dw.%d.weight", i);        /* bias 無し */
-        const float *p1w = tf(w, "decoder.pw1.%d.weight", i);
-        const float *p1b = tf(w, "decoder.pw1.%d.bias", i);
-        const float *p2w = tf(w, "decoder.pw2.%d.weight", i);
-        const float *p2b = tf(w, "decoder.pw2.%d.bias", i);
-        const float *cdw = tf(w, "decoder.cdown.%d.weight", i);
-        const float *cdb = tf(w, "decoder.cdown.%d.bias", i);
-        const float *cuw = tf(w, "decoder.cup.%d.weight", i);
-        const float *cub = tf(w, "decoder.cup.%d.bias", i);
-        const float *gm = tf(w, "decoder.gamma.%d", i);
+        const float *dw = saan_tf(w, "decoder.dw.%d.weight", i);        /* bias 無し */
+        const float *p1w = saan_tf(w, "decoder.pw1.%d.weight", i);
+        const float *p1b = saan_tf(w, "decoder.pw1.%d.bias", i);
+        const float *p2w = saan_tf(w, "decoder.pw2.%d.weight", i);
+        const float *p2b = saan_tf(w, "decoder.pw2.%d.bias", i);
+        const float *cdw = saan_tf(w, "decoder.cdown.%d.weight", i);
+        const float *cdb = saan_tf(w, "decoder.cdown.%d.bias", i);
+        const float *cuw = saan_tf(w, "decoder.cup.%d.weight", i);
+        const float *cub = saan_tf(w, "decoder.cup.%d.bias", i);
+        const float *gm = saan_tf(w, "decoder.gamma.%d", i);
         if (!dw || !p1w || !p2w || !cdw || !cuw || !gm) return SAAN_ERR_MISSING;
 
         /* rank-12 の条件付け: g = cup(cdown(c))。**c は毎段の元の入力**を使う
          * （h ではない。参照実装 Decoder.forward と同じ） */
-        conv1d(tr, c, cdw, cdb, SAAN_CDIM, R, 1, T);
-        conv1d(tg, tr, cuw, cub, R, W, 1, T);
+        saan_conv1d(tr, c, cdw, cdb, SAAN_CDIM, R, 1, T);
+        saan_conv1d(tg, tr, cuw, cub, R, W, 1, T);
 
-        dwconv1d(tw, h, dw, W, 7, T);
+        saan_dwconv1d(tw, h, dw, W, 7, T);
         for (size_t k = 0; k < (size_t)W * T; ++k) tw[k] += tg[k];
-        conv1d(te, tw, p1w, p1b, W, E, 1, T);
-        gelu_(te, (size_t)E * T);
-        conv1d(tw, te, p2w, p2b, E, W, 1, T);
+        saan_conv1d(te, tw, p1w, p1b, W, E, 1, T);
+        saan_gelu(te, (size_t)E * T);
+        saan_conv1d(tw, te, p2w, p2b, E, W, 1, T);
         for (size_t k = 0; k < (size_t)W * T; ++k) h[k] += gm[0] * tw[k];
     }
 
-    float *hr = (float *)alloc(a, sizeof(float) * (size_t)SAAN_DEC_HEAD * T);
-    float *o = (float *)alloc(a, sizeof(float) * (size_t)1539 * T);
+    float *hr = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_HEAD * T);
+    float *o = (float *)saan_alloc(a, sizeof(float) * (size_t)1539 * T);
     if (!hr || !o) return SAAN_ERR_ARENA;
-    conv1d(hr, h, hdw, hdb, W, SAAN_DEC_HEAD, 1, T);
-    gelu_(hr, (size_t)SAAN_DEC_HEAD * T);
-    conv1d(o, hr, how, hob, SAAN_DEC_HEAD, 1539, 1, T);
+    saan_conv1d(hr, h, hdw, hdb, W, SAAN_DEC_HEAD, 1, T);
+    saan_gelu(hr, (size_t)SAAN_DEC_HEAD * T);
+    saan_conv1d(o, hr, how, hob, SAAN_DEC_HEAD, 1539, 1, T);
 
     memcpy(mag,  o,                                sizeof(float) * (size_t)513 * T);
     memcpy(cosv, o + (size_t)513 * T,              sizeof(float) * (size_t)513 * T);
@@ -374,12 +384,12 @@ static saan_status istft(saan_arena *a, const float *mag, const float *cosv,
                          const float *sinv, int T, float *pcm) {
     const int N = SAAN_NFFT, H = SAAN_HOP;
     const size_t full = (size_t)N + (size_t)H * (T - 1);
-    float *acc = (float *)alloc(a, sizeof(float) * full);
-    float *wsq = (float *)alloc(a, sizeof(float) * full);
-    float *frame = (float *)alloc(a, sizeof(float) * N);
-    float *re = (float *)alloc(a, sizeof(float) * SAAN_NBINS);
-    float *im = (float *)alloc(a, sizeof(float) * SAAN_NBINS);
-    float *win = (float *)alloc(a, sizeof(float) * N);
+    float *acc = (float *)saan_alloc(a, sizeof(float) * full);
+    float *wsq = (float *)saan_alloc(a, sizeof(float) * full);
+    float *frame = (float *)saan_alloc(a, sizeof(float) * N);
+    float *re = (float *)saan_alloc(a, sizeof(float) * SAAN_NBINS);
+    float *im = (float *)saan_alloc(a, sizeof(float) * SAAN_NBINS);
+    float *win = (float *)saan_alloc(a, sizeof(float) * N);
     if (!acc || !wsq || !frame || !re || !im || !win) return SAAN_ERR_ARENA;
 
     for (int i = 0; i < N; ++i)                          /* periodic Hann */
@@ -418,12 +428,12 @@ saan_status saan_synthesize(const saan_weights *w, saan_arena *a,
     memset(out, 0, sizeof *out);
     out->n_ids = n_ids;
 
-    out->log_d = (float *)alloc(a, sizeof(float) * (size_t)n_ids);
-    out->d_hat = (int32_t *)alloc(a, sizeof(int32_t) * (size_t)n_ids);
+    out->log_d = (float *)saan_alloc(a, sizeof(float) * (size_t)n_ids);
+    out->d_hat = (int32_t *)saan_alloc(a, sizeof(int32_t) * (size_t)n_ids);
     if (!out->log_d || !out->d_hat) return SAAN_ERR_ARENA;
 
     const size_t mark = a->used;
-    saan_status s = run_duration(w, a, ids, n_ids, out->log_d);
+    saan_status s = saan_run_duration(w, a, ids, n_ids, out->log_d);
     if (s != SAAN_OK) return s;
     a->used = mark;                        /* duration の作業領域を返す */
 
@@ -441,8 +451,8 @@ saan_status saan_synthesize(const saan_weights *w, saan_arena *a,
     out->n_frames = T;
     out->n_samples = T * SAAN_HOP;
 
-    out->c = (float *)alloc(a, sizeof(float) * SAAN_CDIM * (size_t)T);
-    out->pcm = (float *)alloc(a, sizeof(float) * (size_t)out->n_samples);
+    out->c = (float *)saan_alloc(a, sizeof(float) * SAAN_CDIM * (size_t)T);
+    out->pcm = (float *)saan_alloc(a, sizeof(float) * (size_t)out->n_samples);
     if (!out->c || !out->pcm) return SAAN_ERR_ARENA;
 
     const size_t mark2 = a->used;
@@ -450,9 +460,9 @@ saan_status saan_synthesize(const saan_weights *w, saan_arena *a,
     if (s != SAAN_OK) return s;
     a->used = mark2;
 
-    float *mag = (float *)alloc(a, sizeof(float) * SAAN_NBINS * (size_t)T);
-    float *cv = (float *)alloc(a, sizeof(float) * SAAN_NBINS * (size_t)T);
-    float *sv = (float *)alloc(a, sizeof(float) * SAAN_NBINS * (size_t)T);
+    float *mag = (float *)saan_alloc(a, sizeof(float) * SAAN_NBINS * (size_t)T);
+    float *cv = (float *)saan_alloc(a, sizeof(float) * SAAN_NBINS * (size_t)T);
+    float *sv = (float *)saan_alloc(a, sizeof(float) * SAAN_NBINS * (size_t)T);
     if (!mag || !cv || !sv) return SAAN_ERR_ARENA;
     const size_t mark3 = a->used;
     s = run_decoder(w, a, out->c, T, mag, cv, sv);
@@ -473,4 +483,71 @@ const char *saan_strerror(saan_status s) {
     case SAAN_ERR_RANGE: return "音素ID が語彙外";
     }
     return "不明";
+}
+
+/* --- コンテキスト付きカーネル（ストリーミング用） -------------------------
+ *
+ * ⚠️ **積和の順序を一括版と揃える。** float の加算は非結合なので、
+ * 順序が変わると bit 一致（D-029 の G2）が崩れる。そこで
+ * 「x を [pad + T + pad] に展開してから既存カーネルを T+2pad 幅で呼び、
+ * 中央 T フレームを取る」のではなく、**既存カーネルと同じループを、
+ * 境界だけ left/right から読むように書く**。
+ */
+
+void saan_conv1d_ctx(float *y, const float *x, const float *left,
+                     const float *right, const float *W, const float *b,
+                     int cin, int cout, int ksz, int T, float *scratch) {
+    const int pad = ksz / 2;
+    const int W2 = pad + T + pad;
+    /* [cin][pad + T + pad] に展開する。**一括版が見るのと同じ値の並び**にした上で
+     * 同一のループを回すので、積和の順序が一致する */
+    for (int i = 0; i < cin; ++i) {
+        float *dst = scratch + (size_t)i * W2;
+        const float *src = x + (size_t)i * T;
+        for (int k = 0; k < pad; ++k)
+            dst[k] = left ? left[(size_t)i * pad + k] : 0.0f;
+        memcpy(dst + pad, src, sizeof(float) * (size_t)T);
+        for (int k = 0; k < pad; ++k)
+            dst[pad + T + k] = right ? right[(size_t)i * pad + k] : 0.0f;
+    }
+    for (int o = 0; o < cout; ++o) {
+        float *yo = y + (size_t)o * T;
+        const float bias = b ? b[o] : 0.0f;
+        for (int t = 0; t < T; ++t) yo[t] = bias;
+        for (int i = 0; i < cin; ++i) {
+            const float *xi = scratch + (size_t)i * W2;
+            const float *wk = W + ((size_t)o * cin + i) * ksz;
+            for (int k = 0; k < ksz; ++k) {
+                const float wv = wk[k];
+                if (wv == 0.0f) continue;
+                for (int t = 0; t < T; ++t) yo[t] += wv * xi[t + k];
+            }
+        }
+    }
+}
+
+void saan_dwconv1d_ctx(float *y, const float *x, const float *left,
+                       const float *right, const float *W,
+                       int ch, int ksz, int T, float *scratch) {
+    const int pad = ksz / 2;
+    const int W2 = pad + T + pad;
+    for (int i = 0; i < ch; ++i) {
+        float *dst = scratch + (size_t)i * W2;
+        const float *src = x + (size_t)i * T;
+        for (int k = 0; k < pad; ++k)
+            dst[k] = left ? left[(size_t)i * pad + k] : 0.0f;
+        memcpy(dst + pad, src, sizeof(float) * (size_t)T);
+        for (int k = 0; k < pad; ++k)
+            dst[pad + T + k] = right ? right[(size_t)i * pad + k] : 0.0f;
+    }
+    for (int o = 0; o < ch; ++o) {
+        float *yo = y + (size_t)o * T;
+        const float *xi = scratch + (size_t)o * W2;
+        const float *wk = W + (size_t)o * ksz;
+        for (int t = 0; t < T; ++t) yo[t] = 0.0f;
+        for (int k = 0; k < ksz; ++k) {
+            const float wv = wk[k];
+            for (int t = 0; t < T; ++t) yo[t] += wv * xi[t + k];
+        }
+    }
 }
