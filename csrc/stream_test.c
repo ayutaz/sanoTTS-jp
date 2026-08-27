@@ -138,12 +138,21 @@ int main(int argc, char **argv) {
         float tmp[SAAN_CHUNK * SAAN_HOP];
         int32_t k;
         while (saan_stream_pull(&s3, tmp, &k) == SAAN_OK && k > 0) { }
-        const int g1 = s3.peak_used < 200u * 1024u;
+        /* ⚠️ **arena だけでは足りない。** 逆実 FFT は 512 complex を
+         * **自動変数（stack）**に取る。実測 4,224 B（プロローグ 0x60 + 0x1020）で、
+         * arena の外にある。ESP32 では SRAM を共有するので**合算して判定する**
+         * （D-3a の照合で指摘された。arena だけだと 200 KB を超えていても気づかない） */
+        const size_t FFT_STACK = 4224;
+        const size_t total = s3.peak_used + FFT_STACK;
+        const int g1 = total < 200u * 1024u;
         printf("\n  %s G1 ピーク RAM < 200 KB\n", g1 ? "OK " : "NG!");
-        printf("        テスト文  %3d ids / %4d frames : %6.1f KB\n",
+        printf("        テスト文  %3d ids / %4d frames : arena %6.1f KB\n",
                n_ids, T, (double)st.peak_used / 1024.0);
-        printf("        実用最大  %3d ids / %4d frames : %6.1f KB  ← 判定はこちら\n",
-               G1_IDS, s3.n_frames, (double)s3.peak_used / 1024.0);
+        printf("        実用最大  %3d ids / %4d frames : arena %6.1f KB + FFT stack %.1f KB\n",
+               G1_IDS, s3.n_frames, (double)s3.peak_used / 1024.0,
+               (double)FFT_STACK / 1024.0);
+        printf("        合計 %6.1f KB  ← 判定はこちら（SRAM 512 KB の %.0f%%）\n",
+               (double)total / 1024.0, (double)total / (512.0 * 1024.0) * 100.0);
         bad += !g1;
         free(am); free(idm);
     }

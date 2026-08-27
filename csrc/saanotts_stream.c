@@ -84,7 +84,7 @@ struct saan_stream_impl {
     float *w_e;          /* [E * maxW] pw1 の出力 */
     float *w_r;          /* [R * maxW] */
     float *w_g;          /* [DEC_W * maxW] */
-    float *o1539;        /* [1539 * CH] decoder の生出力（mag/cos/sin はこのビュー） */
+    float *o1539;        /* [1539] decoder の生出力 **1 フレーム分**（mag/cos/sin のビュー） */
     float *hr;           /* [DEC_HEAD * CH] */
 
     float *ola, *olw, *win, *re, *im, *frm;   /* iSTFT */
@@ -98,7 +98,6 @@ struct saan_stream_impl {
 };
 
 size_t saan_stream_arena_needed(int32_t n_ids) {
-    const int maxW = 2 * 4 + CH;
     const int maxC = DEC_W > AC_W ? DEC_W : AC_W;
     size_t s = 0;
     /* --- 発話長（ids 数）に比例する分 --- */
@@ -115,11 +114,16 @@ size_t saan_stream_arena_needed(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(float) * DEC_W * (2 * 3 + CH)) * 5;  /* dblk */
     s += SAAN_ALIGN16(sizeof(float) * CD * (2 * 1 + CH));         /* cdel[0] */
     s += SAAN_ALIGN16(sizeof(float) * CD * (2 * 3 + CH)) * 5;     /* cdel[1..5] */
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)maxC * maxW) * 2;   /* w_full/2 */
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)maxC * CH) * 2;     /* w_ch/2 */
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)E * maxW);
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_R * maxW);
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)DEC_W * maxW);
+    {
+        const int W_AC = 2 * 4 + CH, W_DEC = 2 * 3 + CH;
+        const size_t full_n = (size_t)AC_W * W_AC > (size_t)DEC_W * W_DEC
+                            ? (size_t)AC_W * W_AC : (size_t)DEC_W * W_DEC;
+        s += SAAN_ALIGN16(sizeof(float) * full_n) * 2;            /* w_full/2 */
+        s += SAAN_ALIGN16(sizeof(float) * (size_t)maxC * CH) * 2; /* w_ch/2 */
+        s += SAAN_ALIGN16(sizeof(float) * (size_t)E * W_DEC);
+        s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_R * W_DEC);
+        s += SAAN_ALIGN16(sizeof(float) * (size_t)DEC_W * W_DEC);
+    }
     s += SAAN_ALIGN16(sizeof(float) * 1539 * CH);
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);
     s += SAAN_ALIGN16(sizeof(float) * (size_t)(SAAN_NFFT + 2 * SAAN_HOP)) * 2;
@@ -363,15 +367,21 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
     if (!pipe_init(&im->cdel[0], a, CD, 1)) return SAAN_ERR_ARENA;
     for (int i = 1; i < 6; ++i) if (!pipe_init(&im->cdel[i], a, CD, 3)) return SAAN_ERR_ARENA;
 
-    const int maxW = 2 * 4 + CH;
+    /* ⚠️ **作業領域は段ごとの実寸で取る。** 以前は maxC(76) × maxW(16) を
+     * 一律に確保していたが、acoustic は C=48/W=16、decoder は C=76/W=14 で、
+     * 76×16 は**どちらにも要らない上限**だった。E×W も decoder でしか使わない */
+    const int W_AC = 2 * 4 + CH;    /* AcBlock の窓 */
+    const int W_DEC = 2 * 3 + CH;   /* dw ブロックの窓 */
+    const size_t full_n = (size_t)AC_W * W_AC > (size_t)DEC_W * W_DEC
+                        ? (size_t)AC_W * W_AC : (size_t)DEC_W * W_DEC;
     const int maxC = DEC_W > AC_W ? DEC_W : AC_W;
-    im->w_full  = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * maxW);
-    im->w_full2 = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * maxW);
+    im->w_full  = (float *)saan_alloc(a, sizeof(float) * full_n);
+    im->w_full2 = (float *)saan_alloc(a, sizeof(float) * full_n);
     im->w_ch    = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * CH);
     im->w_ch2   = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * CH);
-    im->w_e     = (float *)saan_alloc(a, sizeof(float) * (size_t)E * maxW);
-    im->w_r     = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_R * maxW);
-    im->w_g     = (float *)saan_alloc(a, sizeof(float) * (size_t)DEC_W * maxW);
+    im->w_e     = (float *)saan_alloc(a, sizeof(float) * (size_t)E * W_DEC);
+    im->w_r     = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_R * W_DEC);
+    im->w_g     = (float *)saan_alloc(a, sizeof(float) * (size_t)DEC_W * W_DEC);
     im->o1539   = (float *)saan_alloc(a, sizeof(float) * 1539 * CH);
     im->hr      = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);
     im->ola_len = SAAN_NFFT + 2 * SAAN_HOP;   /* out_pos が N/2 先行する分 */
@@ -561,6 +571,12 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
 
     saan_conv1d(im->hr, h, hdw, hdb, DEC_W, SAAN_DEC_HEAD, 1, CH);
     saan_gelu(im->hr, (size_t)SAAN_DEC_HEAD * CH);
+
+    /* ⚠️ **hout は CH フレームまとめて計算する。** 1 フレームずつにすると
+     * `o1539` が 49 KB → 6 KB に減るが、`saan_conv1d` の T=1 呼び出しが
+     * 効率を落として**全体が 35% 遅くなる**（実測 0.023 → 0.031 × RT）。
+     * ESP32 では速度が律速（移植可能 C で 0.93 × RT）なので**速度を取る**。
+     * メモリは他の作業領域を正確に詰めて G1 を満たす。 */
     saan_conv1d(im->o1539, im->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH);
 
     const float *mag = im->o1539;
@@ -595,8 +611,13 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
         saan_status s = step_chunk(st, pcm);
         if (s != SAAN_OK) return s;
         if (st->a->used > st->peak_used) st->peak_used = st->a->used;
-        /* 入力を出し切ってなお足りないなら打ち切る（無限ループ防止） */
-        if (st->pushed > st->n_frames + SAAN_LATENCY + 4 * CH + 16) break;
+        /* 入力を出し切ってなお足りないなら打ち切る（無限ループ防止）。
+         * ⚠️ **真に必要な余剰は遅延 SAAN_LATENCY + iSTFT の 2 フレームだけ。**
+         * 以前は `+ 4*CH + 16` の安全マージンを積んでいたが、それは
+         * **48 フレーム（5 チャンク）ぶん出力に寄与しない純粋な無駄**で、
+         * 外しても PCM は bit 一致する（short で −18.6%、D-3b の照合）。
+         * チャンク境界で切り上がるぶんだけ余裕を持たせる */
+        if (st->pushed > st->n_frames + SAAN_LATENCY + 2 + 2 * CH) break;
     }
 
     int32_t n = im->ofill < CH ? im->ofill : CH;

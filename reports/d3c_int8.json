@@ -72,13 +72,13 @@
  "c_quantizer_matches_python": {"n_values": 544292, "value_mismatch": 0, "scale_mismatch": 0}, 
  "real_activation": {"layer": "decoder.inp", "T": 106, "w8a32_db": 47.1387, "w8a8_db": 44.8192},
  "speed": {"host": "darwin/arm64 (cc -O2)", "note": "ESP32-S3 では測れない", "rows": [
-  {"shape": "ac  c1 48->48 k5", "macs": 1221120, "fp32_ns": 78240, "w8a32_ns": 77285, "w8a8_ns": 76375, "w8a32_over_fp32": 0.988, "w8a8_over_fp32": 0.976, "fp32_ps_per_mac": 64.1, "w8a32_ps_per_mac": 63.3, "w8a8_ps_per_mac": 62.5},
-  {"shape": "dec inp 40->76 k3", "macs": 966720, "fp32_ns": 63100, "w8a32_ns": 61535, "w8a8_ns": 56300, "w8a32_over_fp32": 0.975, "w8a8_over_fp32": 0.892, "fp32_ps_per_mac": 65.3, "w8a32_ps_per_mac": 63.7, "w8a8_ps_per_mac": 58.2},
-  {"shape": "dec pw1 76->304 k1", "macs": 2449024, "fp32_ns": 159095, "w8a32_ns": 167250, "w8a8_ns": 106655, "w8a32_over_fp32": 1.051, "w8a8_over_fp32": 0.670, "fp32_ps_per_mac": 65.0, "w8a32_ps_per_mac": 68.3, "w8a8_ps_per_mac": 43.6},
-  {"shape": "dec pw2 304->76 k1", "macs": 2449024, "fp32_ns": 164970, "w8a32_ns": 164830, "w8a8_ns": 83715, "w8a32_over_fp32": 0.999, "w8a8_over_fp32": 0.507, "fp32_ps_per_mac": 67.4, "w8a32_ps_per_mac": 67.3, "w8a8_ps_per_mac": 34.2},
-  {"shape": "dec hout 48->1539", "macs": 7830432, "fp32_ns": 512800, "w8a32_ns": 544665, "w8a8_ns": 464550, "w8a32_over_fp32": 1.062, "w8a8_over_fp32": 0.906, "fp32_ps_per_mac": 65.5, "w8a32_ps_per_mac": 69.6, "w8a8_ps_per_mac": 59.3}
+  {"shape": "ac  c1 48->48 k5", "macs": 1221120, "fp32_ns": 76720, "w8a32_ns": 75530, "w8a8_ns": 74710, "w8a32_over_fp32": 0.984, "w8a8_over_fp32": 0.974, "fp32_ps_per_mac": 62.8, "w8a32_ps_per_mac": 61.9, "w8a8_ps_per_mac": 61.2},
+  {"shape": "dec inp 40->76 k3", "macs": 966720, "fp32_ns": 61655, "w8a32_ns": 60685, "w8a8_ns": 55055, "w8a32_over_fp32": 0.984, "w8a8_over_fp32": 0.893, "fp32_ps_per_mac": 63.8, "w8a32_ps_per_mac": 62.8, "w8a8_ps_per_mac": 57.0},
+  {"shape": "dec pw1 76->304 k1", "macs": 2449024, "fp32_ns": 156695, "w8a32_ns": 164300, "w8a8_ns": 97625, "w8a32_over_fp32": 1.049, "w8a8_over_fp32": 0.623, "fp32_ps_per_mac": 64.0, "w8a32_ps_per_mac": 67.1, "w8a8_ps_per_mac": 39.9},
+  {"shape": "dec pw2 304->76 k1", "macs": 2449024, "fp32_ns": 159505, "w8a32_ns": 161410, "w8a8_ns": 81110, "w8a32_over_fp32": 1.012, "w8a8_over_fp32": 0.509, "fp32_ps_per_mac": 65.1, "w8a32_ps_per_mac": 65.9, "w8a8_ps_per_mac": 33.1},
+  {"shape": "dec hout 48->1539", "macs": 7830432, "fp32_ns": 504390, "w8a32_ns": 534535, "w8a8_ns": 456510, "w8a32_over_fp32": 1.060, "w8a8_over_fp32": 0.905, "fp32_ps_per_mac": 64.4, "w8a32_ps_per_mac": 68.3, "w8a8_ps_per_mac": 58.3}
  ]},
- "all_conv_layers": {"T": 106, "reps": 50, "fp32_ms": 3.7601, "w8a32_ms": 3.8209, "w8a8_ms": 3.1806, "w8a32_over_fp32": 1.016, "w8a8_over_fp32": 0.846, "mac_share_ksz1": 0.5833, "note": "iSTFT・埋め込み・LayerNorm は含まない"},
+ "all_conv_layers": {"T": 106, "reps": 50, "fp32_ms": 3.7068, "w8a32_ms": 3.7521, "w8a8_ms": 3.1299, "w8a32_over_fp32": 1.012, "w8a8_over_fp32": 0.844, "mac_share_ksz1": 0.5833, "note": "iSTFT・埋め込み・LayerNorm は含まない"},
  "blob_size": {"fp32_file_bytes": 2249792, "fp32_payload_bytes": 2236032, "int8_file_bytes": 643936, "int8_payload_bytes": 624692, "int8_payload_int8": 544292, "int8_payload_scale": 21536, "int8_payload_fp32": 58864, "payload_ratio": 3.579, "matches_M39_quant_json": true},
  "fp32_core_rejects_int8_blob": {"status": "必要なテンソルが無い", "is_missing": true},
  "scheme": {
