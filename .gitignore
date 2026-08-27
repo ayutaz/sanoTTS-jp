@@ -39,3 +39,10 @@ __pycache__/
 
 # 個人設定（許可モード等）。チームで共有しない
 .claude/settings.local.json
+
+# 学習の成果物。重みは数 MB だが、ログと一緒に runs/ ごと除外する
+# （再現に要るのは summary.json と log.jsonl だけなので、必要になったら個別に追跡する）
+/runs/*/stage*.pt
+# 合成音声
+/reports/eval_*/
+/reports/student_wav/
