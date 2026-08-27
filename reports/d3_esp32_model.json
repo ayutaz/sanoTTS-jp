@@ -1,0 +1,420 @@
+{
+  "task": "D-3b の外挿根拠: ESP32-S3 の性能モデルを作る（手元の実測から ESP32-S3 を外挿するための、根拠のある係数）",
+  "date": "2026-08-27",
+  "repro": "clang -std=c99 -O2 -o /tmp/d3bench scripts/d3_host_kernel_bench.c && /tmp/d3bench && clang -O2 -o /tmp/d3clk scripts/d3_host_clock.c && /tmp/d3clk   # ESP32-S3 側は repro_commands の curl 3 本。実機は使わない（外挿）",
+  "WARNING": "⚠️ **これは外挿であって実測ではない。ESP32-S3 の実機は一度も動かしていない。** ESP32-S3 側の数値はすべて (a) Espressif の公表仕様、(b) Espressif が公表している esp-dsp のサイクル数、のどちらか。実機で走らせた値は 1 つも無い。手元 (Apple M4 Max) の数値だけが自己実測。",
+  "repro_commands": {
+    "esp32s3_cycle_counts": "curl -sL https://raw.githubusercontent.com/espressif/esp-dsp/master/docs/en/esp-dsp-benchmarks.rst | grep -E 'dotprod|fft2r|fir_f32|mult_s16|mult_f32'",
+    "esp32s3_datasheet": "curl -sL -o s3.pdf https://documentation.espressif.com/esp32-s3_datasheet_en.pdf && pdftotext s3.pdf - | grep -nE 'CoreMark|Single precision|240 MHz|512 KB|384 KB'",
+    "esp32s3_soc_caps": "curl -sL https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/soc/esp32s3/include/soc/soc_caps.h | grep -E 'SOC_CPU_CORES_NUM|SOC_CPU_HAS_FPU|SOC_SIMD_PREFERRED_DATA_ALIGNMENT'",
+    "host_kernel_bench": "clang -std=c99 -O2 -o /tmp/d3bench scripts/d3_host_kernel_bench.c && /tmp/d3bench",
+    "host_clock": "clang -O2 -o /tmp/d3clk scripts/d3_host_clock.c && /tmp/d3clk",
+    "arithmetic": "本 JSON の derived_* は上記の生値からの算術のみ。計算式は各項の formula に書いた"
+  },
+  "esp32s3_spec": {
+    "cpu": {
+      "core": "Xtensa 32-bit LX7, dual core",
+      "max_clock_MHz": 240,
+      "pipeline": "five-stage",
+      "fpu": "single-precision FPU あり（両コア）",
+      "data_bus_bits": 128,
+      "coremark": "Two cores at 240 MHz: 1329.92 CoreMark; 5.54 CoreMark/MHz",
+      "sram_KB": 512,
+      "rom_KB": 384,
+      "rtc_sram_KB": 16,
+      "source_datasheet": "https://documentation.espressif.com/esp32-s3_datasheet_en.pdf (ESP32-S3 Series Datasheet v2.2, §Features / §4.1.1.1 CPU / §4.1.2.1 Internal Memory)",
+      "quotes": [
+        "• Clock speed: up to 240 MHz",
+        "• CoreMark® score: – Two cores at 240 MHz: 1329.92 CoreMark; 5.54 CoreMark/MHz",
+        "• 128-bit data bus and dedicated SIMD instructions",
+        "• Single precision floating point unit (FPU)",
+        "• ROM: 384 KB  • SRAM: 512 KB  • SRAM in RTC: 16 KB",
+        "• 512 KB on-chip SRAM: for data and instructions, running at a configurable frequency of up to 240 MHz"
+      ],
+      "source_soc_caps": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/soc/esp32s3/include/soc/soc_caps.h",
+      "soc_caps_evidence": [
+        "#define SOC_CPU_CORES_NUM               2",
+        "#define SOC_CPU_HAS_FPU                 1",
+        "#define SOC_SIMD_PREFERRED_DATA_ALIGNMENT 16 // bytes"
+      ]
+    },
+    "pie_simd": {
+      "what": "Processor Instruction Extensions。AI/DSP 向けの拡張命令。",
+      "vector_register_bits": 128,
+      "vector_registers": "8 本の 128-bit QR（= 16×int8 / 8×int16 / 4×int32）",
+      "accumulators": "QACC_H / QACC_L の 160-bit 2 本。int8 のときは 20-bit × 16 本として使う",
+      "mac_instruction_family": "EE.VMULAS.{S8,U8,S16,U16}.QACC（load 併合形 .LD.IP もある）",
+      "theoretical_MAC_per_cycle": {
+        "int8": 16,
+        "int16": 8,
+        "fp32_scalar_FPU": 1
+      },
+      "theoretical_MMAC_per_s_at_240MHz": {
+        "int8": 3840,
+        "int16": 1920,
+        "fp32_scalar_FPU": 240
+      },
+      "⚠️": "この理論値は「MAC 命令が 1 サイクルに 1 本発行できる」という上限の仮定。**Espressif は命令あたりのサイクル数を公表していない**（TRM の PIE 章に latency/throughput 表が無い）。理論値を予測に使ってはいけない。下の esp-dsp 実測値を使う",
+      "sources": [
+        "https://documentation.espressif.com/esp32-s3_datasheet_en.pdf §4.1.1.2 Processor Instruction Extensions (PIE): '128-bit new general-purpose registers' / '128-bit vector operations' / 'Non-aligned 128-bit vector data' / 'Saturation operation'",
+        "https://developer.espressif.com/blog/2024/12/pie-introduction/ : 'eight 128-bit wide vector registers (QR)' / ESP32-S3 は 'two 160-bit accumulators' (QACC_H/QACC_L)、ESP32-P4 は 256-bit",
+        "https://documentation.espressif.com/esp32-s3_technical_reference_manual_en.pdf Chapter 'Processor Instruction Extensions'"
+      ]
+    },
+    "memory_interfaces": {
+      "flash": {
+        "modes": "SPI / Dual / Quad / Octal / QPI / OPI",
+        "default_max_clock_MHz": 80,
+        "note_120MHz": "データシート脚注: 'By default, the SPI flash on the chip operates at a maximum clock frequency of 80 MHz ... If you have a requirement for a higher flash clock frequency of 120 MHz ... please contact us.'",
+        "idf_kconfig_options_MHz": [
+          20,
+          24,
+          26,
+          30,
+          32,
+          40,
+          48,
+          60,
+          64,
+          80,
+          120
+        ],
+        "source": "https://raw.githubusercontent.com/espressif/esp-idf/release/v5.3/components/esptool_py/Kconfig.projbuild (ESPTOOLPY_FLASHFREQ)"
+      },
+      "theoretical_read_bandwidth_MB_per_s": {
+        "quad_spi_80MHz_SDR": 40.0,
+        "quad_spi_80MHz_with_64B_line_overhead": 34.6,
+        "octal_spi_80MHz_DDR": 160.0,
+        "formula": "quad = 4 bit/clk × 80 MHz / 8 = 40 MB/s。octal DDR = 8 bit × 2 edge × 80 MHz / 8 = 160 MB/s。64 B ラインあたり ~148 clk（cmd/addr/dummy ~20 + data 128）は reports/b0_flash_budget.json の算術を再利用",
+        "⚠️": "**実測ではない。** ESP32-S3 の flash 実効帯域の Espressif 公表値は探した範囲（datasheet v2.2 / TRM / esp-idf docs の SPI Flash API / esp-dsp docs）では見つからなかった"
+      },
+      "cache": {
+        "icache_KB": 32,
+        "dcache_KB": 64,
+        "dcache_line_B": 64,
+        "source": "https://github.com/espressif/esp-skainet/blob/master/examples/chinese_tts/sdkconfig.defaults.esp32s3 (Espressif 自身の ESP32-S3 TTS 例)。reports/b0_flash_budget.json で確認済み"
+      },
+      "psram": "Octal SPI PSRAM は 80 MHz。本生徒は 197 KB の SRAM で足りる（M-42）ので PSRAM は使わない想定。ただし重み 625 KB は 512 KB SRAM に載らないので flash から読む"
+    }
+  },
+  "esp32s3_measured_kernel_rates": {
+    "source": "https://raw.githubusercontent.com/espressif/esp-dsp/master/docs/en/esp-dsp-benchmarks.rst",
+    "source_note": "Espressif 公表の CPU サイクル数。'ESP32S3' 列は手書きアセンブリ（PIE 使用）、'ANSI Xtensa' 列は移植可能 C。**私は再実行していない（自己実測ではない）。** raw の .rst を fetch して転記した",
+    "⚠️_do_not_use_the_rendered_page": "WebFetch で HTML 版を要約させると別バージョンの数値（dotprod_f32=589 等）が返ってきた。**raw .rst を使うこと**",
+    "cpu_freq_assumed_MHz": 240,
+    "cpu_freq_note": "サイクル数は周波数非依存。MMAC/s への換算にだけ 240 MHz を使う（データシートの上限クロック）",
+    "rows": [
+      {
+        "kernel": "dsps_dotprod_f32 N=256",
+        "dtype": "f32",
+        "impl": "asm",
+        "MAC": 256,
+        "cycles_O2": 432,
+        "MAC_per_cycle": 0.5926,
+        "MMAC_per_s_240MHz": 142.2
+      },
+      {
+        "kernel": "dsps_fir_f32 1024 samples × 256 coeffs",
+        "dtype": "f32",
+        "impl": "asm",
+        "MAC": 262144,
+        "cycles_O2": 443671,
+        "MAC_per_cycle": 0.5909,
+        "MMAC_per_s_240MHz": 141.8,
+        "note": "**持続負荷での f32 の基準値。** 短い dotprod と一致するので信頼できる"
+      },
+      {
+        "kernel": "dspm_mult_f32 C[16;16]=A[16;16]*B[16;16]",
+        "dtype": "f32",
+        "impl": "asm",
+        "MAC": 4096,
+        "cycles_O2": 6280,
+        "MAC_per_cycle": 0.6522,
+        "MMAC_per_s_240MHz": 156.5
+      },
+      {
+        "kernel": "dsps_fir_f32 (ANSI Xtensa = 移植可能 C)",
+        "dtype": "f32",
+        "impl": "plain C -O2",
+        "MAC": 262144,
+        "cycles_O2": 1353122,
+        "MAC_per_cycle": 0.1937,
+        "MMAC_per_s_240MHz": 46.5,
+        "⚠️": "docs は 'ANSI Xtensa' 列がどの Xtensa チップで測られたか書いていない（ESP32 か ESP32-S3 か不明）。同じ列の dsps_dotprod_f32 (1311 cyc / 256 MAC = 0.1953 MAC/cyc) と一致するので値そのものは整合"
+      },
+      {
+        "kernel": "dsps_dotprod_s16 N=256",
+        "dtype": "s16",
+        "impl": "asm",
+        "MAC": 256,
+        "cycles_O2": 307,
+        "MAC_per_cycle": 0.8339,
+        "MMAC_per_s_240MHz": 200.1,
+        "note": "N=256 と短くセットアップ支配。s16 の代表値には使わない"
+      },
+      {
+        "kernel": "dspm_mult_s16 C[16;16]=A[16;16]*B[16;16]",
+        "dtype": "s16",
+        "impl": "asm",
+        "MAC": 4096,
+        "cycles_O2": 2004,
+        "MAC_per_cycle": 2.0439,
+        "MMAC_per_s_240MHz": 490.5,
+        "note": "**行列積なので生徒の全結合層に一番近い形。s16 の基準値に採る**"
+      },
+      {
+        "kernel": "dspi_dotprod_s16 32x32",
+        "dtype": "s16",
+        "impl": "asm",
+        "MAC": 1024,
+        "cycles_O2": 409,
+        "MAC_per_cycle": 2.5037,
+        "MMAC_per_s_240MHz": 600.9
+      },
+      {
+        "kernel": "dspi_dotprod_s8/u8 16x16",
+        "dtype": "s8",
+        "impl": "asm",
+        "MAC": 256,
+        "cycles_O2": 161,
+        "MAC_per_cycle": 1.5901,
+        "MMAC_per_s_240MHz": 381.6,
+        "note": "小さすぎてオーバーヘッド支配"
+      },
+      {
+        "kernel": "dspi_dotprod_s8/u8 64x64",
+        "dtype": "s8",
+        "impl": "asm",
+        "MAC": 4096,
+        "cycles_O2": 689,
+        "MAC_per_cycle": 5.9448,
+        "MMAC_per_s_240MHz": 1426.8,
+        "note": "**int8 の基準値。** 理論上限 16 MAC/cyc の 37.2%"
+      },
+      {
+        "kernel": "dsps_fft2r_fc32 512 complex points",
+        "dtype": "f32",
+        "impl": "asm",
+        "MAC": null,
+        "cycles_O2": 44594,
+        "note": "1024 点 real iFFT ≒ 512 点 complex FFT + twiddle。**iSTFT を MMAC 換算せず、このサイクル数を直に使える**"
+      },
+      {
+        "kernel": "dsps_fft2r_fc32 512 (ANSI Xtensa)",
+        "dtype": "f32",
+        "impl": "plain C -O2",
+        "cycles_O2": 79978
+      },
+      {
+        "kernel": "dsps_fft2r_sc16 512 complex points",
+        "dtype": "s16",
+        "impl": "asm",
+        "cycles_O2": 7294,
+        "note": "16-bit 固定小数の FFT。f32 版の 6.1 倍速い"
+      }
+    ],
+    "efficiency_vs_theoretical_peak": {
+      "f32_asm": "0.591 / 1.0 = 59.1%",
+      "s16_asm": "2.044 / 8 = 25.5%（dspi 版なら 2.504 / 8 = 31.3%）",
+      "s8_asm": "5.945 / 16 = 37.2%",
+      "note": "**Espressif 自身の手書きアセンブリでも理論ピークの 25〜59% しか出ない。** 理論値をそのまま予測に使うと 2〜4 倍楽観する"
+    }
+  },
+  "workload": {
+    "source": "reports/b9_vocab_closure.json の mmac ブロック（自前計算、語彙 57 / 559,008 params）",
+    "MMAC_per_audio_second": {
+      "acoustic_frame_rate": 38.278,
+      "duration_token_rate": 3.576,
+      "istft_radix2_estimate": 1.764,
+      "total": 43.618,
+      "non_istft_subtotal": 41.854
+    },
+    "paper_claim": 45,
+    "frame_rate_fps": 86.1328,
+    "current_c_core_istft_is_naive_DFT": {
+      "MAC_per_frame": 1048576,
+      "MMAC_per_audio_second": 90.3,
+      "vs_radix2_estimate": "51.2 倍",
+      "transcendental_calls_per_audio_second": "90.1 M 回の cos()/sin()（double, libm）",
+      "source": "csrc/saanotts.c:367 irfft_1024()。内側ループで cos/sin を毎回呼ぶ",
+      "consequence": "**現行 fp32 コアの実行時間は MAC ではなく libm 呼び出しに支配される。** 手元で測ったレイテンシを MAC ベースで外挿してはいけない（Phase D-3 の FFT 化が入るまで）"
+    }
+  },
+  "prediction": {
+    "method": "予測 xRT = (非 iSTFT の MMAC/audio-s) / (MAC/cycle) / 240 MHz + (iFFT サイクル数 × 86.1328 fps) / 240 MHz",
+    "assumptions": [
+      "シングルコア",
+      "240 MHz",
+      "**η（アプリ効率）= 1.0、つまり esp-dsp のカーネル速度がそのまま出る**"
+    ],
+    "⚠️_eta": "η は未測定。実際の生徒は活性化 (tanh/sigmoid/exp)、LayerNorm、再量子化、不規則な shape、メモリ移動を含むので η < 1 になる。**η の値をここで決めない。** 下の表は η=1 の下限（＝最速側）",
+    "table_eta_1_0": [
+      {
+        "impl": "移植可能 C -O2 / fp32（＝現行 csrc をそのまま移植した場合の上限）",
+        "core_xRT": 0.9002,
+        "istft_xRT": 0.0287,
+        "total_xRT": 0.9289
+      },
+      {
+        "impl": "esp-dsp 級アセンブリ / fp32 + f32 FFT",
+        "core_xRT": 0.2952,
+        "istft_xRT": 0.016,
+        "total_xRT": 0.3112
+      },
+      {
+        "impl": "esp-dsp 級 PIE / int16 + sc16 FFT",
+        "core_xRT": 0.0853,
+        "istft_xRT": 0.0026,
+        "total_xRT": 0.0879
+      },
+      {
+        "impl": "esp-dsp 級 PIE / int8 + sc16 FFT",
+        "core_xRT": 0.0293,
+        "istft_xRT": 0.0026,
+        "total_xRT": 0.032
+      }
+    ],
+    "with_eta": "任意の η について xRT(η) = 表の total_xRT / η。例: int8 で η=0.25 なら 0.128 xRT、η=0.145 なら 0.221 xRT（＝論文の値）",
+    "verdict_range": {
+      "optimistic": "int8 + PIE を esp-dsp 並みに書けたら **0.032 xRT**（実時間の 31 倍速）",
+      "pessimistic": "移植可能 C の fp32 のまま持っていくと **0.93 xRT が下限**。η<1 を考えれば **実時間に間に合わない**",
+      "⚠️": "この 2 つは η の両端ではなく **実装方式の両端**。同じ実装方式内での η のばらつきは別途未測定"
+    }
+  },
+  "paper_022xRT_check": {
+    "claim": "論文は 45 MMAC/audio-second で ESP32-S3 上 0.22× RT",
+    "implied_throughput_MMAC_per_s": 204.5,
+    "implied_MAC_per_cycle_at_240MHz": 0.852,
+    "eta_required": {
+      "vs_esp_dsp_f32_asm_0.591": "144.2%  → **不可能**",
+      "vs_esp_dsp_s16_asm_2.044": "41.7%   → 妥当",
+      "vs_esp_dsp_s16_dspi_2.504": "34.0%  → 妥当",
+      "vs_esp_dsp_s8_asm_5.945": "14.3%   → 妥当（余裕あり）",
+      "vs_fp32_architectural_ceiling_1.0": "85.2% → 現実には出ない"
+    },
+    "verdict": "**論文の 0.22× RT は仕様から妥当。ただし fp32 では不可能で、int8 または int16 の PIE 経路が前提になる。** 論文が int8 blob を配っている（679,832 B / 567,008 params ≒ 1.2 B/param）ことと整合する。逆に、0.22× RT は int8 の上限 0.032× RT の 6.9 倍遅いので、論文の実装は PIE のピークを取り切ってはいない（活性化・量子化・メモリの分と読める）",
+    "unknowns": [
+      "論文がシングルコアかデュアルコアか不明（デュアルなら実効 η は半分）",
+      "論文がどのクロックで測ったか不明（240 MHz を仮定）",
+      "論文の 45 MMAC に iSTFT が含まれるか不明"
+    ],
+    "our_number_instead_of_45": "本プロジェクトの自前計算 43.618 MMAC/audio-second を使うと 0.22× RT は 198.3 MMAC/s = 0.826 MAC/cycle。結論は変わらない"
+  },
+  "host_anchor_M4Max": {
+    "note": "**ここだけが自己実測。** ESP32-S3 側と同じ形（N=256 の内積、L1 に載る）を同じ最適化クラスで測った",
+    "machine": "Apple M4 Max / 12 P-core + 4 E-core / 68.7 GB",
+    "compiler": "Apple clang 17.0.0 (clang-1700.3.19.1)",
+    "effective_clock_GHz": {
+      "median": 4.067,
+      "min": 3.91,
+      "max": 4.088,
+      "n": 5,
+      "method": "1 サイクルレイテンシの依存 add チェーン 2×10^9 回",
+      "⚠️": "P コアの最大 turbo ではない可能性がある"
+    },
+    "single_thread_MMAC_per_s": {
+      "f32_O2_strict": {
+        "median": 3209.6,
+        "min": 2976.8,
+        "max": 3218.2,
+        "n": 7,
+        "note": "csrc/Makefile と同じ -std=c99 -O2。FP は再結合されないので依存チェーン律速"
+      },
+      "f32_O2_ffast_math": {
+        "median": 22773.8,
+        "min": 22597.9,
+        "max": 22826.1,
+        "n": 7
+      },
+      "s16_O2": {
+        "median": 44117.0,
+        "min": 43052.3,
+        "max": 44506.3,
+        "n": 7
+      },
+      "s8_O2": {
+        "median": 87230.6,
+        "min": 82169.8,
+        "max": 88858.0,
+        "n": 7
+      }
+    },
+    "derived_host_over_esp32s3_ratio": {
+      "plain_C_-O2_fp32": 69.0,
+      "host_plainC_f32_vs_S3_best_asm_f32": 22.6,
+      "host_s16_vs_S3_best_asm_s16": 89.9,
+      "host_s8_vs_S3_best_asm_s8": 61.1,
+      "host_f32_ffast_math_vs_S3_plainC_f32": 489.8,
+      "⚠️": "**過去に使われた『×10』は 7 倍近く楽観だった（M-18 の RTX 4090 ×10 と同じ形の誤り）。** 同じ移植可能 C・同じ -O2 で比べると M4 Max は ESP32-S3 の **69 倍**速い"
+    },
+    "how_to_use": {
+      "recipe_1_simple": "現行 fp32 C コアを手元で測った xRT に **69.0** を掛けると『同じ C を ESP32-S3 に載せた場合』の xRT になる。⚠️ ただし現行コアは libm の cos/sin 支配（上記 naive DFT）なので、この係数は **FFT 化が終わるまで使えない**",
+      "recipe_2_eta_transfer": "η（アプリ効率）を手元で測ってから移す。η_host = (43.618 MMAC/s ÷ 手元の実測秒数) ÷ (手元のカーネル MMAC/s)。η_S3 ≈ η_host を仮定して xRT_S3 = 43.618 / (S3 カーネル MMAC/s × η_host) / 1.0。**η が ISA を跨いで保存するという仮定は未検証**。ISA が違えば活性化やメモリのコスト比が変わる",
+      "input_needed": "reports/d3b_latency.json（並行タスクが生成中）の段別レイテンシ"
+    }
+  },
+  "flash_bandwidth": {
+    "question": "重み 625 KB は flash から読む。帯域は効くか？",
+    "per_frame_weight_bytes": {
+      "acoustic_int8_blob": 223456,
+      "decoder_int8_blob": 360864,
+      "frame_rate_total": 584320,
+      "duration_token_rate": 40372,
+      "source": "docs/measurements.md M-39 の int8 blob 内訳（合計 624,692 B）"
+    },
+    "arithmetic_intensity": "非 iSTFT の 41.854 MMAC/audio-s ÷ (584,320 B × 86.1328 fps) = 0.83 MAC/重みバイト。**重みは 1 フレームにつきほぼ 1 回しか使われない = 完全にメモリ律速の形**",
+    "traffic_MB_per_s": [
+      {
+        "xRT": 1.0,
+        "chunk_frames": 1,
+        "MB_per_s": 51.8
+      },
+      {
+        "xRT": 1.0,
+        "chunk_frames": 8,
+        "MB_per_s": 6.5
+      },
+      {
+        "xRT": 1.0,
+        "chunk_frames": 16,
+        "MB_per_s": 3.2
+      },
+      {
+        "xRT": 0.22,
+        "chunk_frames": 1,
+        "MB_per_s": 235.3
+      },
+      {
+        "xRT": 0.22,
+        "chunk_frames": 8,
+        "MB_per_s": 29.4
+      },
+      {
+        "xRT": 0.22,
+        "chunk_frames": 16,
+        "MB_per_s": 14.7
+      }
+    ],
+    "verdict": "**1 フレームずつ処理すると Quad SPI (理論 40 MB/s、64 B ライン込みで ~34.6 MB/s) を超える。** 実時間ぎりぎり (1× RT) でも 51.8 MB/s で足りない。ただし現行の `csrc/saanotts_stream.h` は `SAAN_CHUNK = 8` なので **29.4 MB/s（0.22× RT 時）で Quad SPI の実効帯域に収まる**。設計はすでに正しい側にある",
+    "residual_risk": [
+      "64 KB D-cache に対し decoder の 1 層（E=304 × W=76 × k=3 なら 69 KB）が入りきらない可能性がある。層をタイルしないとチャンク内で thrash する。**未検証**",
+      "Quad SPI の実効帯域は Espressif の公表値が見つからなかったので理論値からの算術。**実測ではない**",
+      "重みを PSRAM に置く案は Octal 80 MHz DDR でも理論 160 MB/s で、ランダムアクセス実効はさらに落ちる。**flash の mmap + チャンク化のほうが素直**"
+    ]
+  },
+  "levers_not_yet_counted": {
+    "dual_core": "LX7 は 2 コア。段（duration / acoustic / decoder / iSTFT）をパイプライン分割すれば理論上 2 倍。**未検証。** データシートの CoreMark はデュアルで 1329.92（シングルの値は v2.2 に載っていない）",
+    "clock": "240 MHz が上限。160 MHz 運用なら xRT は 1.5 倍悪化する",
+    "sc16_fft": "iSTFT を f32 FFT (44,594 cyc) から sc16 FFT (7,294 cyc) にすると 0.0160 → 0.0026 xRT。**iSTFT はどちらでも支配項にならない**ので、まず f32 FFT で十分",
+    "⚠️_flatness": "16-bit 固定小数の iSTFT は音質（特に摩擦音の SFM）に効く可能性がある。品質を測らずに切り替えないこと"
+  },
+  "what_this_model_does_not_cover": [
+    "ESP32-S3 実機での実測は 1 つも無い",
+    "η（アプリ効率）が未測定。点推定を出していないのはそのため",
+    "活性化関数（tanh/sigmoid/exp）のコストを 1 つも数えていない。MAC だけのモデル",
+    "int8 量子化・逆量子化のコストを数えていない",
+    "ESP-IDF / FreeRTOS のオーバーヘッド、I2S 割り込み、Wi-Fi 併用時の影響",
+    "esp-dsp のサイクル数がどの IDF バージョン・どのクロックで測られたかは docs に書かれていない",
+    "'ANSI Xtensa' 列がどの Xtensa チップで測られたかが不明"
+  ]
+}

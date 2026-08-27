@@ -19,6 +19,8 @@
 #include "saanotts_stream.h"
 #include "saanotts_internal.h"
 
+#include "fft.h"
+
 #include <math.h>
 #include <string.h>
 
@@ -268,7 +270,9 @@ static void istft_push(struct saan_stream_impl *im, const float *mag,
         im->re[k] = m * cosv[(size_t)k * CH + t];
         im->im[k] = m * sinv[(size_t)k * CH + t];
     }
-    /* naive DFT（一括版と同じ実装を使う。⚠️ FFT 化は Phase D-2 の範囲外） */
+    /* 逆実 FFT。一括版と**同じ関数**を使う（2 回書かない）。
+     * `-DSAAN_USE_NAIVE_DFT` で naive に戻せる（検証基準として残してある） */
+#ifdef SAAN_USE_NAIVE_DFT
     for (int n = 0; n < N; ++n) {
         double acc = (double)im->re[0];
         for (int k = 1; k < N / 2; ++k) {
@@ -278,6 +282,9 @@ static void istft_push(struct saan_stream_impl *im, const float *mag,
         acc += (double)im->re[N / 2] * cos(M_PI * (double)n);
         im->frm[n] = (float)(acc / (double)N);
     }
+#else
+    saan_irfft_1024(im->re, im->im, im->frm);
+#endif
     const int L = im->ola_len;
     /* ⚠️ **絶対フレーム番号で位置を決める。** ローカルのカウンタで数えると、
      * 時刻が負の（発話に存在しない）フレームまで数えてしまい、

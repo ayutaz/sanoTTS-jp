@@ -1,0 +1,108 @@
+{
+  "task": "D-3b",
+  "what": "csrc のストリーミング推論のレイテンシ（ホスト実測）。段別内訳つき",
+  "host_label": "Apple M4 Max / macOS 26.2 / arm64, single-threaded",
+  "compiler": "Apple LLVM 17.0.0 (clang-1700.3.19.1)",
+  "cflags": "-std=c99 -O2 -Wall -Wextra",
+  "clock": "clock_gettime(CLOCK_MONOTONIC)",
+  "weights": {"path": "student.bin", "bytes": 2249792, "n_tensors": 131, "dtype": "fp32"},
+  "sample_rate": 22050, "hop": 256, "n_fft": 1024, "chunk_frames": 8,
+  "reps_total": 20, "reps_stage": 7, "warmup": 1,
+  "cases": [
+    {
+      "name": "short",
+      "n_ids": 53,
+      "n_frames": 106,
+      "chunks": 24,
+      "audio_sec": 1.2307,
+      "total_measured": {"ms_mean": 280.8719, "ms_sd": 0.7064, "ms_median": 280.7680, "ms_min": 279.0170, "ms_max": 282.5590, "n": 20, "xrt_mean": 0.22823, "xrt_min": 0.22672},
+      "stages_model": {
+      "duration": {"ms_mean": 0.1537, "ms_sd": 0.0026, "ms_median": 0.1530, "ms_min": 0.1510, "ms_max": 0.1570, "n": 7, "xrt_mean": 0.00012, "xrt_min": 0.00012},
+      "token_block": {"ms_mean": 4.3349, "ms_sd": 0.0240, "ms_median": 4.3420, "ms_min": 4.2960, "ms_max": 4.3620, "n": 7, "xrt_mean": 0.00352, "xrt_min": 0.00349},
+      "acoustic_frame": {"ms_mean": 11.6276, "ms_sd": 0.0227, "ms_median": 11.6296, "ms_min": 11.5861, "ms_max": 11.6579, "n": 7, "xrt_mean": 0.00945, "xrt_min": 0.00941},
+      "decoder": {"ms_mean": 28.5523, "ms_sd": 0.0850, "ms_median": 28.5343, "ms_min": 28.4594, "ms_max": 28.6850, "n": 7, "xrt_mean": 0.02320, "xrt_min": 0.02313},
+      "istft_naive_dft": {"ms_mean": 234.8689, "ms_sd": 2.1850, "ms_median": 234.4190, "ms_min": 232.1533, "ms_max": 237.5239, "n": 7, "xrt_mean": 0.19085, "xrt_min": 0.18864},
+      "_sum": {"ms_mean": 279.5374, "ms_min": 276.6458, "xrt_mean": 0.22714, "xrt_min": 0.22480}
+      },
+      "stage_share_pct": {"duration": 0.05, "token_block": 1.55, "acoustic_frame": 4.19, "decoder": 10.29, "istft_naive_dft": 83.92},
+      "reconciliation_sum_over_measured": {"mean": 0.9952, "min": 0.9915},
+      "istft_ms_per_frame": 2.1901,
+      "cross_check_dft_disabled": {
+        "method": "saanotts_stream.c のコピー（scratchpad）で istft_push の内側 DFT ループだけを無効化し、同じ全体計測を回した差分。値はどちらも ms_min 同士。csrc の既存ファイルは触っていない",
+        "total_ms_without_dft": 45.3040,
+        "xrt_without_dft": 0.03681,
+        "dft_ms_by_difference": 233.7130,
+        "dft_share_of_total": 0.8376,
+        "microbench_over_difference": 0.9933
+      }
+    },
+    {
+      "name": "medium",
+      "n_ids": 150,
+      "n_frames": 323,
+      "chunks": 51,
+      "audio_sec": 3.7500,
+      "total_measured": {"ms_mean": 819.8575, "ms_sd": 4.9622, "ms_median": 818.6360, "ms_min": 815.4330, "ms_max": 839.2930, "n": 20, "xrt_mean": 0.21863, "xrt_min": 0.21745},
+      "stages_model": {
+      "duration": {"ms_mean": 0.2921, "ms_sd": 0.0052, "ms_median": 0.2900, "ms_min": 0.2880, "ms_max": 0.3030, "n": 7, "xrt_mean": 0.00008, "xrt_min": 0.00008},
+      "token_block": {"ms_mean": 12.7114, "ms_sd": 0.0236, "ms_median": 12.7040, "ms_min": 12.6810, "ms_max": 12.7500, "n": 7, "xrt_mean": 0.00339, "xrt_min": 0.00338},
+      "acoustic_frame": {"ms_mean": 24.6637, "ms_sd": 0.0445, "ms_median": 24.6531, "ms_min": 24.6195, "ms_max": 24.7521, "n": 7, "xrt_mean": 0.00658, "xrt_min": 0.00657},
+      "decoder": {"ms_mean": 60.6072, "ms_sd": 0.1336, "ms_median": 60.5860, "ms_min": 60.3942, "ms_max": 60.8058, "n": 7, "xrt_mean": 0.01616, "xrt_min": 0.01611},
+      "istft_naive_dft": {"ms_mean": 715.1508, "ms_sd": 3.4457, "ms_median": 715.7815, "ms_min": 709.7252, "ms_max": 720.5995, "n": 7, "xrt_mean": 0.19071, "xrt_min": 0.18926},
+      "_sum": {"ms_mean": 813.4253, "ms_min": 807.7079, "xrt_mean": 0.21691, "xrt_min": 0.21539}
+      },
+      "stage_share_pct": {"duration": 0.04, "token_block": 1.57, "acoustic_frame": 3.05, "decoder": 7.48, "istft_naive_dft": 87.87},
+      "reconciliation_sum_over_measured": {"mean": 0.9922, "min": 0.9905},
+      "istft_ms_per_frame": 2.1973,
+      "cross_check_dft_disabled": {
+        "method": "saanotts_stream.c のコピー（scratchpad）で istft_push の内側 DFT ループだけを無効化し、同じ全体計測を回した差分。値はどちらも ms_min 同士。csrc の既存ファイルは触っていない",
+        "total_ms_without_dft": 100.6740,
+        "xrt_without_dft": 0.02685,
+        "dft_ms_by_difference": 714.7590,
+        "dft_share_of_total": 0.8765,
+        "microbench_over_difference": 0.9930
+      }
+    },
+    {
+      "name": "long",
+      "n_ids": 350,
+      "n_frames": 785,
+      "chunks": 109,
+      "audio_sec": 9.1138,
+      "total_measured": {"ms_mean": 1963.7726, "ms_sd": 2.0688, "ms_median": 1963.3960, "ms_min": 1961.1220, "ms_max": 1968.1410, "n": 20, "xrt_mean": 0.21547, "xrt_min": 0.21518},
+      "stages_model": {
+      "duration": {"ms_mean": 0.6753, "ms_sd": 0.0151, "ms_median": 0.6680, "ms_min": 0.6630, "ms_max": 0.7040, "n": 7, "xrt_mean": 0.00007, "xrt_min": 0.00007},
+      "token_block": {"ms_mean": 30.6666, "ms_sd": 0.1418, "ms_median": 30.6040, "ms_min": 30.5100, "ms_max": 30.8810, "n": 7, "xrt_mean": 0.00336, "xrt_min": 0.00335},
+      "acoustic_frame": {"ms_mean": 52.5959, "ms_sd": 0.0344, "ms_median": 52.5958, "ms_min": 52.5538, "ms_max": 52.6524, "n": 7, "xrt_mean": 0.00577, "xrt_min": 0.00577},
+      "decoder": {"ms_mean": 129.6722, "ms_sd": 0.2973, "ms_median": 129.6631, "ms_min": 129.3350, "ms_max": 130.2844, "n": 7, "xrt_mean": 0.01423, "xrt_min": 0.01419},
+      "istft_naive_dft": {"ms_mean": 1733.6118, "ms_sd": 7.3931, "ms_median": 1736.0602, "ms_min": 1721.8975, "ms_max": 1740.3450, "n": 7, "xrt_mean": 0.19022, "xrt_min": 0.18893},
+      "_sum": {"ms_mean": 1947.2217, "ms_min": 1934.9593, "xrt_mean": 0.21366, "xrt_min": 0.21231}
+      },
+      "stage_share_pct": {"duration": 0.03, "token_block": 1.58, "acoustic_frame": 2.72, "decoder": 6.68, "istft_naive_dft": 88.99},
+      "reconciliation_sum_over_measured": {"mean": 0.9916, "min": 0.9867},
+      "istft_ms_per_frame": 2.1935,
+      "cross_check_dft_disabled": {
+        "method": "saanotts_stream.c のコピー（scratchpad）で istft_push の内側 DFT ループだけを無効化し、同じ全体計測を回した差分。値はどちらも ms_min 同士。csrc の既存ファイルは触っていない",
+        "total_ms_without_dft": 219.1800,
+        "xrt_without_dft": 0.02405,
+        "dft_ms_by_difference": 1741.9420,
+        "dft_share_of_total": 0.8882,
+        "microbench_over_difference": 0.9885
+      }
+    }
+  ],
+  "method": {
+    "total": "公開 API のみ（saan_stream_init + saan_stream_pull を最後まで）。saanotts_stream.c は未編集。warmup 1 回のあと reps_total 回。これが唯一の直接計測",
+    "stages": "saanotts_stream.c を編集できないので、各段のカーネル列を同じ shape・同じ重みで bench.c 内に再現して単体計測し、実際の呼び出し回数（chunks / n_frames）を掛けたモデル",
+    "validity_check": "reconciliation_sum_over_measured = Σ段別 / 全体実測。mean と min の両方を出す。1.0 から離れるほど内訳の信頼度は下がる"
+  },
+  "limits": [
+    "段別はマイクロベンチの再現であり、saanotts_stream.c 内部を直接計測したものではない（既存ファイルを編集しない制約のため）",
+    "段別マイクロベンチの入力データは実際の中間出力ではなく合成値。saan_conv1d は重みが 0 の項をスキップするが重みは本物なので分岐挙動は同じ、一方 denormal の発生率は実データと違いうる",
+    "acoustic / decoder は 1 チャンクあたり一定として chunks 倍、iSTFT は 1 フレームあたり一定として n_frames 倍にスケールした（どちらも入力値に依存しない固定ループ）",
+    "zero_outside / obuf の詰め替え / pull のコピーなど、段に割り当てていない小さなコストがある。その分 Σ段別 は全体をわずかに下回る",
+    "ESP32 への外挿はしていない。ここの数値はホスト CPU のもの",
+    "重みは fp32。int8 カーネルは未計測",
+    "同一マシンで他プロセスが走ると mean と sd が上振れする（実測で sd が 1.3 ms から 398 ms まで悪化した実行があった）。ms_min と xrt_min が汚染に強い推定値"
+  ]
+}

@@ -51,3 +51,4 @@ __pycache__/
 /csrc/golden_test
 /csrc/*.bin
 /csrc/*.o
+/csrc/student_i8.bin

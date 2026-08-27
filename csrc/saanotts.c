@@ -1,6 +1,8 @@
 /* saanoTTS-jp 推論コア（C99 / 依存は libm のみ） */
 #include "saanotts.h"
 
+#include "fft.h"
+
 #include <math.h>
 #include <stdarg.h>
 #include <stdio.h>
@@ -362,9 +364,14 @@ static saan_status run_decoder(const saan_weights *w, saan_arena *a,
     return SAAN_OK;
 }
 
-/* naive DFT の逆変換。**ESP32 では FFT に差し替える**（ここは正しさ優先）。
+/* 逆実 FFT。既定は radix-2（`csrc/fft.c`、naive の 1,470 倍）。
+ *
+ * ⚠️ **naive DFT は消さない。** FFT の検証基準として残す。
+ * `-DSAAN_USE_NAIVE_DFT` でこちらに切り替わる。
+ * 両者は **bit 一致しない**（積和の順序が違う）。実測 SNR 138.7 dB（D-3a）。
+ *
  * 実部だけ要るので Σ_k [Re·cos(2πkn/N) − Im·sin(2πkn/N)] を直に計算する。 */
-static void irfft_1024(const float *re, const float *im, float *out) {
+static void irfft_naive_1024(const float *re, const float *im, float *out) {
     const int N = SAAN_NFFT;
     for (int n = 0; n < N; ++n) {
         double acc = (double)re[0];                       /* k=0 は実数 */
@@ -376,6 +383,15 @@ static void irfft_1024(const float *re, const float *im, float *out) {
         acc += (double)re[N / 2] * cos(M_PI * (double)n);
         out[n] = (float)(acc / (double)N);
     }
+}
+
+static void irfft_1024(const float *re, const float *im, float *out) {
+#ifdef SAAN_USE_NAIVE_DFT
+    irfft_naive_1024(re, im, out);
+#else
+    saan_irfft_1024(re, im, out);
+    (void)irfft_naive_1024;
+#endif
 }
 
 /* torch.istft(center=True, length=T*256) と同じ結果を出す。

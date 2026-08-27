@@ -1,0 +1,141 @@
+{
+  "task": "D-3a radix-2 実 IFFT (N=1024) の実装と検証",
+  "date": "2026-08-27",
+  "host": {
+    "machine": "macOS-26.2-arm64-arm-64bit-Mach-O",
+    "cc": "Apple clang version 17.0.0 (clang-1700.3.19.1)",
+    "cflags": "-std=c99 -O2 -Wall -Wextra"
+  },
+  "files": {
+    "impl": [
+      "csrc/fft.h",
+      "csrc/fft.c"
+    ],
+    "test": [
+      "csrc/fft_test.c"
+    ],
+    "table_generator": "scripts/gen_fft_tables.py",
+    "note": "csrc/fft.c は scripts/gen_fft_tables.py の出力だが、リポジトリ上の正本はこの .c である"
+  },
+  "algorithm": "長さ N=1024 の実 IFFT を、長さ M=512 の複素 IFFT 1 回 + O(M) の分解/合成に落とす（split-radix ではなく radix-2 DIT）",
+  "contract": {
+    "matches_naive": "入力 513 bin (re/im)、出力 1024 サンプル、1/N 正規化済み",
+    "im0_im512_ignored": true,
+    "im0_im512_note": "naive 版は DC と Nyquist の虚部を読まない。FFT 版も同じく無視する。呼び出し側 (istft) の im[k]=mag*sinv は DC/Nyquist で非ゼロになりうるので、ここを合わせないと出力が食い違う。fft_test.c で明示的に検証済み",
+    "malloc": false,
+    "arena": false,
+    "libm_at_runtime": false,
+    "libm_note": "twiddle が定数テーブルなので実行時に cos/sin を呼ばない。-lm は fft_test.c 側でだけ必要"
+  },
+  "variants": {
+    "float": {
+      "define": "(既定)",
+      "snr_vs_naive_db": {
+        "white_n100": {
+          "min": 138.1337,
+          "mean": 138.6622,
+          "max": 139.423
+        },
+        "decay_n100": {
+          "min": 137.8925,
+          "mean": 138.3643,
+          "max": 139.1032
+        },
+        "pass_120db": true,
+        "bit_exact_trials": 0
+      },
+      "table_bytes_flash": 6144,
+      "code_bytes_text": 1448,
+      "data_bss_bytes": 0,
+      "stack_bytes": 4128,
+      "ns_per_call": {
+        "mean": 1517.0,
+        "sd": 499.96,
+        "n": 1000
+      },
+      "ns_per_call_batched": {
+        "mean": 1591.7,
+        "sd": 63.6,
+        "n": "20 blocks x 1000"
+      },
+      "speedup_vs_naive": 1469.799
+    },
+    "double": {
+      "define": "-DSAAN_FFT_DOUBLE",
+      "snr_vs_naive_db": {
+        "white_n100": {
+          "min": 166.6771,
+          "mean": "inf (79/100 が bit 一致)",
+          "max": "inf"
+        },
+        "decay_n100": {
+          "min": "inf",
+          "mean": "inf",
+          "max": "inf"
+        },
+        "pass_120db": true,
+        "bit_exact_trials": 179,
+        "bit_exact_note": "200 試行中 179 が naive と bit 完全一致。bit 一致しなかった 21 試行の最小 SNR は 166.68 dB"
+      },
+      "table_bytes_flash": 12288,
+      "code_bytes_text": 888,
+      "data_bss_bytes": 0,
+      "stack_bytes": 8208,
+      "ns_per_call": {
+        "mean": 2498.0,
+        "sd": 504.23,
+        "n": 1000
+      },
+      "ns_per_call_batched": {
+        "mean": 2595.9,
+        "sd": 68.1,
+        "n": "20 blocks x 1000"
+      },
+      "speedup_vs_naive": 889.8819
+    }
+  },
+  "naive_baseline_ns_per_call": {
+    "mean": 2229685.0,
+    "sd": 52685.5,
+    "n": 1000
+  },
+  "known_input_checks": {
+    "dc_max_abs_err": 0.0,
+    "nyquist_max_abs_err": 0.0,
+    "bin37_real_max_abs_err": 4.163925e-10,
+    "bin37_imag_max_abs_err": 3.434054e-10,
+    "note": "float 版の値。DC / Nyquist は誤差 0（解析解と bit 一致）"
+  },
+  "compiler_warnings": {
+    "float_build": 0,
+    "double_build": 0,
+    "flags": "-std=c99 -O2 -Wall -Wextra"
+  },
+  "end_to_end": {
+    "note": "csrc/saanotts.c の scratchpad コピーに差し替えて golden_test を実行（リポジトリの saanotts.c は未編集）",
+    "input": "53 ids / 106 frames / 27136 sample = 1.231 s audio",
+    "golden_pcm_pearson": {
+      "naive": 1.0,
+      "fft_float": 1.0
+    },
+    "golden_pcm_snr_db_vs_pytorch": {
+      "naive": 117.51,
+      "fft_float": 117.5
+    },
+    "wall_s_per_run_20runs": {
+      "naive": 0.2569,
+      "fft_float": 0.0111,
+      "fft_double": 0.012
+    },
+    "pipeline_speedup": 23.1,
+    "naive_share_of_runtime_pct": 95.7
+  },
+  "per_audio_second": {
+    "frames_per_audio_second": 86.13,
+    "irfft_ms_naive": 192.0,
+    "irfft_ms_fft_float": 0.131,
+    "note": "ホスト (Apple Silicon) の値。ESP32-S3 の値ではない — 実機は未測定"
+  },
+  "recommendation": "float 版（既定）を採用する。SNR 137.9 dB (min, n=100) は要求 120 dB を 18 dB 上回り、golden_test の PCM SNR は 117.51 → 117.50 dB と実質不変。ESP32-S3 は単精度 FPU しか持たないので double 版は実機でさらに不利になる。double 版は「naive と bit 一致させたい」回帰用に残す",
+  "repro": "cd /Users/s19447/Desktop/saanoTTS-jp/csrc && cc -std=c99 -O2 -Wall -Wextra -o /tmp/fft_test fft_test.c fft.c -lm && /tmp/fft_test"
+}

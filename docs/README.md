@@ -10,7 +10,7 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-029 と**訂正履歴 C-001〜C-023** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-42。全数値に再現コマンド付き | 実測のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-43。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-11 の検証タスクと Phase 0〜D の状態 | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | **vast.ai 実行手順**。ラベル一括生成 → 本学習。教師の同一性照合とゲート | 実行時 |
@@ -46,7 +46,9 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 [完了] β スイープ            β=0 と 2 が候補。⚠️ **聴取待ち**（M-40）
 [完了] Phase D-1            C99 コア。Pearson 1.000000 / SNR 117.5 dB（M-41）
 [完了] Phase D-2            **ストリーミング化。1,258→197 KB で SRAM に載った**（M-42）
-[次]   Phase D-3            FFT 化 → レイテンシ測定 → int8 カーネル → 実機
+[完了] Phase D-3a/b/c       FFT 1,435 倍 / 手元 **0.024× RT** / int8 カーネル（M-43）
+[次]   Phase D-3c'          **PIE 最適化。移植可能 C だと ESP32 で 0.93× RT**
+[未]   Phase D-3d           実機測定（ハードウェア待ち）
 ```
 
 ### 凍結した設計値（2026-08-27）
@@ -81,8 +83,9 @@ arXiv:2608.21378 "saanoTTS" の蒸留レシピを日本語に適用し、**ESP32
 
 **未知（プロジェクトの成否を左右する順）**
 
-1. **レイテンシ** — ⚠️ **一度も測っていない。** `irfft` が naive DFT (O(N²)) なので
-   FFT 化するまで測る意味が無い。論文の目標は ESP32-S3 で 0.22× RT
+1. **ESP32 で実時間に間に合うか** — 手元は 0.024× RT だが、**移植可能 C を
+   そのまま移植すると 0.93× RT**（外挿、M-43）。**PIE の int8 カーネルが要る**。
+   論文の 0.22× RT も fp32 では達成不可能と検算できた
 2. ~~ESP32 に載るか~~ — ✅ **197 KB / SRAM 512 KB の 38%**（M-42）。
    ⚠️ ただし fp32。int8 カーネルにすればさらに減る
 3. **`β`（式7）** — **聴取で決める。** 候補は β=0 と 2（M-40）。
