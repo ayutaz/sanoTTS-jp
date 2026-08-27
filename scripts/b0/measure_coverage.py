@@ -30,8 +30,8 @@ import os, sys, json, re, subprocess, csv, collections
 RE_PH = re.compile(r"-(?P<ph>[^+]+)\+")
 RE_A  = re.compile(r"/A:(?P<a1>[\d-]+)\+(?P<a2>[0-9]+)\+(?P<a3>[0-9]+)/")
 
-SRC = "/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic"
-PY  = "/Users/s19447/Documents/piper-plus/.venv/bin/python"
+SRC = "~/Documents/piper-plus/build/share/open_jtalk/dic"
+PY  = "~/Documents/piper-plus/.venv/bin/python"
 
 
 def read_tsv(path):
@@ -165,8 +165,8 @@ def compare(ref, hyp, vocab=None):
 LEVELS = [int(x) for x in os.environ.get("B0_LEVELS", "5000,10000,20000,30000,60000,100000,200000").split(",")]
 VARIANTS = os.environ.get("B0_VARIANTS", "full,noread").split(",")
 EVALSETS = {
-    "heldout": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_heldout.tsv",
-    "embedded": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_embedded.tsv",
+    "heldout": "./data/splits/corpus_heldout.tsv",
+    "embedded": "./data/splits/corpus_embedded.tsv",
 }
 
 

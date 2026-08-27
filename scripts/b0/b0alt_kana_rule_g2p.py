@@ -2,7 +2,7 @@
 No dictionary. This is the MCU-side lower bound for the 'kana input' design.
 """
 import re, json, sys
-OJ="/Users/s19447/Documents/piper-plus/build/o/src/openjtalk_external/lib/open_jtalk/src"
+OJ="~/Documents/piper-plus/build/o/src/openjtalk_external/lib/open_jtalk/src"
 def load_mora():
     lines=open(OJ+"/jpcommon/jpcommon_rule_utf_8.h",encoding="utf-8").read().split("\n")
     i=[n for n,l in enumerate(lines) if "jpcommon_mora_list[]" in l][0]
@@ -49,7 +49,7 @@ def g2p(kana, devoice=True):
     return out
 
 if __name__=="__main__":
-    ALT="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0alt"
+    ALT="<scratch>"
     def lev(a,b):
         if a==b: return 0
         lb=len(b); prev=list(range(lb+1))

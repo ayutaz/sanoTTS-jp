@@ -37,7 +37,7 @@ OUT = os.path.join(ROOT, "reports", "b10_overlap.json")
 # JSUT の生テキスト（B-0 のコーパス構築で使ったもの）。
 # 無くても source 列だけで (A) は判定できる。あれば「別ラベルで紛れ込んだ同一本文」
 # まで捕まえられるので、availability を JSON に記録する。
-DEFAULT_JSUT = ("/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/"
+DEFAULT_JSUT = ("<scratch>"
                 "3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/jsut_text")
 
 FT_SOURCES = ("jsut/voiceactress100", "jsut/repeat500")
@@ -392,7 +392,7 @@ def main():
     }
 
     # evaluation_texts_ja.txt との照合
-    ev_path = "/Users/s19447/Documents/piper-plus/scripts/evaluation/evaluation_texts_ja.txt"
+    ev_path = "~/Documents/piper-plus/scripts/evaluation/evaluation_texts_ja.txt"
     if os.path.exists(ev_path):
         ev = set()
         with open(ev_path, encoding="utf-8") as f:

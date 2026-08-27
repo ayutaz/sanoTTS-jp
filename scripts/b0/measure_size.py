@@ -9,7 +9,7 @@ B-0: 枝刈り OpenJTalk (NAIST-JDIC) 辞書の実バイナリサイズを測る
 見積もりは一切使わない。
 
 実行 (cwd は b0/size にすること):
-  export PP=/Users/s19447/Documents/piper-plus
+  export PP=~/Documents/piper-plus
   $PP/.venv/bin/python measure_size.py build          # 30 セル (5 x 3 x 圧縮2) -> size/sizes.json
   $PP/.venv/bin/python measure_size.py rank-abl       # 枝刈り基準 freq/wcost/hybrid -> size/rankabl.json
   $PP/.venv/bin/python measure_size.py extra N...     # 任意のエントリ数 (L2/圧縮あり) -> size/extra.json
@@ -24,13 +24,13 @@ B-0: 枝刈り OpenJTalk (NAIST-JDIC) 辞書の実バイナリサイズを測る
   eval_dict.py  1 辞書ぶんの (P3,A1,A2,A3) 列を出す。辞書ごとに別プロセス必須
   score.py      ref/hyp を突き合わせて音素列・アクセントの一致率と PER を出す
   coverage.py   語彙リストに対する token / sentence カバー率
-  make_report.py 全部を集めて /Users/s19447/Desktop/saanoTTS-jp/reports/b0_size.json を書く
+  make_report.py 全部を集めて ./reports/b0_size.json を書く
 """
 import os, sys, json, shutil, struct, subprocess, collections, time, csv
 
-SP   = "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0"
+SP   = "<scratch>"
 HERE = os.path.join(SP, "size")
-PP   = "/Users/s19447/Documents/piper-plus"
+PP   = "~/Documents/piper-plus"
 # piper-plus の python G2P が実際に読む辞書 (pyopenjtalk 同梱)。
 # build/share/open_jtalk/dic/sys.dic とは 101 token 違う別リビジョン。
 SRC  = os.path.join(PP, ".venv/lib/python3.13/site-packages/pyopenjtalk/dictionary")
@@ -64,7 +64,7 @@ def _orig_keep_set():
             | set(pyopenjtalk.MULTI_READ_KANJI_LIST))
 
 def _class3_reads():
-    sys.path.insert(0, "/Users/s19447/Desktop/saanoTTS-jp/scripts/b0")
+    sys.path.insert(0, "./scripts/b0")
     from class3 import CLASS3_READS
     return set(CLASS3_READS)
 

@@ -63,7 +63,7 @@
   "finding": "逆順（remove_weight_norm -> apply_ema）は **0 個ではなく 23/53 個**が当たる。weight_norm を経由しない bias 等は融合の影響を受けないため。つまり順序を間違えると『EMA が効かない』のではなく **EMA が半分だけ当たった第三の重み**になる。sanity check を 「applied > 0」で書くと通ってしまうので、applied == len(shadow) で assert すること。"
  },
  "canonical_export": {
-  "file": "/Users/s19447/Documents/piper-plus/src/python/piper_train/export_onnx.py",
+  "file": "~/Documents/piper-plus/src/python/piper_train/export_onnx.py",
   "lines": "510-554",
   "behavior": "export_onnx は ema_generator_state があれば **無条件で** apply_ema_shadow_params(model_g.dec, ...) を呼び、その後で remove_weight_norm() する。EMA を無効化する CLI フラグは存在しない (argparse は debug/simplify/stochastic/no-fp16/unify-emb-lang/export-mode のみ)。つまり公開 ONNX = EMA 適用済みが canonical。"
  },

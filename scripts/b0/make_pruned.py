@@ -1,5 +1,5 @@
 import collections, os, sys, json
-SRC="/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic"
+SRC="~/Documents/piper-plus/build/share/open_jtalk/dic"
 
 # corpus surface freq
 freq=collections.Counter()

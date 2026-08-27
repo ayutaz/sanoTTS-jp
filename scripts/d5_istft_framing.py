@@ -51,7 +51,7 @@ PACK = ROOT / "data" / "pack_sibdense"
 OUT = ROOT / "reports" / "d5_istft_framing.json"
 
 N_FFT, HOPL, WINL = 1024, 256, 1024
-REPRO = ("cd /Users/s19447/Desktop/saanoTTS-jp && "
+REPRO = ("cd . && "
          "uv run python scripts/d5_istft_framing.py")
 
 

@@ -1127,7 +1127,7 @@
   },
   {
    "id": "sentence_collector_04991",
-   "text": "堺市堺区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -1812,7 +1812,7 @@
   },
   {
    "id": "sentence_collector_07288",
-   "text": "熊本市北区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -2411,7 +2411,7 @@
   },
   {
    "id": "sentence_collector_07167",
-   "text": "浜松市西区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -5464,7 +5464,7 @@
   },
   {
    "id": "sentence_collector_07161",
-   "text": "浜松市中区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -6544,7 +6544,7 @@
   },
   {
    "id": "sentence_collector_06514",
-   "text": "新潟市南区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -7282,7 +7282,7 @@
   },
   {
    "id": "sentence_collector_05156",
-   "text": "大阪市旭区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -8417,7 +8417,7 @@
   },
   {
    "id": "sentence_collector_07922",
-   "text": "福岡県赤村",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -8577,7 +8577,7 @@
   },
   {
    "id": "sentence_collector_06938",
-   "text": "横浜市緑区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -39138,7 +39138,7 @@
   },
   {
    "id": "sentence_collector_06822",
-   "text": "札幌市東区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -40300,7 +40300,7 @@
   },
   {
    "id": "sentence_collector_06818",
-   "text": "札幌市北区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -40349,7 +40349,7 @@
   },
   {
    "id": "sentence_collector_04597",
-   "text": "千葉市緑区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -40396,7 +40396,7 @@
   },
   {
    "id": "sentence_collector_06518",
-   "text": "新潟市西区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -41008,7 +41008,7 @@
   },
   {
    "id": "sentence_collector_07867",
-   "text": "福岡市東区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -41812,7 +41812,7 @@
   },
   {
    "id": "sentence_collector_05166",
-   "text": "大阪市西区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -43248,7 +43248,7 @@
   },
   {
    "id": "sentence_collector_07333",
-   "text": "熊本県錦町",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -44586,7 +44586,7 @@
   },
   {
    "id": "sentence_collector_05597",
-   "text": "岡山市北区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -45336,7 +45336,7 @@
   },
   {
    "id": "sentence_collector_05163",
-   "text": "大阪市港区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -47800,7 +47800,7 @@
   },
   {
    "id": "sentence_collector_05178",
-   "text": "大阪府堺市",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -49002,7 +49002,7 @@
   },
   {
    "id": "sentence_collector_04989",
-   "text": "堺市北区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -51251,7 +51251,7 @@
   },
   {
    "id": "sentence_collector_05752",
-   "text": "広島市東区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -51470,7 +51470,7 @@
   },
   {
    "id": "sentence_collector_07122",
-   "text": "沖縄県東村",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -51888,7 +51888,7 @@
   },
   {
    "id": "sentence_collector_05418",
-   "text": "宮崎県綾町",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -52255,7 +52255,7 @@
   },
   {
    "id": "sentence_collector_06926",
-   "text": "横浜市中区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -54050,7 +54050,7 @@
   },
   {
    "id": "sentence_collector_03790",
-   "text": "京都市北区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -54149,7 +54149,7 @@
   },
   {
    "id": "sentence_collector_03791",
-   "text": "京都市南区",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"
@@ -57198,7 +57198,7 @@
   },
   {
    "id": "sentence_collector_06530",
-   "text": "新潟県燕市",
+   "text": "<redacted: corpus text>",
    "status": "ok",
    "langs_a": [
     "zh"

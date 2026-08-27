@@ -2,7 +2,7 @@
 """B-0: カバー率測定用コーパスの構築 (統合 -> NFKC -> 重複排除 -> train/heldout 分割)"""
 import unicodedata, collections, hashlib, json, random, re, sys, os
 
-SC = "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad"
+SC = "<scratch>"
 OUT = SC + "/b0"
 SEED = 20260826
 

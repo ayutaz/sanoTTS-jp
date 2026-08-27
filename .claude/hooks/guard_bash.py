@@ -22,9 +22,33 @@ from __future__ import annotations
 
 import json
 import re
+import os
 import sys
 
-PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
+#: piper-plus の checkout。**環境変数で差し替えられる**（他人の環境でも動くように）。
+#: 既定は `~/Documents/piper-plus`。clone した人は `PIPER_PLUS_ROOT` を設定する。
+PIPER_PLUS = os.environ.get("PIPER_PLUS_ROOT",
+                            os.path.expanduser("~/Documents/piper-plus"))
+
+
+def _path_variants(path: str) -> list[str]:
+    """同じ場所を指す表記のゆれを全部返す。
+
+    ⚠️ **絶対パスだけを見ていると `~` 表記が素通りする。**
+    `rm -rf ~/Documents/piper-plus` は展開すれば同じ場所なのに、
+    文字列としては一致しない。**実際にこの穴が開いていた**（テストが
+    絶対パスしか渡していなかったので気づかなかった）。
+    """
+    out = [path]
+    home = os.path.expanduser("~")
+    if path.startswith(home + "/"):
+        rel = path[len(home) + 1:]
+        out += [f"~/{rel}", f"$HOME/{rel}", f"${{HOME}}/{rel}"]
+    return out
+
+
+#: 照合に使う表記のゆれ（絶対パス / `~` / `$HOME`）
+PIPER_PLUS_FORMS = _path_variants(PIPER_PLUS)
 
 # コマンド位置 = 行頭 / シェル区切りの直後 / sudo・env 等のラッパの直後。
 # ここに限定しないと `grep "pip install"` のような引用符内の文字列を誤検知する。
@@ -69,9 +93,16 @@ def deny(reason: str) -> None:
 
 
 def check_piper_plus_write(cmd: str) -> None:
-    """piper-plus の作業ツリーを変える操作を止める。"""
-    if PIPER_PLUS not in cmd:
-        return
+    """piper-plus の作業ツリーを変える操作を止める。
+
+    ⚠️ **表記のゆれを全部見る**（絶対パス / `~/...` / `$HOME/...`）。
+    """
+    for form in PIPER_PLUS_FORMS:
+        if form in cmd:
+            _check_write_for(cmd, form)
+
+
+def _check_write_for(cmd: str, PIPER_PLUS: str) -> None:
 
     # リダイレクト:  > path  /  >> path  （piper-plus 配下を指すもの）
     if re.search(r">>?\s*[\"']?" + re.escape(PIPER_PLUS), cmd):
@@ -133,7 +164,8 @@ def check_python_invocation(cmd: str) -> None:
     """
     # ⚠️ **コマンド位置に固定すること。** 素の部分文字列一致にすると、
     # heredoc で docs を書くときにこのパスを含む文字列で誤検知する（C-011 の再発）。
-    if re.search(CMD_POS + re.escape(f"{PIPER_PLUS}/.venv/bin/python"), cmd):
+    if any(re.search(CMD_POS + re.escape(f"{form}/.venv/bin/python"), cmd)
+           for form in PIPER_PLUS_FORMS):
         deny(
             "piper-plus の venv の python を直接使おうとしています。\n"
             "本プロジェクトは **`uv run python`** が正です（D-012）。\n"

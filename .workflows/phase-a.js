@@ -8,10 +8,10 @@ export const meta = {
   ],
 }
 
-const REPO = '/Users/s19447/Desktop/saanoTTS-jp'
-const PP = '/Users/s19447/Documents/piper-plus'
+const REPO = '.'
+const PP = '~/Documents/piper-plus'
 const SCR =
-  '/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/phaseA'
+  '<scratch>'
 const BT = String.fromCharCode(96) // バッククォート。テンプレートリテラル内の escape 事故を避ける
 const FENCE = BT + BT + BT
 const q = (s) => BT + s + BT

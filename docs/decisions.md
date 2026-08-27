@@ -1073,7 +1073,7 @@ canonical でない音素列（padding 無し）だった。
 ```bash
 mkdir -p deploy && cat > deploy/x.sh <<'SH' ... SH
 chmod +x deploy/vastai_bootstrap.sh
-uv run python deploy/retarget_sources.py --root /Users/s19447/Documents/piper-plus
+uv run python deploy/retarget_sources.py --root ~/Documents/piper-plus
 ```
 
 `chmod` は 2 行目、piper-plus のパスは 3 行目なのに、**同一コマンドと見なされた**。

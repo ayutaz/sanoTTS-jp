@@ -25,7 +25,7 @@ import a2_prosody as A  # noqa: E402
 from piper_plus_g2p.encode.encoder import PiperEncoder  # noqa: E402
 from piper_plus_g2p.japanese import JapanesePhonemizer  # noqa: E402
 
-OUT = pathlib.Path("/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_routeb.json")
+OUT = pathlib.Path("./reports/a2_prosody_routeb.json")
 
 
 def main() -> int:

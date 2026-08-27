@@ -16,7 +16,7 @@ Darts format (Taku Kudo's Darts 0.32, as bundled in MeCab):
   MeCab packs the value as  (token_index << 8) | n_tokens_with_this_surface.
 
 Verified 2026-08-26 against
-  /Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic/sys.dic
+  ~/Documents/piper-plus/build/share/open_jtalk/dic/sys.dic
     677,700 surfaces -> 788,923 tokens == header lexsize, every token index hit
   and against pyopenjtalk 0.4.1-post8 run_frontend on 20,000 sampled surfaces
     (17,908 / 18,009 exact; the rest are frontend post-processing, not parse errors)

@@ -6,7 +6,7 @@
 共通の前提:
 
 ```bash
-export PP=/Users/s19447/Documents/piper-plus
+export PP=~/Documents/piper-plus
 export PY=$PP/.venv/bin/python
 export PYTHONPATH=$PP/src/python:$PP/src/python/g2p
 export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/c3f236e068b95356b871842b4ae7cec2a86c50ea
@@ -33,7 +33,7 @@ $PY -c "import piper_train.vits.models as M; print(M.__file__)"
 
 $PY -c "import sys; sys.path.insert(0,'$PP/src/python'); \
         import piper_train.vits.models as M; print(M.__file__)"
-# → /Users/s19447/Documents/piper-plus/src/python/piper_train/vits/models.py   ← 正しい
+# → ~/Documents/piper-plus/src/python/piper_train/vits/models.py   ← 正しい
 ```
 
 **原因**: 古いコピーは別ディストリビューション `piper_plus_workspace-1.12.0` の所有物なので
@@ -248,7 +248,7 @@ id 食い違いの例（`jp_phoneme_map` → ckpt）: `#` 4→7, `[` 5→8, `]` 
 ## M-6. 決定的推論とラベル
 
 ```bash
-cd /Users/s19447/Desktop/saanoTTS-jp && $PY scripts/phase0_verify_teacher.py
+cd . && $PY scripts/phase0_verify_teacher.py
 ```
 
 論文 §II の条件 `noise_scale=0 / noise_scale_w=0 / length_scale=1` で:
@@ -704,8 +704,8 @@ piper-plus は **path 依存 (editable)** で参照するだけで、リポジ�
 存在しないため、`sys.path.insert` なしで正しいモジュールが解決される。
 
 ```
-piper_train:    /Users/s19447/Documents/piper-plus/src/python/piper_train/vits/models.py
-piper_plus_g2p: /Users/s19447/Documents/piper-plus/src/python/g2p/piper_plus_g2p/__init__.py
+piper_train:    ~/Documents/piper-plus/src/python/piper_train/vits/models.py
+piper_plus_g2p: ~/Documents/piper-plus/src/python/g2p/piper_plus_g2p/__init__.py
 ```
 
 ⚠️ **GPU 推論の bit 一致は未検証。** 上記は CPU 同士の比較。GPU は別カーネル・TF32 等で

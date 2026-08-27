@@ -4,10 +4,10 @@ import numpy as np
 warnings.filterwarnings("ignore")
 from piper_train.infer_onnx import text_to_phoneme_ids_and_prosody
 
-snap = glob.glob("/Users/s19447/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")[0]
+snap = glob.glob("~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")[0]
 cfg = json.load(open(snap + "config.json"))
 pid = cfg["phoneme_id_map"]; lim = cfg["language_id_map"]
-rows = list(csv.DictReader(open("/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_train.tsv"), delimiter="\t"))
+rows = list(csv.DictReader(open("./data/splits/corpus_train.tsv"), delimiter="\t"))
 lim_n = int(sys.argv[1]) if len(sys.argv) > 1 else len(rows)
 rows = rows[:lim_n]
 out = []

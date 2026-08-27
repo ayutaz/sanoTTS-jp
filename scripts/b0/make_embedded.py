@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """B-0: ESP32 実運用想定のドメイン外評価セット。手書き。"""
 import unicodedata, re
-OUT="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0/corpus_embedded.tsv"
+OUT="<scratch>"
 
 D = {
 "time": [

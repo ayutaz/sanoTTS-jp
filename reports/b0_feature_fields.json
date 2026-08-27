@@ -2,7 +2,7 @@
   "task": "B-0 / TTS に必要な OpenJTalk sys.dic feature フィールドの特定",
   "date": "2026-08-26",
   "target_dictionary": {
-    "path": "/Users/s19447/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic",
+    "path": "~/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic",
     "sha256": "67496f05b38b6455eaeed99b167b57ab282eb5fd0b80e8557fd588177e6fd2dc",
     "total_bytes": 103094645,
     "lexsize": 789024,

@@ -43,8 +43,8 @@ from scipy.stats import rankdata
 
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")
-sys.path.insert(0, "/Users/s19447/Documents/piper-plus/src/python")
-sys.path.insert(0, "/Users/s19447/Documents/piper-plus/src/python/g2p")
+sys.path.insert(0, "~/Documents/piper-plus/src/python")
+sys.path.insert(0, "~/Documents/piper-plus/src/python/g2p")
 
 from piper_plus_g2p.encode import pua  # noqa: E402
 from saanotts_jp import flatness as F  # noqa: E402
@@ -78,7 +78,7 @@ CLASS_NAMES_EXT = CLASS_NAMES + ["fricative_noz"]
 
 
 def build_id2tok() -> dict[int, str]:
-    hits = glob.glob("/Users/s19447/.cache/huggingface/hub/"
+    hits = glob.glob("~/.cache/huggingface/hub/"
                      "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")
     if not hits:
         raise SystemExit("教師 ckpt スナップショットが HF キャッシュに無い")

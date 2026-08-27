@@ -2,7 +2,7 @@
 Counts random 4/8-byte reads and distinct 64 KB flash pages touched per sentence.
 """
 import struct, sys, numpy as np, collections
-P="/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic/sys.dic"
+P="~/Documents/piper-plus/build/share/open_jtalk/dic/sys.dic"
 raw=open(P,"rb").read()
 magic,version,dtype,lexsize,lsize,rsize,dsize,tsize,fsize,dummy=struct.unpack("<10I",raw[:40])
 DARTS_OFF=72; TOK_OFF=72+dsize; FEAT_OFF=72+dsize+tsize

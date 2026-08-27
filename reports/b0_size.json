@@ -3,7 +3,7 @@
  "date": "2026-08-26",
  "headline": "エントリ数 5 水準 x feature 削減 3 水準 x matrix 圧縮 2 通り = 30 セルを全部 mecab-dict-index で実ビルドして stat した (estimated 行はゼロ)。ESP32-S3 16MB / OTA 2 枠の辞書予算 11,456 KB には 95,700 entries / 75,282 見出し語 / L2 / matrix 圧縮ありで 11,726,889 B が収まり (余裕 4,055 B)、held-out 2,325 文でフル辞書との 音素列文一致 73.42% / アクセント込み一致 62.54% / PER 2.31%。B-0 の目安 95% には遠い。95% に近づけるには 263,000 entries = 26.33 MiB (91.31%) が必要で、これは 32MB flash の ESP32-S3-WROOM-2-N32R16V (1.8V octal / 調達が脆い) でしか成立しない。",
  "source_dictionary": {
-  "path": "/Users/s19447/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary",
+  "path": "~/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary",
   "sys_dic_sha256": "67496f05b38b6455eaeed99b167b57ab282eb5fd0b80e8557fd588177e6fd2dc",
   "lexsize": 789024,
   "surfaces": 677769,
@@ -1130,14 +1130,14 @@
  ],
  "reproduction": {
   "env": [
-   "export PP=/Users/s19447/Documents/piper-plus",
+   "export PP=~/Documents/piper-plus",
    "export PY=$PP/.venv/bin/python",
-   "export SP=/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad"
+   "export SP=<scratch>"
   ],
   "steps": [
    "# 0) mecab-dict-index (既にビルド済み: $SP/b0/mecab-dict-index, build_dict.md §1.4)",
    "$PY $SP/b0/dump_entries.py $SP/b0/size/entries_pyoj.tsv $PP/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic",
-   "$PY $SP/b0/size/tokfreq.py $PP/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary /Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_train.tsv $SP/b0/size/train_tokfreq.tsv",
+   "$PY $SP/b0/size/tokfreq.py $PP/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary ./data/splits/corpus_train.tsv $SP/b0/size/train_tokfreq.tsv",
    "cd $SP/b0/size && $PY $SP/b0/measure_size.py build          # 30 セル / 47 秒",
    "cd $SP/b0/size && $PY $SP/b0/measure_size.py rank-abl       # 枝刈り基準",
    "cd $SP/b0/size && $PY $SP/b0/measure_size.py extra 22100 40300 96100 200000 400000",

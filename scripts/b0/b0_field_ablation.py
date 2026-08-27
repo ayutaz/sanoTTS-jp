@@ -1,5 +1,5 @@
 import os, sys, re, json, random
-sys.path.insert(0, "/Users/s19447/Documents/piper-plus/src/python")
+sys.path.insert(0, "~/Documents/piper-plus/src/python")
 import pyopenjtalk
 
 RE_PH = re.compile(r"-(?P<ph>[^+]+)\+")
@@ -138,7 +138,7 @@ ABL["L2w = L1z + orig(漢字含む語は保持)"]=compose(t_ctype2,t_cform2,t_pg
 
 name = sys.argv[1]; N=int(sys.argv[2])
 mut = ABL[name]
-lines=[l.split("\t")[2].strip() for l in open(os.environ.get("B0_CORPUS","/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/pool.tsv")) if len(l.split("\t"))>2]
+lines=[l.split("\t")[2].strip() for l in open(os.environ.get("B0_CORPUS","<scratch>")) if len(l.split("\t"))>2]
 random.seed(0); random.shuffle(lines); lines=lines[:N]
 
 base=json.load(open(os.environ.get("B0_BASE","/tmp/b0_base.json"))) if name!="L0 baseline" else None

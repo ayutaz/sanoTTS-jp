@@ -51,9 +51,12 @@ warnings.filterwarnings("ignore")
 import numpy as np
 import torch
 
-PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
+#: piper-plus の checkout。**環境変数で差し替えられる**（他人の環境でも動くように）。
+#: 既定は開発者のローカルパスだが、clone した人は `PIPER_PLUS_ROOT` を設定する。
+PIPER_PLUS = os.environ.get("PIPER_PLUS_ROOT",
+                            os.path.expanduser("~/Documents/piper-plus"))
 CKPT = "epoch=499-step=22000.ckpt"
-ROOT = pathlib.Path("/Users/s19447/Desktop/saanoTTS-jp")
+ROOT = pathlib.Path(".")
 # 音素化キャッシュの置き場（中間ファイルなのでリポジトリには置かない）
 WORK = pathlib.Path(
     os.environ.get("A2_WORK_DIR", "/tmp/saanotts_a2_prosody")
@@ -78,7 +81,7 @@ from piper_train.vits.models import SynthesizerTrn  # noqa: E402
 # --------------------------------------------------------------------------
 def snapshot() -> str:
     hits = glob.glob(
-        "/Users/s19447/.cache/huggingface/hub/"
+        "~/.cache/huggingface/hub/"
         "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"
     )
     if not hits:

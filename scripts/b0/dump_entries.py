@@ -1,5 +1,5 @@
 import struct, sys, numpy as np, time
-DIC = sys.argv[2] if len(sys.argv)>2 else "/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic/sys.dic"
+DIC = sys.argv[2] if len(sys.argv)>2 else "~/Documents/piper-plus/build/share/open_jtalk/dic/sys.dic"
 OUT = sys.argv[1]
 b = open(DIC, "rb").read()
 magic,version,dtype,lexsize,lsize,rsize,dsize,tsize,fsize,dummy = struct.unpack("<10I", b[:40])

@@ -134,12 +134,12 @@
     "id": "sentence_collector_00057",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_00057_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_00057_real.wav",
      "sec": 3.924172335600907,
      "utmos": 1.7251
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_00057_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_00057_zero.wav",
      "sec": 3.680362811791383,
      "utmos": 1.7641
     }
@@ -148,12 +148,12 @@
     "id": "TRAVEL1000_0030",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/TRAVEL1000_0030_real.wav",
+     "wav": "./reports/a2_prosody_wav/TRAVEL1000_0030_real.wav",
      "sec": 3.378503401360544,
      "utmos": 1.826
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/TRAVEL1000_0030_zero.wav",
+     "wav": "./reports/a2_prosody_wav/TRAVEL1000_0030_zero.wav",
      "sec": 3.2624036281179136,
      "utmos": 1.7975
     }
@@ -162,12 +162,12 @@
     "id": "sentence_collector_07730",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_07730_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_07730_real.wav",
      "sec": 3.877732426303855,
      "utmos": 1.6941
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_07730_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_07730_zero.wav",
      "sec": 3.599092970521542,
      "utmos": 1.9449
     }
@@ -176,12 +176,12 @@
     "id": "sentence_collector_08769",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_08769_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_08769_real.wav",
      "sec": 4.493061224489796,
      "utmos": 1.9657
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_08769_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_08769_zero.wav",
      "sec": 4.191201814058957,
      "utmos": 2.1459
     }
@@ -190,12 +190,12 @@
     "id": "ROHAN4600_1553",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_1553_real.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_1553_real.wav",
      "sec": 4.063492063492063,
      "utmos": 1.8544
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_1553_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_1553_zero.wav",
      "sec": 3.7848526077097504,
      "utmos": 1.707
     }
@@ -204,12 +204,12 @@
     "id": "ROHAN4600_4568",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_4568_real.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_4568_real.wav",
      "sec": 4.156371882086168,
      "utmos": 1.745
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_4568_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_4568_zero.wav",
      "sec": 3.877732426303855,
      "utmos": 1.7086
     }
@@ -218,12 +218,12 @@
     "id": "BASIC5000_0934",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_0934_real.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_0934_real.wav",
      "sec": 3.7964625850340137,
      "utmos": 1.6265
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_0934_zero.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_0934_zero.wav",
      "sec": 3.633922902494331,
      "utmos": 1.6861
     }
@@ -232,12 +232,12 @@
     "id": "sentence_collector_05101",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_05101_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_05101_real.wav",
      "sec": 4.167981859410431,
      "utmos": 1.722
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_05101_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_05101_zero.wav",
      "sec": 3.93578231292517,
      "utmos": 1.7248
     }
@@ -246,12 +246,12 @@
     "id": "BASIC5000_4739",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_4739_real.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_4739_real.wav",
      "sec": 4.20281179138322,
      "utmos": 1.5625
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_4739_zero.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_4739_zero.wav",
      "sec": 3.93578231292517,
      "utmos": 1.5378
     }
@@ -260,12 +260,12 @@
     "id": "ROHAN4600_1816",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_1816_real.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_1816_real.wav",
      "sec": 3.982222222222222,
      "utmos": 1.8324
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_1816_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_1816_zero.wav",
      "sec": 3.564263038548753,
      "utmos": 1.9571
     }
@@ -274,12 +274,12 @@
     "id": "sentence_collector_03218",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_03218_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_03218_real.wav",
      "sec": 3.900952380952381,
      "utmos": 1.7365
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_03218_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_03218_zero.wav",
      "sec": 3.7035827664399092,
      "utmos": 1.6134
     }
@@ -288,12 +288,12 @@
     "id": "UT-PARAPHRASE-sent249-phrase2",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/UT-PARAPHRASE-sent249-phrase2_real.wav",
+     "wav": "./reports/a2_prosody_wav/UT-PARAPHRASE-sent249-phrase2_real.wav",
      "sec": 4.342131519274377,
      "utmos": 1.6932
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/UT-PARAPHRASE-sent249-phrase2_zero.wav",
+     "wav": "./reports/a2_prosody_wav/UT-PARAPHRASE-sent249-phrase2_zero.wav",
      "sec": 4.040272108843538,
      "utmos": 1.9828
     }
@@ -302,12 +302,12 @@
     "id": "BASIC5000_2350",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_2350_real.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_2350_real.wav",
      "sec": 4.5859410430839,
      "utmos": 1.7365
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_2350_zero.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_2350_zero.wav",
      "sec": 4.307301587301588,
      "utmos": 1.5653
     }
@@ -316,12 +316,12 @@
     "id": "sentence_collector_06201",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_06201_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_06201_real.wav",
      "sec": 5.143219954648526,
      "utmos": 1.6048
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_06201_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_06201_zero.wav",
      "sec": 4.818140589569161,
      "utmos": 1.4758
     }
@@ -330,12 +330,12 @@
     "id": "RECITATION324_147",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/RECITATION324_147_real.wav",
+     "wav": "./reports/a2_prosody_wav/RECITATION324_147_real.wav",
      "sec": 5.085170068027211,
      "utmos": 1.7372
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/RECITATION324_147_zero.wav",
+     "wav": "./reports/a2_prosody_wav/RECITATION324_147_zero.wav",
      "sec": 4.725260770975057,
      "utmos": 1.7364
     }
@@ -344,12 +344,12 @@
     "id": "UT-PARAPHRASE-sent299-phrase1",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/UT-PARAPHRASE-sent299-phrase1_real.wav",
+     "wav": "./reports/a2_prosody_wav/UT-PARAPHRASE-sent299-phrase1_real.wav",
      "sec": 5.073560090702948,
      "utmos": 1.6721
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/UT-PARAPHRASE-sent299-phrase1_zero.wav",
+     "wav": "./reports/a2_prosody_wav/UT-PARAPHRASE-sent299-phrase1_zero.wav",
      "sec": 4.6439909297052155,
      "utmos": 1.6476
     }
@@ -358,12 +358,12 @@
     "id": "ROHAN4600_3146",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_3146_real.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_3146_real.wav",
      "sec": 5.027120181405896,
      "utmos": 1.834
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_3146_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_3146_zero.wav",
      "sec": 4.702040816326531,
      "utmos": 1.6038
     }
@@ -372,12 +372,12 @@
     "id": "sentence_collector_04220",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_04220_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_04220_real.wav",
      "sec": 4.96907029478458,
      "utmos": 1.6327
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_04220_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_04220_zero.wav",
      "sec": 4.527891156462585,
      "utmos": 1.693
     }
@@ -386,12 +386,12 @@
     "id": "sentence_collector_07357",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_07357_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_07357_real.wav",
      "sec": 5.178049886621316,
      "utmos": 1.552
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_07357_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_07357_zero.wav",
      "sec": 4.725260770975057,
      "utmos": 1.5183
     }
@@ -400,12 +400,12 @@
     "id": "ROHAN4600_3218",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_3218_real.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_3218_real.wav",
      "sec": 4.794920634920635,
      "utmos": 1.9179
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ROHAN4600_3218_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ROHAN4600_3218_zero.wav",
      "sec": 4.458231292517007,
      "utmos": 2.1359
     }
@@ -414,12 +414,12 @@
     "id": "yumie-text-1_01317",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/yumie-text-1_01317_real.wav",
+     "wav": "./reports/a2_prosody_wav/yumie-text-1_01317_real.wav",
      "sec": 6.408707482993197,
      "utmos": 1.6818
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/yumie-text-1_01317_zero.wav",
+     "wav": "./reports/a2_prosody_wav/yumie-text-1_01317_zero.wav",
      "sec": 5.921088435374149,
      "utmos": 1.5767
     }
@@ -428,12 +428,12 @@
     "id": "sentence_collector_04552",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_04552_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_04552_real.wav",
      "sec": 5.61922902494331,
      "utmos": 1.818
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_04552_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_04552_zero.wav",
      "sec": 5.328979591836735,
      "utmos": 1.8376
     }
@@ -442,12 +442,12 @@
     "id": "TRAVEL1000_0476",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/TRAVEL1000_0476_real.wav",
+     "wav": "./reports/a2_prosody_wav/TRAVEL1000_0476_real.wav",
      "sec": 5.863038548752835,
      "utmos": 1.5943
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/TRAVEL1000_0476_zero.wav",
+     "wav": "./reports/a2_prosody_wav/TRAVEL1000_0476_zero.wav",
      "sec": 5.526349206349207,
      "utmos": 1.6838
     }
@@ -456,12 +456,12 @@
     "id": "ONOMATOPEE300_028",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ONOMATOPEE300_028_real.wav",
+     "wav": "./reports/a2_prosody_wav/ONOMATOPEE300_028_real.wav",
      "sec": 5.735328798185941,
      "utmos": 1.9552
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ONOMATOPEE300_028_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ONOMATOPEE300_028_zero.wav",
      "sec": 5.201269841269841,
      "utmos": 1.9198
     }
@@ -470,12 +470,12 @@
     "id": "ONOMATOPEE300_094",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ONOMATOPEE300_094_real.wav",
+     "wav": "./reports/a2_prosody_wav/ONOMATOPEE300_094_real.wav",
      "sec": 6.3854875283446715,
      "utmos": 1.905
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/ONOMATOPEE300_094_zero.wav",
+     "wav": "./reports/a2_prosody_wav/ONOMATOPEE300_094_zero.wav",
      "sec": 6.106848072562358,
      "utmos": 2.051
     }
@@ -484,12 +484,12 @@
     "id": "yumie-text-1_00032",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/yumie-text-1_00032_real.wav",
+     "wav": "./reports/a2_prosody_wav/yumie-text-1_00032_real.wav",
      "sec": 6.524807256235827,
      "utmos": 1.598
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/yumie-text-1_00032_zero.wav",
+     "wav": "./reports/a2_prosody_wav/yumie-text-1_00032_zero.wav",
      "sec": 5.921088435374149,
      "utmos": 1.6456
     }
@@ -498,12 +498,12 @@
     "id": "sentence_collector_01834",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_01834_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_01834_real.wav",
      "sec": 5.863038548752835,
      "utmos": 1.716
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_01834_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_01834_zero.wav",
      "sec": 5.456689342403628,
      "utmos": 1.6771
     }
@@ -512,12 +512,12 @@
     "id": "BASIC5000_2059",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_2059_real.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_2059_real.wav",
      "sec": 6.8382766439909295,
      "utmos": 1.8533
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_2059_zero.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_2059_zero.wav",
      "sec": 6.350657596371882,
      "utmos": 1.9893
     }
@@ -526,12 +526,12 @@
     "id": "sentence_collector_07466",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_07466_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_07466_real.wav",
      "sec": 6.15328798185941,
      "utmos": 1.5333
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_07466_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_07466_zero.wav",
      "sec": 5.735328798185941,
      "utmos": 1.5205
     }
@@ -540,12 +540,12 @@
     "id": "sentence_collector_06494",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_06494_real.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_06494_real.wav",
      "sec": 6.873106575963718,
      "utmos": 1.5049
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/sentence_collector_06494_zero.wav",
+     "wav": "./reports/a2_prosody_wav/sentence_collector_06494_zero.wav",
      "sec": 6.617687074829932,
      "utmos": 1.4782
     }
@@ -554,12 +554,12 @@
     "id": "yumie-text-1_00596",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/yumie-text-1_00596_real.wav",
+     "wav": "./reports/a2_prosody_wav/yumie-text-1_00596_real.wav",
      "sec": 7.732244897959184,
      "utmos": 1.7303
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/yumie-text-1_00596_zero.wav",
+     "wav": "./reports/a2_prosody_wav/yumie-text-1_00596_zero.wav",
      "sec": 7.279455782312925,
      "utmos": 1.5657
     }
@@ -568,12 +568,12 @@
     "id": "BASIC5000_4269",
     "text": "<redacted: corpus text>",
     "real": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_4269_real.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_4269_real.wav",
      "sec": 8.312743764172335,
      "utmos": 1.498
     },
     "zero": {
-     "wav": "/Users/s19447/Desktop/saanoTTS-jp/reports/a2_prosody_wav/BASIC5000_4269_zero.wav",
+     "wav": "./reports/a2_prosody_wav/BASIC5000_4269_zero.wav",
      "sec": 7.813514739229025,
      "utmos": 1.5356
     }
@@ -620,7 +620,7 @@
   "examples": [
    {
     "id": "yumie-text-1_00150",
-    "text": "耳をすぐ私のそばに持って来て、聞いてくれるのですが、駄目でした。私たちの言い合っ",
+    "text": "<redacted: corpus text>",
     "total_frames_delta_pct": 0.0,
     "per_token_delta_frames_mean": 0.01337
    },
@@ -638,7 +638,7 @@
    },
    {
     "id": "REPEAT500_set1_100",
-    "text": "アーリーは、降雨の中を、南のバージニア州、ウィンチェスター近くの、フィッシャーズ",
+    "text": "<redacted: corpus text>",
     "total_frames_delta_pct": 0.149,
     "per_token_delta_frames_mean": 0.00348
    },

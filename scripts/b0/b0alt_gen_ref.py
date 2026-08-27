@@ -2,7 +2,7 @@
 import os, sys, json
 DIC=sys.argv[1]; SRC=sys.argv[2]; OUT=sys.argv[3]
 os.environ["OPEN_JTALK_DICT_DIR"]=DIC
-PP="/Users/s19447/Documents/piper-plus"
+PP="~/Documents/piper-plus"
 sys.path.insert(0, PP+"/src/python"); sys.path.insert(0, PP+"/src/python/g2p")
 import pyopenjtalk
 assert pyopenjtalk.OPEN_JTALK_DICT_DIR.decode()==DIC

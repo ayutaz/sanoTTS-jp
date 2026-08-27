@@ -1,8 +1,8 @@
 """Kanji-keyed pruned dicts, ranked by TRAIN-split frequency only (held-out honest)."""
 import os, sys, collections, json, shutil
-B0="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0"
-ALT="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0alt"
-SRCD="/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic"
+B0="<scratch>"
+ALT="<scratch>"
+SRCD="~/Documents/piper-plus/build/share/open_jtalk/dic"
 os.environ["OPEN_JTALK_DICT_DIR"]=SRCD
 import pyopenjtalk
 freq=collections.Counter()

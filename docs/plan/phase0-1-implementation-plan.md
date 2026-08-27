@@ -721,11 +721,11 @@ path 依存 (editable) で参照するので、stale なコピーが最初から
 
 **完了条件**（全スクリプトの冒頭でこれを assert する）:
 ```bash
-export PP=/Users/s19447/Documents/piper-plus
+export PP=~/Documents/piper-plus
 uv run python - <<'EOF'
 import piper_train.vits.models as M, inspect
 import piper_train.vits.mb_istft as m, piper_train.vits.commons as c
-assert M.__file__.startswith("/Users/s19447/Documents/piper-plus/src/python/"), M.__file__
+assert M.__file__.startswith("~/Documents/piper-plus/src/python/"), M.__file__
 assert "cond_layers" in inspect.getsource(m)
 assert hasattr(c, "normalize_checkpoint_state_dict")
 print("OK: src/python が解決先")
@@ -744,11 +744,11 @@ piper-plus は**読み取り専用**（`checkout` / `commit` / ファイル編�
 
 ```bash
 # ラベル生成側（piper-plus venv を read-only 起動）
-export PP=/Users/s19447/Documents/piper-plus
+export PP=~/Documents/piper-plus
 alias ppy="uv run python"   # D-012: Python は uv 経由
 
 # 評価側（完全に別 venv）
-python3.12 -m venv /Users/s19447/Desktop/saanoTTS-jp/.venv-eval
+python3.12 -m venv ./.venv-eval
 ```
 
 **完了条件**:
@@ -1414,7 +1414,7 @@ VOWEL     = {"a","i","u","e","o","a:","i:","u:","e:","o:"}
 ## 8. リポジトリのディレクトリ構成案
 
 ```
-/Users/s19447/Desktop/saanoTTS-jp/
+./
 ├── CLAUDE.md                          # §1.3 の訂正を反映
 ├── pyproject.toml
 ├── docs/

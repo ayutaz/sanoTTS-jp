@@ -4,22 +4,22 @@
  "generated_at_utc": "2026-08-26T16:45:21Z",
  "inputs": {
   "corpus_train.tsv": {
-   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_train.tsv",
+   "path": "./data/splits/corpus_train.tsv",
    "rows": 20946,
    "sha256": "1e5954e0d24d4769e0776ddb0329d76a8bfb7780600dd1a3c70f5d5d4c78d6fe"
   },
   "corpus_heldout.tsv": {
-   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_heldout.tsv",
+   "path": "./data/splits/corpus_heldout.tsv",
    "rows": 2325,
    "sha256": "b77635f1a2e4c6e09dabca90e4bfafd45215651e8f1f3a2e9705bfe47b5fa953"
   },
   "corpus_embedded.tsv": {
-   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_embedded.tsv",
+   "path": "./data/splits/corpus_embedded.tsv",
    "rows": 183,
    "sha256": "5269ad5428ea87cd5fa0247b23098e29d0beacb0b2c84384cb67c45962ed8465"
   },
   "corpus_sibdense.tsv": {
-   "path": "/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_sibdense.tsv",
+   "path": "./data/splits/corpus_sibdense.tsv",
    "rows": 209,
    "sha256": "00fe201fe748280169657670954169be1d2a018cafed242b6e3a81830b8a19e8"
   }
@@ -112,8 +112,8 @@
   "jsut_raw_text_available": true,
   "jsut_raw_text": {
    "paths": {
-    "voiceactress100": "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/jsut_text/jsut_ver1.1__voiceactress100__transcript_utf8.txt",
-    "repeat500": "/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/jsut_text/jsut_ver1.1__repeat500__transcript_utf8.txt"
+    "voiceactress100": "<scratch>",
+    "repeat500": "<scratch>"
    },
    "sha256": {
     "voiceactress100": "26019d87876fc73786d98c459f08f24c1e04eae41105f88afc57f2a910befd90",
@@ -2277,7 +2277,7 @@
        "split": "train",
        "source": "cv/sentence_collector",
        "id": "sentence_collector_05746",
-       "text": "広島市中区"
+       "text": "<redacted: corpus text>"
       }
      },
      {
@@ -2532,7 +2532,7 @@
        "split": "train",
        "source": "cv/sentence_collector",
        "id": "sentence_collector_05151",
-       "text": "大阪市北区"
+       "text": "<redacted: corpus text>"
       }
      },
      {
@@ -2895,7 +2895,7 @@
        "split": "train",
        "source": "cv/sentence_collector",
        "id": "sentence_collector_05151",
-       "text": "大阪市北区"
+       "text": "<redacted: corpus text>"
       },
       "len_a": 16,
       "len_b": 5,
@@ -2914,7 +2914,7 @@
        "split": "train",
        "source": "cv/sentence_collector",
        "id": "sentence_collector_05746",
-       "text": "広島市中区"
+       "text": "<redacted: corpus text>"
       },
       "len_a": 11,
       "len_b": 5,
@@ -3727,7 +3727,7 @@
     "what": "FT コーパス (つくよみちゃんコーパス) の本文同定",
     "evidence": [
      "piper-plus/data-sources.yml: id=tsukuyomi-chan-corpus, languages=[ja], speakers=1, utterances=100, used_only_in=[tsukuyomi-6lang-v2, tsukuyomi-mb-istft]",
-     "HF キャッシュ /Users/s19447/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech の snapshot に wav が 24 個あり、すべて VOICEACTRESS100_NNN.wav 形式 (例: VOICEACTRESS100_001.wav)",
+     "HF キャッシュ ~/.cache/huggingface/hub/datasets--ayousanz--tsukuyomi-chan-ljspeech の snapshot に wav が 24 個あり、すべて VOICEACTRESS100_NNN.wav 形式 (例: VOICEACTRESS100_001.wav)",
      "→ FT の本文は JSUT voiceactress100 の 100 文と同定した"
     ],
     "caveat": "ローカルキャッシュは 24/100 wav の部分キャッシュ。残り 76 件のファイル名は未確認 (新規ダウンロードはしていない)。100 件という数は data-sources.yml の記載による。"
@@ -3751,7 +3751,7 @@
    }
   ],
   "evaluation_texts_ja": {
-   "path": "/Users/s19447/Documents/piper-plus/scripts/evaluation/evaluation_texts_ja.txt",
+   "path": "~/Documents/piper-plus/scripts/evaluation/evaluation_texts_ja.txt",
    "sha256": "d0706f0d222442a82dacbdf71bb5e72162dc4540a1305c8713c21b81397722b8",
    "unique_lines": 31,
    "hits": {
@@ -3790,7 +3790,7 @@
  },
  "existing_report_check": {
   "b5_teacher_baseline": {
-   "path": "/Users/s19447/Desktop/saanoTTS-jp/reports/b5_teacher_baseline.json",
+   "path": "./reports/b5_teacher_baseline.json",
    "n_utterances": 24,
    "n_from_teacher_ft_text": 0,
    "n_found_in_train": 0,
@@ -3802,7 +3802,7 @@
   }
  },
  "labelpack_impact": {
-  "path": "/Users/s19447/Desktop/saanoTTS-jp/data/pack_sibdense",
+  "path": "./data/pack_sibdense",
   "utterances_in_pack": 209,
   "contaminated_uids_in_pack": [
    "REPEAT500_set1_027",

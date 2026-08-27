@@ -33,7 +33,7 @@ CKPT = "epoch=499-step=22000.ckpt"
 
 def snapshot() -> str:
     hits = glob.glob(
-        "/Users/s19447/.cache/huggingface/hub/"
+        "~/.cache/huggingface/hub/"
         "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"
     )
     if not hits:

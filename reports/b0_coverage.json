@@ -2,7 +2,7 @@
  "what_this_measures": "フル NAIST-JDIC (piper-plus の build/share/open_jtalk/dic, lexsize=788,923) の pyopenjtalk 出力を正解とみなし、枝刈り辞書の出力とどれだけ一致するかを held-out で測った。『正しく読めるか』ではなく『フル辞書と同じ結果になるか』であることに注意 (フル辞書自身の誤読は測っていない)。",
  "measured_or_estimated": "measured — 全水準で実際に mecab-dict-index でバイナリを作り、pyopenjtalk で音素化した。推定値は 1 つも無い。",
  "provenance": {
-  "teacher_dict": "/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic (sys.dic 103,082,017 B, lexsize 788,923)",
+  "teacher_dict": "~/Documents/piper-plus/build/share/open_jtalk/dic (sys.dic 103,082,017 B, lexsize 788,923)",
   "warning": "piper-plus の Python G2P が実行時に引くのは pyopenjtalk 同梱の別リビジョン (.venv/.../pyopenjtalk/dictionary/sys.dic, 103,094,645 B, lexsize 789,024)。本測定は OPEN_JTALK_DICT_DIR で piper-plus 側に固定してある。",
   "vocab_source": "data/splits/corpus_train.tsv 20,946 行のみ (held-out は語彙構築に一切使っていない)",
   "train_token_stats": {

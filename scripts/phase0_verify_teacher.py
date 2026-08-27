@@ -6,7 +6,7 @@
 蒸留ラベルが取れること・二回走らせて bit 一致することを確認する。
 
 実行:
-    /Users/s19447/Documents/piper-plus/.venv/bin/python scripts/phase0_verify_teacher.py
+    ~/Documents/piper-plus/.venv/bin/python scripts/phase0_verify_teacher.py
 
 前提:
     - HF に `ayousanz` として認証済み (`~/.cache/huggingface/token`)
@@ -25,7 +25,12 @@ import torch
 
 warnings.filterwarnings("ignore")
 
-PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
+import os
+
+#: piper-plus の checkout。**環境変数で差し替えられる**（他人の環境でも動くように）。
+#: 既定は開発者のローカルパスだが、clone した人は `PIPER_PLUS_ROOT` を設定する。
+PIPER_PLUS = os.environ.get("PIPER_PLUS_ROOT",
+                            os.path.expanduser("~/Documents/piper-plus"))
 REPO_ID = "ayousanz/piper-plus-zero-shot-tsukuyomi"
 CKPT_NAME = "epoch=499-step=22000.ckpt"
 
@@ -49,7 +54,7 @@ assert _models.__file__.startswith(PIPER_PLUS + "/src/python"), (
 def snapshot_dir() -> str:
     """HF キャッシュ内の snapshot ディレクトリを返す (無ければダウンロード)。"""
     pattern = (
-        "/Users/s19447/.cache/huggingface/hub/"
+        "~/.cache/huggingface/hub/"
         "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"
     )
     hits = glob.glob(pattern)

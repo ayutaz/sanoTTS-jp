@@ -4,7 +4,7 @@ import numpy as np
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))  # scripts/ を通す
 from labelpack import PackWriter, PackReader, check_utt, GateError, PCM_SCALE
 
-snap = glob.glob("/Users/s19447/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")[0]
+snap = glob.glob("~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/")[0]
 pid = json.load(open(snap + "config.json"))["phoneme_id_map"]
 inv = {}
 for k, v in pid.items(): inv.setdefault(v[0] if isinstance(v, list) else v, k)

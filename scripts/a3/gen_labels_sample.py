@@ -12,7 +12,7 @@ import numpy as np
 import torch
 
 warnings.filterwarnings("ignore")
-PP = "/Users/s19447/Documents/piper-plus"
+PP = "~/Documents/piper-plus"
 CKPT_NAME = "epoch=499-step=22000.ckpt"
 
 from piper_train.export_onnx import apply_ema_shadow_params  # noqa: E402
@@ -26,7 +26,7 @@ assert _m.__file__.startswith(PP + "/src/python"), _m.__file__
 
 def snap_dir() -> str:
     hits = glob.glob(
-        "/Users/s19447/.cache/huggingface/hub/"
+        "~/.cache/huggingface/hub/"
         "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"
     )
     assert hits, "ckpt snapshot が無い"
@@ -78,7 +78,7 @@ def main():
     teacher, nstats = build(ckpt)
     print(f"teacher ready normalize={nstats}", flush=True)
 
-    rows = list(csv.DictReader(open("/Users/s19447/Desktop/saanoTTS-jp/data/splits/corpus_train.tsv"),
+    rows = list(csv.DictReader(open("./data/splits/corpus_train.tsv"),
                                delimiter="\t"))
     # B-1（かな無し行が中国語音素になる）を避けるため、かなを 1 文字以上含む行に限定。
     kana = lambda s: any("ぁ" <= c <= "ゟ" or "ァ" <= c <= "ヿ" for c in s)

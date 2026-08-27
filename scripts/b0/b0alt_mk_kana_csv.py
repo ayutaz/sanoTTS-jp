@@ -1,7 +1,7 @@
 """Build kana-keyed (reading-keyed) MeCab dictionaries at several vocab levels."""
 import sys, os, collections, json
-B0="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0"
-ALT="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0alt"
+B0="<scratch>"
+ALT="<scratch>"
 SRC=B0+"/full/in/all.csv"
 KANA=set("アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポァィゥェォャュョッーヮヴヵヶ")
 
@@ -52,7 +52,7 @@ def emit(N, path):
             f.write(f"{k},{l},{r},{c},{nf}\n"); n+=1
     return n
 
-SRCD="/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic"
+SRCD="~/Documents/piper-plus/build/share/open_jtalk/dic"
 import shutil
 out={}
 for N in [int(x) for x in sys.argv[1:]]:

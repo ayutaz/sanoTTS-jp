@@ -2,7 +2,7 @@
 
 - 調査日: 2026-08-26
 - 論文: Ashish Thapa (Ampixa Labs), *"saanoTTS: The Smallest Real-Time Neural TTS on a General-Purpose Microcontroller"*, [arXiv:2608.21378v1 \[cs.SD\]](https://arxiv.org/abs/2608.21378) (2026-07-14 submitted)
-- 教師モデル供給元: [`/Users/s19447/Documents/piper-plus`](file:///Users/s19447/Documents/piper-plus) (piper-plus v2.0.0)
+- 教師モデル供給元: [`~/Documents/piper-plus`](file://~/Documents/piper-plus) (piper-plus v2.0.0)
 - 論文の公式リポジトリ `https://github.com/Ampixa/saanotts` は **2026-08-26 時点で 404**（非公開または未公開）。**参照実装は入手できない前提で計画する。**
 
 > **⚠️ 本書は初期調査（着手判断のための資料）。** その後の実測でいくつかの結論が

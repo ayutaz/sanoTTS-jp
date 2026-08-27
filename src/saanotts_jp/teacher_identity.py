@@ -42,7 +42,7 @@ SOURCE_SHA256: dict[str, str] = {
         "015459c8bdff22084fb30c35e5075f07e7fb934a742334a317c29a72011ab80e",
 }
 
-DEFAULT_ROOT = "/Users/s19447/Documents/piper-plus"
+DEFAULT_ROOT = os.path.expanduser("~/Documents/piper-plus")
 
 
 def piper_plus_root() -> pathlib.Path:

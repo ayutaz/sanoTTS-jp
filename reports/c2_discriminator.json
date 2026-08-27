@@ -1,6 +1,6 @@
 {
  "task": "C-2: 一次差分判別器の実装と構造の凍結",
- "repro": "cd /Users/s19447/Desktop/saanoTTS-jp && uv run python scripts/test_discriminator.py",
+ "repro": "cd . && uv run python scripts/test_discriminator.py",
  "environment": {
   "python": "3.14.0",
   "torch": "2.13.0",

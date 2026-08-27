@@ -82,7 +82,7 @@ FFT 化で手元 **0.022× RT**（M-43）。
 
 ## 教師モデルの扱い
 
-教師は `/Users/s19447/Documents/piper-plus` の piper-plus。
+教師は `~/Documents/piper-plus` の piper-plus。
 
 **ONNX からは蒸留できない。** ONNX export は `output` と `durations` しか出さず、
 必要な潜在 `z` が取れない。`.ckpt` を PyTorch で読み `SynthesizerTrn.infer()` を呼ぶこと。
@@ -315,7 +315,7 @@ vast.ai は λ の並列探索や長時間学習で使う。手順は
 
 ## piper-plus の参照点
 
-| 用途 | パス（`/Users/s19447/Documents/piper-plus` 相対） |
+| 用途 | パス（`~/Documents/piper-plus` 相対） |
 |---|---|
 | 教師の `infer()` | `src/python/piper_train/vits/models.py:1002` |
 | 韻律 A1/A2/A3 の注入 | `src/python/piper_train/vits/models.py:870` (`_prepare_prosody_input`) |
@@ -331,7 +331,7 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 教師を動かすスクリプトは piper-plus 側の venv で実行するのが早い:
 
 ```bash
-/Users/s19447/Documents/piper-plus/.venv/bin/python <script>
+~/Documents/piper-plus/.venv/bin/python <script>
 ```
 
 ## スコープ
@@ -431,8 +431,8 @@ audio / z ともに二回実行で bit 完全一致（決定的）
 import piper_train.vits.models as M   # → .venv/lib/.../site-packages/piper_train/...
 
 # OK
-import sys; sys.path.insert(0, "/Users/s19447/Documents/piper-plus/src/python")
-# または PYTHONPATH=/Users/s19447/Documents/piper-plus/src/python
+import sys; sys.path.insert(0, "~/Documents/piper-plus/src/python")
+# または PYTHONPATH=~/Documents/piper-plus/src/python
 ```
 
 **教師を触るスクリプトは必ず `__file__` を assert して掴んだ実体を検証すること**

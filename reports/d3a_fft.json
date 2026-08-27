@@ -137,5 +137,5 @@
     "note": "ホスト (Apple Silicon) の値。ESP32-S3 の値ではない — 実機は未測定"
   },
   "recommendation": "float 版（既定）を採用する。SNR 137.9 dB (min, n=100) は要求 120 dB を 18 dB 上回り、golden_test の PCM SNR は 117.51 → 117.50 dB と実質不変。ESP32-S3 は単精度 FPU しか持たないので double 版は実機でさらに不利になる。double 版は「naive と bit 一致させたい」回帰用に残す",
-  "repro": "cd /Users/s19447/Desktop/saanoTTS-jp/csrc && cc -std=c99 -O2 -Wall -Wextra -o /tmp/fft_test fft_test.c fft.c -lm && /tmp/fft_test"
+  "repro": "cd ./csrc && cc -std=c99 -O2 -Wall -Wextra -o /tmp/fft_test fft_test.c fft.c -lm && /tmp/fft_test"
 }

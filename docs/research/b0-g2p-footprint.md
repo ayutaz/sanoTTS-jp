@@ -348,7 +348,7 @@ train ランキングでの順位（measured）: ０=5,365 / １=36,003 / ７=37
 ## 付録: 再現のための環境
 
 ```bash
-export PP=/Users/s19447/Documents/piper-plus
+export PP=~/Documents/piper-plus
 export PY=$PP/.venv/bin/python          # Python 3.13
 export PYTHONPATH=$PP/src/python:$PP/src/python/g2p
 ```

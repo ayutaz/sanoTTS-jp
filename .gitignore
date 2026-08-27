@@ -52,3 +52,12 @@ __pycache__/
 /csrc/*.bin
 /csrc/*.o
 /csrc/student_i8.bin
+
+# --- OSS 公開のための除外 ---
+# ビルド成果物（`make -C csrc` で再生成できる）
+/csrc/bench
+/csrc/fft_test
+/csrc/int8_test
+/csrc/stream_test
+# モデルの重み。⚠️ 教師コーパスのライセンス継承の議論があるので配布しない
+/reports/**/*.pt

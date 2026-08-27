@@ -31,7 +31,7 @@
   "residual_risk": "採用案でも c フレーム t のエネルギー重心は教師のブロック中心から -121.5 サンプル (5.5 ms) ずれる。decoder の受容野は depthwise k=7 × 5 段 = 31 フレーム ≒ 7936 サンプル なので学習で吸収できるはずだが、**吸収されることは未検証**（本学習の後に 教師 yT と生徒 ŷ の相互相関ピーク位置で確かめること）。"
  },
  "date": "2026-08-27",
- "repro": "cd /Users/s19447/Desktop/saanoTTS-jp && uv run python scripts/d5_istft_framing.py",
+ "repro": "cd . && uv run python scripts/d5_istft_framing.py",
  "environment": {
   "python": "3.14.0",
   "torch": "2.13.0",
@@ -41,7 +41,7 @@
   "git_commit": "bb5e8758a738dd87d622d323a42b096d1adc2742"
  },
  "pack": {
-  "path": "/Users/s19447/Desktop/saanoTTS-jp/data/pack_sibdense",
+  "path": "./data/pack_sibdense",
   "manifest_n_utterances": 209
  },
  "teacher_convention_source": {

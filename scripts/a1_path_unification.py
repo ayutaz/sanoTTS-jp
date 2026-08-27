@@ -45,7 +45,12 @@ warnings.filterwarnings("ignore")
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
+import os
+
+#: piper-plus の checkout。**環境変数で差し替えられる**（他人の環境でも動くように）。
+#: 既定は開発者のローカルパスだが、clone した人は `PIPER_PLUS_ROOT` を設定する。
+PIPER_PLUS = os.environ.get("PIPER_PLUS_ROOT",
+                            os.path.expanduser("~/Documents/piper-plus"))
 CKPT_NAME = "epoch=499-step=22000.ckpt"
 
 from kana_g2p import (  # noqa: E402

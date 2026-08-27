@@ -48,5 +48,12 @@ py-modules = []
 # 最初から存在しない。
 
 [tool.uv.sources]
+# ⚠️ **ここだけ絶対パス。** `[tool.uv.sources]` の `path` は `~` を展開しないので、
+# clone した人は自分の環境に向け直す必要がある:
+#
+#     python3 deploy/retarget_sources.py --root /path/to/piper-plus
+#
+# **実行時のスクリプトは `PIPER_PLUS_ROOT` 環境変数を見る**ので、
+# リポジトリ内でローカル環境に依存しているのはこの 2 行だけ。
 piper-train = { path = "/Users/s19447/Documents/piper-plus/src/python", editable = true }
 piper-plus-g2p = { path = "/Users/s19447/Documents/piper-plus/src/python/g2p", editable = true }

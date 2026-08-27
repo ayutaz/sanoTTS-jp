@@ -1,9 +1,9 @@
 """Hybrid coverage curve: top-N surface dict + kana fallback for OOV."""
 import os, sys, json, collections
-DIC="/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic"
+DIC="~/Documents/piper-plus/build/share/open_jtalk/dic"
 os.environ["OPEN_JTALK_DICT_DIR"]=DIC
-B0="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0"
-ALT="/private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/3e5773b4-3fdf-4e16-b3dd-1eecad344064/scratchpad/b0alt"
+B0="<scratch>"
+ALT="<scratch>"
 import pyopenjtalk
 KANA=set("あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをんがぎぐげござじずぜぞだぢづでどばびぶべぼぱぴぷぺぽぁぃぅぇぉゃゅょっゎゐゑー"
          "アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲンガギグゲゴザジズゼゾダヂヅデドバビブベボパピプペポァィゥェォャュョッヮヴヵヶー"

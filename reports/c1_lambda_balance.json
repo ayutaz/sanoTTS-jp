@@ -1,6 +1,6 @@
 {
  "task": "C-1 lambda balance (measurement only, no training)",
- "repro": "uv run python scripts/c1_lambda_balance.py --pack /Users/s19447/Desktop/saanoTTS-jp/data/pack_sibdense --batch-size 8 --seed 0",
+ "repro": "uv run python scripts/c1_lambda_balance.py --pack ./data/pack_sibdense --batch-size 8 --seed 0",
  "environment": {
   "python": "3.14.0",
   "torch": "2.13.0",
@@ -9,7 +9,7 @@
   "device": "cpu"
  },
  "pack": {
-  "root": "/Users/s19447/Desktop/saanoTTS-jp/data/pack_sibdense",
+  "root": "./data/pack_sibdense",
   "n_utterances": 209,
   "n_frames": 81475,
   "n_tokens": 33869,

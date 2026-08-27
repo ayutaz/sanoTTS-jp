@@ -8,7 +8,7 @@ S=scripts/a3
 uv run python $S/gen_labels_sample.py --n 128 --out <work>/raw
 cd <work>
 # 2) train split 全行の n_ids（コーパス規模への外挿に使う。8 秒）
-uv run --project /Users/s19447/Desktop/saanoTTS-jp python $S/phonemize_all.py
+uv run --project . python $S/phonemize_all.py
 # 3) zT の量子化が L_c に与える影響
 uv run --project ... python $S/quant_probe.py        # → quant_zT.json
 # 4) yT の int16 化 + STFT 事前計算のサイズ

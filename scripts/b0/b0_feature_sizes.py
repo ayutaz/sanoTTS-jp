@@ -1,5 +1,5 @@
 import struct, collections, re, sys
-sys.path.insert(0,"/Users/s19447/Documents/piper-plus/src/python")
+sys.path.insert(0,"~/Documents/piper-plus/src/python")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pyopenjtalk
 from class3 import CLASS3_READS
@@ -7,7 +7,7 @@ C3=set(CLASS3_READS)
 CT={"特殊・マス","特殊・ナイ","サ変・スル"}
 CF={"連用形","連用タ接続","連用ゴザイ接続","連用テ接続","連用デ接続","連用ニ接続","未然形"}
 OK=set(["れる","られる","せる","させる","すぎる","ちゃう","なる","する","何"])|set(pyopenjtalk.MULTI_READ_KANJI_LIST)
-DIC="/Users/s19447/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic"
+DIC="~/Documents/piper-plus/.venv/lib/python3.13/site-packages/pyopenjtalk/dictionary/sys.dic"
 b=open(DIC,"rb").read()
 _,_,_,lexsize,_,_,dsize,tsize,fsize,_=struct.unpack("<10I",b[:40])
 off=72+dsize; tokb=b[off:off+tsize]; feat=b[off+tsize:off+tsize+fsize]

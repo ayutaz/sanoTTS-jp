@@ -1,5 +1,5 @@
 import struct, sys, os, numpy as np
-SRC="/Users/s19447/Documents/piper-plus/build/share/open_jtalk/dic"
+SRC="~/Documents/piper-plus/build/share/open_jtalk/dic"
 csv_in, dic_dir = sys.argv[1], sys.argv[2]   # csv to rewrite in place, dir to write matrix.bin/unk.dic
 
 # --- old matrix

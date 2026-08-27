@@ -34,7 +34,12 @@ import torch
 
 warnings.filterwarnings("ignore")
 
-PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
+import os
+
+#: piper-plus の checkout。**環境変数で差し替えられる**（他人の環境でも動くように）。
+#: 既定は開発者のローカルパスだが、clone した人は `PIPER_PLUS_ROOT` を設定する。
+PIPER_PLUS = os.environ.get("PIPER_PLUS_ROOT",
+                            os.path.expanduser("~/Documents/piper-plus"))
 sys.path.insert(0, "src")
 sys.path.insert(0, "scripts")
 sys.path.insert(0, f"{PIPER_PLUS}/src/python")
@@ -56,7 +61,7 @@ CKPT = "epoch=499-step=22000.ckpt"
 
 def snapshot() -> str:
     hits = glob.glob(
-        "/Users/s19447/.cache/huggingface/hub/"
+        "~/.cache/huggingface/hub/"
         "models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/*/"
     )
     if not hits:

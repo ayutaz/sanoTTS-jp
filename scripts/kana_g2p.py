@@ -23,14 +23,19 @@
 
 実行するとセルフテストが走る:
 
-    /Users/s19447/Documents/piper-plus/.venv/bin/python scripts/kana_g2p.py
+    ~/Documents/piper-plus/.venv/bin/python scripts/kana_g2p.py
 """
 
 from __future__ import annotations
 
 import sys
 
-PIPER_PLUS = "/Users/s19447/Documents/piper-plus"
+import os
+
+#: piper-plus の checkout。**環境変数で差し替えられる**（他人の環境でも動くように）。
+#: 既定は開発者のローカルパスだが、clone した人は `PIPER_PLUS_ROOT` を設定する。
+PIPER_PLUS = os.environ.get("PIPER_PLUS_ROOT",
+                            os.path.expanduser("~/Documents/piper-plus"))
 sys.path.insert(0, f"{PIPER_PLUS}/src/python")
 sys.path.insert(0, f"{PIPER_PLUS}/src/python/g2p")
 

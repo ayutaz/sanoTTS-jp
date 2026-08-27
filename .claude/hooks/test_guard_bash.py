@@ -18,7 +18,7 @@ import subprocess
 import sys
 
 GUARD = pathlib.Path(__file__).with_name("guard_bash.py")
-PP = "/Users/s19447/Documents/piper-plus"
+PP = "~/Documents/piper-plus"
 
 CASES: list[tuple[str, str, str]] = [
     # (期待, コマンド, 何を確かめているか)
@@ -71,17 +71,17 @@ CASES: list[tuple[str, str, str]] = [
     # heredoc の**外**は今までどおり見る
     ("deny", "cat <<'EOF' > a.txt\nhello\nEOF\npip install x", "heredoc の後ろの pip install"),
     # --- 改行を跨いだ誤検知（2026-08-27 に実際に踏んだ。C-015 と同じ根の再発） ---
-    ("allow", "chmod +x deploy/run.sh\nuv run python x.py --root /Users/s19447/Documents/piper-plus",
+    ("allow", "chmod +x deploy/run.sh\nuv run python x.py --root ~/Documents/piper-plus",
      "chmod は別行。piper-plus は次行の引数"),
-    ("allow", "mkdir -p deploy\nuv run python -c \"import x\"  # /Users/s19447/Documents/piper-plus",
+    ("allow", "mkdir -p deploy\nuv run python -c \"import x\"  # ~/Documents/piper-plus",
      "mkdir は別行"),
-    ("deny", "chmod -R 777 /Users/s19447/Documents/piper-plus/src", "同じ行なら止める"),
-    ("deny", "mkdir -p /Users/s19447/Documents/piper-plus/newdir", "同じ行なら止める"),
+    ("deny", "chmod -R 777 ~/Documents/piper-plus/src", "同じ行なら止める"),
+    ("deny", "mkdir -p ~/Documents/piper-plus/newdir", "同じ行なら止める"),
     # --- sed の読み書き区別 ---
-    ("allow", "sed -n '1,80p' /Users/s19447/Documents/piper-plus/src/python/piper_train/vits/models.py",
+    ("allow", "sed -n '1,80p' ~/Documents/piper-plus/src/python/piper_train/vits/models.py",
      "sed -n は読み取り"),
-    ("deny", "sed -i '' 's/a/b/' /Users/s19447/Documents/piper-plus/src/python/x.py", "sed -i は書き込み"),
-    ("deny", "sed --in-place 's/a/b/' /Users/s19447/Documents/piper-plus/x.py", "sed --in-place は書き込み"),
+    ("deny", "sed -i '' 's/a/b/' ~/Documents/piper-plus/src/python/x.py", "sed -i は書き込み"),
+    ("deny", "sed --in-place 's/a/b/' ~/Documents/piper-plus/x.py", "sed --in-place は書き込み"),
     ("allow", "sed -n '1,5p' scripts/x.py", "自リポの sed -n"),
     # --- 本番ラベルパックの保護（D-015） ---
     ("deny", "rm -rf data/pack", "本番パックの削除"),
@@ -101,6 +101,10 @@ CASES: list[tuple[str, str, str]] = [
      "疎通確認は通す"),
     ("allow", "uv run python scripts/gen_teacher_labels.py --split sibdense --out data/pack_sibdense",
      "評価セットは通す"),
+    # --- パス表記のゆれ（2026-08-27。**絶対パスしか見ていない穴があった**） ---
+    ("deny", "rm -rf $HOME/Documents/piper-plus/build", "$HOME 表記も止める"),
+    ("deny", "touch ${HOME}/Documents/piper-plus/x", "${HOME} 表記も止める"),
+    ("allow", "ls ~/Documents/piper-plus/src", "読み取りは ~ でも通す"),
 ]
 
 

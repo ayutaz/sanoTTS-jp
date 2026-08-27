@@ -222,7 +222,7 @@ uv run --extra eval python scripts/eval_student.py --ckpt runs/v2/stage4.pt --n 
 | 対象 | 場所 | 備考 |
 |---|---|---|
 | 教師モデル | `ayousanz/piper-plus-zero-shot-tsukuyomi` (HF private) | `epoch=499-step=22000.ckpt` 927 MB |
-| piper-plus | `/Users/s19447/Documents/piper-plus` | v2.0.0 HEAD。**読み取り専用で使う** |
+| piper-plus | `~/Documents/piper-plus` | v2.0.0 HEAD。**読み取り専用で使う** |
 | Python 環境 | 本リポジトリの `uv`（`pyproject.toml`） | Python 3.14.0 / torch 2.13.0。教師ラベルは piper-plus venv と bit 一致 |
 | 学習環境 | **vast.ai** | ラベル生成も向こうで実行（D-012）。手順は [`vastai-runbook.md`](vastai-runbook.md) |
 | 評価指標 | `scoreq==1.0.1`（PyPI） | `uv sync --extra eval`。ラッパは `src/saanotts_jp/scoreq_metric.py` |

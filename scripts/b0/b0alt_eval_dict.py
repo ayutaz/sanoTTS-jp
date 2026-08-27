@@ -3,7 +3,7 @@ import os, sys, json
 DIC, REF, OUT = sys.argv[1], sys.argv[2], sys.argv[3]
 FIELD = sys.argv[4] if len(sys.argv)>4 else "kana"   # "kana" or "text"
 os.environ["OPEN_JTALK_DICT_DIR"]=DIC
-PP="/Users/s19447/Documents/piper-plus"
+PP="~/Documents/piper-plus"
 sys.path.insert(0, PP+"/src/python"); sys.path.insert(0, PP+"/src/python/g2p")
 import pyopenjtalk
 assert pyopenjtalk.OPEN_JTALK_DICT_DIR.decode()==DIC
