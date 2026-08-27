@@ -162,9 +162,10 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（63 ケースのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（78 ケースのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
-│                                          student-training / evaluating-quality / verifying-reports
+│                                           student-training / evaluating-quality /
+│                                           verifying-reports / writing-gates
 ├── reports/                               一次データ (JSON)。⚠️ 全行ダンプは追跡しない
 └── scripts/
     ├── phase0_verify_teacher.py           教師の決定的推論を検証（6 チェック）
@@ -212,7 +213,7 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器（10 �
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（63 ケース）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（78 ケース）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 
 # C99 推論コア（Phase D）

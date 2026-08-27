@@ -188,6 +188,83 @@ def check_python_invocation(cmd: str) -> None:
         )
 
 
+#: 公式実装（GPL-3.0）。本リポジトリは MIT なので**ソースコードを取り込めない**（C-024）
+UPSTREAM_REPO = "Ampixa/sanoTTS"
+
+#: 上流から取っても汚染しない拡張子。**事実（数値・ハイパーパラメータ）は著作権の対象外**
+UPSTREAM_DOC_EXT = (".md", ".txt", ".rst", ".json", ".yml", ".yaml")
+
+#: 取り込むと GPL が伝播する拡張子
+UPSTREAM_SRC_EXT = (".c", ".h", ".cpp", ".hpp", ".cc", ".py", ".s", ".S",
+                    ".ino", ".js", ".mjs", ".cmake", ".mk")
+
+
+def check_upstream_gpl(cmd: str) -> None:
+    """公式実装 (GPL-3.0) のソースコードを引き込むのを止める。
+
+    **ドキュメント (.md 等) の取得は通す。** 数値・ハイパーパラメータ・
+    アーキテクチャ構成は事実なので著作権の対象外で、実際に
+    `docs/upstream-sanotts.md` はそうやって作った。止めるのは**ソースコード**だけ。
+
+    ⚠️ **これは「読むな」ではなく「MIT のまま配布できなくなるぞ」という警告。**
+    方針を変えて GPL-3.0 に再ライセンスするなら、この検査ごと外すこと。
+    """
+    if UPSTREAM_REPO.lower() not in cmd.lower():
+        return
+
+    # clone / submodule はツリー全体が入るので拡張子を問わず止める
+    if re.search(r"\bgit\s+(clone|submodule\s+add)\b", cmd) or \
+       re.search(r"\bgh\s+repo\s+clone\b", cmd):
+        deny(
+            f"{UPSTREAM_REPO} を clone しようとしています。\n"
+            f"公式実装は **GPL-3.0**、本リポジトリは **MIT** です。\n"
+            f"ソースツリーを持ち込むと GPL が伝播し、MIT のまま配布できなくなります。\n"
+            f"**数値・ハイパーパラメータ・構成は公開ドキュメントから取れます**"
+            f"（`docs/upstream-sanotts.md` はそうやって作った）。"
+        )
+
+    # ソース拡張子を名指しで取りに行っている（gh api contents / raw を curl 等）。
+    # ⚠️ **拡張子は「上流を指すトークンの中」だけを見る。** コマンド全体を走査すると
+    # `grep -rn "Ampixa/sanoTTS" --include="*.py" .`（自リポを検索するだけ）が
+    # 止まる（実際に踏んだ。C-011/C-015/C-020/C-025 と同じ病理 = 走査範囲を
+    # 切り出していない）。上流の**パスそのもの**に拡張子が付いている場合だけ deny する。
+    upstream_tokens = [t for t in re.split(r"[\s'\"]+", cmd)
+                       if UPSTREAM_REPO.lower() in t.lower()]
+    for tok in upstream_tokens:
+        ext_hit = next((e for e in UPSTREAM_SRC_EXT
+                        if re.search(re.escape(e) + r"(?![a-zA-Z0-9])", tok)), None)
+        if ext_hit:
+            ext = ext_hit
+            deny(
+                f"{UPSTREAM_REPO} の `*{ext}`（ソースコード）を取得しようとしています。\n"
+                f"公式実装は **GPL-3.0**、本リポジトリは **MIT** です。\n"
+                f"**読んで書き直すのもグレー**です（特にアセンブリは表現の幅が狭い）。\n"
+                f"公開ドキュメント（{'/'.join(UPSTREAM_DOC_EXT)}）の取得は通ります — "
+                f"数値と構成は事実であって著作権の対象外です（C-024 / docs/upstream-sanotts.md）。"
+            )
+
+
+#: 上流の配布パッケージ。**入れると GPL のコードが .venv に入る**
+UPSTREAM_PACKAGES = ("sanotts", "sanotts-web")
+
+
+def check_upstream_package(cmd: str) -> None:
+    """`uv add sanotts` のような形で GPL パッケージを依存に入れるのを止める。"""
+    m = re.search(CMD_POS + r"uv\s+add\s+([^;&|\n]*)", cmd)
+    if not m:
+        return
+    args = m.group(1)
+    for pkg in UPSTREAM_PACKAGES:
+        if re.search(r"(?:^|\s)" + re.escape(pkg) + r"(?:[=<>~\[]|\s|$)", args):
+            deny(
+                f"`{pkg}` は公式実装（**GPL-3.0**）の配布パッケージです。\n"
+                f"依存に入れると .venv に GPL のコードが入り、"
+                f"MIT の本リポジトリと両立しません。\n"
+                f"比較したいだけなら**別環境**で動かし、"
+                f"得た数値だけを `docs/upstream-sanotts.md` に記録してください。"
+            )
+
+
 #: 本番ラベルパック。**一度だけ生成して SHA-256 で固定する**（D-015）
 PRODUCTION_PACKS = ("data/pack", "data/pack_heldout")
 
@@ -284,6 +361,8 @@ def main() -> int:
     check_python_invocation(cmd)
     check_production_pack(cmd)
     check_label_regeneration(cmd)
+    check_upstream_gpl(cmd)
+    check_upstream_package(cmd)
     return 0
 
 

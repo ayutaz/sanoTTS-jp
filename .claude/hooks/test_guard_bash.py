@@ -117,6 +117,38 @@ CASES: list[tuple[str, str, str]] = [
     ("deny", "rm -rf $HOME/Documents/piper-plus/build", "$HOME 表記も止める"),
     ("deny", "touch ${HOME}/Documents/piper-plus/x", "${HOME} 表記も止める"),
     ("allow", "ls ~/Documents/piper-plus/src", "読み取りは ~ でも通す"),
+    # --- 公式実装 (GPL-3.0) の境界（C-024。本リポジトリは MIT） ---
+    # ⚠️ **ドキュメントは通す。** 数値・構成は事実で著作権の対象外であり、
+    #    docs/upstream-sanotts.md は実際にこの経路で作った。
+    ("allow", "gh api repos/Ampixa/sanoTTS/contents/README.md --jq '.content'",
+     "上流の README は通す（事実の参照）"),
+    ("allow", "gh api repos/Ampixa/sanoTTS/contents/docs/distillation-recipe.md",
+     "上流の docs も通す"),
+    ("allow", "gh api repos/Ampixa/sanoTTS --jq '.license.spdx_id'",
+     "メタデータの照会は通す"),
+    ("allow", "gh api 'repos/Ampixa/sanoTTS/git/trees/master?recursive=1' --jq '.tree[].path'",
+     "ファイル名一覧は通す（中身ではない）"),
+    ("deny", "gh api repos/Ampixa/sanoTTS/contents/mcu/src/snt_tts.c --jq '.content'",
+     "上流の .c は GPL が伝播するので止める"),
+    ("deny", "curl -s https://raw.githubusercontent.com/Ampixa/sanoTTS/master/pypkg/sanotts/models.py",
+     "上流の .py も止める"),
+    ("deny", "gh api repos/Ampixa/sanoTTS/contents/mcu/ports/esp32s3/sn_matvec_s8_esp32s3.S",
+     "PIE アセンブリは特に危ない（表現の幅が狭い）"),
+    ("deny", "git clone https://github.com/Ampixa/sanoTTS.git /tmp/up",
+     "clone はツリー全体が入る"),
+    ("deny", "gh repo clone Ampixa/sanoTTS", "gh repo clone も同じ"),
+    ("deny", "uv add sanotts", "GPL パッケージを依存に入れない"),
+    ("allow", "uv add speechmos", "DNSMOS (E-1) の依存追加は通す"),
+    ("allow", "uv add torch numpy", "無関係な依存追加は通す"),
+    # ⚠️ **自リポの検索を止めないこと。** 拡張子をコマンド全体から探すと
+    #    「上流の名前を grep するだけ」が deny になる（作った直後に踏んだ）。
+    #    C-011/C-015/C-020/C-025 と同じ病理 = 走査範囲をトークンに閉じていない。
+    ("allow", 'grep -rn "Ampixa/sanoTTS" --include="*.py" .',
+     "自リポを grep するだけ（--include の *.py に反応しない）"),
+    ("allow", 'rg "Ampixa/sanoTTS" csrc/saanotts.c',
+     "自リポの .c を検索するだけ"),
+    ("allow", 'grep -n "Ampixa/sanoTTS" docs/upstream-sanotts.md',
+     "自リポの docs を検索するだけ"),
 ]
 
 
