@@ -28,7 +28,8 @@ import pathlib
 #: 本文が入るキー（実測で特定した 5 つ）。
 #: ⚠️ 新しいレポートを足したら `--check` で確認すること
 TEXT_KEYS = ("text", "ref", "student_hyp", "teacher_hyp",
-             "example_divergent_sentence", "word")
+             "example_divergent_sentence", "word",
+             "heldout", "train")   # corpus_stats.json の near_dup_examples
 PLACEHOLDER = "<redacted: corpus text>"
 
 
@@ -73,7 +74,8 @@ def _contains(s: str, texts: set[str]) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
-    ap.add_argument("--root", default="reports")
+    ap.add_argument("--root", default="reports",
+                    help="複数指定は --root A --root B ではなくカンマ区切り")
     args = ap.parse_args()
 
     texts = load_corpus_texts()
@@ -82,7 +84,9 @@ def main() -> int:
     print(f"コーパス本文 {len(texts):,} 件を照合対象にする")
 
     total = 0
-    for f in sorted(pathlib.Path(args.root).rglob("*.json")):
+    roots = [pathlib.Path(x) for x in args.root.split(",")]
+    files = sorted(f for r in roots for f in r.rglob("*.json"))
+    for f in files:
         try:
             d = json.load(open(f))
         except Exception:
