@@ -172,6 +172,48 @@ def spans_from_durations(dT: np.ndarray, token_classes) -> list[tuple[str, int, 
             for c, s, e in zip(token_classes, starts, ends) if c is not None]
 
 
+def class_band_rms(
+    wav: np.ndarray,
+    sr: int,
+    spans,
+    *,
+    n_fft: int = N_FFT,
+    guard: int = GUARD,
+) -> dict[str, list[float]]:
+    """`{クラス名: [音素インスタンスごとの 2–8 kHz RMS, ...]}`。
+
+    **`class_flatness` と必ず対で使う。** SFM は尺度不変なので、
+    **無音は「完全に平坦」に見える**。`geminate` の基準値 0.7987 は閉鎖区間の
+    int16 量子化床を測っていて、教師の性質ではない（M-27）。
+    RMS を併記しないと、生徒が音を出さなくなったことを「摩擦音が豊かになった」と
+    誤読する。span の切り方は `class_flatness` と同一。
+    """
+    if sr != SR:
+        raise ValueError(f"sr={sr} は想定外（教師は {SR} Hz 固定）")
+    hop = n_fft // 4
+    mag = stft_mag(wav, n_fft, hop)
+    bins = band_slice(n_fft, sr)
+    # mag は [n_bins, n_frames]。**帯域方向は axis=0**（軸を取り違えると
+    # 「フレームごとの RMS」ではなく「ビンごとの時間平均」になる）
+    rms = np.sqrt((mag[bins, :] ** 2).mean(axis=0))
+    n_stft = rms.shape[0]
+
+    out: dict[str, list[float]] = {c: [] for c in CLASSES}
+    for cls, f0, f1 in spans:
+        a, b = f0 + guard, f1 - guard
+        if b <= a:
+            continue
+        t0 = -(-(a * HOP) // hop)
+        t1 = min(-(-(b * HOP) // hop), n_stft)
+        if t1 <= t0:
+            continue
+        v = rms[t0:t1]
+        v = v[np.isfinite(v)]
+        if v.size:
+            out.setdefault(cls, []).append(float(v.mean()))
+    return out
+
+
 def class_flatness(
     wav: np.ndarray,
     sr: int,
