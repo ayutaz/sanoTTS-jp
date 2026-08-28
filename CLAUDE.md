@@ -570,9 +570,10 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 **Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
 設計値は D-016 〜 D-034 として凍結。現在地は [`docs/README.md`](docs/README.md)。
 
-1. **【次】W8A8 + PIE カーネル。** ✅ **toolchain は導入済み**
-   （ESP-IDF v5.5 / GCC 14.2.0。C99 コア 5 ファイルが厳密 `-std=c99` で
-   ESP32-S3 向けにコンパイル通過。M-54）。
+1. **【次】PIE カーネル。** ✅ **toolchain も QEMU も導入済み**
+   （ESP-IDF v5.5 / GCC 14.2.0 / qemu-xtensa 9.0.0）。
+   **QEMU が PIE を実装しているので、実機なしで正しさを検証できる**（M-56）。
+   ✅ **W8A8 は知覚的に無料**と実測済み（M-55。SCOREQ 差 +0.0049、CI が 0 を含む）。
    ✅ **W8A8 カーネルも実装・テスト済み**（`saan_conv1d_i8a`。ホストで fp32 比 0.850）。
    ⚠️ **残りは (a) W8A8 を本番経路に接続（現在 `int8_test.c` からしか呼ばれない）と
    (b) PIE intrinsic / アセンブリ**。**W8A8 でも PIE 命令は 0 件**なので
