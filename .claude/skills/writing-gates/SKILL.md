@@ -144,7 +144,7 @@ if (a->used + need > a->size) { a->failed = 1; return NULL; }
 ./int8_e2e_test student.bin student.bin golden.bin ids_heldout.bin /dev/null   # NG! が出ること
 
 # 例: hook の回帰は allow と deny を両方持つ
-uv run python .claude/hooks/test_guard_bash.py     # 78/78
+uv run python .claude/hooks/test_guard_bash.py     # 83/83 + commit ガード 6 件
 ```
 
 ⚠️ **`allow` 側のケースを必ず入れる。** deny だけのテストは

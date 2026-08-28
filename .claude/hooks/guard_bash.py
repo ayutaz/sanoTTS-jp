@@ -345,6 +345,112 @@ def strip_heredoc_bodies(cmd: str) -> str:
     return "\n".join(out)
 
 
+#: コーパス本文が公開物に混入するのを **commit の直前**で止める（C-028）。
+#: ⚠️ 一度これで漏らして force-push する羽目になった。
+#: 検出ロジック自体は `scripts/sanitize_reports.py` にあり、
+#: `scripts/test_sanitize_reports.py` が陽性/陰性対照つきで守っている。
+CORPUS_SPLITS = ("train", "heldout", "embedded", "sibdense")
+
+#: 照合の最小文字数。これ未満は「本文の再配布」に当たらない
+#: （単独モーラ `し` を誤検知した実例がある。C-028）
+CORPUS_MIN_LEN = 8
+
+
+def _load_corpus_texts(root: str) -> set[str]:
+    """コーパス本文を読む。**読めなければ空集合**（検査せず素通しする）。"""
+    import csv
+    out: set[str] = set()
+    for sp in CORPUS_SPLITS:
+        p = os.path.join(root, "data", "splits", f"corpus_{sp}.tsv")
+        if not os.path.exists(p):
+            continue
+        try:
+            with open(p, encoding="utf-8") as f:
+                for r in csv.reader(f, delimiter="\t"):
+                    if r and r[0] != "source" and len(r) >= 3:
+                        t = r[2].strip()
+                        if len(t) >= CORPUS_MIN_LEN:
+                            out.add(t)
+        except OSError:
+            continue
+    return out
+
+
+def find_corpus_text_in_staged(root: str = ".") -> list[tuple[str, int]]:
+    """staged な JSON にコーパス本文が入っていれば [(path, 件数)] を返す。
+
+    ⚠️ **検査できないときは必ず空を返す**（fail open）。
+    コーパスが手元に無い環境（新規 clone）でコミットが全部止まると、
+    ガードとして機能する以前に作業が成立しない。
+    """
+    import subprocess
+
+    def _git(*a: str) -> str:
+        try:
+            r = subprocess.run(("git", "-C", root) + a, capture_output=True,
+                               text=True, timeout=20)
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        return r.stdout if r.returncode == 0 else ""
+
+    staged = [p for p in _git("diff", "--cached", "--name-only").split("\n")
+              if p.endswith(".json")]
+    if not staged:
+        return []
+    texts = _load_corpus_texts(root)
+    if not texts:                      # コーパスが読めない → 検査しない
+        return []
+
+    hits: list[tuple[str, int]] = []
+    for path in staged:
+        blob = _git("show", f":{path}")
+        if not blob:
+            continue
+        try:
+            doc = json.loads(blob)
+        except (json.JSONDecodeError, ValueError):
+            continue
+        n = 0
+
+        def walk(o: object) -> None:
+            nonlocal n
+            if isinstance(o, dict):
+                for v in o.values():
+                    walk(v)
+            elif isinstance(o, list):
+                for v in o:
+                    walk(v)
+            elif isinstance(o, str) and o.strip() in texts:
+                n += 1
+
+        walk(doc)
+        if n:
+            hits.append((path, n))
+    return hits
+
+
+def check_corpus_text_commit(cmd: str) -> None:
+    """`git commit` の直前に、staged なコーパス本文を止める（C-028）。"""
+    if not re.search(CMD_POS + r"git\s+(?:-C\s+\S+\s+)?commit\b", cmd):
+        return
+    try:
+        hits = find_corpus_text_in_staged(".")
+    except Exception:                  # noqa: BLE001 — ガードで作業を止めない
+        return                          # 検査に失敗したら素通し（fail open）
+    if not hits:
+        return
+    detail = "\n".join(f"  {p}  {n} 箇所" for p, n in hits[:6])
+    deny(
+        f"staged なファイルに**コーパス本文**が入っています（C-028）。\n"
+        f"{detail}\n\n"
+        f"本リポジトリは MIT で公開済みですが、**コーパス本文は再配布できません**"
+        f"（CV は license.verified: false / JSUT は subset 別 CC-BY-SA）。\n"
+        f"一度これを見逃して push し、**履歴を書き換える羽目になりました**。\n\n"
+        f"次で落としてから commit してください（uid と統計は残ります）:\n"
+        f"  uv run python scripts/sanitize_reports.py --apply"
+    )
+
+
 def main() -> int:
     try:
         payload = json.load(sys.stdin)
@@ -363,6 +469,7 @@ def main() -> int:
     check_label_regeneration(cmd)
     check_upstream_gpl(cmd)
     check_upstream_package(cmd)
+    check_corpus_text_commit(cmd)
     return 0
 
 

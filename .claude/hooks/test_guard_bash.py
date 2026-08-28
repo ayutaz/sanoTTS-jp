@@ -149,6 +149,14 @@ CASES: list[tuple[str, str, str]] = [
      "自リポの .c を検索するだけ"),
     ("allow", 'grep -n "Ampixa/sanoTTS" docs/upstream-sanotts.md',
      "自リポの docs を検索するだけ"),
+    # --- commit 前のコーパス本文検査（C-028）---
+    # ⚠️ 陽性対照（本文を stage して deny）は staged 状態に依存するので
+    #    `test_commit_guard()` で別に張る。ここは**誤検知しないこと**だけを固定する。
+    ("allow", "git commit -m 'docs: 更新'", "普通の commit は通す"),
+    ("allow", "git commit --amend --no-edit", "amend も通す"),
+    ("allow", "git add -A && git commit -m wip", "add してから commit も通す"),
+    ("allow", "echo 'git commit -m x' >> notes.md", "文字列の中の git commit に反応しない"),
+    ("allow", "grep -rn 'git commit' docs/", "grep の引数に反応しない"),
 ]
 
 
@@ -163,6 +171,68 @@ def decide(command: str) -> str:
     if not out:
         return "allow"
     return json.loads(out)["hookSpecificOutput"]["permissionDecision"]
+
+
+def test_commit_guard() -> int:
+    """commit 前のコーパス本文検査（C-028）を、状態を作って確かめる。
+
+    ⚠️ **陽性対照が要る。** 「0 件でした」は「安全」ではなく
+    「検出できなかった」かもしれない — その取り違えで本文を公開してしまった。
+    """
+    import csv
+    import subprocess
+    import tempfile
+
+    sys.path.insert(0, str(GUARD.parent))
+    import guard_bash as G   # noqa: PLC0415
+
+    bad = 0
+
+    def ck(name: str, got, want) -> None:
+        nonlocal bad
+        ok = got == want
+        bad += not ok
+        print(f"  {'OK ' if ok else 'NG!'} {name:<52} {got!r}")
+
+    # 陰性: コーパスが読めない環境では**必ず素通し**（fail open）。
+    # ここが deny になると、新規 clone で一切コミットできなくなる。
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run(["git", "init", "-q", d], check=True)
+        ck("コーパス不在なら検査しない", G.find_corpus_text_in_staged(d), [])
+        ck("コーパス不在なら 0 件読む", len(G._load_corpus_texts(d)), 0)
+    ck("git が無いパスでも例外を出さない", G.find_corpus_text_in_staged("/tmp"), [])
+
+    # 陽性: 本文を staged にすると必ず捕まる
+    texts = G._load_corpus_texts(".")
+    if not texts:
+        print("  --  コーパスが手元に無いので陽性対照は省略（CI では起こりうる）")
+        return bad
+    sample = next(t for t in texts if len(t) >= 12)
+    with tempfile.TemporaryDirectory() as d:
+        subprocess.run(["git", "init", "-q", d], check=True)
+        splits = pathlib.Path(d) / "data" / "splits"
+        splits.mkdir(parents=True)
+        with (splits / "corpus_heldout.tsv").open("w", encoding="utf-8") as f:
+            w = csv.writer(f, delimiter="\t")
+            w.writerow(["source", "id", "text"])
+            w.writerow(["cv/x", "u1", sample])
+        poison = pathlib.Path(d) / "p.json"
+        poison.write_text(json.dumps({"utts": [{"uid": "u1", "text": sample}]},
+                                     ensure_ascii=False), encoding="utf-8")
+        subprocess.run(["git", "-C", d, "add", "p.json"], check=True)
+        ck("staged な本文を検出する", G.find_corpus_text_in_staged(d), [("p.json", 1)])
+
+        # 伏せれば通る（uid は残る）
+        poison.write_text(json.dumps({"utts": [{"uid": "u1", "text": "<redacted: corpus text>"}]},
+                                     ensure_ascii=False), encoding="utf-8")
+        subprocess.run(["git", "-C", d, "add", "p.json"], check=True)
+        ck("伏せた後は通す", G.find_corpus_text_in_staged(d), [])
+
+        # ⚠️ リスト直下の素の文字列も見る（C-028 の 3 つ目の穴）
+        poison.write_text(json.dumps({"xs": [sample]}, ensure_ascii=False), encoding="utf-8")
+        subprocess.run(["git", "-C", d, "add", "p.json"], check=True)
+        ck("リスト直下の素の文字列も検出する", G.find_corpus_text_in_staged(d), [("p.json", 1)])
+    return bad
 
 
 def main() -> int:
@@ -186,6 +256,10 @@ def main() -> int:
         print(f"{failures}/{len(CASES)} 失敗")
         return 1
     print(f"{len(CASES)}/{len(CASES)} 期待通り")
+
+    print("\ncommit 前のコーパス本文検査（C-028）")
+    if test_commit_guard():
+        return 1
     return 0
 
 
