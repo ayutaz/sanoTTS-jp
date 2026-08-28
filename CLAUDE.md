@@ -39,8 +39,8 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 検証タスク **B-0 〜 B-12** と **D-4** も全部完了。
 設計値は D-016 〜 D-034 として凍結。実行はすべて手元の M4 Max（D-027）。
 
-**残りは速度だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
-**P-1** W8A8 + PIE カーネル（着手済み）/ **P-2** β の聴取（人が要る）。
+**残りは実機での速度実測だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
+**P-1 の実装は完了**（M-57）/ **P-2** β の聴取（人が要る）。
 **E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
 **E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。
 
@@ -570,7 +570,12 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 **Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
 設計値は D-016 〜 D-034 として凍結。現在地は [`docs/README.md`](docs/README.md)。
 
-1. **【次】PIE カーネル。** ✅ **toolchain も QEMU も導入済み**
+1. ~~**【次】PIE カーネル。**~~ ✅ **実装完了**（M-57）。
+   `saan_conv1d_i8a` の内積を `ee.vmulas.s8.accx` で書き直し、
+   **QEMU で bit 完全一致**を確認（陰性対照つき）。**MAC の 77.1%** を覆う
+   （`cin % 16 == 0` の層のみ。残りは activation のパディングが要る）。
+   ⚠️ **速度は一度も測っていない。QEMU はサイクル精度ではない。**
+   ✅ **toolchain も QEMU も導入済み**
    （ESP-IDF v5.5 / GCC 14.2.0 / qemu-xtensa 9.0.0）。
    **QEMU が PIE を実装しているので、実機なしで正しさを検証できる**（M-56）。
    ✅ **W8A8 は知覚的に無料**と実測済み（M-55。SCOREQ 差 +0.0049、CI が 0 を含む）。

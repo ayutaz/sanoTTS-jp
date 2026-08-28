@@ -45,9 +45,13 @@ numbers against English papers**.
 The official implementation reports **0.22× real-time measured** on the same chip, which
 supports the direction.
 
-⚠️ A W8A8 kernel (int8 activations too) is already written, but cross-compiled for the
-ESP32-S3 and disassembled it emits **zero PIE instructions** — the compiler does not
-auto-vectorize to the PIE unit, so the intrinsics or assembly have to be written by hand.
+**The PIE kernel is written** — the dot product now uses `ee.vmulas.s8.accx` (a 16-lane
+int8 multiply-accumulate), verified **bit-identical to the scalar path under QEMU**
+(covering 77.1% of the MACs).
+
+⚠️ **That still does not mean it got faster.** QEMU is not cycle-accurate, so **speed has
+never been measured**. Whether it reaches 0.22× real-time can only be settled on real
+ESP32-S3 hardware.
 
 ## What you can run today
 
