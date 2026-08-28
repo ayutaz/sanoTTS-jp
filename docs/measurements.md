@@ -3353,3 +3353,150 @@ M-49 の見出し 0.395 は `L1_c_s4`（Stage 4 の共適応後）なので直�
 また `Eρ`(14,952) と `Gγ` の**合成**であり、両者を分離していない。
 
 ⚠️ SCOREQ は日本語で較正されていない（D-013 / D-020）。**人は聴いていない。**
+
+---
+
+## M-53. P-1 の前提が違っていた — 現行 int8 カーネルは **PIE で速くならない**（自己実測 / コード読み）
+
+**P-1 を「int8 カーネルは書けた。あとは PIE の intrinsic を足すだけ」と記録していたが、
+その前提が成り立たない。**
+
+再現:
+
+```bash
+sed -n '75,100p' csrc/saanotts_int8.c
+grep -n "yo\[t\] +=" csrc/saanotts_int8.c
+```
+
+出力（`csrc/saanotts_int8.c:88-91`）:
+
+```c
+const float wv = (float)qv;          /* int8 の重みを float に戻す */
+...
+for (int t = t0; t < t1; ++t) yo[t] += wv * xi[t + sh];   /* ← float の積和 */
+```
+
+**現行カーネルは W8A32 である**: 重みは int8 で保存するが、
+**積和は fp32**（活性化 `xi` も出力 `yo` も float）。
+`saan_dwconv1d_i8`（113 行目）も同じ。
+
+**ESP32-S3 の PIE は 8/16 ビット整数の SIMD であり、浮動小数の SIMD ではない**
+（FPU はスカラのみ）。したがって**この関数に PIE intrinsic を足しても速くならない**。
+
+M-43 の外挿表がこれを裏づける:
+
+| 経路 | スループット | 比 |
+|---|---:|---:|
+| esp-dsp f32 **asm** | 142 MMAC/s | 1.0× |
+| esp-dsp int8 **asm** | 1,427 MMAC/s | **10.0×** |
+
+**この 10 倍差は「アセンブリ化」ではなく「SIMD が使えるか」の差。**
+0.088× RT（M-43）を狙うには、**活性化も int8 にして int32 で積和する
+W8A8 への書き換え**が必要になる。
+
+### P-1 の正しい段階分け
+
+| 段階 | 状態 |
+|---|---|
+| int8 **重み**の量子化 | ✅ 完了（M-45。flash 2,249,792 → 643,936 B、−71.4%） |
+| **W8A8 への書き換え**（活性化 int8 / int32 積和 / 再量子化） | ❌ **未着手。これが本体** |
+| PIE intrinsic またはアセンブリ | ❌ 未着手。W8A8 の後 |
+| 実機でのサイクル実測 | ❌ ボードが無い |
+
+⚠️ **W8A8 は精度をさらに落とす。** 現行 W8A32 でも fp32 比 平均 25.88 dB /
+**最小 23.27 dB**（M-45。9 文が 25 dB 未満）。ここからさらに悪化する。
+**golden test も bit 一致では書けなくなる**（許容誤差での比較になる）。
+
+### 逆アセンブルで確認した（2026-08-28、当初の推論を実測に置き換えた）
+
+ESP-IDF v5.5 を導入して（M-54）実際に ESP32-S3 向けにコンパイルし、逆アセンブルした:
+
+```bash
+export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
+xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -c csrc/saanotts_int8.c -o int8.o
+xtensa-esp32s3-elf-objdump -d int8.o > int8.asm
+grep -c "ee\." int8.asm                              # PIE 命令
+grep -oE '\b(madd|mul|add|sub)\.s\b' int8.asm | sort | uniq -c   # スカラ FPU
+```
+
+出力:
+
+| 命令種別 | 件数 |
+|---|---:|
+| **PIE（`ee.*`）** | **0** |
+| `mul.s`（スカラ単精度乗算） | 8 |
+| `add.s`（スカラ単精度加算） | 6 |
+
+**`-O2` でコンパイルしても PIE 命令は 1 つも出ない。** 積和が float なので
+コンパイラはスカラ FPU 命令しか選べない。**M-53 の推論は実測で裏づけられた。**
+
+⚠️ **ただし「W8A8 にすれば速くなる」はまだ実測していない。** 確認できたのは
+「**現行カーネルは PIE を使っていない**」までであり、W8A8 + PIE がどれだけ速いかは
+**実機のサイクル数を測るまで未検証**（ボードが無い）。
+
+---
+
+## M-54. ESP-IDF は導入可能だった — P-1 は「外部待ち」ではない（自己実測）
+
+**P-1 を「toolchain 待ち」と記録し続けていたが、待っていたのは外部要因ではなく、
+単に導入していなかっただけだった。**
+
+再現:
+
+```bash
+df -h / | tail -1
+for x in idf.py xtensa-esp32s3-elf-gcc qemu-system-xtensa; do
+  printf "%-26s " "$x"; command -v $x || echo "無し"; done
+echo "IDF_PATH: ${IDF_PATH:-未設定}"
+```
+
+出力（2026-08-28）:
+
+| 項目 | 値 |
+|---|---|
+| ディスク空き | **194 GB**（ESP-IDF は 2〜3 GB） |
+| `idf.py` / `xtensa-esp32s3-elf-gcc` / `qemu-system-xtensa` | いずれも無し |
+| `IDF_PATH` / `~/.espressif` / `~/esp` | 未設定・不在 |
+| `git` / `cmake` / `python3` | あり |
+| `ninja` / `ccache` / `dfu-util` | 無し → `brew install` で導入した |
+
+**導入手順**（実行済み）:
+
+```bash
+brew install ninja ccache dfu-util
+mkdir -p ~/esp && cd ~/esp
+git clone -b v5.5 --depth 1 --recursive --shallow-submodules \
+    https://github.com/espressif/esp-idf.git
+```
+
+### 導入後に実際にできたこと（2026-08-28）
+
+**現行の C99 コア 5 ファイルすべてが ESP32-S3 向けに `-std=c99 -Wall` でコンパイルできた:**
+
+| ファイル | .o サイズ |
+|---|---:|
+| `saanotts.c` | 31,572 B |
+| `saanotts_stream.c` | 22,260 B |
+| `saanotts_int8.c` | 10,960 B |
+| `fft.c` | 8,688 B |
+| `g2p.c` | 9,284 B |
+
+⚠️ **1 件、移植性のバグが見つかった。** `M_PI` は **C99 標準ではない**（POSIX 拡張）ため、
+macOS の clang では `-std=c99` でも見えるが **newlib では見えず**、
+`saanotts.c:395` と `saanotts_stream.c:415` が `error: 'M_PI' undeclared` で落ちた。
+`-std=gnu99` にすれば通るが、それでは「**依存は libm のみの C99**」という主張が嘘になる。
+`csrc/saanotts_internal.h` で `M_PI` を定義して**厳密な C99 で通るようにした**。
+
+**ホストのクロスコンパイルでしか出ない種類のバグだった** — `make -C csrc` は
+macOS の clang で通っていたので、それまで一度も検出されなかった。
+
+⚠️ **toolchain が入っても実機のサイクル数は測れない**（ESP32-S3 ボードが無い）。
+⚠️ **`qemu-system-xtensa` は `install.sh esp32s3` では入らない**（別途 `idf_tools.py
+install qemu-xtensa` が要る。未実施）。
+できるようになるのは:
+
+- PIE intrinsic / アセンブリの**コンパイル**（現在は不可能）
+- 逆アセンブルして**本当に PIE 命令が出ているかの確認**
+- 命令数を数えて M-43 の外挿を実測に近づける
+
+**M-43 の 0.088× RT は依然として未検証の外挿である。**

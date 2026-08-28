@@ -39,10 +39,17 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 検証タスク **B-0 〜 B-12** と **D-4** も全部完了。
 設計値は D-016 〜 D-034 として凍結。実行はすべて手元の M4 Max（D-027）。
 
-**残りは 3 本**（`docs/plan/phase0-1-implementation-plan.md` §10）:
-**P-1** PIE カーネル（toolchain 待ち）/ **P-2** β の聴取（人が要る）/
-**E-2c** = W=56 が無料かの確認（40k のノイズ床、40 分）。
-**E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着した。**
+**残りは速度だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
+**P-1** W8A8 + PIE カーネル（着手済み）/ **P-2** β の聴取（人が要る）。
+**E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
+**E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。
+
+⚠️ **P-1 の前提が 2 つとも間違っていた**（2026-08-28）:
+1. **「toolchain 待ち」ではなかった**（C-033）。入れていなかっただけで、
+   ESP-IDF v5.5 はその日のうちに導入できた。**本物の待ちは実機ボードだけ**
+2. **「intrinsic を足すだけ」ではなかった**（C-032 / M-53）。現行の int8 カーネルは
+   **W8A32 で積和が fp32**。逆アセンブルすると **PIE 命令 0 件 / `mul.s`・`add.s` のみ**。
+   **PIE（整数 SIMD）では速くならない。W8A8 への書き換えが本体**
 
 ⚠️ **`Gγ` は容量律速ではない**（M-52 / n=200）。params を 43% 増やしても gap は
 **+0.0006** [−0.013, +0.015] しか動かない。効くのは学習量で、Stage 3 の steps を
@@ -562,10 +569,19 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 **Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
 設計値は D-016 〜 D-034 として凍結。現在地は [`docs/README.md`](docs/README.md)。
 
-1. **【次】PIE (SIMD) カーネル。** int8 カーネルは書けたが**移植可能 C** なので、
-   ESP32-S3 の PIE を使うには intrinsic かアセンブリが要る。
-   ⚠️ **この環境に xtensa toolchain が無く、コンパイルすら通せない。**
-   `idf.py` 不在 / `IDF_PATH` 未設定 / `~/.espressif` 無し。**実機と toolchain 待ち**
+1. **【次】W8A8 + PIE カーネル。** ✅ **toolchain は導入済み**
+   （ESP-IDF v5.5 / GCC 14.2.0。C99 コア 5 ファイルが厳密 `-std=c99` で
+   ESP32-S3 向けにコンパイル通過。M-54）。
+   ⚠️ **本体は W8A8 への書き換え**（活性化も int8 / int32 積和 / 再量子化）。
+   現行は W8A32 で積和が fp32 なので **PIE では速くならない**（M-53、逆アセンブルで確認）。
+   ⚠️ **W8A8 は精度をさらに落とす**（現行でも fp32 比 最小 23.27 dB）。
+   ⚠️ **実機ボードが無いのでサイクル数は測れない。** これは本物の待ち
+
+```bash
+export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
+xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -Wall -c csrc/saanotts_int8.c -o /tmp/i8.o
+xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（いまは 0）
+```
 2. **`β`（式7）の決定。** 候補は β=0 と 2（M-40）。**聴取で決める**（論文も同様）。
    聴取セットは `reports/listening_beta/` に用意済み（40 試行）。
    ⚠️ この生徒は **β=0 で既に教師と一致**しており、式7 が要らない可能性が高い。
