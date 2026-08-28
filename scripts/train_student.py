@@ -143,13 +143,42 @@ class RunningStats:
 MODULES = {"duration": Duration, "erho": Erho, "acoustic": Acoustic,
            "decoder": Decoder, "disc": FirstDifferenceDiscriminator}
 
+#: `Gγ` の既定幅。**成果物の仕様値**（559,008 params / int8 blob 629 KB はこの値）。
+#: E-2b の幅スイープでのみ変える。`E = EXPANSION * W`（論文の逆算どおり 4 倍）
+DEFAULT_DECODER_WIDTH = 76
+EXPANSION = 4
+
+
+def build_decoder(width: int) -> Decoder:
+    """幅 `W` の `Gγ` を作る。**要求した幅になっていることを assert する。**
+
+    ⚠️ 幅は黙って効かないと発覚しない。`--decoder-width 96` を渡したのに
+    76 のまま学習していても損失は普通に下がり、スイープは「幅を変えても
+    変わらない」という**空虚な結論**を出す（`.claude/skills/writing-gates/`）。
+    """
+    m = Decoder(W=width, E=EXPANSION * width)
+    got = m.inp.out_channels
+    if got != width:
+        raise SystemExit(f"decoder の幅が要求と違う: 要求 {width} / 実際 {got}")
+    return m
+
+
+def decoder_width_of(sd: dict) -> int:
+    """state_dict から実際の幅を読む（ckpt の自己申告を信じない）。"""
+    return int(sd["inp.weight"].shape[0])
+
 
 def save_ckpt(run: pathlib.Path, stage: int, models: dict, extra: dict) -> pathlib.Path:
     run.mkdir(parents=True, exist_ok=True)
     path = run / f"stage{stage}.pt"
-    torch.save({"stage": stage,
-                "state": {k: v.state_dict() for k, v in models.items()},
-                **extra}, path)
+    rec = {"stage": stage,
+           "state": {k: v.state_dict() for k, v in models.items()},
+           **extra}
+    if "decoder" in models:
+        # 幅を記録する。**読む側は state_dict から取るのが正**（これは人が読む用）
+        rec["decoder_width"] = models["decoder"].inp.out_channels
+        rec["decoder_params"] = sum(p.numel() for p in models["decoder"].parameters())
+    torch.save(rec, path)
     return path
 
 
@@ -168,8 +197,11 @@ def load_prev(run: pathlib.Path, stage: int, want: list[str], device) -> dict:
         for name in want:
             if name in out or name not in ck["state"]:
                 continue
-            m = MODULES[name]().to(device)
-            m.load_state_dict(ck["state"][name])
+            sd = ck["state"][name]
+            # decoder は幅が可変（E-2b）。**ckpt の自己申告ではなく実体から読む**
+            m = (build_decoder(decoder_width_of(sd)) if name == "decoder"
+                 else MODULES[name]()).to(device)
+            m.load_state_dict(sd)
             out[name] = m
         if "c_stats" in ck and "c_stats" not in out:
             # 新しい段のものを優先する（Eρ が Stage 3 で動くので統計も変わる）
@@ -326,7 +358,9 @@ def train_decoder(ctx) -> dict:
     erho = prev["erho"]
     for p in erho.parameters():
         p.requires_grad_(True)           # Stage 2 で凍結したので戻す
-    decoder = Decoder().to(dev)
+    decoder = build_decoder(args.decoder_width).to(dev)
+    print(f"    Gγ 幅 W={args.decoder_width} E={EXPANSION * args.decoder_width} "
+          f"params={sum(p.numel() for p in decoder.parameters()):,}")
     disc = FirstDifferenceDiscriminator().to(dev)
     params = list(erho.parameters()) + list(decoder.parameters())
     opt_g = torch.optim.AdamW(params, lr=args.lr)
@@ -461,7 +495,13 @@ def main() -> int:
     ap.add_argument("--lr", type=float, default=2e-4)
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=20260827)
+    ap.add_argument("--decoder-width", type=int, default=DEFAULT_DECODER_WIDTH,
+                    help="Gγ の幅 W（E-2b の幅スイープ用）。"
+                         "⚠️ 既定 76 以外は成果物の仕様外")
     args = ap.parse_args()
+    if args.decoder_width != DEFAULT_DECODER_WIDTH:
+        print(f"⚠️ Gγ の幅が既定 {DEFAULT_DECODER_WIDTH} ではなく "
+              f"{args.decoder_width}。**成果物の仕様外**（調査用）")
     if not args.all and args.stage is None:
         raise SystemExit("--stage か --all のどちらかが要ります")
 
