@@ -45,9 +45,9 @@ numbers against English papers**.
 The official implementation reports **0.22× real-time measured** on the same chip, which
 supports the direction.
 
-⚠️ The current int8 kernel is **W8A32** — weights are int8 but the multiply-accumulate is
-fp32. Cross-compiled for the ESP32-S3 and disassembled, it emits **zero PIE instructions**.
-PIE is an integer SIMD unit, so this needs a **rewrite to W8A8** (int8 activations too).
+⚠️ A W8A8 kernel (int8 activations too) is already written, but cross-compiled for the
+ESP32-S3 and disassembled it emits **zero PIE instructions** — the compiler does not
+auto-vectorize to the PIE unit, so the intrinsics or assembly have to be written by hand.
 
 ## What you can run today
 
