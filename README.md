@@ -1,5 +1,7 @@
 # sanoTTS-jp
 
+***日本語** · [English](README.en.md)*
+
 **559 K パラメータの日本語 TTS を、$3 のマイコン（ESP32-S3）で動かす試み。**
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
