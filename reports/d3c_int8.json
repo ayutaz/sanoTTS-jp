@@ -72,13 +72,13 @@
  "c_quantizer_matches_python": {"n_values": 544292, "value_mismatch": 0, "scale_mismatch": 0}, 
  "real_activation": {"layer": "decoder.inp", "T": 106, "w8a32_db": 47.1387, "w8a8_db": 44.8192},
  "speed": {"host": "darwin/arm64 (cc -O2)", "note": "ESP32-S3 では測れない", "rows": [
-  {"shape": "ac  c1 48->48 k5", "macs": 1221120, "fp32_ns": 80820, "w8a32_ns": 77290, "w8a8_ns": 77900, "w8a32_over_fp32": 0.956, "w8a8_over_fp32": 0.964, "fp32_ps_per_mac": 66.2, "w8a32_ps_per_mac": 63.3, "w8a8_ps_per_mac": 63.8},
-  {"shape": "dec inp 40->76 k3", "macs": 966720, "fp32_ns": 62480, "w8a32_ns": 61140, "w8a8_ns": 56170, "w8a32_over_fp32": 0.979, "w8a8_over_fp32": 0.899, "fp32_ps_per_mac": 64.6, "w8a32_ps_per_mac": 63.2, "w8a8_ps_per_mac": 58.1},
-  {"shape": "dec pw1 76->304 k1", "macs": 2449024, "fp32_ns": 159390, "w8a32_ns": 168160, "w8a8_ns": 101560, "w8a32_over_fp32": 1.055, "w8a8_over_fp32": 0.637, "fp32_ps_per_mac": 65.1, "w8a32_ps_per_mac": 68.7, "w8a8_ps_per_mac": 41.5},
-  {"shape": "dec pw2 304->76 k1", "macs": 2449024, "fp32_ns": 161845, "w8a32_ns": 162660, "w8a8_ns": 81465, "w8a32_over_fp32": 1.005, "w8a8_over_fp32": 0.503, "fp32_ps_per_mac": 66.1, "w8a32_ps_per_mac": 66.4, "w8a8_ps_per_mac": 33.3},
-  {"shape": "dec hout 48->1539", "macs": 7830432, "fp32_ns": 510075, "w8a32_ns": 534035, "w8a8_ns": 463210, "w8a32_over_fp32": 1.047, "w8a8_over_fp32": 0.908, "fp32_ps_per_mac": 65.1, "w8a32_ps_per_mac": 68.2, "w8a8_ps_per_mac": 59.2}
+  {"shape": "ac  c1 48->48 k5", "macs": 1221120, "fp32_ns": 78050, "w8a32_ns": 76010, "w8a8_ns": 75705, "w8a32_over_fp32": 0.974, "w8a8_over_fp32": 0.970, "fp32_ps_per_mac": 63.9, "w8a32_ps_per_mac": 62.2, "w8a8_ps_per_mac": 62.0},
+  {"shape": "dec inp 40->76 k3", "macs": 966720, "fp32_ns": 64135, "w8a32_ns": 62525, "w8a8_ns": 57460, "w8a32_over_fp32": 0.975, "w8a8_over_fp32": 0.896, "fp32_ps_per_mac": 66.3, "w8a32_ps_per_mac": 64.7, "w8a8_ps_per_mac": 59.4},
+  {"shape": "dec pw1 76->304 k1", "macs": 2449024, "fp32_ns": 161225, "w8a32_ns": 165495, "w8a8_ns": 103745, "w8a32_over_fp32": 1.026, "w8a8_over_fp32": 0.643, "fp32_ps_per_mac": 65.8, "w8a32_ps_per_mac": 67.6, "w8a8_ps_per_mac": 42.4},
+  {"shape": "dec pw2 304->76 k1", "macs": 2449024, "fp32_ns": 172400, "w8a32_ns": 176390, "w8a8_ns": 85225, "w8a32_over_fp32": 1.023, "w8a8_over_fp32": 0.494, "fp32_ps_per_mac": 70.4, "w8a32_ps_per_mac": 72.0, "w8a8_ps_per_mac": 34.8},
+  {"shape": "dec hout 48->1539", "macs": 7830432, "fp32_ns": 548260, "w8a32_ns": 562415, "w8a8_ns": 462225, "w8a32_over_fp32": 1.026, "w8a8_over_fp32": 0.843, "fp32_ps_per_mac": 70.0, "w8a32_ps_per_mac": 71.8, "w8a8_ps_per_mac": 59.0}
  ]},
- "all_conv_layers": {"T": 106, "reps": 50, "fp32_ms": 3.7143, "w8a32_ms": 3.7654, "w8a8_ms": 3.1785, "w8a32_over_fp32": 1.014, "w8a8_over_fp32": 0.856, "mac_share_ksz1": 0.5833, "note": "iSTFT・埋め込み・LayerNorm は含まない"},
+ "all_conv_layers": {"T": 106, "reps": 50, "fp32_ms": 3.7160, "w8a32_ms": 3.7579, "w8a8_ms": 3.1796, "w8a32_over_fp32": 1.011, "w8a8_over_fp32": 0.856, "mac_share_ksz1": 0.5833, "note": "iSTFT・埋め込み・LayerNorm は含まない"},
  "blob_size": {"fp32_file_bytes": 2249792, "fp32_payload_bytes": 2236032, "int8_file_bytes": 643936, "int8_payload_bytes": 624692, "int8_payload_int8": 544292, "int8_payload_scale": 21536, "int8_payload_fp32": 58864, "payload_ratio": 3.579, "matches_M39_quant_json": true},
  "core_dispatch": {"int8_blob": "ok", "fp32_blob": "ok", "both_run": true, "wref_rules_ok": true,
   "note": "D-3c'-2 で意味が反転。旧テストは「fp32 コアが int8 を拒む」だったが、今は同じバイナリが両方を走らせるのが正"},

@@ -1,50 +1,45 @@
-/* ESP32-S3 の PIE（128-bit 整数 SIMD）が使えるかを確かめる最小プローブ。
+/* ESP32-S3 の PIE（128-bit 整数 SIMD）カーネルを QEMU で検証する。
  *
- * **なぜ要るか**: P-1 は `saan_conv1d_i8a` の内積ループを PIE で書き直す作業だが、
- * 手元に実機が無い。**QEMU が PIE を実装しているか**が分からないと、
- * 「テストできないアセンブリ」を書くことになる（M-53 / C-032 の教訓）。
+ * **なぜ要るか**: P-1 は `saan_conv1d_i8a` の内積を PIE で書き直す作業だが、
+ * 手元に実機が無い。**QEMU が PIE を実装している**ので（M-56）、
+ * 速度は測れないが**正しさは検証できる**。
  *
- * ここで確かめるのは 3 つだけ:
- *   1. `ee.*` 命令が **実行できる**（不正命令例外で落ちない）
- *   2. `ee.vmulas.s8.accx` が **16 レーンの int8 積和を正しく計算する**
- *   3. スカラ実装と **完全一致**する
+ * 2 段構え:
+ *   A. PIE 命令そのもの（`ee.vmulas.s8.accx`）がスカラ内積と一致するか
+ *   B. **本物のカーネル** `saan_conv1d_i8a` が PIE 有無で同じ結果を出すか
  *
- * ⚠️ **QEMU はサイクル精度ではない。** ここで速度は測らない。
- * 測れるのは正しさだけ。速度は実機（未入手）でしか出ない。
+ * ⚠️ **B が本番。** A だけ通しても「カーネルに正しく組み込めたか」は言えない。
+ * ⚠️ **QEMU はサイクル精度ではない。速度は一切測れない。**
  */
 #include <inttypes.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
-#include "esp_cpu.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
-/* 16 バイト境界に置く。`ee.vld.128.ip` はアラインを要求する */
+#include "saanotts.h"
+#include "saanotts_int8.h"
+
 #define AL16 __attribute__((aligned(16)))
 
-/* --- 参照（スカラ） --------------------------------------------------------- */
+/* --- A. PIE 命令そのもの ---------------------------------------------------- */
+
 static int32_t dot_scalar(const int8_t *a, const int8_t *b, int n) {
     int32_t s = 0;
     for (int i = 0; i < n; ++i) s += (int32_t)a[i] * (int32_t)b[i];
     return s;
 }
 
-/* --- PIE 版 ----------------------------------------------------------------
- * `n` は 16 の倍数であること。端数は呼び出し側でスカラ処理する。
- *
- * ee.zero.accx        : 40-bit アキュムレータをゼロに
- * ee.vld.128.ip q,p,16: 128 bit ロードして p を 16 進める
- * ee.vmulas.s8.accx   : 16 レーンの int8 積を **すべて ACCX に加算**
- * ee.srs.accx dst,sh,0: ACCX を右シフト sh して 32 bit で取り出す
- */
 static int32_t dot_pie(const int8_t *a, const int8_t *b, int n) {
     int32_t out = 0;
     const int8_t *pa = a, *pb = b;
     int k = n >> 4;
     if (k <= 0) return 0;
-    asm volatile(
+    __asm__ volatile(
         "ee.zero.accx                 \n"
         "1:                           \n"
         "  ee.vld.128.ip q0, %[pa], 16\n"
@@ -59,75 +54,220 @@ static int32_t dot_pie(const int8_t *a, const int8_t *b, int n) {
     return out;
 }
 
-/* --- テストベクタ ----------------------------------------------------------- */
-static AL16 int8_t A[256];
-static AL16 int8_t B[256];
+static AL16 int8_t A[512];
+static AL16 int8_t B[512];
 
-static uint32_t rng_state = 12345u;
+static uint32_t rs = 12345u;
 static int8_t rnd8(void) {
-    rng_state = rng_state * 1664525u + 1013904223u;
-    return (int8_t)((rng_state >> 16) & 0xff);
+    rs = rs * 1664525u + 1013904223u;
+    return (int8_t)((rs >> 16) & 0xff);
+}
+static float rndf(void) {
+    rs = rs * 1664525u + 1013904223u;
+    return (float)((int32_t)(rs >> 8) % 2001 - 1000) / 1000.0f;
+}
+
+static int part_a(void) {
+    int bad = 0;
+
+    memset(A, 1, sizeof A);
+    memset(B, 1, sizeof B);
+    for (int n = 16; n <= 512; n += 16)
+        if (dot_pie(A, B, n) != n) ++bad;
+    printf("  %s A1 全1×全1 (n=16..512)\n", bad ? "NG!" : "OK ");
+
+    memset(A, -128, sizeof A);
+    memset(B, -128, sizeof B);
+    {
+        const int32_t p = dot_pie(A, B, 512);
+        const int ok = (p == 512 * 16384);
+        printf("  %s A2 最悪値 -128×-128 ×512 = %" PRId32 " (期待 %d)\n",
+               ok ? "OK " : "NG!", p, 512 * 16384);
+        if (!ok) ++bad;
+    }
+
+    int nr = 0;
+    for (int t = 0; t < 300; ++t) {
+        for (int i = 0; i < 512; ++i) { A[i] = rnd8(); B[i] = rnd8(); }
+        const int n = 16 * (1 + (t % 32));
+        if (dot_scalar(A, B, n) != dot_pie(A, B, n)) ++nr;
+    }
+    printf("  %s A3 乱数 300 回（不一致 %d）\n", nr ? "NG!" : "OK ", nr);
+    bad += nr;
+
+    /* 陰性対照: 1 要素変えたら必ず不一致になること */
+    for (int i = 0; i < 512; ++i) { A[i] = rnd8(); B[i] = rnd8(); }
+    {
+        const int32_t s = dot_scalar(A, B, 64);
+        B[3] = (int8_t)(B[3] + 1);
+        const int ok = (s != dot_pie(A, B, 64));
+        printf("  %s A4 陰性対照（1 要素変えたら不一致）\n", ok ? "OK " : "NG!");
+        if (!ok) ++bad;
+    }
+    return bad;
+}
+
+/* --- B. 本物のカーネル ------------------------------------------------------
+ * `saan_conv1d_i8a` を **PIE が効く形状（cin%16==0）**と **効かない形状**の
+ * 両方で回し、fp32 の参照畳み込みと突き合わせる。
+ *
+ * **主判定は PIE 版と、同じバイナリ内のスカラ再実装との bit 完全一致。**
+ * int8×int8 → int32 の積和は厳密な整数演算なので、一致しなければ実装が違う。
+ * ⚠️ **SNR は補助**。「SNR が同じくらい」は一致の証明にならない（丸めで隠れる）。
+ */
+#define MAXC 320
+#define MAXT 24
+
+static AL16 int8_t qbuf[MAXC * MAXT];
+static float sxbuf[MAXT];
+static float xin[MAXC * MAXT];
+static float yout[MAXC * MAXT];
+static float yref[MAXC * MAXT];
+static AL16 int8_t qw[MAXC * MAXC / 8];
+static float wf[MAXC * MAXC / 8];
+static float wsc[MAXC];
+
+/* `saan_conv1d_i8a` の**スカラ再実装**。PIE を一切使わない。
+ *
+ * ⚠️ **これが本当の合否基準。** int8×int8 → int32 の積和は**厳密な整数演算**なので、
+ * PIE 版とスカラ版は **bit 完全一致**しなければならない。
+ * 「SNR が同じくらい」は一致の証明にならない（丸めで隠れる）。
+ * ⚠️ 積和の順序も本体と揃えること。float への足し込み順が変わると
+ * 最後の `acc` が 1 ulp 違いうる。 */
+static void scalar_conv1d_i8a(float *y, const float *x, const int8_t *W,
+                              const float *sc, const float *b, int cin, int cout,
+                              int ksz, int T, int8_t *qx, float *sx) {
+    const int pad = ksz / 2;
+    saan_quantize_act_i8(qx, sx, x, cin, T);
+    for (int o = 0; o < cout; ++o) {
+        float *yo = y + (size_t)o * T;
+        const float s = sc[o];
+        const float bias = b ? b[o] : 0.0f;
+        const int8_t *wo = W + (size_t)o * cin * ksz;
+        for (int t = 0; t < T; ++t) {
+            float acc = 0.0f;
+            for (int k = 0; k < ksz; ++k) {
+                const int u = t + k - pad;
+                if (u < 0 || u >= T) continue;
+                const int8_t *qu = qx + (size_t)u * cin;
+                int32_t a32 = 0;
+                for (int i = 0; i < cin; ++i)
+                    a32 += (int32_t)wo[(size_t)i * ksz + k] * (int32_t)qu[i];
+                acc += (float)a32 * sx[u];
+            }
+            yo[t] = acc * s + bias;
+        }
+    }
+}
+
+/* fp32 の参照畳み込み（量子化した重みを float に戻して掛ける = W8A32 相当） */
+static void ref_conv(float *y, const float *x, const int8_t *W, const float *sc,
+                     int cin, int cout, int ksz, int T) {
+    const int pad = ksz / 2;
+    for (int o = 0; o < cout; ++o) {
+        float *yo = y + (size_t)o * T;
+        for (int t = 0; t < T; ++t) {
+            float a = 0.0f;
+            for (int i = 0; i < cin; ++i)
+                for (int k = 0; k < ksz; ++k) {
+                    const int u = t + k - pad;
+                    if (u < 0 || u >= T) continue;
+                    a += (float)W[((size_t)o * cin + i) * ksz + k] * x[(size_t)i * T + u];
+                }
+            yo[t] = a * sc[o];
+        }
+    }
+}
+
+static double snr_db(const float *got, const float *ref, size_t n) {
+    double sig = 0.0, err = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        const double r = ref[i], e = (double)got[i] - r;
+        sig += r * r; err += e * e;
+    }
+    if (err == 0.0) return 1e9;
+    return 10.0 * log10(sig / err);
+}
+
+static AL16 int8_t qbuf2[MAXC * MAXT];
+static float sxbuf2[MAXT];
+static float yscal[MAXC * MAXT];
+
+static int one_shape(const char *tag, int cin, int cout, int ksz, int T,
+                     double min_db) {
+    for (int i = 0; i < cin * T; ++i) xin[i] = rndf();
+    const int inner = cin * ksz;
+    for (int o = 0; o < cout; ++o) {
+        for (int i = 0; i < inner; ++i) wf[(size_t)o * inner + i] = rndf();
+    }
+    saan_quantize_w_i8(qw, wsc, wf, cout, inner);
+    saan_conv1d_i8a(yout, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
+    scalar_conv1d_i8a(yscal, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf2, sxbuf2);
+    ref_conv(yref, xin, qw, wsc, cin, cout, ksz, T);
+
+    /* **主判定: PIE 版とスカラ版が bit 完全一致すること** */
+    const size_t n = (size_t)cout * T;
+    size_t ndiff = 0;
+    for (size_t i = 0; i < n; ++i)
+        if (memcmp(&yout[i], &yscal[i], sizeof(float)) != 0) ++ndiff;
+
+    const double db = snr_db(yout, yref, n);
+    const int pie = (cin % 16) == 0;
+    const int ok = (ndiff == 0) && (db >= min_db);
+    printf("  %s B  %-22s cin=%-4d ksz=%d  bit差 %zu/%zu  SNR %6.2f dB  (PIE %s)\n",
+           ok ? "OK " : "NG!", tag, cin, ksz, ndiff, n, db, pie ? "有効" : "無効");
+    return ok ? 0 : 1;
+}
+
+/* 陰性対照: **わざと 1 要素壊したら bit 差が出ること**を確かめる。
+ * これが出ないなら比較自体が効いていない（`.claude/skills/writing-gates/`） */
+static int negative_control(void) {
+    const int cin = 48, cout = 8, ksz = 1, T = MAXT;
+    for (int i = 0; i < cin * T; ++i) xin[i] = rndf();
+    for (int i = 0; i < cout * cin; ++i) wf[i] = rndf();
+    saan_quantize_w_i8(qw, wsc, wf, cout, cin * ksz);
+    saan_conv1d_i8a(yout, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
+    qw[5] = (int8_t)(qw[5] + 1);                 /* ← わざと壊す */
+    scalar_conv1d_i8a(yscal, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf2, sxbuf2);
+    size_t ndiff = 0;
+    for (size_t i = 0; i < (size_t)cout * T; ++i)
+        if (memcmp(&yout[i], &yscal[i], sizeof(float)) != 0) ++ndiff;
+    const int ok = ndiff > 0;
+    printf("  %s B  陰性対照: 重み 1 要素を壊すと bit 差 %zu 件\n",
+           ok ? "OK " : "NG!", ndiff);
+    return ok ? 0 : 1;
+}
+
+static int part_b(void) {
+    int bad = 0;
+    /* ⚠️ しきい値は **activation 量子化の性質**で決まる。per-frame int8 なので
+     * 30 dB 台が正常。ホスト（PIE 無し）で同じ形状を測った値に合わせてある。 */
+    bad += one_shape("PIE 有効 (dec pw2)", 304, 32, 1, MAXT, 25.0);
+    bad += one_shape("PIE 有効 (hout)",     48, 64, 1, MAXT, 25.0);
+    bad += one_shape("PIE 有効 (ac c1 k5)", 48, 48, 5, MAXT, 25.0);
+    bad += one_shape("PIE 無効 (dec inp)",  40, 76, 3, MAXT, 25.0);
+    bad += one_shape("PIE 無効 (cup)",      12, 76, 1, MAXT, 25.0);
+    bad += negative_control();
+    return bad;
 }
 
 void app_main(void) {
     printf("\n=== ESP32-S3 PIE probe ===\n");
+#if defined(SAAN_PIE) && SAAN_PIE
+    printf("  ビルド: SAAN_PIE=1（PIE カーネル有効）\n");
+#else
+    printf("  ⚠️ ビルド: SAAN_PIE 未定義 — **PIE は使われていない**\n");
+#endif
+    printf("\n-- A. PIE 命令そのもの --\n");
+    const int a = part_a();
+    printf("\n-- B. saan_conv1d_i8a（本物のカーネル） --\n");
+    const int b = part_b();
 
-    int bad = 0;
-
-    /* 1. 既知の入力: すべて 1 × すべて 1 → n */
-    memset(A, 1, sizeof A);
-    memset(B, 1, sizeof B);
-    for (int n = 16; n <= 256; n += 16) {
-        const int32_t s = dot_scalar(A, B, n), p = dot_pie(A, B, n);
-        if (s != p || s != n) {
-            printf("  NG! n=%3d  scalar=%" PRId32 " pie=%" PRId32 " (期待 %d)\n", n, s, p, n);
-            ++bad;
-        }
-    }
-    printf("  %s 全 1 × 全 1（n=16..256）\n", bad ? "NG!" : "OK ");
-
-    /* 2. 飽和側: -128 × -128 = 16384。16 レーンで 262144。**int16 では溢れる** */
-    memset(A, -128, sizeof A);
-    memset(B, -128, sizeof B);
-    {
-        const int32_t s = dot_scalar(A, B, 256), p = dot_pie(A, B, 256);
-        const int ok = (s == p) && (s == 256 * 16384);
-        printf("  %s 最悪値 -128×-128 ×256 = %" PRId32 " (pie %" PRId32 ")\n",
-               ok ? "OK " : "NG!", s, p);
-        if (!ok) ++bad;
-    }
-
-    /* 3. 乱数 200 回 */
-    int nrand = 0;
-    for (int t = 0; t < 200; ++t) {
-        for (int i = 0; i < 256; ++i) { A[i] = rnd8(); B[i] = rnd8(); }
-        const int n = 16 * (1 + (t % 16));
-        const int32_t s = dot_scalar(A, B, n), p = dot_pie(A, B, n);
-        if (s != p) {
-            if (nrand < 3)
-                printf("  NG! t=%d n=%d scalar=%" PRId32 " pie=%" PRId32 "\n", t, n, s, p);
-            ++nrand;
-        }
-    }
-    printf("  %s 乱数 200 回（不一致 %d）\n", nrand ? "NG!" : "OK ", nrand);
-    bad += nrand;
-
-    /* 4. 陰性対照: **わざと壊した入力で不一致が出ること**を確認する。
-     *    ここが一致してしまうなら、そもそも比較が効いていない */
-    for (int i = 0; i < 256; ++i) { A[i] = rnd8(); B[i] = rnd8(); }
-    {
-        const int32_t s = dot_scalar(A, B, 64);
-        B[3] = (int8_t)(B[3] + 1);
-        const int32_t p = dot_pie(A, B, 64);
-        printf("  %s 陰性対照: 1 要素変えたら不一致になる (%" PRId32 " vs %" PRId32 ")\n",
-               (s != p) ? "OK " : "NG!", s, p);
-        if (s == p) ++bad;
-    }
-
-    printf("\n%s\n", bad ? "PIE PROBE: FAIL" : "PIE PROBE: PASS");
+    printf("\n%s  (A %d 件 / B %d 件 の失敗)\n",
+           (a + b) ? "PIE PROBE: FAIL" : "PIE PROBE: PASS", a, b);
     printf("=== done ===\n");
     fflush(stdout);
-    vTaskDelay(pdMS_TO_TICKS(200));
-    esp_cpu_stall(0);
+    vTaskDelay(pdMS_TO_TICKS(300));
+    /* QEMU を素直に終わらせるため、あとは寝るだけにする */
     while (1) vTaskDelay(pdMS_TO_TICKS(1000));
 }

@@ -3720,3 +3720,101 @@ PIE PROBE: PASS
 
 **測れるのは正しさだけ。だがそれで十分に前進する** —
 これまでは「書いても検証不能」だったものが「**書いて正しさを検証できる**」になった。
+
+---
+
+## M-57. PIE カーネルを実装し、QEMU で **bit 完全一致**を確認した（自己実測）
+
+**P-1 の本体。** `saan_conv1d_i8a` の内積ループを ESP32-S3 の PIE で書き直した。
+
+### 実装
+
+`csrc/saanotts_int8.c` に `saan_dot_i8_pie()` を追加し、`saan_conv1d_i8a` から呼ぶ。
+`-DSAAN_PIE=1`（かつ `__XTENSA__`）でのみ有効。**ホストのビルドは一切変わらない。**
+
+```c
+__asm__ volatile(
+    "ee.zero.accx                 \n"
+    "1:                           \n"
+    "  ee.vld.128.ip q0, %[pa], 16\n"
+    "  ee.vld.128.ip q1, %[pb], 16\n"
+    "  ee.vmulas.s8.accx q0, q1   \n"
+    "  addi %[k], %[k], -1        \n"
+    "  bnez %[k], 1b              \n"
+    "ee.srs.accx %[out], %[sh], 0 \n"
+    : [out]"=&a"(out), [pa]"+&a"(pa), [pb]"+&a"(pb), [k]"+&a"(k)
+    : [sh]"a"(0) : "memory");
+```
+
+### 適用範囲は MAC の 77.1%
+
+`ee.vld.128.ip` は **16 バイト境界**を要求する。`qx + u*cin` が整列するのは
+**`cin % 16 == 0`** のときだけなので、それ以外はスカラのまま残した。
+
+| 層 | MAC | cin | PIE |
+|---|---:|---:|---|
+| dec hout 48→1539 | 7,830,432（52.5%） | 48 | ✅ |
+| dec pw1 76→304 | 2,449,024（16.4%） | 76 | ❌ |
+| dec pw2 304→76 | 2,449,024（16.4%） | 304 | ✅ |
+| ac c1 48→48 k5 | 1,221,120（8.2%） | 48 | ✅ |
+| dec inp 40→76 k3 | 966,720（6.5%） | 40 | ❌ |
+
+**合計 77.1% を覆う。** 残り 22.9%（`cin` = 40 / 76 / 12）は activation の
+ストライドを 16 の倍数にパディングすれば覆えるが、**レイアウト変更になるので未実施**。
+
+⚠️ **重みは `cin*ksz ≤ 512` なら必ず 16 整列スクラッチ `wt` に写してから使う。**
+blob 内の `W` の整列は保証されていないので直接は渡せない。
+写す手間は O(cout·cin) で積和の O(cout·cin·T) に対し無視できる（T ≈ 106）。
+
+### 逆アセンブルでの確認
+
+```bash
+xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -DSAAN_PIE=1 \
+    -c csrc/saanotts_int8.c -o p.o
+xtensa-esp32s3-elf-objdump -d p.o | grep -oE "ee\.[a-z0-9_.]+" | sort | uniq -c
+```
+
+| ビルド | PIE 命令 |
+|---|---:|
+| フラグなし | **0 件** |
+| `-DSAAN_PIE=1` | **5 件**（`saan_conv1d_i8a` に集中） |
+
+内訳: `ee.zero.accx` 1 / `ee.vld.128.ip` 2 / `ee.vmulas.s8.accx` 1 / `ee.srs.accx` 1
+
+### QEMU での検証: **bit 完全一致**
+
+```bash
+cd esp32/pie_probe && idf.py set-target esp32s3 && idf.py qemu
+```
+
+⚠️ **主判定は SNR ではなく bit 一致にした。** int8×int8 → int32 の積和は
+**厳密な整数演算**なので、PIE 版とスカラ版は bit 完全一致しなければならない。
+「SNR が同じくらい」では丸めに隠れて実装の違いを見逃す。
+プローブは**同じバイナリの中にスカラ再実装を持ち**、出力を `memcmp` で比べる。
+
+```
+-- A. PIE 命令そのもの --
+  OK  A1 全1×全1 (n=16..512)
+  OK  A2 最悪値 -128×-128 ×512 = 8388608
+  OK  A3 乱数 300 回（不一致 0）
+  OK  A4 陰性対照（1 要素変えたら不一致）
+
+-- B. saan_conv1d_i8a（本物のカーネル） --
+  OK  B  PIE 有効 (dec pw2)   cin=304  ksz=1  bit差 0/768   SNR 48.25 dB
+  OK  B  PIE 有効 (hout)      cin=48   ksz=1  bit差 0/1536  SNR 48.67 dB
+  OK  B  PIE 有効 (ac c1 k5)  cin=48   ksz=5  bit差 0/1152  SNR 48.39 dB
+  OK  B  PIE 無効 (dec inp)   cin=40   ksz=3  bit差 0/1824  SNR 48.40 dB
+  OK  B  PIE 無効 (cup)       cin=12   ksz=1  bit差 0/1824  SNR 49.07 dB
+  OK  B  陰性対照: 重み 1 要素を壊すと bit 差 24 件
+
+PIE PROBE: PASS
+```
+
+**陰性対照が 24 件の差を出している**ので、「bit 差 0」は比較の不成立ではない。
+
+### ⚠️ 測っていないこと
+
+- **速度。** QEMU はサイクル精度ではないので**一切測れない**。
+  M-43 の 0.088× RT は依然として未検証の外挿
+- **実機の PIE と QEMU の PIE が同一である保証**
+- **ホストの回帰は無傷**（`make -C csrc all-test` 全通過。PIE はホストで無効）
