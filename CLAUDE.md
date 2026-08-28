@@ -37,12 +37,12 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 
 **現状（2026-08-28）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 検証タスク **B-0 〜 B-12** と **D-4** も全部完了。
-設計値は D-016 〜 D-032 として凍結。実行はすべて手元の M4 Max（D-027）。
+設計値は D-016 〜 D-034 として凍結。実行はすべて手元の M4 Max（D-027）。
 
 **残りは 3 本**（`docs/plan/phase0-1-implementation-plan.md` §10）:
 **P-1** PIE カーネル（toolchain 待ち）/ **P-2** β の聴取（人が要る）/
 **E-2 の残り** = `Gγ` が容量律速かの幅スイープ。
-**E-2 のレーン分解は M-49 で決着**（E-1 本体は別レーンで進行中）。
+**E-2 のレーン分解は M-49 / D-033 で決着。E-1 も M-50 / D-034 で決着した。**
 
 **品質は目標に届いた。残るのはメモリとレイテンシ。**
 
@@ -553,7 +553,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 ## 未解決のブロッカー（優先順）
 
 **Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
-設計値は D-016 〜 D-032 として凍結。現在地は [`docs/README.md`](docs/README.md)。
+設計値は D-016 〜 D-034 として凍結。現在地は [`docs/README.md`](docs/README.md)。
 
 1. **【次】PIE (SIMD) カーネル。** int8 カーネルは書けたが**移植可能 C** なので、
    ESP32-S3 の PIE を使うには intrinsic かアセンブリが要る。

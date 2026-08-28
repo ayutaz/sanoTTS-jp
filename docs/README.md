@@ -9,8 +9,8 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-032 と**訂正履歴 C-001〜C-025** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-48。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-034 と**訂正履歴 C-001〜C-027** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-50。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -55,11 +55,13 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [完了] D-4                  アクセント型ミニマルペア。符号一致 35/36 で**再現している**（M-44）
 [完了] B-12                 教師の事前学習との重複検査。**看板の 24 文は汚染ゼロ**（M-47）
 [完了] 敵対的検証            空虚に通るゲート 2 件 + silent failure 1 件を修正（M-48）
-[完了] E-1 DNSMOS           教師/人間 OVRL **0.979**。金属的のパターンは出ていない。⚠️ **指標が反応しない劣化が実在**（M-50）
-[完了] E-2 レーン分解        decoder 0.395 / acoustic 0.283 / duration 0.052。c-line は 0.024（M-49）
+[完了] E-1 DNSMOS           生徒/教師 **0.7725**（SCOREQ 比 0.611 より高い）。上流の主張は**再現せず**
+                            ⚠️ **陽性対照 G6 は FAIL**。DNSMOS が下がらない＝劣化が無い、ではない（M-50 / D-034）
+[完了] E-2 decoder 教師初期化 **定義できない**（27/28 は形状一致だが意味が対応せず、hout は候補ゼロ）
+                            代わりにギャップを分解: decoder 0.395 / acoustic 0.283 / duration 0.052（M-49 / D-033）
 [次]   P-1 Phase D-3c'-3    **PIE 最適化。⚠️ xtensa toolchain が無くコンパイルも通せない**
 [待]   P-2 β の聴取決定      候補 β=0 と 2。⚠️ 上流（英語）は 6.0。**人が要る**
-[今]   E-2 の残り           `Gγ` が**容量律速か**の幅スイープ（Stage 3 のみ ×4 / 約 2 時間）
+[今]   E-2b                 `Gγ` が**容量律速か**の幅スイープ（Stage 3 のみ ×4 / 約 2 時間）。**今できる唯一の実験**
 [未]   Phase D-3d           実機測定（ハードウェア待ち）
 ```
 
@@ -76,7 +78,8 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 長さフィルタ | `max_spec_length=700` で 4.31% 除外 | D-017 / M-23 |
 | `_` PAD | **フレームの 53.76%**。特別扱いしない | D-018 / M-25 |
 | `s_v` | **1.2187**（丸め規約の差の吸収） | D-019 / M-24 |
-| 評価の主指標 | SCOREQ synthetic/nr + UTMOS 併記 | D-020 / M-29 |
+| 評価の主指標 | SCOREQ synthetic/nr + UTMOS 併記。**DNSMOS は合否にせず併記プローブ** | D-020 / **D-034** |
+| ギャップの帰属 | decoder 0.395 / acoustic 0.283 / duration 0.052。⚠️ 定義依存で順序が逆転する | **D-033** / M-49 |
 | λ | `λ_n`/`λ₂` は実行時算出、`λ_Δ=0.86` / `λ_s=0.19` / `λ_T=0.27` | D-021 / M-30 |
 | iSTFT | `center=True` + `length=T*256` | D-022 / M-32 |
 | `yT` | EMA 適用版 | D-023 / M-33 |
@@ -128,8 +131,8 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-032 + 訂正履歴 C-001〜C-025
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-48
+│   ├── decisions.md                       決定記録 D-001〜D-034 + 訂正履歴 C-001〜C-027
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-50
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（次のフェーズ）
 │   ├── plan/phase0-1-implementation-plan.md

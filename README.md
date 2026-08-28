@@ -21,12 +21,18 @@ piper-plus の実装から独立に書いたもの（MIT）。
 
 | 軸 | 状態 |
 |---|---|
-| **品質** | SCOREQ **教師比 0.611**（論文の英語 embedded 比 0.5427 を上回る）。⚠️ n=24 |
-| **メモリ** | **196.9 KB** / ESP32-S3 の SRAM 512 KB の 38% |
+| **品質** | SCOREQ **教師比 0.611**（論文の英語 embedded 比 0.5427 を上回る）/ DNSMOS 教師比 0.7725。⚠️ n=24・**聴取は未実施** |
+| **アクセント** | ミニマルペア 15 群で教師との**符号一致 35/36**。⚠️ **聴取は未実施** |
+| **メモリ** | **196.9 KB** / ESP32-S3 の SRAM 512 KB の 38%。int8 でブロブ −71.4% |
 | **速度** | ⚠️ 手元 0.023× RT。**fp32 のまま移植すると 2.47× RT で実時間に間に合わない** |
 
 **残るのは速度だけ。** ESP32-S3 の PIE（SIMD）を使った int8 カーネルが要る。
-実機はまだ動かしていない。
+⚠️ **実機はまだ動かしていない。** この環境に xtensa toolchain が無く、コンパイルも通せない。
+
+品質ギャップの内訳は測ってある（n=200、鎖分解）:
+**decoder 0.395 / acoustic 0.283 / duration 0.052**、40 次元 c-line 自体は 0.024。
+⚠️ **論文流の置換定義だと acoustic > decoder で順序が逆転する**ので、
+「主因は decoder」は分解の取り方に依存する主張。
 
 ## 何ができているか
 
@@ -81,8 +87,8 @@ make -C csrc run-bench    # レイテンシ（段別の内訳）
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-48。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-032 と**訂正履歴 C-001〜C-025** |
+| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-50。全項目に再現コマンド付き |
+| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-034 と**訂正履歴 C-001〜C-027** |
 | [`docs/plan/`](docs/plan/) | 作業計画 |
 | [`CLAUDE.md`](CLAUDE.md) | 実装時の要点（AI エージェント向けの運用ルールでもある） |
 
