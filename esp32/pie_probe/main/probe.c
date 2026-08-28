@@ -138,7 +138,11 @@ static void scalar_conv1d_i8a(float *y, const float *x, const int8_t *W,
                               const float *sc, const float *b, int cin, int cout,
                               int ksz, int T, int8_t *qx, float *sx) {
     const int pad = ksz / 2;
-    saan_quantize_act_i8(qx, sx, x, cin, T);
+    /* ⚠️ **本体と同じ padded ストライドを使う。** ここを `cin` のままにすると
+     * 「主判定が両方同じように間違う」のではなく、**参照だけがずれて偽の NG** が出る。
+     * カーネルの読み位置は 1 箇所（本体）で決まっているので必ず追従させること。 */
+    const int cinp = (int)((cin + 15) & ~15);
+    saan_quantize_act_i8p(qx, sx, x, cin, T, cinp);
     for (int o = 0; o < cout; ++o) {
         float *yo = y + (size_t)o * T;
         const float s = sc[o];
@@ -149,7 +153,7 @@ static void scalar_conv1d_i8a(float *y, const float *x, const int8_t *W,
             for (int k = 0; k < ksz; ++k) {
                 const int u = t + k - pad;
                 if (u < 0 || u >= T) continue;
-                const int8_t *qu = qx + (size_t)u * cin;
+                const int8_t *qu = qx + (size_t)u * cinp;
                 int32_t a32 = 0;
                 for (int i = 0; i < cin; ++i)
                     a32 += (int32_t)wo[(size_t)i * ksz + k] * (int32_t)qu[i];
@@ -212,7 +216,7 @@ static int one_shape(const char *tag, int cin, int cout, int ksz, int T,
         if (memcmp(&yout[i], &yscal[i], sizeof(float)) != 0) ++ndiff;
 
     const double db = snr_db(yout, yref, n);
-    const int pie = (cin % 16) == 0;
+    const int pie = 1;   /* パディング後は全 conv 層が PIE（dwconv を除く） */
     const int ok = (ndiff == 0) && (db >= min_db);
     printf("  %s B  %-22s cin=%-4d ksz=%d  bit差 %zu/%zu  SNR %6.2f dB  (PIE %s)\n",
            ok ? "OK " : "NG!", tag, cin, ksz, ndiff, n, db, pie ? "有効" : "無効");
@@ -242,11 +246,13 @@ static int part_b(void) {
     int bad = 0;
     /* ⚠️ しきい値は **activation 量子化の性質**で決まる。per-frame int8 なので
      * 30 dB 台が正常。ホスト（PIE 無し）で同じ形状を測った値に合わせてある。 */
-    bad += one_shape("PIE 有効 (dec pw2)", 304, 32, 1, MAXT, 25.0);
-    bad += one_shape("PIE 有効 (hout)",     48, 64, 1, MAXT, 25.0);
-    bad += one_shape("PIE 有効 (ac c1 k5)", 48, 48, 5, MAXT, 25.0);
-    bad += one_shape("PIE 無効 (dec inp)",  40, 76, 3, MAXT, 25.0);
-    bad += one_shape("PIE 無効 (cup)",      12, 76, 1, MAXT, 25.0);
+    bad += one_shape("dec pw2  (304)",  304, 32, 1, MAXT, 25.0);
+    bad += one_shape("hout    (48)",     48, 64, 1, MAXT, 25.0);
+    bad += one_shape("ac c1 k5 (48)",     48, 48, 5, MAXT, 25.0);
+    bad += one_shape("dec inp  (40->48)*", 40, 76, 3, MAXT, 25.0);
+    bad += one_shape("cup      (12->16)*", 12, 76, 1, MAXT, 25.0);
+    bad += one_shape("pw1      (76->80)*", 76, 96, 1, MAXT, 25.0);
+    bad += one_shape("hdown    (76->80)*", 76, 48, 1, MAXT, 25.0);
     bad += negative_control();
     return bad;
 }

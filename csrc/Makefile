@@ -90,7 +90,7 @@ g2p_vectors_corpus.bin:
 	cd .. && uv run python scripts/gen_g2p_vectors.py --closed --corpus \
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
-.PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes arena run-bench g2p g2p-corpus \
+.PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \
         all-test clean
 test: golden_test
 	./golden_test student.bin golden.bin
@@ -115,6 +115,13 @@ int8-e2e: int8_e2e_test student_i8.bin ids_heldout.bin
 
 arena: arena_stress
 	./arena_stress student.bin golden.bin
+
+# G-1: W8A8 のパディング部のゼロ埋め（**陽性対照つき**）。
+# ⚠️ 4 通りのビルドを比べる検査なので、単一バイナリでは書けない。
+# ⚠️ `SAAN_PIE_EMU=1` が必須 — 無いとホストは隙間を 1 バイトも読まず、
+#    4 通りが全部同じ checksum を出して**空虚に通る**（実際に踏んだ）。
+pad:
+	./run_pad_gate.sh
 
 # W8A8 の end-to-end SNR（PIE の前提。⚠️ **既定のゲートは満たさない** — M-55）
 # ⚠️ SNR は知覚に対応しない。判断は `make lanes` の SCOREQ で行うこと
@@ -149,7 +156,7 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad
 
 clean:
 	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress \

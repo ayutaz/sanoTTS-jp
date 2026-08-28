@@ -25,14 +25,26 @@
  *
  * ⚠️ **`ee.vld.128.ip` は 16 バイト境界を要求する。** そのため
  *   - 重みは必ず 16 バイト整列のスクラッチ `wt` に写してから使う
- *   - activation `qx + u*cin` が整列するのは **`cin % 16 == 0` のときだけ**
- * なので、**`cin % 16 != 0` の層はスカラのまま**にしてある。
- * この生徒では `cin ∈ {32, 48, 304}` が整列し、**MAC の 77.1%** を覆う
- * （`cin = 40 / 76 / 12` の層が残り。`reports/d3c_int8.json` の内訳）。
+ *   - activation の行ストライドを **`cinp = align16(cin)`** に広げ、
+ *     隙間 `[cin, cinp)` を **0 で埋める**（0 は積和に寄与しない = 端数処理も不要）
+ * これで **MAC の 99.40%** を覆う（M-58）。
+ * ⚠️ **depthwise の 0.60% だけは原理的に載らない** — `qx[u*ch + o]` は
+ * チャネル方向のギャザーで、内積命令では表現できない（C-035）。
  *
  * 正しさは **QEMU で検証できる**（M-56 / `esp32/pie_probe`）。
  * ⚠️ **速度は測れない** — QEMU はサイクル精度ではない。実機が要る。
  */
+/* --- 検査用の「毒」フック（既定 0）------------------------------------------
+ * パディング部を 0 ではなく 127 で埋めるビルドを作るためのもの。**本番では 0。**
+ *
+ * ⚠️ **なぜ要るか**: 隙間の寄与は `Σ w_pad · a_pad` なので、
+ * **片方が 0 なら他方がゴミでも出力は変わらない**。したがって
+ * 「片方のゼロ埋めを外して出力が変わるか」では検出できない（実際に踏んだ）。
+ * **相手側を非ゼロにしたうえで**「出力が変わらないこと」を見るしかない。
+ *   - `SAAN_PAD_POISON_W=1` で重み側を汚す → **活性化側**のゼロ埋めを証明する
+ *   - `SAAN_PAD_POISON_A=1` で活性化側を汚す → **重み側**のゼロ埋めを証明する
+ *   - 両方 1 にすると**出力が変わらなければならない理由が無くなる** = 陽性対照
+ * 詳細は `csrc/int8_pad_test.c`。 */
 #if defined(__XTENSA__) && defined(SAAN_PIE) && SAAN_PIE
 #define SAAN_HAVE_PIE 1
 #define SAAN_AL16 __attribute__((aligned(16)))
@@ -48,6 +60,7 @@ static int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
     int32_t out = 0;
     const int8_t *pa = a, *pb = b;
     int k = n >> 4;
+    if (k <= 0) return 0;      /* ⚠️ 無いとループが 2^32 回ぶん回る */
     __asm__ volatile(
         "ee.zero.accx                 \n"
         "1:                           \n"
@@ -64,10 +77,18 @@ static int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
 }
 #endif
 
-/* この (cin) で PIE を使ってよいか。**両方の整列条件をここ 1 箇所で判定する** */
+/* この (cin) で PIE を使ってよいか。**整列条件をここ 1 箇所で判定する**。
+ *
+ * 活性化も重みも **`cinp = align16(cin)` のストライド**に揃えたので、
+ * `cin` の 16 倍数性はもう要らない。残る条件は
+ *   - `cin > 0`（⚠️ `saan_dot_i8_pie` は `k <= 0` を守っていない。ここが唯一の砦）
+ *   - 呼び出し側が `wt` に写せること（`cinp*ksz <= SAAN_I8_WT_SCRATCH`）
+ * ⚠️ **depthwise は対象外。** `saan_dwconv1d_i8a` はチャネル方向のギャザーで、
+ * `ee.vmulas.s8.accx`（16 レーンを 1 アキュムレータに畳む内積）では表現できない。
+ * ストライドを揃えても載らない（MAC の 0.60%。C-035）。 */
 static int saan_pie_ok(int cin) {
 #if SAAN_HAVE_PIE
-    return cin > 0 && (cin & 15) == 0;
+    return cin > 0;
 #else
     (void)cin;
     return 0;
@@ -101,14 +122,24 @@ void saan_quantize_w_i8(int8_t *q, float *scale, const float *W,
     }
 }
 
-void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T) {
+void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
+                           int P) {
     for (int t = 0; t < T; ++t) {
         float amax = 0.0f;
         for (int c = 0; c < C; ++c) {
             const float v = fabsf(x[(size_t)c * T + t]);
             if (v > amax) amax = v;
         }
-        int8_t *qt = q + (size_t)t * C;
+        int8_t *qt = q + (size_t)t * P;
+        /* ⚠️ **パディング部を毎フレーム 0 にする。** ここを外すと
+         * 「前の層の活性化のバイトが内積に混ざる」形で**静かに壊れる**:
+         * `saan_conv1d_w` は arena を `a->used = mark` で即返すので、
+         * 次の conv が**同じ番地を再利用する**。例外も NaN も出ない。
+         * ⚠️ **これを検出できるゲートは 1 つしかない** — 相手側（重み）の
+         * パディングを非ゼロで汚したうえで bit 一致を見ること。
+         * 内積は `Σ w_pad · a_pad` なので、**片方が 0 なら他方がゴミでも答えが変わらず**、
+         * 素直な参照比較では捕まらない（`csrc/int8_pad_test.c` の G-1）。 */
+        if (P > C) memset(qt + C, SAAN_PAD_FILL_A, (size_t)(P - C));
         if (amax == 0.0f) {
             sx[t] = 0.0f;
             memset(qt, 0, (size_t)C);
@@ -125,8 +156,15 @@ void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T) {
     }
 }
 
+void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T) {
+    saan_quantize_act_i8p(q, sx, x, C, T, C);   /* パディング無し = 従来の挙動 */
+}
+
 size_t saan_act_scratch_bytes(int C, int T) {
-    return (size_t)C * (size_t)T * sizeof(int8_t) + (size_t)T * sizeof(float);
+    /* ⚠️ **パディング後のストライドで数える。** `C` のまま数えると
+     * 呼び出し側が過少確保して隣接バッファを踏む（silent） */
+    return (size_t)SAAN_ALIGN16((size_t)C) * (size_t)T * sizeof(int8_t)
+         + (size_t)T * sizeof(float);
 }
 
 /* --- W8A32 --------------------------------------------------------------- */
@@ -187,13 +225,22 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
      * (31 ps/MAC → 304 ps/MAC) 遅くなった。出力チャネルごとに [k][cin] へ
      * 並べ替えてから回す。**i についての加算順序は変えていないので結果は同一**。 */
     SAAN_AL16 int8_t wt[SAAN_I8_WT_SCRATCH];
+    /* 活性化も重みも **`cinp = align16(cin)` のストライド**に揃える。
+     * パディング部は 0 なので積和に寄与せず、端数処理が要らない。 */
+    const int cinp = (int)SAAN_ALIGN16((size_t)cin);
     /* ⚠️ **PIE を使うときは ksz==1 でも `wt` に写す。** blob 内の `W` の整列は
      * 保証されていないので、`ee.vld.128.ip` に直接渡せない。写す手間は
      * O(cout·cin) で、積和の O(cout·cin·T) に対して無視できる（T ≈ 106）。 */
-    const int pie = saan_pie_ok(cin) && cin * ksz <= SAAN_I8_WT_SCRATCH;
-    const int transposable = pie || (ksz > 1 && cin * ksz <= SAAN_I8_WT_SCRATCH);
+    const int pie = saan_pie_ok(cin) && cinp * ksz <= SAAN_I8_WT_SCRATCH;
+    const int transposable = pie || (ksz > 1 && cinp * ksz <= SAAN_I8_WT_SCRATCH);
 
-    saan_quantize_act_i8(qx, sx, x, cin, T);
+    /* ⚠️ **`wt` のパディング部を 0 にする。消さないこと。**
+     * 「毎回上書きするから無駄」に見えるが、埋めるのは `[cin, cinp)` の隙間で
+     * 下の転置ループは触らない。外すとスタックの残骸が内積に入り、
+     * **例外なしに値だけずれる**（`csrc/int8_pad_test.c` の G-1b が検出する）。 */
+    if (transposable && cinp != cin) memset(wt, SAAN_PAD_FILL_W, sizeof wt);
+
+    saan_quantize_act_i8p(qx, sx, x, cin, T, cinp);
     for (int o = 0; o < cout; ++o) {
         float *yo = y + (size_t)o * T;
         const float s = scale[o];
@@ -202,23 +249,26 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
         if (transposable)
             for (int k = 0; k < ksz; ++k)
                 for (int i = 0; i < cin; ++i)
-                    wt[(size_t)k * cin + i] = wo[(size_t)i * ksz + k];
+                    wt[(size_t)k * cinp + i] = wo[(size_t)i * ksz + k];
         for (int t = 0; t < T; ++t) {
             float acc = 0.0f;
             for (int k = 0; k < ksz; ++k) {
                 const int u = t + k - pad;
                 if (u < 0 || u >= T) continue;   /* 両端ゼロパディング */
-                const int8_t *qu = qx + (size_t)u * cin;
+                const int8_t *qu = qx + (size_t)u * cinp;
                 int32_t a32 = 0;
 #if SAAN_HAVE_PIE
                 if (pie) {
-                    /* cin は 16 の倍数、`wt` は 16 整列、`qx + u*cin` も 16 整列 */
-                    a32 = saan_dot_i8_pie(wt + (size_t)k * cin, qu, cin);
+                    /* `wt` も `qx + u*cinp` も 16 整列、`cinp` は 16 の倍数 */
+                    a32 = saan_dot_i8_pie(wt + (size_t)k * cinp, qu, cinp);
                 } else
 #endif
                 if (transposable) {
-                    const int8_t *wk = wt + (size_t)k * cin;
-                    for (int i = 0; i < cin; ++i)
+                    const int8_t *wk = wt + (size_t)k * cinp;
+                    /* ⚠️ 既定は `i < cin`。`SAAN_PIE_EMU=1` のときだけ PIE と
+                     * 同じ `cinp` レーンまで回す（パディング検査用。上のヘッダ参照） */
+                    const int lanes = SAAN_PIE_EMU ? cinp : cin;
+                    for (int i = 0; i < lanes; ++i)
                         a32 += (int32_t)wk[i] * (int32_t)qu[i];
                 } else {
                     for (int i = 0; i < cin; ++i)
@@ -234,7 +284,12 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
 void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
                        int ch, int ksz, int T, int8_t *qx, float *sx) {
     const int pad = ksz / 2;
-    saan_quantize_act_i8(qx, sx, x, ch, T);
+    /* ⚠️ **depthwise は PIE に載らない**（チャネル方向のギャザーで、
+     * `ee.vmulas.s8.accx` の内積では表現できない。C-035）。
+     * それでも `saan_quantize_act_i8p` を共有するので**ストライドは追従する**。
+     * ここを `ch` のままにすると読み位置がずれて黙って壊れる。 */
+    const int chp = (int)SAAN_ALIGN16((size_t)ch);
+    saan_quantize_act_i8p(qx, sx, x, ch, T, chp);
     for (int o = 0; o < ch; ++o) {
         float *yo = y + (size_t)o * T;
         const int8_t *wk = W + (size_t)o * ksz;
@@ -244,7 +299,7 @@ void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *s
             for (int k = 0; k < ksz; ++k) {
                 const int u = t + k - pad;
                 if (u < 0 || u >= T) continue;
-                const int32_t p = (int32_t)wk[k] * (int32_t)qx[(size_t)u * ch + o];
+                const int32_t p = (int32_t)wk[k] * (int32_t)qx[(size_t)u * chp + o];
                 acc += (float)p * sx[u];
             }
             yo[t] = acc * s;
@@ -311,7 +366,9 @@ saan_wref saan_w(const saan_weights *w, const char *fmt, ...) {
 size_t saan_act_scratch_needed(int cin, int T) {
 #if SAAN_INT8_ACT
     /* qx [T][cin] と sx [T] を別々に saan_alloc するので、境界も別々に数える */
-    return SAAN_ALIGN16((size_t)cin * (size_t)T)
+    /* ⚠️ **パディング後のストライドで数える**（`saan_conv1d_w` の確保と必ず一致させる。
+     * 片方だけ直すと arena 不足＝loud か、隣接バッファの上書き＝silent かが分かれる） */
+    return SAAN_ALIGN16(SAAN_ALIGN16((size_t)cin) * (size_t)T)
          + SAAN_ALIGN16(sizeof(float) * (size_t)T);
 #else
     (void)cin; (void)T;
@@ -330,7 +387,7 @@ saan_status saan_conv1d_w(float *y, const float *x, saan_wref W, const float *b,
     if (!a) return SAAN_ERR_ARENA;
     {
         const size_t mark = a->used;
-        int8_t *qx = (int8_t *)saan_alloc(a, (size_t)cin * (size_t)T);
+        int8_t *qx = (int8_t *)saan_alloc(a, SAAN_ALIGN16((size_t)cin) * (size_t)T);
         float *sx = (float *)saan_alloc(a, sizeof(float) * (size_t)T);
         if (!qx || !sx) { a->used = mark; return SAAN_ERR_ARENA; }
         saan_conv1d_i8a(y, x, W.q, W.scale, b, cin, cout, ksz, T, qx, sx);
@@ -354,7 +411,7 @@ saan_status saan_dwconv1d_w(float *y, const float *x, saan_wref W,
     if (!a) return SAAN_ERR_ARENA;
     {
         const size_t mark = a->used;
-        int8_t *qx = (int8_t *)saan_alloc(a, (size_t)ch * (size_t)T);
+        int8_t *qx = (int8_t *)saan_alloc(a, SAAN_ALIGN16((size_t)ch) * (size_t)T);
         float *sx = (float *)saan_alloc(a, sizeof(float) * (size_t)T);
         if (!qx || !sx) { a->used = mark; return SAAN_ERR_ARENA; }
         saan_dwconv1d_i8a(y, x, W.q, W.scale, ch, ksz, T, qx, sx);

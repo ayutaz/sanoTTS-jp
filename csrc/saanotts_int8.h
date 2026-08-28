@@ -26,6 +26,39 @@
 
 #include "saanotts.h"
 
+/* --- 検査用の「毒」フック（既定 0 = 本番の挙動）-----------------------------
+ * W8A8 のパディング部を 0 ではなく 127 で埋めるビルドを作るためのもの。
+ *
+ * ⚠️ **なぜ要るか**: 隙間の寄与は `Σ w_pad · a_pad` なので、
+ * **片方が 0 なら他方がゴミでも出力は変わらない**。したがって
+ * 「片方のゼロ埋めを外して出力が変わるか」では検出できない（**実際に踏んだ**）。
+ * **相手側を非ゼロにしたうえで**「出力が変わらないこと」を見るしかない。
+ *   - `SAAN_PAD_POISON_W=1` で重み側を汚す → **活性化側**のゼロ埋めを証明する
+ *   - `SAAN_PAD_POISON_A=1` で活性化側を汚す → **重み側**のゼロ埋めを証明する
+ *   - 両方 1 なら**出力は変わらなければおかしい** = 陽性対照
+ * 詳細と実行方法は `csrc/int8_pad_test.c` / `make -C csrc pad`。 */
+#ifndef SAAN_PAD_POISON_W
+#define SAAN_PAD_POISON_W 0
+#endif
+#ifndef SAAN_PAD_POISON_A
+#define SAAN_PAD_POISON_A 0
+#endif
+/* ⚠️ **ホストではパディング部が一度も読まれない。**
+ * スカラ枝は `for (i < cin)` で回るので、`[cin, cinp)` に何が入っていても
+ * 出力は変わらない。読むのは PIE の `ee.vld.128.ip`（16 レーン一括）だけ。
+ * したがって上の毒フックは**ホストでは無意味**で、
+ * 4 通りのビルドが全部同じチェックサムを出す（**実際にそうなった**）。
+ *
+ * `SAAN_PIE_EMU=1` は、スカラ枝を **PIE と同じ `cinp` レーン**まで回す。
+ * これで毒フックがホストでも効き、QEMU を待たずに検査できる。
+ * ⚠️ **本番では 0。** 無駄なレーンを回すぶん遅くなるだけ。 */
+#ifndef SAAN_PIE_EMU
+#define SAAN_PIE_EMU 0
+#endif
+
+#define SAAN_PAD_FILL_W (SAAN_PAD_POISON_W ? 127 : 0)
+#define SAAN_PAD_FILL_A (SAAN_PAD_POISON_A ? 127 : 0)
+
 /* --- 量子化 -------------------------------------------------------------- */
 
 /* symmetric int8 / per-output-channel。`W` は [cout][inner] 行優先
@@ -38,6 +71,13 @@ void saan_quantize_w_i8(int8_t *q, float *scale, const float *W,
  * 入力 `x` は [C][T]、出力 `q` は **[T][C]（転置）**、`sx` は [T]。
  * 全チャネルが 0 のフレームは sx[t] = 0 / q = 0 になる。 */
 void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T);
+
+/* 同上だが **行ストライドを `P` にする**（`P >= C`）。`[C, P)` は**毎フレーム 0 で埋める**。
+ * PIE の `ee.vld.128.ip` が 16 バイト境界を要求するため、`P = align16(C)` にして
+ * `q + t*P` を常に整列させるのが目的。0 は積和に寄与しないので端数処理も要らない。
+ * ⚠️ **`P` を渡す側と読む側でストライドが食い違うと黙って別物になる。** */
+void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
+                           int P);
 
 /* W8A8 の作業領域バイト数（q [T][C] + sx [T]） */
 size_t saan_act_scratch_bytes(int C, int T);
