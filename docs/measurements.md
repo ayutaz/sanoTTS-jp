@@ -3625,3 +3625,98 @@ M-50 の DNSMOS と同じく、**MOS 予測器は分布外で妙な挙動をす�
   （W8A8 は `d̂` 一致が 97.6% で W8A32 の 98.8% より低い。その影響は未測定）
 - SCOREQ は日本語で較正されていない（D-013 / D-020）
 - **W8A8 が ESP32-S3 で実際に速いかは未測定**（ボードが無い）
+
+---
+
+## M-56. **PIE は QEMU で検証できる** — P-1 は実機なしで書けるようになった（自己実測）
+
+**これまで「PIE アセンブリを書いても構文が通ることすら確認できない」と考えていたが、
+誤りだった。** ESP-IDF の QEMU は ESP32-S3 の PIE 命令を実装している。
+
+### 導入（`install.sh` は python 3.14 で落ちるので回避した）
+
+```bash
+brew install libslirp                       # これが無いと qemu が dyld で落ちる
+cd ~/esp/esp-idf
+/opt/homebrew/bin/python3.13 tools/idf_tools.py install-python-env   # 3.14 では venv 作成が失敗する
+uv run --no-project python tools/idf_tools.py install qemu-xtensa
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
+. ~/esp/esp-idf/export.sh
+export PATH="$HOME/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin:$PATH"
+```
+
+⚠️ **落とし穴 3 つ**（全部踏んだ）:
+1. `install.sh` は **python 3.14 で venv 作成に失敗**する。`python3.13` で
+   `install-python-env` を先に回す
+2. `export.sh` は **PATH 上の python3 に対応する venv** を選ぶので、
+   3.13 を PATH 先頭に置かないと壊れた 3.14 env を掴む
+3. `qemu-system-xtensa` は **`libslirp` が無いと dyld エラーで起動しない**。
+   `idf_tools.py` は「インストールしたが動かない」と言ってディレクトリを消す
+
+### ESP-IDF 雛形が**初めてビルドできた**
+
+M-46 で「一度もビルドしていない」と記録していたもの:
+
+```bash
+cd esp32 && idf.py set-target esp32s3 && idf.py build
+```
+
+| | |
+|---|---:|
+| `saanotts_jp.bin` | **267,968 B**（app パーティション 2 MB の 13%） |
+| bootloader | 21,088 B |
+
+**ビルドは通った。⚠️ 実機では動かしていないし、QEMU でも走らせていない。**
+
+### PIE プローブ: `ee.vmulas.s8.accx` は正しく動く
+
+`esp32/pie_probe/` に最小プローブを置いた。**16 レーンの int8 積和を
+40-bit アキュムレータに溜める** PIE 命令が、スカラ実装と完全一致するかを見る。
+
+```c
+asm volatile(
+    "ee.zero.accx                 \n"
+    "1:                           \n"
+    "  ee.vld.128.ip q0, %[pa], 16\n"
+    "  ee.vld.128.ip q1, %[pb], 16\n"
+    "  ee.vmulas.s8.accx q0, q1   \n"
+    "  addi %[k], %[k], -1        \n"
+    "  bnez %[k], 1b              \n"
+    "ee.srs.accx %[out], %[sh], 0 \n"
+    : [out]"=&a"(out), [pa]"+&a"(pa), [pb]"+&a"(pb), [k]"+&a"(k)
+    : [sh]"a"(0) : "memory");
+```
+
+再現:
+
+```bash
+cd esp32/pie_probe && idf.py set-target esp32s3 && idf.py qemu
+```
+
+出力:
+
+```
+=== ESP32-S3 PIE probe ===
+  OK  全 1 × 全 1（n=16..256）
+  OK  最悪値 -128×-128 ×256 = 4194304 (pie 4194304)
+  OK  乱数 200 回（不一致 0）
+  OK  陰性対照: 1 要素変えたら不一致になる (-35002 vs -35016)
+PIE PROBE: PASS
+```
+
+| 確認したこと | 結果 |
+|---|---|
+| `ee.*` が不正命令にならず**実行される** | ✅ |
+| 16 レーンの int8 積和が**正しい** | ✅ 乱数 200 回で不一致 0 |
+| `-128 × -128 × 256 = 4,194,304` が**溢れない** | ✅（int16 なら溢れる値） |
+| **陰性対照**（1 要素変えたら不一致になる） | ✅ 比較が効いている |
+
+### ⚠️ QEMU で測れないこと
+
+- **サイクル数**。QEMU はサイクル精度ではないので、**速度は一切測れない**。
+  M-43 の 0.088× RT は依然として未検証の外挿
+- **実 SRAM の挙動 / キャッシュ / メモリ帯域**
+- **実機の PIE と QEMU の PIE が同一である保証**（QEMU の実装が正しい前提）
+
+**測れるのは正しさだけ。だがそれで十分に前進する** —
+これまでは「書いても検証不能」だったものが「**書いて正しさを検証できる**」になった。

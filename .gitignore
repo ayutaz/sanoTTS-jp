@@ -94,3 +94,10 @@ reports/**/*.whl
 reports/r1_dnsmos/          # 論文 PDF の作業ディレクトリ。出典は docs 側に書く
 reports/verify_e2/          # 敵対的検証のスクラッチ
 reports/e1_dnsmos/scratch/
+
+# ESP-IDF のビルド成果物
+/esp32/build/
+/esp32/pie_probe/build/
+/esp32/**/sdkconfig
+/esp32/**/sdkconfig.old
+/esp32/.cache/
