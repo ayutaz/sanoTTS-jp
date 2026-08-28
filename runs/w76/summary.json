@@ -1,0 +1,15 @@
+{
+ "device": "mps",
+ "steps": 20000,
+ "pack": "data/pack",
+ "val_pack": "data/pack_heldout",
+ "results": [
+  {
+   "stage": 3,
+   "first": 0.08906226605176926,
+   "last": 0.022125201299786568,
+   "drop_pct": 75.16,
+   "ms_per_step": 60
+  }
+ ]
+}

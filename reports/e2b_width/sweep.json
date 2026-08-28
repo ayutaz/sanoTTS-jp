@@ -1,0 +1,379 @@
+{
+  "task": "E-2b Gγ 幅スイープ",
+  "n": 200,
+  "uid_seed": 7,
+  "pack": "data/pack_heldout",
+  "device": "mps",
+  "baseline": "w76_40k",
+  "m49_reference": {
+    "L0_teacher": 1.9972,
+    "L1_c_s3": 1.6318,
+    "gap": 0.3654,
+    "W": 76
+  },
+  "teacher_scoreq_mean": 1.9972,
+  "gates": [
+    {
+      "id": "G1_widths_differ",
+      "ok": true,
+      "detail": "幅 [56, 76, 96]",
+      "why": "全部同じ幅なら「幅を変えても変わらない」は自明で無意味"
+    },
+    {
+      "id": "G2_noise_floor_pair",
+      "ok": true,
+      "detail": "同幅・同 steps の対 [((76, 20000), ['w76', 'w76b', 'w76c'])]",
+      "why": "幅と steps を揃え seed だけ変えた対が無いと、run 間ばらつきを分離できない"
+    },
+    {
+      "id": "G3_all_distinct",
+      "ok": true,
+      "detail": "8 種 / 8 本",
+      "why": "同一 ckpt を 2 本渡すと差 0 が「ノイズ床 0」に化ける"
+    },
+    {
+      "id": "G4_same_utterances",
+      "ok": true,
+      "detail": "{'L0_teacher': 200, 'w56': 200, 'w76': 200, 'w76b': 200, 'w76c': 200, 'w96': 200, 'w56_40k': 200, 'w76_40k': 200, 'w96_40k': 200}（期待 200）",
+      "why": "本数が違うと対応のある比較が成立しない"
+    },
+    {
+      "id": "G5_params_monotonic",
+      "ok": true,
+      "detail": "[(56, 219828), (76, 331308), (96, 474788)]",
+      "why": "幅だけを動かしたなら params は幅に対して単調に増える"
+    },
+    {
+      "id": "G7_baseline_matches_M49",
+      "ok": true,
+      "detail": "W=76 の gap 0.4030 / M-49 の L1_c_s3 0.3654",
+      "why": "大きく外れたら学習経路か測定経路が M-49 と違う。⚠️ しきい 0.08 は run 間ばらつきを見込んだ緩い健全性検査で、**合格基準ではない**"
+    }
+  ],
+  "noise_floor_abs": 0.0812,
+  "noise_floor_pairs": [
+    {
+      "pair": [
+        "w76",
+        "w76b"
+      ],
+      "width": 76,
+      "steps": 20000,
+      "diff": 0.0417,
+      "ci95": [
+        0.0285,
+        0.0551
+      ],
+      "n": 200
+    },
+    {
+      "pair": [
+        "w76",
+        "w76c"
+      ],
+      "width": 76,
+      "steps": 20000,
+      "diff": -0.0394,
+      "ci95": [
+        -0.0515,
+        -0.0275
+      ],
+      "n": 200
+    },
+    {
+      "pair": [
+        "w76b",
+        "w76c"
+      ],
+      "width": 76,
+      "steps": 20000,
+      "diff": -0.0812,
+      "ci95": [
+        -0.0952,
+        -0.0674
+      ],
+      "n": 200
+    }
+  ],
+  "per_run": {
+    "w56": {
+      "width": 56,
+      "params": 219828,
+      "seed": 20260827,
+      "steps": 20000,
+      "decoder_sha256": "7c496a5c0ac11e5243b99546f44bfd1159e91acb6dd727526a1322dbfe3511d1",
+      "scoreq_mean": 1.4196,
+      "scoreq_sd": 0.1697,
+      "gap_vs_teacher": {
+        "diff": 0.5776,
+        "ci95": [
+          0.5542,
+          0.6014
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.1746,
+        "ci95": [
+          0.1593,
+          0.19
+        ],
+        "n": 200
+      }
+    },
+    "w76": {
+      "width": 76,
+      "params": 331308,
+      "seed": 20260827,
+      "steps": 20000,
+      "decoder_sha256": "38c99ee36cf801d38ef5ec2fb65949ba16d0b872ddf74245d3edfc2f96af67ec",
+      "scoreq_mean": 1.4852,
+      "scoreq_sd": 0.1739,
+      "gap_vs_teacher": {
+        "diff": 0.512,
+        "ci95": [
+          0.4892,
+          0.5348
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.109,
+        "ci95": [
+          0.0963,
+          0.1218
+        ],
+        "n": 200
+      }
+    },
+    "w76b": {
+      "width": 76,
+      "params": 331308,
+      "seed": 99,
+      "steps": 20000,
+      "decoder_sha256": "7a694d0cc1673168bba6a02654c17007a00a62578205ca1a71a5a181bb7a8da8",
+      "scoreq_mean": 1.4435,
+      "scoreq_sd": 0.1692,
+      "gap_vs_teacher": {
+        "diff": 0.5537,
+        "ci95": [
+          0.5288,
+          0.5788
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.1508,
+        "ci95": [
+          0.1341,
+          0.1672
+        ],
+        "n": 200
+      }
+    },
+    "w76c": {
+      "width": 76,
+      "params": 331308,
+      "seed": 31337,
+      "steps": 20000,
+      "decoder_sha256": "44cc3d4ec8540bf4898f9e08c29df1bb01fb0c345c8d189c52d454b0809886d3",
+      "scoreq_mean": 1.5246,
+      "scoreq_sd": 0.1746,
+      "gap_vs_teacher": {
+        "diff": 0.4725,
+        "ci95": [
+          0.4482,
+          0.4966
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.0696,
+        "ci95": [
+          0.0561,
+          0.0831
+        ],
+        "n": 200
+      }
+    },
+    "w96": {
+      "width": 96,
+      "params": 474788,
+      "seed": 20260827,
+      "steps": 20000,
+      "decoder_sha256": "eee995f1e4018b04e1153ceb87e06c7d2d3f82327341c6d0066204732c058175",
+      "scoreq_mean": 1.4988,
+      "scoreq_sd": 0.1795,
+      "gap_vs_teacher": {
+        "diff": 0.4984,
+        "ci95": [
+          0.4751,
+          0.5216
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.0955,
+        "ci95": [
+          0.0801,
+          0.1113
+        ],
+        "n": 200
+      }
+    },
+    "w56_40k": {
+      "width": 56,
+      "params": 219828,
+      "seed": 20260827,
+      "steps": 40000,
+      "decoder_sha256": "fa3ab8a804da4c96e285872f8dfe67575bb5744a7e5ad7313634bb237a003758",
+      "scoreq_mean": 1.531,
+      "scoreq_sd": 0.167,
+      "gap_vs_teacher": {
+        "diff": 0.4661,
+        "ci95": [
+          0.4432,
+          0.4885
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.0632,
+        "ci95": [
+          0.0501,
+          0.076
+        ],
+        "n": 200
+      }
+    },
+    "w76_40k": {
+      "width": 76,
+      "params": 331308,
+      "seed": 20260827,
+      "steps": 40000,
+      "decoder_sha256": "c74ab19e4e73cb4f67cb187540bd4cf678416614ae72f3032de948c4d10a138f",
+      "scoreq_mean": 1.5942,
+      "scoreq_sd": 0.1799,
+      "gap_vs_teacher": {
+        "diff": 0.403,
+        "ci95": [
+          0.3811,
+          0.4243
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.0,
+        "ci95": [
+          0.0,
+          0.0
+        ],
+        "n": 200
+      }
+    },
+    "w96_40k": {
+      "width": 96,
+      "params": 474788,
+      "seed": 20260827,
+      "steps": 40000,
+      "decoder_sha256": "83f4aff3cd4961161cbe8bc080609eb1cf6d210a19e7f34472f1304424aa2d80",
+      "scoreq_mean": 1.5937,
+      "scoreq_sd": 0.1768,
+      "gap_vs_teacher": {
+        "diff": 0.4035,
+        "ci95": [
+          0.3827,
+          0.4246
+        ],
+        "n": 200
+      },
+      "delta_gap_vs_baseline": {
+        "diff": 0.0006,
+        "ci95": [
+          -0.0134,
+          0.0149
+        ],
+        "n": 200
+      }
+    }
+  },
+  "verdict": {
+    "w56": {
+      "delta": 0.1746,
+      "ci95": [
+        0.1593,
+        0.19
+      ],
+      "significant_vs_zero": true,
+      "exceeds_noise_floor": true,
+      "call": "効果あり"
+    },
+    "w76": {
+      "delta": 0.109,
+      "ci95": [
+        0.0963,
+        0.1218
+      ],
+      "significant_vs_zero": true,
+      "exceeds_noise_floor": true,
+      "call": "効果あり"
+    },
+    "w76b": {
+      "delta": 0.1508,
+      "ci95": [
+        0.1341,
+        0.1672
+      ],
+      "significant_vs_zero": true,
+      "exceeds_noise_floor": true,
+      "call": "効果あり"
+    },
+    "w76c": {
+      "delta": 0.0696,
+      "ci95": [
+        0.0561,
+        0.0831
+      ],
+      "significant_vs_zero": true,
+      "exceeds_noise_floor": false,
+      "call": "ノイズ床以下"
+    },
+    "w96": {
+      "delta": 0.0955,
+      "ci95": [
+        0.0801,
+        0.1113
+      ],
+      "significant_vs_zero": true,
+      "exceeds_noise_floor": true,
+      "call": "効果あり"
+    },
+    "w56_40k": {
+      "delta": 0.0632,
+      "ci95": [
+        0.0501,
+        0.076
+      ],
+      "significant_vs_zero": true,
+      "exceeds_noise_floor": false,
+      "call": "ノイズ床以下"
+    },
+    "w96_40k": {
+      "delta": 0.0006,
+      "ci95": [
+        -0.0134,
+        0.0149
+      ],
+      "significant_vs_zero": false,
+      "exceeds_noise_floor": false,
+      "call": "有意差なし"
+    }
+  },
+  "caveats": [
+    "SCOREQ は日本語で較正されていない。絶対値を論文の英語スコアと比べない（D-013 / D-020）",
+    "この gap は `L1_c_s3` 段（Stage 3 のみ）。M-49 の見出し 0.395 は `L1_c_s4`（共適応後）",
+    "`Eρ` も Stage 3 で一緒に学習されるので、レーンは Eρ+Gγ の合成。両者を分離しない",
+    "幅を変えると 559,008 params と int8 blob 629 KB が変わる。**調査であって採用ではない**",
+    "人が聴いていない。SCOREQ の差が可聴かは別問題"
+  ]
+}
