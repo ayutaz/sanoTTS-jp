@@ -9,6 +9,18 @@
 
 #include "saanotts.h"
 
+/* ⚠️ `M_PI` は **C99 標準ではない**（POSIX 拡張）。macOS の clang では
+ * `-std=c99` でも見えるが、**xtensa-esp32s3-elf の newlib では見えない**。
+ * 実際に ESP32-S3 向けにクロスコンパイルして初めて出た（M-54）:
+ *
+ *     csrc/saanotts.c:395: error: 'M_PI' undeclared
+ *
+ * `-std=gnu99` にすれば通るが、それでは「依存は libm のみの C99」という
+ * 本コアの主張が嘘になるので、**ここで定義する**。 */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define SAAN_ALIGN16(x) (((x) + 15u) & ~(size_t)15u)
 
 void *saan_alloc(saan_arena *a, size_t n);
