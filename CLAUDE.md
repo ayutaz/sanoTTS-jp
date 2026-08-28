@@ -572,8 +572,11 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 
 1. ~~**【次】PIE カーネル。**~~ ✅ **実装完了**（M-57）。
    `saan_conv1d_i8a` の内積を `ee.vmulas.s8.accx` で書き直し、
-   **QEMU で bit 完全一致**を確認（陰性対照つき）。**MAC の 77.1%** を覆う
-   （`cin % 16 == 0` の層のみ。残りは activation のパディングが要る）。
+   **QEMU で bit 完全一致**を確認（陰性対照つき）。活性化ストライドを
+   `align16(cin)` にパディングして **MAC の 99.40%** を覆う（M-58）。
+   ⚠️ **残る 0.60% は depthwise で原理的に載らない**（チャネル方向のギャザー）。
+   ⚠️ **出荷ファームではまだ無効** — `esp32/components/saanotts_core/CMakeLists.txt`
+   が `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない。**W8A8 を採る決定が要る**。
    ⚠️ **速度は一度も測っていない。QEMU はサイクル精度ではない。**
    ✅ **toolchain も QEMU も導入済み**
    （ESP-IDF v5.5 / GCC 14.2.0 / qemu-xtensa 9.0.0）。

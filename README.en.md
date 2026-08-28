@@ -47,7 +47,7 @@ supports the direction.
 
 **The PIE kernel is written** — the dot product now uses `ee.vmulas.s8.accx` (a 16-lane
 int8 multiply-accumulate), verified **bit-identical to the scalar path under QEMU**
-(covering 77.1% of the MACs).
+(covering **99.4%** of the MACs).
 
 ⚠️ **That still does not mean it got faster.** QEMU is not cycle-accurate, so **speed has
 never been measured**. Whether it reaches 0.22× real-time can only be settled on real

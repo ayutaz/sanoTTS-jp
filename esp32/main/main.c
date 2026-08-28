@@ -1,8 +1,11 @@
 /* sanoTTS-jp — ESP32-S3 の雛形（c'-4）
  *
- * ⚠️⚠️ **一度もビルドしていない。実機で動かしてもいない。** ⚠️⚠️
- *    この雛形を書いた環境に ESP-IDF も xtensa toolchain も無い。
- *    手元で確認したのは
+ * ⚠️⚠️ **実機では一度も動かしていない。** ⚠️⚠️
+ *    ビルドは通る（2026-08-28 / ESP-IDF v5.5 / M-54。`saanotts_jp.bin` 267,968 B）。
+ *    QEMU も導入済みだが**サイクル精度ではないので速度は測れない**。
+ *    ⚠️ **この雛形は PIE を有効にしていない**（`components/saanotts_core/CMakeLists.txt`
+ *    が `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない）。W8A8 を採る決定が要る。
+ *    ビルドできるようになる前に確認していたのは
  *      (1) CMake の構文、
  *      (2) esp32/host_stub の偽ヘッダを噛ませたホストビルドと、I2S に書いたはずの
  *          int16 が **csrc の一括版 saan_synthesize の出力と bit 完全一致**すること

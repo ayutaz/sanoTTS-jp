@@ -31,14 +31,37 @@ idf_component_register(
     REQUIRES ""
 )
 
-# ⚠️ **`-std=c99` を足さないこと。** newlib の M_PI は __STRICT_ANSI__ の下で
-#    隠れることがあり、csrc/saanotts.c と csrc/saanotts_stream.c は M_PI を
-#    無条件に使う（Hann 窓の生成）。IDF 既定の gnu17 のままにする。
-#    csrc/Makefile が -std=c99 なのを見てここにも写す、が地雷。
-#    macOS の libc では -std=c99 でも M_PI が見えるので**手元では再現しない**。
+# ℹ️ **かつて「-std=c99 を足すな」と書いていたが、もう地雷ではない。**
+#    newlib の M_PI が __STRICT_ANSI__ の下で隠れる問題は実在し、実際に
+#    `xtensa-esp32s3-elf-gcc -std=c99` で saanotts.c:395 が落ちた（M-54）。
+#    **csrc/saanotts_internal.h で M_PI を定義して解決済み**なので、
+#    厳密 -std=c99 でも 5 ファイルすべてコンパイルが通る（実測）。
+#    IDF 既定の gnu17 のままにしておくが、足しても壊れない。
 #
 # ⚠️ **SAAN_FFT_DOUBLE と SAAN_USE_NAIVE_DFT は定義しない。**
 #    ESP32-S3 の FPU は単精度のみ。naive DFT は double の cos/sin を使うが、
 #    -O2 では未定義のままデッドコード除去される（`nm -u` で _cos/_sin が
 #    出ないことを手元で確認済み）。定義するとソフト浮動小数に落ちる。
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra)
+
+# --- PIE（ESP32-S3 の整数 SIMD）-------------------------------------------
+#
+# ⚠️ **現在このファームは PIE を使っていない。** 有効にするには次の 2 つを
+#    **両方**定義する（片方だけでは効かない）:
+#
+#      SAAN_INT8_ACT=1  … activation も int8 にする（W8A8）。PIE の前提。
+#                         W8A32（既定）は積和が fp32 なので整数 SIMD が効かない
+#      SAAN_PIE=1       … saan_conv1d_i8a の内積を ee.vmulas.s8.accx にする
+#
+#    正しさは QEMU で検証済み（MAC の 99.40% を PIE 化、bit 完全一致。M-57 / M-58）。
+#
+# ⚠️ **有効化には判断が要る**（未決）:
+#      - SNR が fp32 比 25.88 → 23.24 dB に落ちる
+#        （⚠️ ただし **SCOREQ では差が無い**。陽性対照つきで確認済み = M-55）
+#      - arena ピークが 196.9 → 201.1 KB になり、**自主基準 200 KB を 1.1 KB 超える**
+#        （SRAM 512 KB の 39%。下の g_arena 208 KB には収まる）
+#      - ⚠️ **速度は一度も測っていない。** QEMU はサイクル精度ではない。実機が要る
+#
+# 有効にするときはこの 2 行のコメントを外す:
+# target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
+# target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PIE=1)

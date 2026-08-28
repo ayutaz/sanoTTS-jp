@@ -1,6 +1,7 @@
 # sanoTTS-jp — ESP32-S3 の雛形（c'-4）
 #
-# ⚠️ **一度もビルドしていない。** この環境に ESP-IDF も xtensa toolchain も無い。
+# ⚠️ **実機では一度も動かしていない。** ビルドは通る（2026-08-28 / ESP-IDF v5.5 / M-54）。
+# 速度は QEMU では測れないので、実機（ESP32-S3 ボード）が来るまで未検証。
 #    手元で確認したのは CMake の構文とホスト stub ビルドだけ。詳細は README.md。
 #
 #   idf.py set-target esp32s3
