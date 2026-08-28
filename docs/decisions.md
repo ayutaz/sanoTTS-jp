@@ -1713,3 +1713,131 @@ M-50 の特異性対照では、**位相破壊（金属様の代理）に対し�
 
 ⚠️ **hook の誤検知は 5 回踏んでいる**ので、`git commit --amend` / `git add -A && git commit` /
 文字列の中の `git commit` / grep の引数 を allow 側の回帰に入れてある。
+
+---
+
+## D-035: 初期リリースは現行素材のまま配布する（帰属表示で対応）
+
+- 決定日: 2026-08-28
+- 状態: **確定**（ユーザー判断）
+
+**モデルを配布する方針に変わった**ため、素材のライセンスを一次ソースで再調査した。
+結果、**それまでの記録 3 件がすべて誤りだった**（C-029 / C-030 / C-031）。
+訂正後の実態はこうなる:
+
+| 素材 | 実際の条件 | 配布への影響 |
+|---|---|---|
+| Common Voice ja 9,954 行 | **CC0-1.0**（一次ソース確認） | なし |
+| ROHAN 4600 / ITA / 自作 4,559 行 | CC0-1.0 | なし |
+| **JSUT 6,472 行** | **CC-BY-SA 4.0 etc.** | ⚠️ **唯一の継承付き** |
+| つくよみちゃんコーパス（教師） | 30 条の 4 ベースの独自ライセンス。**モデル配布は明示的に許可** | **帰属表示が必須**・出力に禁止用途 |
+| MOE-Speech（教師 base の ja） | `license: other`（30 条の 4） | ユーザーが条件を受け入れ済み |
+
+**決定内容**:
+
+1. **教師は つくよみちゃんのまま**。差し替えは初期リリース後に行う
+2. **JSUT も入れたまま**にする
+3. 配布物には [`../NOTICE.md`](../NOTICE.md) の帰属表示ブロックを同梱する
+
+**理由**: つくよみちゃんの条件（帰属表示 + 出力の禁止用途 + 下流への義務伝播）を
+受け入れる以上、**JSUT の CC-BY-SA はそれより軽い**。ここだけ厳しくしても
+リリース全体の制約は つくよみちゃん側で決まる。
+
+⚠️ **残るリスク**: 「モデルは学習テキストの二次的著作物」という立場を取られると
+JSUT の継承によりモデルが CC-BY-SA になり、MIT 配布と衝突する。
+30 条の 4 により学習自体は許され本文も再配布していないため実務上は通ると判断したが、
+**ゼロではない**。第三者素材の義務を完全に無くすには
+**JSUT と つくよみちゃん（教師）を同時に外す**必要がある。
+
+⚠️ **`yumie-text-1.txt` 由来の 1,421 行だけは個別の CC0 waiver を確認できていない**
+（探した範囲: PR #3968 本文 / common-voice リポジトリ内 `yumie` 全文検索 0 件）。
+落としても CC0 分は 13,092 行残る。
+
+**将来の教師差し替え候補**（本日 HF を調査。いずれも未検証）:
+
+| 候補 | `.ckpt` | 構成 |
+|---|---|---|
+| `ayousanz/piper-plus-moe-speech-top-5speakers` | 151 件（〜epoch 199） | `num_symbols=58` / `num_speakers=5` / 日本語専用 / prosody・zero-shot なし。⚠️ `upsample_rates (8,8,4)` = **MB-iSTFT ではなく標準 HiFi-GAN**。音素表も別系統なので `vocab.py` の写像から作り直しになる |
+| `ayousanz/piper-plus-zero-shot-multi-7lang-v8` | 多数（v11 まで） | 現行教師の後継系。構成が近い可能性。**未確認** |
+
+いずれも `inter_channels=192` / `hop=256` / 22.05 kHz なので、**c-line の潜在
+インターフェースは移植可能**。
+
+再現:
+
+```bash
+uv run python -c "
+from huggingface_hub import hf_hub_download; import pathlib
+p = hf_hub_download('ayousanz/piper-plus-moe-speech-top-5speakers',
+                    'lightning_logs/version_2/hparams.yaml')
+print(pathlib.Path(p).read_text())"
+```
+
+---
+
+## C-029: Common Voice を「CC0 の根拠が弱い」と記録していた → 誤り
+
+`data-sources.yml` / `NOTICE.md` に
+「文自体を CC0 とする明示が確認できなかった（参照 URL 3 本とも 404 実測）」
+と書いていたが、**明示は存在した**。
+
+一次ソースは [common-voice リポジトリの README](https://github.com/common-voice/common-voice):
+
+> The majority of our sentence text in `/server/data` comes directly from user
+> submissions ... or they are scraped from Wikipedia ... and are released under a
+> **CC0 public domain Creative Commons license**.
+
+**何を間違えたか**: `server/data/ja/` の中に個別 LICENSE が無いことを確認して
+「明示なし」と結論した。**ディレクトリを見て、リポジトリのトップを見ていなかった。**
+`docs/SENTENCES.md` も探したが、これは**そもそも存在しないパス**だった（404 は
+ファイルが無いことを示していただけで、記載が無いことの証拠ではなかった）。
+
+⚠️ **404 を「記載が無い」の根拠にしない。** それは「そこには無い」しか言わない。
+C-016（「pip パッケージが無い」→ PyPI に普通にあった）と同じ形。
+
+README が挙げる唯一の例外 `europarl-VERSION-LANG.txt` は
+**日本語には存在しない**ことを実測で確認した（`server/data/ja/` は 3 ファイルのみ）。
+
+```bash
+gh api repos/common-voice/common-voice/contents/server/data/ja --jq '.[].name'
+```
+
+---
+
+## C-030: つくよみちゃんコーパスを `CC-BY-4.0` と記録していた → 誤り
+
+実際は[著作権法 30 条の 4 に基づく独自ライセンス](https://tyc.rei-yumesaki.net/material/corpus/)。
+**CC-BY-4.0 ではない。**
+
+実務上の差は小さくない:
+
+| | CC-BY-4.0 だと思っていた場合 | 実際 |
+|---|---|---|
+| モデル配布 | 「継承が未決なので配布しない」と判断していた | **明示的に許可されている** |
+| 帰属表示 | 一般的な CC 表記でよい | **指定の文面 + URL が必須** |
+| 出力の用途 | 制限なし | **個人攻撃 / 政治宗教 / アダルト / 素材再配布が禁止** |
+| 下流 | — | **再配布を受けた側にも義務が伝播** |
+
+**何を間違えたか**: `data-sources.yml` の `verified: false` を読んでいながら、
+**その値をそのまま docs に転記した**。`verified: false` は
+「まだ確かめていない」という意味であって、値の弱い保証ではない。
+
+⚠️ **`verified: false` の値を引用するときは、引用ではなく検証をする。**
+この誤りのせいで「CC-BY-SA の継承があるから重みを配布できない」という
+**存在しない障害**を D-006 以来ずっと記録し続けていた。
+
+---
+
+## C-031: MOE-Speech を `CC-BY-SA-4.0` と記録していた → 誤り
+
+実際は [litagin/moe-speech](https://huggingface.co/spaces/litagin/moe-speech-license) 由来で、
+HF 上の表示は `license: other`、**著作権法 30 条の 4（情報解析のための利用）**に基づく。
+CC-BY-SA ではないので、**継承の議論はそもそも発生しない**。
+
+**何を間違えたか**: C-030 と同じ。`data-sources.yml` の
+`spdx: "CC-BY-SA-4.0" / verified: false` を検証せずに転記した。
+
+⚠️ **piper-plus 側の `data-sources.yml:25` は現在もこの誤った記載のまま**
+（piper-plus は読み取り専用なので本リポジトリからは変更しない）。
+
+**3 件が 3 件とも同じ形**である: **台帳の `verified: false` を一次ソース扱いした。**

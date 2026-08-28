@@ -71,8 +71,8 @@ uv run python scripts/test_labelpack.py
 
 | | Why |
 |---|---|
-| **Hear the audio** | Synthesized audio is not distributed. The teacher corpus is CC-BY-SA and the inheritance question is unresolved |
-| **Trained weights** | Same reason. `csrc/*.bin` is not part of the distribution |
+| **Hear the audio** | Synthesized audio is not distributed yet (**planned for the initial release**) |
+| **Trained weights** | Not distributed yet (**planned for the initial release**). `csrc/*.bin` is not part of the distribution today |
 | **Label generation / training** | The teacher checkpoint lives in a private repository |
 | **`make -C csrc all-test`** | Needs the weights, so it does not pass in a fresh clone |
 
@@ -162,5 +162,6 @@ corpus text (83 regression cases).
 ## License
 
 Code and documentation are [MIT](LICENSE).
-**Model weights, synthesized audio, and corpus text are not distributed** — see
-[`NOTICE.md`](NOTICE.md) for why.
+**Corpus text is not distributed.** Model weights and synthesized audio are **planned for
+the initial release**; distributing them requires attribution to the Tsukuyomi-chan corpus
+and others — see [`NOTICE.md`](NOTICE.md).
