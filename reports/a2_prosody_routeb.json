@@ -8,11 +8,11 @@
    "sentence_exact_pct": 99.097,
    "token_exact_pct": 99.9185,
    "mismatch_examples": [
-    "もっとも、この両国は、絶えずお互に行ったり来たりしているので、両方の国語で話がで",
-    "耳をすぐ私のそばに持って来て、聞いてくれるのですが、駄目でした。私たちの言い合っ",
-    "クレンペ教頭は無骨な男だが、自分の学問の秘密には深く浸っていた。",
-    "しかし、現在では、動物界との系統関係は否定され、むしろ、単細胞藻類であ毛藻類、マ",
-    "あーあ、この長雨にはもう、うんざり。"
+    "<redacted: corpus text>",
+    "<redacted: corpus text>",
+    "<redacted: corpus text>",
+    "<redacted: corpus text>",
+    "<redacted: corpus text>"
    ]
   },
   "embedded": {
@@ -26,11 +26,11 @@
    "sentence_exact_pct": 99.84,
    "token_exact_pct": 99.9826,
    "mismatch_examples": [
-    "この値段で売れちゃうかあ",
-    "銀行員は印鑑なんて預かりません。あ、銀行印のことですか。",
-    "この学校、ゴルフ部まであるのかあ",
-    "私の意識現象が多なると共に私の意識として一であるというのは、右の如き意昧において",
-    "味は普通だがおかわり自由"
+    "<redacted: corpus text>",
+    "<redacted: corpus text>",
+    "<redacted: corpus text>",
+    "<redacted: corpus text>",
+    "<redacted: corpus text>"
    ]
   }
  }

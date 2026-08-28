@@ -10,7 +10,9 @@
 set -u
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-CORE="saanotts.c saanotts_stream.c fft.c saanotts_int8.c"
+# ⚠️ g2p.c も含める。esp32/main/main.c が saan_g2p() を呼ぶので
+#    「ホスト専用 API を参照していない」ゲートの対象に入っていないといけない
+CORE="saanotts.c saanotts_stream.c fft.c saanotts_int8.c g2p.c"
 FAIL=0
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -56,7 +58,7 @@ printf '  %-22s %-6s %s\n' "ファイル" "役割" "ホスト専用 API"
 for f in csrc/*.c; do
     b="$(basename "$f")"
     case "$b" in
-        saanotts.c|saanotts_stream.c|fft.c|saanotts_int8.c) role="コア" ;;
+        saanotts.c|saanotts_stream.c|fft.c|saanotts_int8.c|g2p.c) role="コア" ;;
         *) role="テスト" ;;
     esac
     hits="$(grep -cE '\b(malloc|calloc|realloc|free|fopen|fclose|fread|fwrite|fseek|ftell|printf|fprintf|exit|clock_gettime|mmap)\s*\(' "$f")"
@@ -147,6 +149,7 @@ if cc -std=gnu17 -O2 -Wall -Wextra -Werror \
      esp32/main/main.c esp32/main/saan_model.c esp32/main/saan_i2s.c \
      esp32/host_stub/stubs.c esp32/host_stub/host_main.c \
      csrc/saanotts.c csrc/saanotts_stream.c csrc/fft.c csrc/saanotts_int8.c \
+     csrc/g2p.c \
      -lm 2>"$TMP/hw"; then
     ok "esp32/main の 3 ファイル + stub が 0 warning / 0 error でビルドできる"
 else

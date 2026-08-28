@@ -1,0 +1,18 @@
+{
+  "table_sha256": "9bd232f9c4865163a78b987ce86f7268721c1e23e4304f1770e292bb92a69074",
+  "table_entries": 195,
+  "n_allophone_rules": 21,
+  "vocab_size": 57,
+  "n_vectors": 26265,
+  "n_ok": 26235,
+  "n_error_expected": 30,
+  "total_ids": 3092392,
+  "max_ids": 543,
+  "dropped_long": 23,
+  "dropped_devoice": 6,
+  "file_bytes": 16304032,
+  "file_sha256": "f5a5927e68525f6f5ad9762b786951dd12ba2301a4df510ce11dae19107e32a7",
+  "rows_scanned": 23501,
+  "host_g2p_failures": 55,
+  "vectors": 23446
+}

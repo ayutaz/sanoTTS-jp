@@ -13,15 +13,20 @@ if(NOT EXISTS "${SAAN_CSRC}/saanotts.c")
         "esp32/ はリポジトリ直下に置くこと（esp32/../csrc が推論コア）")
 endif()
 
-# ⚠️ **4 ファイルすべてが要る。** saanotts_int8.c には saan_w / saan_conv1d_w /
+# ⚠️ **コア 4 ファイルすべてが要る。** saanotts_int8.c には saan_w / saan_conv1d_w /
 #    saan_dwconv1d_w / saan_act_scratch_needed があり、saanotts.c と
 #    saanotts_stream.c の両方がこれを参照する。3 ファイルではリンクできない
 #    （csrc/Makefile の CORE と同じ並び。片方だけ増やさないこと）。
+#
+# ⚠️ **g2p.c はコアではなく独立した翻訳単位**（推論コアを 1 行も参照しない）が、
+#    esp32/main/main.c が saan_g2p() を呼ぶのでここに並べる。csrc/Makefile の
+#    CORE には入れない（golden_test 等はリンクしないため）。**非対称なのは意図的。**
 idf_component_register(
     SRCS "${SAAN_CSRC}/saanotts.c"
          "${SAAN_CSRC}/saanotts_stream.c"
          "${SAAN_CSRC}/fft.c"
          "${SAAN_CSRC}/saanotts_int8.c"
+         "${SAAN_CSRC}/g2p.c"
     INCLUDE_DIRS "${SAAN_CSRC}"
     REQUIRES ""
 )

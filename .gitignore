@@ -66,6 +66,7 @@ __pycache__/
 /csrc/int8_e2e_test
 /csrc/stream_test
 /csrc/arena_stress
+/csrc/g2p_test
 # モデルの重み。⚠️ 教師コーパスのライセンス継承の議論があるので配布しない
 /reports/**/*.pt
 

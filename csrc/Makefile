@@ -7,7 +7,9 @@
 #   make int8-e2e  int8 経路の end-to-end（fp32 経路との波形 SNR。D-3c'-2）
 #   make arena     arena ストレス（ESP32 の静的 arena を決める・c'-4）
 #   make bench     レイテンシ測定（段別の内訳）
-#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena
+#   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
+#   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
+#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p
 #
 # ⚠️ **naive DFT は消していない。** `make CFLAGS_EXTRA=-DSAAN_USE_NAIVE_DFT test` で
 #    切り替わる。FFT の検証基準として残してある（D-3a）。
@@ -18,7 +20,8 @@ LDLIBS       := -lm
 # ⚠️ **saanotts_int8.c はコアの一部。** `saan_w` / `saan_conv1d_w` /
 #    `saan_dwconv1d_w` / `saan_act_scratch_needed` がここにあり、
 #    saanotts.c と saanotts_stream.c の両方が参照する。外すとリンクできない。
-#    ESP-IDF の component もこの 4 ファイルを SRCS に並べること。
+#    ESP-IDF の component もこの 4 ファイル **+ g2p.c** を SRCS に並べること
+#    （g2p.c はコアを参照しない独立の翻訳単位だが main.c が saan_g2p() を呼ぶ）。
 CORE         := saanotts.c saanotts_stream.c fft.c saanotts_int8.c
 HDRS         := saanotts.h saanotts_stream.h saanotts_internal.h fft.h saanotts_int8.h
 
@@ -57,7 +60,30 @@ arena_stress: arena_stress.c $(CORE) $(HDRS)
 bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)
 
-.PHONY: test stream fft int8 int8-golden int8-e2e arena run-bench all-test clean
+# --- 端末側 G2P（かな中間表現 → 生徒インデックス列）------------------------
+# ⚠️ **推論コアに依存しない独立の翻訳単位。** libm も要らないので $(LDLIBS) 無し。
+# ⚠️ `g2p_table.h` は**生成物**（コミット済み）。piper-plus の phonemizer が
+#    変わったら `uv run python scripts/gen_g2p_tables.py` を打ち直すこと。
+#    打ち忘れは `make g2p` の G1（SHA-256 一致）が落として教えてくれる。
+g2p_test: g2p_test.c g2p.c g2p.h g2p_table.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ g2p_test.c g2p.c
+
+# 自己完結ベクタ。mora テーブルだけから機械生成するので**コーパス本文を含まない**。
+# ⚠️ `/csrc/*.bin` は .gitignore 済み。クリーン clone では毎回生成する
+g2p_vectors.bin:
+	cd .. && uv run python scripts/gen_g2p_vectors.py --closed \
+	    --out csrc/g2p_vectors.bin --manifest csrc/g2p_vectors.json
+
+# コーパス全行（23,000 行級）。中間表現と期待 ids だけで、原文も uid も入らない。
+# ⚠️ `--closed` も必ず付ける。コーパス由来のベクタは**全件が正常系**で、
+#    エラー期待が 1 件も無いと G2（allow/deny 両側）と G8（黙って落ちる件数）が
+#    空虚になる（実測: コーパスだけだと `ー` drop 0 / `°` drop 0）。
+g2p_vectors_corpus.bin:
+	cd .. && uv run python scripts/gen_g2p_vectors.py --closed --corpus \
+	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
+
+.PHONY: test stream fft int8 int8-golden int8-e2e arena run-bench g2p g2p-corpus \
+        all-test clean
 test: golden_test
 	./golden_test student.bin golden.bin
 
@@ -85,10 +111,21 @@ arena: arena_stress
 run-bench: bench
 	./bench --weights student.bin --json ../reports/d3b_latency_fft.json --label fft
 
+# 端末側 G2P。Python (scripts/kana_g2p.py) と ids が**整数として完全一致**するか。
+g2p: g2p_test g2p_vectors.bin
+	./g2p_test g2p_vectors.bin --min-vectors 2700
+
+# コーパス全行。`data/splits/corpus_*.tsv` を要求するので **all-test には入れない**
+# （クリーン clone では走らない。`test`/`stream`/`arena` が student.bin を要るのと同じ理由）。
+g2p-corpus: g2p_test g2p_vectors_corpus.bin
+	./g2p_test g2p_vectors_corpus.bin --min-vectors 23000
+
 # `arena` も all-test に入れる。かつては saan_alloc の失敗が粘着せず
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
-all-test: test stream fft int8 int8-golden int8-e2e arena
+# `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p
 
 clean:
-	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress
+	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress \
+	      g2p_test

@@ -25,12 +25,16 @@ import csv
 import json
 import pathlib
 
-#: 本文が入るキー（実測で特定した 5 つ）。
-#: ⚠️ 新しいレポートを足したら `--check` で確認すること
-TEXT_KEYS = ("text", "ref", "student_hyp", "teacher_hyp",
-             "example_divergent_sentence", "word",
-             "heldout", "train")   # corpus_stats.json の near_dup_examples
+#: ⚠️ **キー名で判定しない。** かつて許可リスト方式（下記）だったが、
+#: リストに無いキー（`mismatch_examples` / `L3_student_hyp`）の本文を素通しし、
+#: **公開済みリポジトリに 32 箇所の本文を残した**（C-028）。
+#: 判定は「値がコーパス本文と一致するか」だけで行う。キー名は報告にのみ使う。
+#: 旧: TEXT_KEYS = ("text", "ref", "student_hyp", ...)
 PLACEHOLDER = "<redacted: corpus text>"
+
+#: 照合する最小文字数。これ未満は「本文の再配布」に当たらないので見ない。
+#: ⚠️ 下げると単独モーラ・単語が誤検知される（C-028）。
+MIN_TEXT_LEN = 8
 
 
 def load_corpus_texts() -> set[str]:
@@ -40,8 +44,13 @@ def load_corpus_texts() -> set[str]:
         if not p.exists():
             continue
         for r in csv.reader(open(p), delimiter="\t"):
+            # ⚠️ **短い文字列を照合対象にしない。** 単独のモーラ（`し` など）が
+            #    コーパス行と一致すると、無関係な評価データまで伏せてしまう
+            #    （C-028 の修正時に実際に踏んだ）。**再配布が問題になるのは文であって字ではない。**
             if r and r[0] != "source" and len(r) >= 3:
-                out.add(r[2].strip())
+                t = r[2].strip()
+                if len(t) >= MIN_TEXT_LEN:
+                    out.add(t)
     return out
 
 
@@ -52,13 +61,20 @@ def scrub(obj, texts: set[str], stat: dict):
                     else scrub(v, texts, stat))
                 for k, v in obj.items()}
     if isinstance(obj, list):
-        return [scrub(x, texts, stat) for x in obj]
+        # ⚠️ **リスト直下の素の文字列も検査する。**
+        #    以前は `scrub(x)` に丸投げしていたため、文字列が最後の `return obj` で
+        #    素通りし、`mismatch_examples: ["<本文>", ...]` を取りこぼした（C-028）。
+        return [(_redact("[]", x, texts, stat) if isinstance(x, str)
+                 else scrub(x, texts, stat)) for x in obj]
+    if isinstance(obj, str):
+        return _redact("<root>", obj, texts, stat)
     return obj
 
 
 def _redact(key: str, val: str, texts: set[str], stat: dict) -> str:
     s = val.strip()
-    if key in TEXT_KEYS and (s in texts or _contains(s, texts)):
+    # ⚠️ **キー名を条件にしない**（C-028）。値がコーパス本文なら、どのキーでも落とす。
+    if s in texts or _contains(s, texts):
         stat[key] = stat.get(key, 0) + 1
         return PLACEHOLDER
     return val
@@ -74,7 +90,9 @@ def _contains(s: str, texts: set[str]) -> bool:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
-    ap.add_argument("--root", default="reports",
+    # ⚠️ **既定で追跡対象すべてを見る**（C-028）。`reports` だけを見ていたため
+    #    `csrc/ids_heldout.json` の本文 24 件を取りこぼし、公開してしまった。
+    ap.add_argument("--root", default="reports,csrc,data/splits,esp32",
                     help="複数指定は --root A --root B ではなくカンマ区切り")
     args = ap.parse_args()
 

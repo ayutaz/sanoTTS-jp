@@ -10,12 +10,15 @@
  *           ⚠️ Python 参照の golden.bin とは bit 一致しない — fp32 で max 1 LSB、
  *           int8 は量子化ぶん違う。判定基準が違うので README を読むこと）、
  *      (3) csrc のコアにホスト専用 API（malloc / fopen / mmap …）が無いこと、
- *      (4) arena のサイズと「足りないときの壊れ方」
- *    の 4 つだけ。**idf.py build / flash / 実 SRAM / 実レイテンシは全部未検証。**
+ *      (4) arena のサイズと「足りないときの壊れ方」、
+ *      (5) `saan_g2p()` が中間表現 44 B から demo_ids.h の錨 53 ids を再現すること
+ *          （錨を 1 要素・中間表現を 1 文字だけ変えると exit 1 で落ちることも確認）
+ *    の 5 つだけ。**idf.py build / flash / 実 SRAM / 実レイテンシは全部未検証。**
  *    詳細は esp32/README.md。
  *
  * 流れ:
  *   flash の model パーティションを mmap
+ *     → **中間表現の文字列を saan_g2p() で生徒インデックス列に変換**
  *     → 静的 arena で saan_stream_init
  *     → 数チャンク先に計算してプリロール（初回 pull だけ約 6 倍重いため）
  *     → I2S を enable
@@ -38,6 +41,8 @@
 
 #include "saanotts.h"
 #include "saanotts_stream.h"
+
+#include "g2p.h"
 
 #include "demo_ids.h"
 #include "saan_i2s.h"
@@ -92,6 +97,19 @@ static __attribute__((aligned(16))) uint8_t g_arena[SAAN_ARENA_BYTES];
  * ⚠️ Xtensa では別の値になる）。IDF の小さい既定スタックでは足りない。 */
 static float g_chunk[SAAN_CHUNK * SAAN_HOP];
 
+/* --- 端末側 G2P ----------------------------------------------------------
+ *
+ * 入力は**かな中間表現**（`SAAN_DEMO_INTERMEDIATE`）。漢字は端末で扱わない
+ * （D-010 / D-011）。表は csrc/g2p_table.h に 913 B。
+ *
+ * ⚠️ **`saan_g2p_capacity()` と同じ式を使う。** 上限は `2 * バイト数 + 3`。
+ *    足りないと SAAN_G2P_ERR_OVERFLOW で**きれいに失敗する**（黙って切り詰めない）。 */
+#define SAAN_G2P_IDS_CAP (2 * SAAN_DEMO_INTERMEDIATE_BYTES + 3)
+static int32_t g_ids[SAAN_G2P_IDS_CAP];
+
+/* C99 には _Static_assert が無いので配列サイズで潰す（IDF は gnu17 だが csrc に合わせる） */
+typedef char saan_g2p_cap_check[(SAAN_G2P_IDS_CAP >= SAAN_DEMO_N_IDS) ? 1 : -1];
+
 /* 合成タスクのスタック。saan_irfft_1024 の 4 KB + 呼び出し段 + ログで、
  * IDF の小さい既定スタックでは足りない。**16 KB を明示する**。
  * ⚠️ 実機で `uxTaskGetStackHighWaterMark` を見て詰めること（未測定）。 */
@@ -110,21 +128,63 @@ static void log_heap(const char *when) {
 static void tts_task(void *arg) {
     (void)arg;
     log_heap("起動直後");
-    ESP_LOGI(TAG, "arena %d B を .bss に静的確保 (%p)",
-             (int)SAAN_ARENA_BYTES, (void *)g_arena);
+    ESP_LOGI(TAG, "arena %d B を .bss に静的確保 (%p) / G2P の ids %d B",
+             (int)SAAN_ARENA_BYTES, (void *)g_arena, (int)sizeof g_ids);
 
     saan_weights w;
     if (!saan_model_open(&w)) { vTaskDelete(NULL); return; }
 
     if (!saan_i2s_setup(SAAN_SR)) { vTaskDelete(NULL); return; }
 
+    /* --- 端末側 G2P --------------------------------------------------------
+     *
+     * ⚠️ **kSaanDemoIds は入力ではなく答え合わせの錨。** 合成に使うのは
+     *    saan_g2p() が今その場で作った g_ids の方。錨と食い違ったら
+     *    **走らせない** — この雛形の目的は「音が出た」ではなく
+     *    「Python と同じ列になっている」ことの確認なので、ずれたまま
+     *    それらしい音を出すのが一番悪い（未知語が無音で消えるのと同じ壊れ方）。 */
+    /* ⚠️ **上の #define は saan_g2p_capacity() の式を写したもの**（配列サイズには
+     *    関数を書けない）。**2 か所にある式は必ずずれる**ので、実体と突き合わせる。 */
+    if (SAAN_G2P_IDS_CAP < saan_g2p_capacity(SAAN_DEMO_INTERMEDIATE_BYTES)) {
+        ESP_LOGE(TAG, "SAAN_G2P_IDS_CAP (%d) が saan_g2p_capacity() (%d) より小さい。"
+                      "main.c の式が csrc/g2p.c とずれている",
+                 (int)SAAN_G2P_IDS_CAP,
+                 (int)saan_g2p_capacity(SAAN_DEMO_INTERMEDIATE_BYTES));
+        vTaskDelete(NULL); return;
+    }
+
+    int32_t n_ids = 0;
+    saan_g2p_info gi;
+    int64_t t_g2p = esp_timer_get_time();
+    saan_g2p_status gs = saan_g2p(SAAN_DEMO_INTERMEDIATE, SAAN_DEMO_INTERMEDIATE_BYTES,
+                                  g_ids, SAAN_G2P_IDS_CAP, &n_ids, &gi);
+    t_g2p = esp_timer_get_time() - t_g2p;
+    if (gs != SAAN_G2P_OK) {
+        ESP_LOGE(TAG, "saan_g2p: %s (err_byte=%d)", saan_g2p_strerror(gs), (int)gi.err_byte);
+        vTaskDelete(NULL); return;
+    }
+    ESP_LOGI(TAG, "G2P: \"%s\" (%d B) -> %d ids / %.3f ms",
+             SAAN_DEMO_INTERMEDIATE, (int)SAAN_DEMO_INTERMEDIATE_BYTES,
+             (int)n_ids, (double)t_g2p / 1000.0);
+    ESP_LOGI(TAG, "     音素 %d 個（うち PAD %d）/ 黙って落ちた ー %d ・ ° %d",
+             (int)gi.n_phonemes, (int)gi.n_pad_phonemes,
+             (int)gi.n_dropped_long, (int)gi.n_dropped_devoice);
+    if (n_ids != SAAN_DEMO_N_IDS
+        || memcmp(g_ids, kSaanDemoIds, sizeof kSaanDemoIds) != 0) {
+        ESP_LOGE(TAG, "G2P の出力が demo_ids.h の錨と一致しない（%d ids / 期待 %d）。"
+                      "**テーブルか実装がずれている** — "
+                      "`make -C csrc g2p` と `uv run python scripts/gen_g2p_tables.py` を見ること",
+                 (int)n_ids, (int)SAAN_DEMO_N_IDS);
+        vTaskDelete(NULL); return;
+    }
+    ESP_LOGI(TAG, "     OK  %d ids が demo_ids.h の錨と完全一致", (int)n_ids);
+
     saan_arena a;
     saan_arena_init(&a, g_arena, sizeof g_arena);
 
     saan_stream st;
     int64_t t_init = esp_timer_get_time();
-    saan_status s = saan_stream_init(&st, &w, &a, kSaanDemoIds,
-                                     SAAN_DEMO_N_IDS, SAAN_S_V);
+    saan_status s = saan_stream_init(&st, &w, &a, g_ids, n_ids, SAAN_S_V);
     t_init = esp_timer_get_time() - t_init;
     if (s != SAAN_OK) {
         ESP_LOGE(TAG, "saan_stream_init: %s", saan_strerror(s));
@@ -143,7 +203,7 @@ static void tts_task(void *arg) {
     }
 
     const double audio_s = (double)st.n_frames * SAAN_HOP / SAAN_SR;
-    ESP_LOGI(TAG, "入力: \"%s\" (%d ids)", SAAN_DEMO_TEXT, (int)SAAN_DEMO_N_IDS);
+    ESP_LOGI(TAG, "入力: \"%s\" (%d ids)", SAAN_DEMO_TEXT, (int)n_ids);
     ESP_LOGI(TAG, "init %.2f ms / %d frames / %d sample / 音声 %.3f s",
              (double)t_init / 1000.0, (int)st.n_frames,
              (int)st.n_frames * SAAN_HOP, audio_s);

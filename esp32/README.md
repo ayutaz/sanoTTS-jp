@@ -36,7 +36,7 @@
 
 | # | ゲート | 何が言えるか |
 |---|---|---|
-| 1 | コア 4 ファイルが `-std=gnu17 -O2 -Wall -Wextra -Werror` で警告 0 | IDF 既定の方言でコンパイルは通る |
+| 1 | コア 4 ファイル **+ `g2p.c`** が `-std=gnu17 -O2 -Wall -Wextra -Werror` で警告 0 | IDF 既定の方言でコンパイルは通る |
 | 2 | `nm -u` に malloc / free / fopen / mmap / POSIX / printf が **1 つも無い** | コアはベアメタルに載る形をしている |
 | 3 | csrc のホスト専用 API はすべてテストコード側 | コアとテストの境界が守られている |
 | 4 | blob の全テンソル offset が 16 の倍数 | **base さえ 16 バイト境界なら**全テンソルが揃う |
@@ -276,7 +276,7 @@ newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、
 （S3 の FPU は単精度のみ。naive DFT は double の `cos`/`sin` を使うが、
 `-O2` では未定義のままデッドコード除去されることを `nm -u` で確認済み）。
 
-### 8. コアの 4 ファイルは csrc から**直接参照**する
+### 8. コアの 4 ファイル + `g2p.c` は csrc から**直接参照**する
 
 `components/saanotts_core/CMakeLists.txt` が相対パスで `csrc/` を指す。
 **コピーもシンボリックリンクもしない** —「同じものを 2 か所に書かない」。
@@ -284,6 +284,10 @@ newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、
 ⚠️ **4 ファイルすべてが要る。** `saanotts_int8.c` に `saan_w` /
 `saan_conv1d_w` / `saan_dwconv1d_w` / `saan_act_scratch_needed` があり、
 `saanotts.c` と `saanotts_stream.c` の両方が参照する。3 ファイルではリンクできない。
+
+⚠️ `g2p.c` は**コアを 1 行も参照しない独立の翻訳単位**だが、`main.c` が
+`saan_g2p()` を呼ぶのでここに並べる。`csrc/Makefile` の `CORE` には入っていない
+（`golden_test` 等はリンクしない）。**非対称なのは意図的。**
 
 ---
 
@@ -316,18 +320,33 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 
 ## この雛形がやっていないこと
 
-### 端末側 G2P
+### 端末側 G2P は**入った**（が、実機では動かしていない）
 
-**無い。** かな中間表現 → 音素ID の C99 実装（`scripts/kana_g2p.py` の
-`intermediate_to_phonemes` と `src/saanotts_jp/vocab.py` の `TEACHER_TO_STUDENT`）は
-このタスクの範囲外で、**別タスク**。
+`csrc/g2p.c` + `csrc/g2p_table.h`（自動生成）。`main.c` は
+`SAAN_DEMO_INTERMEDIATE`（かな中間表現 44 B）を `saan_g2p()` に通し、
+**その出力を合成に使う**。`kSaanDemoIds` は入力ではなく**答え合わせの錨**で、
+食い違ったら合成せずに `ESP_LOGE` で止まる。
 
-雛形は `csrc/golden.bin` から生成した**固定の 53 音素ID**で音が出るところまでを
-目標にしている（`main/demo_ids.h`、原文「今日は良い天気ですね。」）。
+⚠️ **手元で確かめたのはホスト stub までで、実機では 1 度も走らせていない。**
+ホストでは以下を確認した:
 
-⚠️ CLAUDE.md が書いているとおり **「オンデバイス G2P が成立しなければ
-プロジェクトの意味が無い」**。固定 ID 列で音が出ても G2P は 1 行も進んでいない。
-**雛形の完成度と混同しないこと。**
+* `make -C csrc g2p` — Python (`scripts/kana_g2p.py`) と **ids が整数として完全一致**
+  （自己完結ベクタ 2,789 件）。`make -C csrc g2p-corpus` ではコーパス全行込みで
+  **26,235 / 26,235**
+* ホスト stub で `saan_g2p()` の 53 ids が `demo_ids.h` の錨と一致し、
+  合成結果が C 一括版と **bit 完全一致**
+* 錨を 1 要素、中間表現を 1 文字だけ変えると**どちらも exit 1 で落ちる**ことを確認
+
+⚠️ **実機のレイテンシは未測定。** 手元（M4 Max / arm64 clang -O2）の定常値は
+**44 B → 53 ids で 0.34〜0.54 us、450 B → 543 ids で 4.7 us**（20 万回ループ・
+結果を volatile に足して最適化除去を防いだ値、2 回実行のばらつき込み）。
+合成 1 チャンク（92.88 ms の音声）に対して**無視できる**。
+⚠️ ホスト stub のログに出る `0.05 ms` は**冷えた 1 回目**で、定常値ではない。
+⚠️ ESP32-S3 の値ではない。
+
+⚠️ **漢字は端末で扱わない**（D-010 / D-011）。中間表現を作るのはホスト側
+（OpenJTalk）で、`scripts/gen_demo_ids.py` がそれをやっている。
+**「文字列を渡せば喋る」ところまでは行っていない。**
 
 ### そのほか
 
@@ -349,11 +368,11 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | `CMakeLists.txt` | トップ。`model` パーティションへの blob 焼き込みもここ |
 | `partitions.csv` | カスタムパーティション表（既定では blob が入らない） |
 | `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション |
-| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイルを直接参照 |
+| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` を直接参照 |
 | `main/main.c` | arena・プリロール・合成ループ・計測ログ |
 | `main/saan_model.{h,c}` | flash mmap → `saan_weights`（16 バイト境界を検査） |
 | `main/saan_i2s.{h,c}` | I2S 設定 / プリロール / float→int16 |
-| `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`） |
+| `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
 | `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
 
 検査スクリプト（リポジトリのルートから）:

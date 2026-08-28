@@ -1,0 +1,15 @@
+{
+  "table_sha256": "9bd232f9c4865163a78b987ce86f7268721c1e23e4304f1770e292bb92a69074",
+  "table_entries": 195,
+  "n_allophone_rules": 21,
+  "vocab_size": 57,
+  "n_vectors": 2819,
+  "n_ok": 2789,
+  "n_error_expected": 30,
+  "total_ids": 24450,
+  "max_ids": 543,
+  "dropped_long": 23,
+  "dropped_devoice": 6,
+  "file_bytes": 265928,
+  "file_sha256": "6d2a1ac510ffc9b5e955612c625f65f29c056b10aecf1d5542be1a0b942a9716"
+}

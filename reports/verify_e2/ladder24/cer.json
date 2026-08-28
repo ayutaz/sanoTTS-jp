@@ -194,7 +194,7 @@
    "L2_oracle_d_hyp": "スマホでラジオを聞く人が増えてる",
    "L2_oracle_d_cer_surface": 0.058823529411764705,
    "L2_oracle_d_cer": 0.05555555555555555,
-   "L3_student_hyp": "スマホでラジオを聞く人が増えている",
+   "L3_student_hyp": "<redacted: corpus text>",
    "L3_student_cer_surface": 0.0,
    "L3_student_cer": 0.0
   },
