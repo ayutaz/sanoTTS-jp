@@ -53,6 +53,14 @@ int8_test: int8_test.c $(CORE) $(HDRS)
 int8_e2e_test: int8_e2e_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ int8_e2e_test.c $(CORE) $(LDLIBS)
 
+# 知覚評価用の PCM ダンプ（M-55）。**W8A32 と W8A8 を別バイナリで作る** —
+# 切り替えがコンパイル時なので、同じ名前で上書きすると**どちらを測ったか分からなくなる**
+dump_pcm_a32: dump_pcm.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ dump_pcm.c $(CORE) $(LDLIBS)
+
+dump_pcm_a8: dump_pcm.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o $@ dump_pcm.c $(CORE) $(LDLIBS)
+
 # arena ストレス（c'-4）。fork で SEGV を観測するので POSIX が要る = **ホスト専用**
 arena_stress: arena_stress.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -D_DARWIN_C_SOURCE -o $@ arena_stress.c $(CORE) $(LDLIBS)
@@ -82,7 +90,7 @@ g2p_vectors_corpus.bin:
 	cd .. && uv run python scripts/gen_g2p_vectors.py --closed --corpus \
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
-.PHONY: test stream fft int8 int8-golden int8-e2e arena run-bench g2p g2p-corpus \
+.PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes arena run-bench g2p g2p-corpus \
         all-test clean
 test: golden_test
 	./golden_test student.bin golden.bin
@@ -107,6 +115,23 @@ int8-e2e: int8_e2e_test student_i8.bin ids_heldout.bin
 
 arena: arena_stress
 	./arena_stress student.bin golden.bin
+
+# W8A8 の end-to-end SNR（PIE の前提。⚠️ **既定のゲートは満たさない** — M-55）
+# ⚠️ SNR は知覚に対応しない。判断は `make lanes` の SCOREQ で行うこと
+int8-e2e-a8: student_i8.bin ids_heldout.bin
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o int8_e2e_test_a8 \
+	    int8_e2e_test.c $(CORE) $(LDLIBS)
+	-./int8_e2e_test_a8 student.bin student_i8.bin golden.bin ids_heldout.bin \
+	    ../reports/d3c2_int8_e2e_w8a8.json
+
+# fp32 / W8A32 / W8A8 の 3 レーンを WAV に書き出して SCOREQ で比べる（M-55）。
+# ⚠️ **陽性対照つき**（同じ SNR の白色雑音で SCOREQ が下がることを先に示す）
+lanes: dump_pcm_a32 dump_pcm_a8 student_i8.bin ids_heldout.bin
+	mkdir -p ../reports/lanes/fp32 ../reports/lanes/w8a32 ../reports/lanes/w8a8
+	./dump_pcm_a32 student.bin ids_heldout.bin ../reports/lanes/fp32
+	./dump_pcm_a32 --ref student.bin student_i8.bin ids_heldout.bin ../reports/lanes/w8a32
+	./dump_pcm_a8  --ref student.bin student_i8.bin ids_heldout.bin ../reports/lanes/w8a8
+	cd .. && uv run --extra eval python scripts/d3_lane_scoreq.py --dir reports/lanes
 
 run-bench: bench
 	./bench --weights student.bin --json ../reports/d3b_latency_fft.json --label fft

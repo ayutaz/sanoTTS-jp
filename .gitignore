@@ -67,6 +67,15 @@ __pycache__/
 /csrc/stream_test
 /csrc/arena_stress
 /csrc/g2p_test
+/csrc/dump_pcm_a32
+/csrc/dump_pcm_a8
+/csrc/int8_e2e_test_a8
+
+# レーン比較の生成物（`make -C csrc lanes` で再生成できる）。
+# ⚠️ wav は *.wav で既に除外されるが、**ディレクトリごと**明示しておく。
+# ただし **測定結果の JSON は残す**（M-55 の一次記録）
+/reports/lanes/*
+!/reports/lanes/scoreq.json
 # モデルの重み。⚠️ 教師コーパスのライセンス継承の議論があるので配布しない
 /reports/**/*.pt
 
