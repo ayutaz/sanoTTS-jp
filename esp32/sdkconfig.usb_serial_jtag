@@ -1,0 +1,16 @@
+# コンソールを **native USB (USB Serial/JTAG)** に切り替える差分。
+#
+# ⚠️ **ESP32-S3 の DevKit には USB ポートが 2 つある。**
+#    既定 (`sdkconfig.defaults`) はコンソールが **UART0** なので、
+#    「UART」と書かれた側（CP2102 などの USB-シリアル変換）に挿す。
+#    **「USB」と書かれた native 側に挿すと、ログは見えるのに入力が届かない。**
+#    native 側 1 本で済ませたいときだけこれを重ねる:
+#
+#      idf.py -B build_usj -DSAAN_ENABLE_PIE=1 \
+#             -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.usb_serial_jtag" build
+#
+# ⚠️ **ボードによっては native USB が出ていない**（USB-シリアル変換しか無い）。
+#    そのときはこれを使わずに既定のままにすること。
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_UART_DEFAULT=n
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

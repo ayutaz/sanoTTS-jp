@@ -69,6 +69,15 @@ int16_t saan_f32_to_i16(float x) {
     return (int16_t)v;
 }
 
+void saan_i2s_pcm_reset(void) {
+    s_pcm_fnv = 1469598103934665603ull;   /* FNV-1a 64 bit のオフセット基底 */
+    s_pcm_n = 0;
+    s_pcm_absmax = 0;
+    s_pcm_sqsum = 0;
+    s_clips = 0;
+    s_preroll_fill = 0;   /* ⚠️ 前の発話の残りを次に混ぜない */
+}
+
 uint32_t saan_i2s_clip_count(void) { return s_clips; }
 uint64_t saan_i2s_pcm_checksum(void) { return s_pcm_fnv; }
 uint32_t saan_i2s_pcm_samples(void) { return s_pcm_n; }

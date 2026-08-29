@@ -204,6 +204,7 @@ sanoTTS-jp/
 └── scripts/
     ├── phase0_verify_teacher.py           教師の決定的推論を検証（6 チェック）
     ├── kana_g2p.py                        中間表現 ⇄ 音素列の変換器 + 入力正規化
+    ├── to_intermediate.py                 漢字文 → 端末に貼る 1 行（往復一致を検査）
     ├── gen_teacher_labels.py              中間表現 → 教師 → ラベルパック
     ├── b_durations_all.py                 全行の duration だけを取る（B-4/7/8 の土台）
     ├── train_student.py                   生徒 4 段の蒸留学習
@@ -244,6 +245,7 @@ uv sync --extra eval                             # 環境構築（初回・依�
 # 健全性チェック（ここが通らないなら先に進まない）
 uv run python scripts/phase0_verify_teacher.py   # 教師の疎通（6 チェック）
 uv run python scripts/kana_g2p.py                # 中間表現変換器（10 ケース）
+uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   # 端末に貼る 1 行
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）

@@ -6,7 +6,7 @@
 #    したがって **`driver` 1 本にしてある**のが保守的。
 #    ✅ **v5.5 でビルドが通ることを実測した**（2026-08-30）。
 idf_component_register(
-    SRCS "main.c" "saan_model.c" "saan_i2s.c"
+    SRCS "main.c" "saan_model.c" "saan_i2s.c" "saan_console.c"
     INCLUDE_DIRS "."
     REQUIRES saanotts_core driver esp_partition esp_timer
 )

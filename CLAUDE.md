@@ -114,6 +114,17 @@ arena・合成 27,136 sample・int16 変換まで動き、
 既定 blob も **int8 に切り替えた**（W8A8 は fp32 blob では 1 命令も効かないため、
 `main.c` が起動時に検査して止める）。実機テストの手順は `esp32/TESTING.md`。
 
+**同日、シリアルからの自由入力を足した**（M-63 / D-040）。起動時に錨の 1 文を
+喋ったあと `かな> ` プロンプトで **かな中間表現を 1 行**受ける。
+QEMU の UART に実際に打ち込み、**デモ文と同じ中間表現から起動時と同じ checksum**
+（`0x04de91103a0e49f9`）が出ることを確認した。
+漢字混じり文からの変換は **`uv run python scripts/to_intermediate.py "文"`**（ホスト）。
+⚠️ **端末では正規化も推定もしない**（`。` も拒否）。端末だけの規則を 1 つ足した時点で
+「ホストと端末で同じ列」という入力仕様の目的が崩れる。
+⚠️ **この経路で音では気づけない欠陥を 2 回出した**（CRLF で空行 / 行頭 1 文字が
+エコーされない）。どちらも**呼び出し側**の読み違いで、`make -C csrc line` の
+G9 / G10 で固定した。
+
 ⚠️ **ホストとターゲットは bit 一致しない。それは正常**（float の丸めが違う）。
 `|max|` 一致 + `Σx²` 相対差 1.6e-7 で丸め差と切り分ける。
 **bit 一致を主張してよいのは同じターゲット上の 2 構成を比べたときだけ。**
@@ -130,7 +141,7 @@ uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（83 ケー�
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / **pad**）
+                                                   #   g2p / pad / **line**）
 ```
 
 **ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56）:

@@ -19,14 +19,17 @@ endif()
 #    （csrc/Makefile の CORE と同じ並び。片方だけ増やさないこと）。
 #
 # ⚠️ **g2p.c はコアではなく独立した翻訳単位**（推論コアを 1 行も参照しない）が、
-#    esp32/main/main.c が saan_g2p() を呼ぶのでここに並べる。csrc/Makefile の
-#    CORE には入れない（golden_test 等はリンクしないため）。**非対称なのは意図的。**
+#    esp32/main/ がこれらを呼ぶのでここに並べる。csrc/Makefile の CORE には
+#    入れない（golden_test 等はリンクしないため）。**非対称なのは意図的。**
+#      g2p.c  … main.c が saan_g2p() を呼ぶ
+#      line.c … saan_console.c が saan_line_feed() を呼ぶ（行編集ステートマシン）
 idf_component_register(
     SRCS "${SAAN_CSRC}/saanotts.c"
          "${SAAN_CSRC}/saanotts_stream.c"
          "${SAAN_CSRC}/fft.c"
          "${SAAN_CSRC}/saanotts_int8.c"
          "${SAAN_CSRC}/g2p.c"
+         "${SAAN_CSRC}/line.c"
     INCLUDE_DIRS "${SAAN_CSRC}"
     REQUIRES ""
 )

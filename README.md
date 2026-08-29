@@ -112,6 +112,8 @@ uv run python scripts/test_labelpack.py
 - **C99 推論コア**（`csrc/`）— 依存は libm のみ。`malloc` を呼ばず arena を使う。
   ストリーミング版は一括版と **bit 完全一致**（27,136 sample）
 - **オンデバイス G2P**（`csrc/g2p.c`）— テーブル 913 B / コード 2.4 KB / **作業メモリ 0 B**
+- **端末での自由入力** — シリアルに かな中間表現を 1 行打つと喋る（`csrc/line.c` 369 B）。
+  漢字混じり文からは `uv run python scripts/to_intermediate.py "文"`（ホスト）
 - **蒸留の全経路** — 教師ラベル生成 → 4 段の学習 → 評価（SCOREQ / UTMOS / DNSMOS /
   かな CER / 音素クラス別スペクトル平坦度）
 
@@ -120,6 +122,8 @@ uv run python scripts/test_labelpack.py
 - **`csrc/`** — 依存なしの C99 推論コア。MCU に載る TTS のデコーダとして単体で読める
 - **`csrc/g2p.c` + `scripts/kana_g2p.py`** — かな中間表現の設計と C 実装。
   **日本語 TTS を組み込みに載せるときの G2P 問題への 1 つの答え**
+- **`csrc/line.c`** — 369 B の UTF-8 対応行編集。マイコンのシリアルで日本語を打たせるなら、
+  **矢印キーが記号を挿入する / BS が UTF-8 を割る**の 2 つは必ず踏む
 - **`docs/measurements.md`** — 全項目に再現コマンドを付けた実測記録。
   ESP32 のメモリ収支、esp-dsp のサイクル数からの外挿、日本語での MOS 予測器の較正など
 

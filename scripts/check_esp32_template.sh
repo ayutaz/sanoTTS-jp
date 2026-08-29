@@ -10,9 +10,9 @@
 set -u
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
-# ⚠️ g2p.c も含める。esp32/main/main.c が saan_g2p() を呼ぶので
-#    「ホスト専用 API を参照していない」ゲートの対象に入っていないといけない
-CORE="saanotts.c saanotts_stream.c fft.c saanotts_int8.c g2p.c"
+# ⚠️ g2p.c と line.c も含める。esp32/main/ が saan_g2p() / saan_line_feed() を
+#    呼ぶので、「ホスト専用 API を参照していない」ゲートの対象に入っていないといけない
+CORE="saanotts.c saanotts_stream.c fft.c saanotts_int8.c g2p.c line.c"
 FAIL=0
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
@@ -58,7 +58,7 @@ printf '  %-22s %-6s %s\n' "ファイル" "役割" "ホスト専用 API"
 for f in csrc/*.c; do
     b="$(basename "$f")"
     case "$b" in
-        saanotts.c|saanotts_stream.c|fft.c|saanotts_int8.c|g2p.c) role="コア" ;;
+        saanotts.c|saanotts_stream.c|fft.c|saanotts_int8.c|g2p.c|line.c) role="コア" ;;
         *) role="テスト" ;;
     esac
     hits="$(grep -cE '\b(malloc|calloc|realloc|free|fopen|fclose|fread|fwrite|fseek|ftell|printf|fprintf|exit|clock_gettime|mmap)\s*\(' "$f")"
@@ -130,7 +130,7 @@ grep -ohE '\bsaan_[a-z0-9_]+\s*\(' esp32/main/*.c \
 MISS=0
 while read -r sym; do
     case "$sym" in
-        saan_model_*|saan_i2s_*|saan_f32_to_i16|saan_stub_*) continue ;;  # 雛形自身の関数
+        saan_model_*|saan_i2s_*|saan_f32_to_i16|saan_stub_*|saan_console_*) continue ;;  # 雛形自身の関数
     esac
     if grep -qE "\b$sym\b" csrc/*.h; then
         printf '  OK  %-28s csrc のヘッダにある\n' "$sym"

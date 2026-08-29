@@ -78,4 +78,12 @@ uint32_t saan_i2s_pcm_samples(void);
 int32_t  saan_i2s_pcm_absmax(void);
 uint64_t saan_i2s_pcm_sqsum(void);
 
+/* 統計を発話の頭に戻す。**対話モードで 2 発話目以降を測るのに要る。**
+ *
+ * ⚠️ **これが無いと 2 発話目の checksum が「1 発話目 + 2 発話目」になる。**
+ *    しかも値は出るので、突き合わせて「合わない」と悩むまで気づけない。
+ * ⚠️ 起動直後の 1 発話目については、呼んでも呼ばなくても同じ値になる
+ *    （初期値 = FNV-1a のオフセット基底）。**M-62 の記録値は変わらない。** */
+void saan_i2s_pcm_reset(void);
+
 #endif /* SAAN_I2S_H */

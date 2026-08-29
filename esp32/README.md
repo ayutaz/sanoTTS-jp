@@ -11,7 +11,9 @@
 実機を持っている方への依頼は [`TESTING.md`](TESTING.md) にまとめてある。
 
 **2026-08-30 に QEMU で出荷ファームを起動から合成完了まで通した**（M-62）。
-ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 267,968 B（W8A8+PIE 版は 268,912 B）。
+同日、**シリアルから かなを自由入力できるようにし、QEMU の UART に実際に打ち込んだ**（M-63）。
+ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 284,832 B
+（W8A8+PIE 版は 286,176 B / コンソールを native USB にすると 271,776 B）。
 
 ⚠️ **しかし実機（ESP32-S3 ボード）が無いので、実機では動かしたことが無い。**
 ⚠️ **QEMU はサイクル精度ではないので、速度は一切測れていない。**
@@ -38,6 +40,7 @@ ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 267,968 B（W8A8+PIE �
 | 端末側 G2P | 44 B → **53 ids**、`demo_ids.h` の錨と**完全一致** / 0.602 ms |
 | 合成 | 106 frames / 27,136 sample / arena used 194,848 B |
 | **PIE の bit 一致** | **スカラ実装と 27,136 sample すべて一致**（陰性対照つき） |
+| **自由入力**（M-63） | UART0 に打ち込んで合成。デモ文と同じ中間表現から**起動時と同じ checksum** |
 
 ⚠️ **ホストとターゲットは bit 一致しない。それは正常**（float の丸めが違う）。
 `|max|` は一致し `Σx²` の相対差は 1.6e-7 なので丸め差と切り分けられる。
@@ -296,7 +299,7 @@ newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、
 （S3 の FPU は単精度のみ。naive DFT は double の `cos`/`sin` を使うが、
 `-O2` では未定義のままデッドコード除去されることを `nm -u` で確認済み）。
 
-### 8. コアの 4 ファイル + `g2p.c` は csrc から**直接参照**する
+### 8. コアの 4 ファイル + `g2p.c` + `line.c` は csrc から**直接参照**する
 
 `components/saanotts_core/CMakeLists.txt` が相対パスで `csrc/` を指す。
 **コピーもシンボリックリンクもしない** —「同じものを 2 か所に書かない」。
@@ -305,8 +308,9 @@ newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、
 `saan_conv1d_w` / `saan_dwconv1d_w` / `saan_act_scratch_needed` があり、
 `saanotts.c` と `saanotts_stream.c` の両方が参照する。3 ファイルではリンクできない。
 
-⚠️ `g2p.c` は**コアを 1 行も参照しない独立の翻訳単位**だが、`main.c` が
-`saan_g2p()` を呼ぶのでここに並べる。`csrc/Makefile` の `CORE` には入っていない
+⚠️ `g2p.c` と `line.c` は**コアを 1 行も参照しない独立の翻訳単位**だが、
+`main.c` が `saan_g2p()` を、`saan_console.c` が `saan_line_feed()` を呼ぶので
+ここに並べる。`csrc/Makefile` の `CORE` には入っていない
 （`golden_test` 等はリンクしない）。**非対称なのは意図的。**
 
 ---
@@ -338,7 +342,7 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 
 ---
 
-## この雛形がやっていないこと
+## 入力経路と、まだやっていないこと
 
 ### 端末側 G2P は**入った**（が、実機では動かしていない）
 
@@ -365,8 +369,34 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 ⚠️ ESP32-S3 の値ではない。
 
 ⚠️ **漢字は端末で扱わない**（D-010 / D-011）。中間表現を作るのはホスト側
-（OpenJTalk）で、`scripts/gen_demo_ids.py` がそれをやっている。
-**「文字列を渡せば喋る」ところまでは行っていない。**
+（OpenJTalk）。**任意の文からは `scripts/to_intermediate.py` が作る**
+（`gen_demo_ids.py` は錨 1 件専用）。
+
+### シリアルからの自由入力（M-63 / D-040）
+
+起動時の 1 発話のあと `かな> ` プロンプトを出し、**かな中間表現を 1 行**受けて合成する。
+
+```
+かな> こんにちわ
+かな> きょ][おわよ][いて][んきです°ね     ← 起動時とまったく同じ checksum が出る
+```
+
+- 行編集は `csrc/line.c`（369 B）。**UTF-8 対応の BS / CRLF / ESC の吸い込み / 溢れ検出**。
+  ⚠️ **矢印キーの ESC [ A の `[` は中間表現では上昇アクセント。** 吸わないと
+  カーソルを動かしただけで**エラーも出さずに抑揚が変わる**
+- 入出力は `esp32/main/saan_console.c`。**コンソールが UART0 でも
+  USB Serial/JTAG でも動く**（`esp32/sdkconfig.usb_serial_jtag` で切り替え）
+- 漢字・カタカナ・句読点は**位置と文字を出して拒否**する。端末では黙って落とさない
+- 上限は **350 ids**（arena の限界 520 ではなく学習分布の上限。D-040）。
+  511 B 超・350 ids 超は**切り詰めず行ごと拒否**
+
+⚠️ **QEMU では通ったが、実機の UART では 1 度も試していない。**
+「本当に 1 バイトずつ取れるか」「端末上のエコーの見た目」は QEMU では判定できない。
+
+⚠️ **この経路で 2 回、音では気づけない欠陥を出した**（M-63 の §3）。
+どちらも状態機械ではなく**呼び出し側**の読み違いだったので、
+「エコーすべきか」を状態機械が返すよう API を変え、`make -C csrc line` の
+**G9 / G10** で固定した。
 
 ### そのほか
 
@@ -390,10 +420,12 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | `CMakeLists.txt` | トップ。`model` パーティションへの blob 焼き込みもここ |
 | `partitions.csv` | カスタムパーティション表（既定では blob が入らない） |
 | `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション |
-| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` を直接参照 |
+| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照 |
 | `main/main.c` | arena・プリロール・合成ループ・計測ログ |
 | `main/saan_model.{h,c}` | flash mmap → `saan_weights`（16 バイト境界を検査） |
-| `main/saan_i2s.{h,c}` | I2S 設定 / プリロール / float→int16 |
+| `main/saan_i2s.{h,c}` | I2S 設定 / プリロール / float→int16 / PCM チェックサム |
+| `main/saan_console.{h,c}` | シリアルからの 1 行入力（UART0 / USB Serial/JTAG） |
+| `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
 | `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
 | `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
 | [`TESTING.md`](TESTING.md) | **実機を持っている人向けの手順**（配線・焼き方・報告してほしい 4 行） |

@@ -8,8 +8,9 @@
 #   make arena     arena ストレス（ESP32 の静的 arena を決める・c'-4）
 #   make bench     レイテンシ測定（段別の内訳）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
+#   make line      端末の行編集ステートマシン（**陽性対照つき**）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
-#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p
+#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + line
 #
 # ⚠️ **naive DFT は消していない。** `make CFLAGS_EXTRA=-DSAAN_USE_NAIVE_DFT test` で
 #    切り替わる。FFT の検証基準として残してある（D-3a）。
@@ -76,6 +77,13 @@ bench: bench.c $(CORE) $(HDRS)
 g2p_test: g2p_test.c g2p.c g2p.h g2p_table.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ g2p_test.c g2p.c
 
+# --- 端末の行編集（シリアルからの自由入力）----------------------------------
+# ⚠️ **推論コアにも G2P にも依存しない。** 入力バイト列 → 行 だけを見る。
+#    ベクタが空虚でないことは line_test.c 自身が陽性対照で検査する
+#    （わざと素直に書いた naive_feed() が同じベクタで落ちること）。
+line_test: line_test.c line.c line.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ line_test.c line.c
+
 # 自己完結ベクタ。mora テーブルだけから機械生成するので**コーパス本文を含まない**。
 # ⚠️ `/csrc/*.bin` は .gitignore 済み。クリーン clone では毎回生成する
 g2p_vectors.bin:
@@ -91,7 +99,7 @@ g2p_vectors_corpus.bin:
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
 .PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \
-        all-test clean
+        line all-test clean
 test: golden_test
 	./golden_test student.bin golden.bin
 
@@ -147,6 +155,10 @@ run-bench: bench
 g2p: g2p_test g2p_vectors.bin
 	./g2p_test g2p_vectors.bin --min-vectors 2700
 
+# 端末の行編集。**入力ファイルを要らないので all-test に入れる**
+line: line_test
+	./line_test
+
 # コーパス全行。`data/splits/corpus_*.tsv` を要求するので **all-test には入れない**
 # （クリーン clone では走らない。`test`/`stream`/`arena` が student.bin を要るのと同じ理由）。
 g2p-corpus: g2p_test g2p_vectors_corpus.bin
@@ -156,8 +168,8 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line
 
 clean:
 	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress \
-	      g2p_test
+	      g2p_test line_test
