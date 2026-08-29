@@ -41,7 +41,8 @@ scores from predictors that are **not calibrated for Japanese**. Real human Japa
 speech scores only **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute
 numbers against English papers**.
 
-**Speed is the only thing left.** It needs an int8 kernel using the ESP32-S3's PIE (SIMD).
+**Measuring speed on real hardware is the only thing left.** The int8 kernel using the
+ESP32-S3's PIE (SIMD) **is written and verified bit-identical under QEMU** (99.4% of MACs).
 The official implementation reports **0.22× real-time measured** on the same chip, which
 supports the direction.
 
