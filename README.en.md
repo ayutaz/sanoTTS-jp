@@ -9,8 +9,9 @@ This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/a
 (MB-iSTFT-VITS2) into three small students: Duration, Acoustic, and an iSTFT Decoder.
 
 ⚠️ **It has never run on real hardware.** Quality and memory hit their targets;
-speed did not, and there is no xtensa toolchain on this machine, so it has never
-even been compiled for the target (see [Status](#status)).
+**speed has never been measured** — there is no ESP32-S3 board on hand
+(see [Status](#status)). The toolchain (ESP-IDF v5.5) and QEMU are installed, and the
+build plus bit-exactness verification do pass.
 
 ## What makes Japanese hard
 
@@ -30,13 +31,13 @@ a counterpart.
 
 | Axis | State |
 |---|---|
-| **Quality** | **66 % of the teacher** (SCOREQ ratio 0.661), above the 0.5427 ratio the paper reports for English |
+| **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 629 KB in int8 (flash) |
 | **Speed** | ⚠️ **Not met.** Ported as fp32 it runs at **2.47× real-time** (too slow) |
 
 ⚠️ **Everything above is a predictor score at n = 24–200. Nobody has listened to the audio.**
-"Teacher ratio 0.661" does not mean "66 % as good as the teacher" — it is a ratio of
+"Teacher ratio 0.644" does not mean "64 % as good as the teacher" — it is a ratio of
 scores from predictors that are **not calibrated for Japanese**. Real human Japanese
 speech scores only **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute
 numbers against English papers**.
@@ -170,7 +171,17 @@ corpus text (83 regression cases).
 
 ## License
 
-Code and documentation are [MIT](LICENSE).
-**Corpus text is not distributed.** Model weights and synthesized audio are **planned for
-the initial release**; distributing them requires attribution to the Tsukuyomi-chan corpus
-and others — see [`NOTICE.md`](NOTICE.md).
+⚠️ **Code and model are under different licenses.**
+
+| | License |
+|---|---|
+| **Code and documentation** in this repository | [MIT](LICENSE) |
+| **Distributed model weights** ([Releases](https://github.com/ayutaz/sanoTTS-jp/releases)) | **[`LICENSE-MODEL.md`](LICENSE-MODEL.md)** — **not** MIT |
+
+The weights are distilled from a teacher trained on the Tsukuyomi-chan Corpus, whose
+terms **require attribution**, **restrict what the generated audio may be used for**, and
+**propagate those obligations downstream**. We therefore cannot call the weights MIT.
+Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) and [`MODEL_CARD.md`](MODEL_CARD.md) before
+using them.
+
+**Corpus text is not distributed.** Primary sources per asset: [`NOTICE.md`](NOTICE.md).

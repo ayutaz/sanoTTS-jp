@@ -1,0 +1,77 @@
+{
+ "dir": "reports/dnsmos_v2v3",
+ "n": 24,
+ "note": null,
+ "metrics": {
+  "ovrl_mos": {
+   "teacher": 2.727,
+   "student_v2": 2.1071,
+   "student_v3": 2.173,
+   "ratio_v2": 0.7727,
+   "ratio_v3": 0.7969,
+   "ratio_v3_ci95": [
+    0.7756,
+    0.8173
+   ],
+   "paired_v3_minus_v2": 0.066,
+   "ci95": [
+    0.0057,
+    0.1239
+   ]
+  },
+  "sig_mos": {
+   "teacher": 2.9789,
+   "student_v2": 2.2686,
+   "student_v3": 2.3369,
+   "ratio_v2": 0.7615,
+   "ratio_v3": 0.7845,
+   "ratio_v3_ci95": [
+    0.7633,
+    0.8054
+   ],
+   "paired_v3_minus_v2": 0.0683,
+   "ci95": [
+    0.0049,
+    0.1295
+   ]
+  },
+  "bak_mos": {
+   "teacher": 3.9329,
+   "student_v2": 3.8494,
+   "student_v3": 3.8656,
+   "ratio_v2": 0.9788,
+   "ratio_v3": 0.9829,
+   "ratio_v3_ci95": [
+    0.9707,
+    0.9939
+   ],
+   "paired_v3_minus_v2": 0.0161,
+   "ci95": [
+    -0.0228,
+    0.0531
+   ]
+  },
+  "p808_mos": {
+   "teacher": 3.3019,
+   "student_v2": 3.0187,
+   "student_v3": 2.9987,
+   "ratio_v2": 0.9142,
+   "ratio_v3": 0.9082,
+   "ratio_v3_ci95": [
+    0.8909,
+    0.9252
+   ],
+   "paired_v3_minus_v2": -0.02,
+   "ci95": [
+    -0.0563,
+    0.0166
+   ]
+  }
+ },
+ "caveats": [
+  "DNSMOS は日本語で較正されていない（M-50 / D-034）。合否ラインを引かない",
+  "v2/v3 とも **同一前処理**（前後 0.3 s パディング + int16 往復）で測った（C-038）",
+  "n=24"
+ ],
+ "repro": "uv run --extra eval python scripts/e2_dnsmos.py --dir reports/dnsmos_v2v3"
+}

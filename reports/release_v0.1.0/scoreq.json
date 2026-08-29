@@ -1,0 +1,103 @@
+{
+ "n": 24,
+ "sets": {
+  "teacher": "reports/eval_v3_full/teacher",
+  "student_v2": "reports/eval_v2/student",
+  "student_v3": "reports/eval_v3_full/student"
+ },
+ "control": {
+  "student_v3_unpadded": "reports/student_wav_v3"
+ },
+ "gates": {
+  "G3_same_uids": {
+   "ok": true,
+   "n": 24
+  },
+  "G1_same_padding": {
+   "expect_samples": 6615,
+   "per_set": {
+    "teacher": {
+     "lead_silence_min": 6615,
+     "lead_silence_median": 6619,
+     "padded": true
+    },
+    "student_v2": {
+     "lead_silence_min": 6615,
+     "lead_silence_median": 6616,
+     "padded": true
+    },
+    "student_v3": {
+     "lead_silence_min": 6615,
+     "lead_silence_median": 6617,
+     "padded": true
+    },
+    "student_v3_unpadded": {
+     "lead_silence_min": 0,
+     "lead_silence_median": 2,
+     "padded": false
+    }
+   },
+   "ok": true,
+   "positive_control_fails": true,
+   "note": "⚠️ 陽性対照が落ちなければ G1 は空虚。**両方を確認すること**"
+  },
+  "G2_teacher_bit_identical": {
+   "same": 24,
+   "n": 24,
+   "ok": true
+  }
+ },
+ "scoreq_synthetic_nr": {
+  "means": {
+   "teacher": 1.9732,
+   "student_v2": 1.2063,
+   "student_v3": 1.2716,
+   "student_v3_unpadded": 1.3049
+  },
+  "teacher_ratio": {
+   "student_v2": {
+    "ratio": 0.6113,
+    "ci95": [
+     0.5804,
+     0.6422
+    ]
+   },
+   "student_v3": {
+    "ratio": 0.6444,
+    "ci95": [
+     0.6044,
+     0.6843
+    ]
+   },
+   "student_v3_unpadded": {
+    "ratio": 0.6613,
+    "ci95": [
+     0.6205,
+     0.704
+    ]
+   }
+  },
+  "paired_v3_minus_v2": {
+   "diff": 0.0653,
+   "ci95": [
+    0.0215,
+    0.1082
+   ],
+   "n": 24
+  },
+  "padding_effect_on_v3": {
+   "diff": 0.0333,
+   "ci95": [
+    -0.0072,
+    0.0706
+   ],
+   "n": 24
+  }
+ },
+ "caveats": [
+  "SCOREQ は日本語で較正されていない（D-013 / D-020）。絶対値を英語モデルと比べない",
+  "n=24。人による評価は 1 名の少数試行しかしていない（M-60 / C-037）",
+  "`student_v3_unpadded` は**陽性対照**であって成果物の数値ではない"
+ ],
+ "repro": "uv run --extra eval python scripts/release_metrics.py --out reports/release_v0.1.0"
+}

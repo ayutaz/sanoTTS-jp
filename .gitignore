@@ -102,3 +102,6 @@ reports/e1_dnsmos/scratch/
 /esp32/**/sdkconfig.old
 /esp32/.cache/
 /reports/listening/
+
+# リリース検証用の一時比較ディレクトリ（eval_* への symlink を含む）
+/reports/dnsmos_v2v3/

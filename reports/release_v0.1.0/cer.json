@@ -1,0 +1,32 @@
+{
+ "n": 24,
+ "teacher_mean": 0.1351,
+ "student_v2_mean": 0.1776,
+ "student_v3_mean": 0.1671,
+ "v3_minus_teacher": {
+  "diff": 0.032,
+  "ci95": [
+   -0.0314,
+   0.0866
+  ],
+  "paired_t_p": 0.305
+ },
+ "v2_minus_teacher": {
+  "diff": 0.0425,
+  "ci95": [
+   -0.0136,
+   0.0889
+  ],
+  "paired_t_p": 0.1257
+ },
+ "v3_minus_v2": {
+  "diff": -0.0105,
+  "ci95": [
+   -0.0372,
+   0.0178
+  ]
+ },
+ "gate_teacher_identical": true,
+ "note": "v2/v3 とも **同一前処理**（前後 0.3 s パディング + int16 往復）で測った（C-038）",
+ "repro": "uv run --extra eval python scripts/measure_cer.py --eval-dir reports/eval_v3_full"
+}
