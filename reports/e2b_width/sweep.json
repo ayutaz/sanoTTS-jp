@@ -15,8 +15,8 @@
   "gates": [
     {
       "id": "G1_widths_differ",
-      "ok": true,
-      "detail": "幅 [56, 76, 96]",
+      "ok": false,
+      "detail": "幅 [76]",
       "why": "全部同じ幅なら「幅を変えても変わらない」は自明で無意味"
     },
     {
@@ -28,19 +28,19 @@
     {
       "id": "G3_all_distinct",
       "ok": true,
-      "detail": "8 種 / 8 本",
+      "detail": "5 種 / 5 本",
       "why": "同一 ckpt を 2 本渡すと差 0 が「ノイズ床 0」に化ける"
     },
     {
       "id": "G4_same_utterances",
       "ok": true,
-      "detail": "{'L0_teacher': 200, 'w56': 200, 'w76': 200, 'w76b': 200, 'w76c': 200, 'w96': 200, 'w56_40k': 200, 'w76_40k': 200, 'w96_40k': 200}（期待 200）",
+      "detail": "{'L0_teacher': 200, 'w76': 200, 'w76b': 200, 'w76c': 200, 'w76_40k': 200, 'v3': 200}（期待 200）",
       "why": "本数が違うと対応のある比較が成立しない"
     },
     {
       "id": "G5_params_monotonic",
       "ok": true,
-      "detail": "[(56, 219828), (76, 331308), (96, 474788)]",
+      "detail": "[(76, 331308)]",
       "why": "幅だけを動かしたなら params は幅に対して単調に増える"
     },
     {
@@ -96,31 +96,6 @@
     }
   ],
   "per_run": {
-    "w56": {
-      "width": 56,
-      "params": 219828,
-      "seed": 20260827,
-      "steps": 20000,
-      "decoder_sha256": "7c496a5c0ac11e5243b99546f44bfd1159e91acb6dd727526a1322dbfe3511d1",
-      "scoreq_mean": 1.4196,
-      "scoreq_sd": 0.1697,
-      "gap_vs_teacher": {
-        "diff": 0.5776,
-        "ci95": [
-          0.5542,
-          0.6014
-        ],
-        "n": 200
-      },
-      "delta_gap_vs_baseline": {
-        "diff": 0.1746,
-        "ci95": [
-          0.1593,
-          0.19
-        ],
-        "n": 200
-      }
-    },
     "w76": {
       "width": 76,
       "params": 331308,
@@ -196,56 +171,6 @@
         "n": 200
       }
     },
-    "w96": {
-      "width": 96,
-      "params": 474788,
-      "seed": 20260827,
-      "steps": 20000,
-      "decoder_sha256": "eee995f1e4018b04e1153ceb87e06c7d2d3f82327341c6d0066204732c058175",
-      "scoreq_mean": 1.4988,
-      "scoreq_sd": 0.1795,
-      "gap_vs_teacher": {
-        "diff": 0.4984,
-        "ci95": [
-          0.4751,
-          0.5216
-        ],
-        "n": 200
-      },
-      "delta_gap_vs_baseline": {
-        "diff": 0.0955,
-        "ci95": [
-          0.0801,
-          0.1113
-        ],
-        "n": 200
-      }
-    },
-    "w56_40k": {
-      "width": 56,
-      "params": 219828,
-      "seed": 20260827,
-      "steps": 40000,
-      "decoder_sha256": "fa3ab8a804da4c96e285872f8dfe67575bb5744a7e5ad7313634bb237a003758",
-      "scoreq_mean": 1.531,
-      "scoreq_sd": 0.167,
-      "gap_vs_teacher": {
-        "diff": 0.4661,
-        "ci95": [
-          0.4432,
-          0.4885
-        ],
-        "n": 200
-      },
-      "delta_gap_vs_baseline": {
-        "diff": 0.0632,
-        "ci95": [
-          0.0501,
-          0.076
-        ],
-        "n": 200
-      }
-    },
     "w76_40k": {
       "width": 76,
       "params": 331308,
@@ -271,43 +196,33 @@
         "n": 200
       }
     },
-    "w96_40k": {
-      "width": 96,
-      "params": 474788,
+    "v3": {
+      "width": 76,
+      "params": 331308,
       "seed": 20260827,
-      "steps": 40000,
-      "decoder_sha256": "83f4aff3cd4961161cbe8bc080609eb1cf6d210a19e7f34472f1304424aa2d80",
-      "scoreq_mean": 1.5937,
-      "scoreq_sd": 0.1768,
+      "steps": 80000,
+      "decoder_sha256": "b7dcfae6520295fca11c34de9454d7dc655194d7f3c75c4aac132fbc88bf1442",
+      "scoreq_mean": 1.6986,
+      "scoreq_sd": 0.1892,
       "gap_vs_teacher": {
-        "diff": 0.4035,
+        "diff": 0.2986,
         "ci95": [
-          0.3827,
-          0.4246
+          0.2802,
+          0.3165
         ],
         "n": 200
       },
       "delta_gap_vs_baseline": {
-        "diff": 0.0006,
+        "diff": -0.1044,
         "ci95": [
-          -0.0134,
-          0.0149
+          -0.1146,
+          -0.094
         ],
         "n": 200
       }
     }
   },
   "verdict": {
-    "w56": {
-      "delta": 0.1746,
-      "ci95": [
-        0.1593,
-        0.19
-      ],
-      "significant_vs_zero": true,
-      "exceeds_noise_floor": true,
-      "call": "効果あり"
-    },
     "w76": {
       "delta": 0.109,
       "ci95": [
@@ -338,35 +253,15 @@
       "exceeds_noise_floor": false,
       "call": "ノイズ床以下"
     },
-    "w96": {
-      "delta": 0.0955,
+    "v3": {
+      "delta": -0.1044,
       "ci95": [
-        0.0801,
-        0.1113
+        -0.1146,
+        -0.094
       ],
       "significant_vs_zero": true,
       "exceeds_noise_floor": true,
       "call": "効果あり"
-    },
-    "w56_40k": {
-      "delta": 0.0632,
-      "ci95": [
-        0.0501,
-        0.076
-      ],
-      "significant_vs_zero": true,
-      "exceeds_noise_floor": false,
-      "call": "ノイズ床以下"
-    },
-    "w96_40k": {
-      "delta": 0.0006,
-      "ci95": [
-        -0.0134,
-        0.0149
-      ],
-      "significant_vs_zero": false,
-      "exceeds_noise_floor": false,
-      "call": "有意差なし"
     }
   },
   "caveats": [

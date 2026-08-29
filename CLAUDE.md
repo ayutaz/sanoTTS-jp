@@ -227,7 +227,7 @@ A1/A2/A3 を `prosody_dim=16` で注入しているが、論文の duration stud
 
 ✅ **記号だけで足りた**（M-44 / D-030）。**A1/A2/A3 の追加は不要**なので D-014 と
 入力仕様 D-010 / D-011 をそのまま維持できる。評価は
-`uv run python scripts/d4_accent_pairs.py --ckpt runs/v2/stage4.pt`（18 秒）。
+`uv run python scripts/d4_accent_pairs.py --ckpt runs/v3/stage4.pt`（18 秒）。
 ⚠️ **「A と B の音が違う」は再現の証拠にならない** — `[` `]` `#` は教師で実フレームを
 持つので、アクセントを無視するモデルでも音は変わる。**判定は必ず教師との向きの一致**
 （`cos > 0`）で行い、**chance を 0.5 と書かない**（経験的ヌル 0.614）。

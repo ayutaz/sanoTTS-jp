@@ -1,5 +1,5 @@
 {
- "ckpt": "runs/v2/stage4.pt",
+ "ckpt": "runs/v3/stage4.pt",
  "vocab": 57,
  "int8": true,
  "golden_from_quantized": true,
@@ -8,13 +8,13 @@
   "path": "csrc/student_i8.bin",
   "n_tensors": 183,
   "bytes": 643936,
-  "sha256": "28f4370bff10dd31853369adabc4a529133d3ae6a4a62eb3b14ae90f9588b435"
+  "sha256": "c3b89216133fa7bee3f61ed9d8e6c7183a5dfd41b70dab194f42c20fce5b4170"
  },
  "golden": {
   "path": "csrc/golden_i8.bin",
   "n_tensors": 8,
   "bytes": 779584,
-  "sha256": "11c5e7546a7b33768a59a44debb29a8fc01400b5ad41a473c2771caf4aace0ea",
+  "sha256": "02641b6ea7ca2d44b99a5c205603a642a382162bc1ff3c74834ba4b07f5134bf",
   "text": "今日は良い天気ですね。",
   "n_ids": 53,
   "frames": 106,
@@ -26,5 +26,5 @@
   80
  ],
  "format": "SAAN v1。ヘッダに name/dtype/shape/offset を持つ自己記述形式",
- "repro": "uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt --out csrc/student_i8.bin --golden csrc/golden_i8.bin --int8 --golden-from-quantized --report csrc/export_i8.json"
+ "repro": "uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --out csrc/student_i8.bin --golden csrc/golden_i8.bin --int8 --golden-from-quantized --report csrc/export_i8.json"
 }

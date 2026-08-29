@@ -242,7 +242,7 @@ uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（83 ケース
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 
 # C99 推論コア（Phase D）
-uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt
+uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt
 make -C csrc all-test                            # golden test + ストリーミング G1〜G4
 ```
 
@@ -255,7 +255,7 @@ uv run python scripts/train_student.py --run runs/v2 --stage 1 --steps 20000 --a
 uv run python scripts/train_student.py --run runs/v2 --stage 2 --steps 60000 --accum 8
 uv run python scripts/train_student.py --run runs/v2 --stage 3 --steps 40000 --accum 8
 uv run python scripts/train_student.py --run runs/v2 --stage 4 --steps 60000 --accum 8
-uv run --extra eval python scripts/eval_student.py --ckpt runs/v2/stage4.pt --n 24 \
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 24 \
     --out reports/eval_v2
 ```
 

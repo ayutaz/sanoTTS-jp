@@ -30,7 +30,7 @@ HDRS         := saanotts.h saanotts_stream.h saanotts_internal.h fft.h saanotts_
 #    突き合わせが「量子化誤差 26 dB」になり**層を 1 つ fp32 に置き忘れても検出できない**。
 # ⚠️ `--report` を分けないと fp32 の記録（csrc/export.json）を潰す。
 student_i8.bin golden_i8.bin &:
-	cd .. && uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt \
+	cd .. && uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \
 	    --int8 --out csrc/student_i8.bin --golden csrc/golden_i8.bin \
 	    --golden-from-quantized --report csrc/export_i8.json
 

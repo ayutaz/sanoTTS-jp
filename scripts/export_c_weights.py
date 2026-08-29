@@ -14,7 +14,7 @@ payload（16 B 境界に揃える）
 dtype: 0 = fp32 / 1 = int8 / 2 = fp32 scale（int8 の per-output-channel）
 
 実行:
-    uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt \
+    uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \
         --out csrc/student.bin --golden csrc/golden.bin
 """
 

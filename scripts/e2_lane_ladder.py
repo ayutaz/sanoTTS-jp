@@ -77,15 +77,18 @@ def log_spec_distance(ref: np.ndarray, x: np.ndarray) -> float:
     return float(np.sqrt(np.mean((la - lb) ** 2)))
 
 
-def load_modules(device):
+def load_modules(device, run="runs/v2"):
     """stage3 / stage4 から必要なモジュールを復元する。
 
     ⚠️ **`load_state_dict` の結果を assert する。** 構築しただけで載せ忘れると
     例外なくランダム初期化の重みが流れ、L1 が壊滅して「331k decoder は使い物に
     ならない」という誤結論が出る（G3）。
     """
-    c3 = torch.load("runs/v2/stage3.pt", map_location="cpu", weights_only=False)
-    c4 = torch.load("runs/v2/stage4.pt", map_location="cpu", weights_only=False)
+    # ⚠️ **既定は v2 のまま。** M-49 はこの ckpt で測った記録なので、
+    # 既定を動かすと過去の数値が再現できなくなる。v3（現行の成果物）で測るときは
+    # `--run runs/v3` を渡すこと。
+    c3 = torch.load(f"{run}/stage3.pt", map_location="cpu", weights_only=False)
+    c4 = torch.load(f"{run}/stage4.pt", map_location="cpu", weights_only=False)
     h3, h4 = sd_hash(c3["state"]["erho"]), sd_hash(c4["state"]["erho"])
     if h3 != h4:
         raise SystemExit(f"G3 違反: erho が stage3/stage4 で違う ({h3[:16]} vs {h4[:16]})")
@@ -175,6 +178,8 @@ def main() -> int:
     ap.add_argument("--n", type=int, default=0, help=">0 ならパックから無作為に n 文選ぶ")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--device", default=None)
+    ap.add_argument("--run", default="runs/v2",
+                    help="⚠️ 既定は M-49 を再現する v2。現行成果物は runs/v3")
     ap.add_argument("--lane", action="append", default=None)
     ap.add_argument("--teacher-ref", default="reports/eval_v2/teacher",
                     help="G1 の照合先。無ければ G1 は skip と記録する")
@@ -207,7 +212,7 @@ def main() -> int:
     if missing:
         raise SystemExit(f"パックに無い uid: {missing[:5]}")
 
-    mods, minfo = load_modules(device)
+    mods, minfo = load_modules(device, a.run)
     outdir = pathlib.Path(a.out)
     for lane in lanes:
         (outdir / lane).mkdir(parents=True, exist_ok=True)

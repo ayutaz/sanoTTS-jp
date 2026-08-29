@@ -16,7 +16,7 @@ CLAUDE.md の未解決 #5。SCOREQ / UTMOS / CER はどれも**集約指標**な
 
 実行:
     uv run python scripts/d4_accent_pairs.py --build-only          # 評価セットの健全性だけ
-    uv run python scripts/d4_accent_pairs.py --ckpt runs/v2/stage4.pt
+    uv run python scripts/d4_accent_pairs.py --ckpt runs/v3/stage4.pt
 """
 
 from __future__ import annotations
@@ -355,7 +355,7 @@ def boundary_auc(recs) -> dict:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--ckpt", default="runs/v2/stage4.pt")
+    ap.add_argument("--ckpt", default="runs/v3/stage4.pt")
     ap.add_argument("--out", default="reports/d4_accent")
     ap.add_argument("--build-only", action="store_true",
                     help="評価セットの構築とゲートだけ。教師も生徒も呼ばない")

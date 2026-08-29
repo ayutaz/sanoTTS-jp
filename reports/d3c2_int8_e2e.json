@@ -2,35 +2,35 @@
  "task": "D-3c'-2 int8 end-to-end（fp32 経路 vs int8 経路）",
  "blobs": {"fp32": "student.bin", "int8": "student_i8.bin", "ids": "ids_heldout.bin"},
  "activation": "W8A32 (既定)",
- "golden": {"n_ids": 53, "n_frames": 106, "n_samples": 27136, "d_hat_match": 53, "log_d_db": 34.1364, "c_db": 41.1679, "pcm_db": 26.0814},
+ "golden": {"n_ids": 53, "n_frames": 106, "n_samples": 27136, "d_hat_match": 53, "log_d_db": 34.1364, "c_db": 42.1416, "pcm_db": 29.5180},
  "heldout": {"utts": [
-  {"k": 0, "n_ids": 89, "n_frames": 168, "d_hat_match": 89, "log_d_db": 35.0088, "c_db": 40.8429, "pcm_db": 24.5051}
-  ,{"k": 1, "n_ids": 90, "n_frames": 232, "d_hat_match": 88, "log_d_db": 36.3654, "c_db": 41.8622, "pcm_db": 24.8393}
-  ,{"k": 2, "n_ids": 77, "n_frames": 156, "d_hat_match": 76, "log_d_db": 34.4221, "c_db": 41.0473, "pcm_db": 23.9311}
-  ,{"k": 3, "n_ids": 47, "n_frames": 102, "d_hat_match": 46, "log_d_db": 34.9005, "c_db": 42.5987, "pcm_db": 28.3753}
-  ,{"k": 4, "n_ids": 200, "n_frames": 437, "d_hat_match": 198, "log_d_db": 36.3225, "c_db": 41.9809, "pcm_db": 25.8883}
-  ,{"k": 5, "n_ids": 268, "n_frames": 560, "d_hat_match": 266, "log_d_db": 35.6433, "c_db": 42.2398, "pcm_db": 26.0421}
-  ,{"k": 6, "n_ids": 127, "n_frames": 249, "d_hat_match": 125, "log_d_db": 35.3581, "c_db": 41.6741, "pcm_db": 24.8213}
-  ,{"k": 7, "n_ids": 86, "n_frames": 216, "d_hat_match": 86, "log_d_db": 39.7198, "c_db": 42.5091, "pcm_db": 23.7430}
-  ,{"k": 8, "n_ids": 57, "n_frames": 127, "d_hat_match": 57, "log_d_db": 37.4566, "c_db": 42.1559, "pcm_db": 25.2579}
-  ,{"k": 9, "n_ids": 39, "n_frames": 90, "d_hat_match": 36, "log_d_db": 39.9164, "c_db": 42.2851, "pcm_db": 27.0458}
-  ,{"k": 10, "n_ids": 124, "n_frames": 275, "d_hat_match": 121, "log_d_db": 36.7520, "c_db": 42.4001, "pcm_db": 26.3640}
-  ,{"k": 11, "n_ids": 114, "n_frames": 264, "d_hat_match": 113, "log_d_db": 38.6007, "c_db": 42.1014, "pcm_db": 23.2701}
-  ,{"k": 12, "n_ids": 97, "n_frames": 193, "d_hat_match": 97, "log_d_db": 35.5554, "c_db": 41.7717, "pcm_db": 25.2177}
-  ,{"k": 13, "n_ids": 71, "n_frames": 140, "d_hat_match": 70, "log_d_db": 35.8360, "c_db": 40.7625, "pcm_db": 24.2016}
-  ,{"k": 14, "n_ids": 65, "n_frames": 132, "d_hat_match": 64, "log_d_db": 33.6328, "c_db": 41.1349, "pcm_db": 23.5456}
-  ,{"k": 15, "n_ids": 61, "n_frames": 129, "d_hat_match": 61, "log_d_db": 37.1457, "c_db": 41.8679, "pcm_db": 26.6604}
-  ,{"k": 16, "n_ids": 57, "n_frames": 125, "d_hat_match": 57, "log_d_db": 38.6734, "c_db": 42.2178, "pcm_db": 25.7241}
-  ,{"k": 17, "n_ids": 57, "n_frames": 112, "d_hat_match": 57, "log_d_db": 33.8813, "c_db": 42.9969, "pcm_db": 31.0060}
-  ,{"k": 18, "n_ids": 136, "n_frames": 300, "d_hat_match": 135, "log_d_db": 38.9250, "c_db": 41.7520, "pcm_db": 25.6848}
-  ,{"k": 19, "n_ids": 81, "n_frames": 162, "d_hat_match": 77, "log_d_db": 36.0084, "c_db": 43.5187, "pcm_db": 31.2808}
-  ,{"k": 20, "n_ids": 53, "n_frames": 114, "d_hat_match": 53, "log_d_db": 35.3183, "c_db": 40.7570, "pcm_db": 23.5297}
-  ,{"k": 21, "n_ids": 179, "n_frames": 339, "d_hat_match": 176, "log_d_db": 34.4716, "c_db": 41.6357, "pcm_db": 26.8787}
-  ,{"k": 22, "n_ids": 63, "n_frames": 145, "d_hat_match": 63, "log_d_db": 36.1228, "c_db": 41.4493, "pcm_db": 27.0885}
-  ,{"k": 23, "n_ids": 187, "n_frames": 451, "d_hat_match": 184, "log_d_db": 37.5669, "c_db": 42.8060, "pcm_db": 26.2182}
+  {"k": 0, "n_ids": 89, "n_frames": 168, "d_hat_match": 89, "log_d_db": 35.0088, "c_db": 42.1486, "pcm_db": 27.1117}
+  ,{"k": 1, "n_ids": 90, "n_frames": 232, "d_hat_match": 88, "log_d_db": 36.3654, "c_db": 43.6289, "pcm_db": 29.0964}
+  ,{"k": 2, "n_ids": 77, "n_frames": 156, "d_hat_match": 76, "log_d_db": 34.4221, "c_db": 42.2867, "pcm_db": 28.2492}
+  ,{"k": 3, "n_ids": 47, "n_frames": 102, "d_hat_match": 46, "log_d_db": 34.9005, "c_db": 42.7086, "pcm_db": 31.5372}
+  ,{"k": 4, "n_ids": 200, "n_frames": 437, "d_hat_match": 198, "log_d_db": 36.3225, "c_db": 42.5324, "pcm_db": 27.2030}
+  ,{"k": 5, "n_ids": 268, "n_frames": 560, "d_hat_match": 266, "log_d_db": 35.6433, "c_db": 42.6450, "pcm_db": 29.7068}
+  ,{"k": 6, "n_ids": 127, "n_frames": 249, "d_hat_match": 125, "log_d_db": 35.3581, "c_db": 40.6994, "pcm_db": 28.2110}
+  ,{"k": 7, "n_ids": 86, "n_frames": 216, "d_hat_match": 86, "log_d_db": 39.7198, "c_db": 43.2807, "pcm_db": 26.9753}
+  ,{"k": 8, "n_ids": 57, "n_frames": 127, "d_hat_match": 57, "log_d_db": 37.4566, "c_db": 42.9281, "pcm_db": 25.7568}
+  ,{"k": 9, "n_ids": 39, "n_frames": 90, "d_hat_match": 36, "log_d_db": 39.9164, "c_db": 43.2735, "pcm_db": 28.9943}
+  ,{"k": 10, "n_ids": 124, "n_frames": 275, "d_hat_match": 121, "log_d_db": 36.7520, "c_db": 42.4844, "pcm_db": 27.8424}
+  ,{"k": 11, "n_ids": 114, "n_frames": 264, "d_hat_match": 113, "log_d_db": 38.6007, "c_db": 43.3357, "pcm_db": 27.3862}
+  ,{"k": 12, "n_ids": 97, "n_frames": 193, "d_hat_match": 97, "log_d_db": 35.5554, "c_db": 41.2468, "pcm_db": 27.0336}
+  ,{"k": 13, "n_ids": 71, "n_frames": 140, "d_hat_match": 70, "log_d_db": 35.8360, "c_db": 42.3783, "pcm_db": 28.6476}
+  ,{"k": 14, "n_ids": 65, "n_frames": 132, "d_hat_match": 64, "log_d_db": 33.6328, "c_db": 43.0027, "pcm_db": 26.8329}
+  ,{"k": 15, "n_ids": 61, "n_frames": 129, "d_hat_match": 61, "log_d_db": 37.1457, "c_db": 41.5408, "pcm_db": 25.7159}
+  ,{"k": 16, "n_ids": 57, "n_frames": 125, "d_hat_match": 57, "log_d_db": 38.6734, "c_db": 41.0175, "pcm_db": 29.1463}
+  ,{"k": 17, "n_ids": 57, "n_frames": 112, "d_hat_match": 57, "log_d_db": 33.8813, "c_db": 43.2307, "pcm_db": 28.9028}
+  ,{"k": 18, "n_ids": 136, "n_frames": 300, "d_hat_match": 135, "log_d_db": 38.9250, "c_db": 42.4964, "pcm_db": 27.9816}
+  ,{"k": 19, "n_ids": 81, "n_frames": 162, "d_hat_match": 77, "log_d_db": 36.0084, "c_db": 42.4291, "pcm_db": 30.1595}
+  ,{"k": 20, "n_ids": 53, "n_frames": 114, "d_hat_match": 53, "log_d_db": 35.3183, "c_db": 44.0783, "pcm_db": 29.8270}
+  ,{"k": 21, "n_ids": 179, "n_frames": 339, "d_hat_match": 176, "log_d_db": 34.4716, "c_db": 40.8310, "pcm_db": 26.6689}
+  ,{"k": 22, "n_ids": 63, "n_frames": 145, "d_hat_match": 63, "log_d_db": 36.1228, "c_db": 39.8782, "pcm_db": 27.4966}
+  ,{"k": 23, "n_ids": 187, "n_frames": 451, "d_hat_match": 184, "log_d_db": 37.5669, "c_db": 41.9484, "pcm_db": 28.0427}
  ],
-  "n_utts": 24, "pcm_db_mean": 25.8800, "pcm_db_min": 23.2701, "pcm_db_max": 31.2808, "n_below_25db": 9, "d_hat_token_match": 2395, "d_hat_tokens": 2425},
- "gate": {"mean_db_threshold": 25.0, "min_db_threshold": 23.0, "mean_ok": true, "min_ok": true, "n_fail": 0,
+  "n_utts": 24, "pcm_db_mean": 28.1052, "pcm_db_min": 25.7159, "pcm_db_max": 31.5372, "n_below_25db": 0, "d_hat_token_match": 2395, "d_hat_tokens": 2425},
+ "gate": {"mean_db_threshold": 27.0, "min_db_threshold": 25.0, "mean_ok": true, "min_ok": true, "n_fail": 0,
   "note": "1 文ごとの >=25 dB では判定しない。量子化そのものの性質で正しい実装でも一部の文が下回る"},
  "repro": "cd csrc && make int8-e2e"
 }

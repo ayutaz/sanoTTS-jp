@@ -12,7 +12,7 @@
 ⚠️ **正解 JSON を先に見ないこと。** 見たら聴取が成立しない。
 
 実行:
-    uv run python scripts/build_listening_set.py --ckpt runs/v2/stage4.pt \
+    uv run python scripts/build_listening_set.py --ckpt runs/v3/stage4.pt \
         --betas 0,2 --n 20 --out reports/listening_beta
 """
 

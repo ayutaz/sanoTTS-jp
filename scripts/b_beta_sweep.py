@@ -22,7 +22,7 @@ J(β) = Σ_c w_c · |SFM_c(生徒, β) / SFM_c(教師) − 1|      c ∈ S_ja �
 - `UTMOS_ratio(β)  ≥ 0.975 × UTMOS_ratio(0)`
 
 実行:
-    uv run --extra eval python scripts/b_beta_sweep.py --ckpt runs/v2/stage4.pt \
+    uv run --extra eval python scripts/b_beta_sweep.py --ckpt runs/v3/stage4.pt \
         --betas 0,2,4,6,8 --n 16 --out reports/beta_sweep
 """
 

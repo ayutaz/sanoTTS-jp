@@ -1,18 +1,20 @@
 {
- "ckpt": "runs/v2/stage4.pt",
+ "ckpt": "runs/v3/stage4.pt",
  "vocab": 57,
  "int8": false,
+ "golden_from_quantized": false,
+ "n_tensors_faked": 0,
  "weights": {
   "path": "csrc/student.bin",
   "n_tensors": 131,
   "bytes": 2249792,
-  "sha256": "e00fd2019e2a059d58b2d2242d8531138cea6b98944ba581266492759d96db0e"
+  "sha256": "dae6303c1105845aeedabc5141aa811f9d5de02f63d7af4188fb82e6cbe5298e"
  },
  "golden": {
   "path": "csrc/golden.bin",
   "n_tensors": 8,
   "bytes": 779584,
-  "sha256": "9790f3cb807b7173dada5f38065ff81cc28a224a35c93ed603919642e62f3149",
+  "sha256": "b833f7025cf4dff8318847e9c5a620316bbbda3cb4f539baa112aa85eaf3ca81",
   "text": "今日は良い天気ですね。",
   "n_ids": 53,
   "frames": 106,
@@ -24,5 +26,5 @@
   80
  ],
  "format": "SAAN v1。ヘッダに name/dtype/shape/offset を持つ自己記述形式",
- "repro": "uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt"
+ "repro": "uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --out csrc/student.bin --golden csrc/golden.bin --report csrc/export.json"
 }

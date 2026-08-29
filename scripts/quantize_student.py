@@ -16,7 +16,7 @@ ESP32 のカーネルではない。「int8 に落としても品質がどれだ
 「実際に何バイトになるか」を測るのが目的。
 
 実行:
-    uv run python scripts/quantize_student.py --ckpt runs/v2/stage4.pt \
+    uv run python scripts/quantize_student.py --ckpt runs/v3/stage4.pt \
         --out reports/quant_v2
 """
 
