@@ -24,6 +24,7 @@ import argparse
 import csv
 import json
 import pathlib
+import subprocess
 
 #: ⚠️ **キー名で判定しない。** かつて許可リスト方式（下記）だったが、
 #: リストに無いキー（`mismatch_examples` / `L3_student_hyp`）の本文を素通しし、
@@ -87,6 +88,20 @@ def _contains(s: str, texts: set[str]) -> bool:
     return any(s in t or t in s for t in texts if len(t) >= 10)
 
 
+def _git_ignored(path) -> bool:
+    """`path` が git の追跡外か。**`.gitignore` を自前で解釈しない** — git に聞く。
+
+    ⚠️ git が無い / リポジトリ外なら **False（＝走査する）** を返す。
+    判定できないときに「安全」に倒すと、本番で検出が黙って止まる。
+    """
+    try:
+        r = subprocess.run(["git", "check-ignore", "-q", str(path)],
+                           capture_output=True, timeout=5)
+        return r.returncode == 0
+    except Exception:
+        return False
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--apply", action="store_true")
@@ -103,7 +118,15 @@ def main() -> int:
 
     total = 0
     roots = [pathlib.Path(x) for x in args.root.split(",")]
-    files = sorted(f for r in roots for f in r.rglob("*.json"))
+    # ⚠️ **git が追跡しないものは走査しない。** 公開されないので伏せる必要が無く、
+    # 毎回検出されると「21 箇所」が常態化して**本物の漏洩を見落とす**（狼少年になる）。
+    # ⚠️ ただし「追跡外だから安全」を鵜呑みにしない — `git check-ignore` に
+    # 実際に問い合わせる。`.gitignore` を消した瞬間に検出が復活するのが正しい。
+    cand = sorted(f for r in roots for f in r.rglob("*.json"))
+    files = [f for f in cand if not _git_ignored(f)]
+    n_skip = len(cand) - len(files)
+    if n_skip:
+        print(f"⚠️ git 追跡外の {n_skip} ファイルは走査しない（公開されないため）")
     for f in files:
         try:
             d = json.load(open(f))

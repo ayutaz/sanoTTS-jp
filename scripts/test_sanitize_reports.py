@@ -81,6 +81,24 @@ def main() -> int:
     print(f"  {'OK ' if ok else 'NG!'} {'既定の走査範囲に csrc が入っている':<46} {roots}")
     bad += not ok
 
+    # --- git 追跡外の除外 -------------------------------------------------------
+    # ⚠️ 「走査しない」変更は検出力を落とす方向なので、**両方向**を張る。
+    # 追跡外を飛ばすのは、公開されないファイルで毎回検出されると
+    # 「N 箇所」が常態化して**本物の漏洩を見落とす**（狼少年）ため。
+    import subprocess
+    ok = S._git_ignored(pathlib.Path("reports/listening/data.json")) is True or \
+         not pathlib.Path("reports/listening/data.json").exists()
+    print(f"  {'OK ' if ok else 'NG!'} {'gitignore 済みは追跡外と判定される':<46}")
+    bad += not ok
+    ok = S._git_ignored(pathlib.Path("README.md")) is False
+    print(f"  {'OK ' if ok else 'NG!'} {'追跡対象は走査される（陽性側）':<46}")
+    bad += not ok
+    # ⚠️ git が使えない場所では **False（走査する）** に倒れること。
+    # 判定できないときに「安全」に倒すと、本番で検出が黙って止まる
+    ok = S._git_ignored(pathlib.Path("/definitely/not/a/repo/x.json")) is False
+    print(f"  {'OK ' if ok else 'NG!'} {'判定できないときは走査する（fail-open）':<46}")
+    bad += not ok
+
     # --- 最小長 ----------------------------------------------------------------
     ok = S.MIN_TEXT_LEN >= 8
     print(f"  {'OK ' if ok else 'NG!'} {'MIN_TEXT_LEN が単独モーラを拾わない長さ':<46} {S.MIN_TEXT_LEN}")

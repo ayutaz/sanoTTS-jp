@@ -101,3 +101,4 @@ reports/e1_dnsmos/scratch/
 /esp32/**/sdkconfig
 /esp32/**/sdkconfig.old
 /esp32/.cache/
+/reports/listening/
