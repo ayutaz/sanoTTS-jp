@@ -29,6 +29,14 @@
 #define SAAN_I2S_PREROLL_SAMPLES 8192
 #endif
 
+/* I2S ペリフェラルへの書き込みだけを外す（**変換は通す**）。
+ * ⚠️ **QEMU 専用の逃げ道。既定 0。** 1 にすると音は一切出ない。
+ * QEMU の esp32s3 は I2S DMA を捌かず `i2s_channel_write` が返らないため、
+ * これが無いと合成ループを 1 回も回せない（実測）。 */
+#ifndef SAAN_SKIP_I2S
+#define SAAN_SKIP_I2S 0
+#endif
+
 bool saan_i2s_setup(uint32_t sample_rate);
 
 /* まだ鳴らさずに変換して貯める。プリロールが一杯なら false */
@@ -50,5 +58,24 @@ void saan_i2s_stop(void);
 int16_t saan_f32_to_i16(float x);
 
 uint32_t saan_i2s_clip_count(void);
+
+/* --- 出力 PCM のチェックサム（移植の検証用）--------------------------------
+ *
+ * `saan_f32_to_i16()` を通った **すべての** int16 サンプルの FNV-1a。
+ * プリロールも定常ループも同じ関数を通るので、**I2S に出たはずの列そのもの**。
+ *
+ * ⚠️ **なぜ要るか**: 実機や QEMU で「音が鳴った」は移植が正しい証拠にならない。
+ * ホスト（`esp32/host_stub/`、C 一括版と bit 一致を確認済み）と同じ値が出れば、
+ * **ターゲット上の全経路が bit 単位で一致している**と言える。
+ * ⚠️ 逆に **1 サンプルでも違えば値は必ず変わる**（陰性対照は host_stub 側にある）。
+ */
+uint64_t saan_i2s_pcm_checksum(void);
+uint32_t saan_i2s_pcm_samples(void);
+
+/* ⚠️ **checksum と必ずセットで読む。** アーキテクチャが違えば float の丸めが
+ * 変わるので checksum は一致しない。そのとき「1 LSB の丸め差」なのか
+ * 「経路が壊れている」のかは、**大きさ**でしか区別できない。 */
+int32_t  saan_i2s_pcm_absmax(void);
+uint64_t saan_i2s_pcm_sqsum(void);
 
 #endif /* SAAN_I2S_H */

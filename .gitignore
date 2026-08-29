@@ -105,3 +105,6 @@ reports/e1_dnsmos/scratch/
 
 # リリース検証用の一時比較ディレクトリ（eval_* への symlink を含む）
 /reports/dnsmos_v2v3/
+
+# ESP-IDF のビルドディレクトリ（複数構成を並べる）
+/esp32/build_*/

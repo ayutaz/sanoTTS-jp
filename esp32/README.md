@@ -5,29 +5,43 @@
 
 ---
 
-## ⚠️ 実機では一度も動かしていない
+## ⚠️ 実機では一度も動かしていない（**QEMU では完走した**）
 
 **これを最初に読むこと。**
+実機を持っている方への依頼は [`TESTING.md`](TESTING.md) にまとめてある。
 
-**2026-08-28 に ESP-IDF v5.5 を導入し、`idf.py build` が通ることは確認した**（M-54）。
-`saanotts_jp.bin` = 267,968 B（app パーティション 2 MB の 13%）。
-**QEMU も導入済み**で、PIE カーネルの正しさはそこで検証している（M-56 / M-57 / M-58）。
+**2026-08-30 に QEMU で出荷ファームを起動から合成完了まで通した**（M-62）。
+ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 267,968 B（W8A8+PIE 版は 268,912 B）。
 
-⚠️ **しかし実機（ESP32-S3 ボード）が無いので、動かしたことは一度も無い。**
+⚠️ **しかし実機（ESP32-S3 ボード）が無いので、実機では動かしたことが無い。**
 ⚠️ **QEMU はサイクル精度ではないので、速度は一切測れていない。**
 
 | # | 未検証なこと | いつ分かるか |
 |---|---|---|
-| ~~1~~ | ~~`idf.py build` が通るか~~ | ✅ **通った**（2026-08-28 / M-54） |
-| 2 | flash に焼けるか / 起動するか | 実機が来た日 |
-| 3 | 実際の SRAM 消費（IDF + FreeRTOS + I2S DMA 込みの free heap） | 実機 |
-| 4 | 実際の xRT とアンダーラン — **M-43 の 2.47 × RT は外挿であって実測ではない** | 実機 |
+| ~~1~~ | ~~`idf.py build` が通るか~~ | ✅ **通った**（M-54 / v5.5） |
+| ~~2~~ | ~~起動するか~~ | ✅ **QEMU で起動・合成完了**（M-62） |
+| 3 | 実際の SRAM 消費（IDF + FreeRTOS + **I2S DMA 込み**の free heap） | ⚠️ QEMU では init 後 68,188 B / 終了時 88,924 B。**I2S DMA を含まない**ので実機で再確認 |
+| **4** | **実際の xRT とアンダーラン** — M-43 の 2.47 × RT は外挿 | ⚠️ **実機。これが唯一の本命** |
 | 5 | I2S の実サンプルレート誤差（**ESP32-S3 に APLL が無い**） | 実機 + オシロか長時間録音 |
-| 6 | flash から mmap した重みが D-cache を thrash しないか | 実機 |
-| 7 | `sdkconfig.defaults` のオプション名が実在するか | `idf.py menuconfig` |
-| 8 | `esp32/main` が呼ぶ **IDF API の綴りが本物と一致するか** — ホスト stub は自作 | `idf.py build` |
+| 6 | flash から mmap した重みが D-cache を thrash しないか | 実機（QEMU にはキャッシュ挙動が無い） |
+| ~~7~~ | ~~`sdkconfig.defaults` のオプション名が実在するか~~ | ✅ ビルドが通った（M-54） |
+| ~~8~~ | ~~`esp32/main` が呼ぶ IDF API の綴り~~ | ✅ ビルドが通り QEMU で実行された（M-62） |
+| **9** | **実機の I2S**（QEMU は DMA を捌かないので通せなかった） | 実機 |
 
 **「たぶん動く」とは書かない。「未検証」と書く。**
+
+### QEMU で取れたもの（M-62）
+
+| 項目 | 値 |
+|---|---|
+| `model` mmap / 重み | offset `0x00210000` / **183 tensors** / base `0x3c040000`（16 B 境界 OK） |
+| 端末側 G2P | 44 B → **53 ids**、`demo_ids.h` の錨と**完全一致** / 0.602 ms |
+| 合成 | 106 frames / 27,136 sample / arena used 194,848 B |
+| **PIE の bit 一致** | **スカラ実装と 27,136 sample すべて一致**（陰性対照つき） |
+
+⚠️ **ホストとターゲットは bit 一致しない。それは正常**（float の丸めが違う）。
+`|max|` は一致し `Σx²` の相対差は 1.6e-7 なので丸め差と切り分けられる。
+**bit 一致を主張してよいのは「同じターゲット上の 2 構成」を比べたときだけ。**
 
 ⚠️ **ビルドを通したときに実際にバグが 1 件出た** — `M_PI` は C99 標準ではないので
 newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた。
@@ -76,14 +90,15 @@ OK  [厳密] C 一括版 → int16 と 27136 sample **bit 完全一致**   （in
 | ESP-IDF | **v5.x を想定**。新 I2S ドライバ `driver/i2s_std.h` を使う |
 | 音声出力 | I2S DAC（MAX98357A / PCM5102 など）22.05 kHz / 16 bit / mono |
 
-⚠️ **どのマイナーバージョンで通るかは未検証**（`idf.py` がこの環境に無い）。
+✅ **ESP-IDF v5.5 でビルドが通ることを実測した**（2026-08-30）。それ以外の
+マイナーバージョンは未検証。
 
 ⚠️ `main/CMakeLists.txt` の `REQUIRES` は **`driver` 1 本**にしてある。
 **存在しないコンポーネント名を書くと IDF はエラーで止まる**ので、
 「両方書いてどちらかに当てる」という逃げは効かない。`driver` は v5.x を通して
 残っている傘コンポーネントで、I2S が `esp_driver_i2s` に分割された版でも
-そこへ依存する形になっている**はず** — ⚠️ **この環境に IDF が無いので未確認**。
-ビルドが落ちたらここを最初に疑う。
+そこへ依存する形になっている — ✅ **v5.5 でビルドが通ったので確認済み**
+（`components/driver` と `components/esp_driver_i2s` が両方実在する）。
 
 ---
 
@@ -91,13 +106,15 @@ OK  [厳密] C 一括版 → int16 と 27136 sample **bit 完全一致**   （in
 
 ```bash
 # 1. 重み blob と demo_ids.h を用意する（リポジトリのルートで）
-uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt   # csrc/student.bin
+uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \
+    --out csrc/student_i8.bin --golden csrc/golden_i8.bin \
+    --int8 --golden-from-quantized --report csrc/export_i8.json
 uv run python scripts/gen_demo_ids.py                                # esp32/main/demo_ids.h
 
 # 2. 手元のゲートを通す（ESP-IDF 不要）
 bash scripts/check_esp32_template.sh
 
-# 3. ビルド（**ここから先は未検証**）
+# 3. ビルド（✅ ESP-IDF v5.5 で通ることを実測済み。⚠️ 実機での起動は未検証）
 cd esp32
 idf.py set-target esp32s3
 idf.py build
@@ -115,19 +132,18 @@ idf.py -p /dev/tty.usbmodemXXXX flash monitor
 
 | blob | サイズ | 状態 |
 |---|---:|---|
-| `csrc/student.bin` (fp32) | 2,249,792 B | **既定**。ホスト stub で C コアと bit 一致を確認 |
-| `csrc/student_i8.bin` (int8) | 643,936 B | ホスト stub で C コアと bit 一致 / Python 参照と SNR 26.08 dB |
+| **`csrc/student_i8.bin` (int8)** | **643,936 B** | **既定**。リリースで配布しているのもこれ。**W8A8 + PIE はこれでないと効かない** |
+| `csrc/student.bin` (fp32) | 2,249,792 B | 参照・デバッグ用。`-DSAAN_MODEL_BLOB=$PWD/../csrc/student.bin` |
 
-切り替え:
+⚠️ **blob は git 管理外。** クローンしただけでは存在しない。
+[リリース](https://github.com/ayutaz/sanoTTS-jp/releases/latest)の
+`saanotts-jp-v3-int8.bin` を落とすか、自分で書き出すこと（上記）。
 
-```bash
-idf.py -DSAAN_MODEL_BLOB=$PWD/../csrc/student_i8.bin build
-```
-
-⚠️ 既定を fp32 にしてあるのは**保守的な選択**であって、int8 が動かないからではない。
-int8 経路は c'-1 / c'-2 で通るようになったばかり（このタスクの実行時点では
-まだコミットされていない作業ツリーの状態）。**flash と D-cache のためには
-int8 のほうが 3.5 倍有利**なので、c'-1 / c'-2 が確定したら既定を切り替えること。
+⚠️ **かつて fp32 を既定にしていたが、それは int8 経路が確定していない時期の
+保守的な選択だった。** flash と D-cache では int8 のほうが 3.5 倍有利で、
+**W8A8 + PIE は fp32 blob では 1 命令も効かない**（`saan_conv1d_w` が `W.f32` で
+早期 return する）。**しかも何のエラーも出ない**ので、`main.c` が起動時に
+`<name>.scale` の有無で検査して止める（int8 は 52 個 / fp32 は 0 個）。
 
 ⚠️ int8 blob は**量子化で波形が変わる**。Python 参照との SNR 26.08 dB は
 M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定どおり**。
@@ -144,8 +160,8 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 
 ### 2. `EMBED_FILES` を使わない — **アライメントが無保証**
 
-⚠️ **以下は ESP-IDF の公式 cmake を読んで得た事実で、この環境には IDF が無いので
-再確認していない。実機初日に一次ソースで確かめること。**
+⚠️ **以下は ESP-IDF の公式 cmake を読んで得た事実。** v5.5 は手元にあるので
+ソースは確認できるが、**mmap の実挙動は実機でしか確かめられない**。
 
 `idf_component_register(EMBED_FILES ...)` は `target_add_binary_data()` を
 **ALIGN 引数なしで**呼び、`data_file_embed_asm.cmake` は `DATA_ALIGNMENT` が
@@ -190,11 +206,11 @@ n_ids=350 に対し **340,016 B (332 KB)** を返す緩い上限で、512 KB の
 
 設計上限は 350 ids（D-017 の `max_spec_length=700` 相当）なので 15,360 B の余裕。
 
-### 4. `saan_stream_init` の**未修正の欠陥**に対する二重防御
+### 4. `saan_stream_init` の欠陥（**修正済み**）に対する二重防御
 
-⚠️ **これは既知の未修正欠陥で、このタスクでは直していない**
-（`csrc/saanotts.c` と `csrc/saanotts_stream.c` は c'-1 / c'-2 が並行で
-編集中だったため触っていない）。
+✅ **この欠陥は `saan_arena` の粘着フラグで修正済み**（`csrc/saanotts.c:82`）。
+`make -C csrc arena` は「**init が SAAN_OK を返した後に落ちた サイズ: 0 / 111 点**」で
+通る。以下は**なぜその修正が要ったか**の記録として残す。
 
 `saan_alloc` は失敗しても `used` を進めずに NULL を返す。`saan_stream_init` は
 確保を約 25 回するのに**各グループの最後の 1 個しか NULL 検査していない**。
@@ -207,7 +223,7 @@ n_ids=350 に対し **340,016 B (332 KB)** を返す緩い上限で、512 KB の
 走らせると、**175〜191 KB の 15 サイズでクラッシュ**する。
 180 / 186 / 192 KB はたまたま clean fail するので、**刻みが粗いと見逃す**。
 
-修正案（**1 箇所で済む**）— `saan_arena` に粘着フラグを足す:
+実際に入れた修正（**1 箇所で済んだ**）— `saan_arena` に粘着フラグを足す:
 
 ```c
 /* saanotts.h */
@@ -244,8 +260,8 @@ void *saan_alloc(saan_arena *a, size_t n) {
 arm64 / clang -O2 での実フレームは **4,224 B**（`sub sp,sp,#0x1000` + `sub sp,sp,#0x20` +
 レジスタ退避 96 B。`otool -tv` で実測。⚠️ Xtensa では別の値になる）。
 
-`CONFIG_ESP_MAIN_TASK_STACK_SIZE` の既定は 3,584 B と言われているが、
-⚠️ **この環境に IDF が無いので Kconfig の既定値そのものは確認していない**。
+`CONFIG_ESP_MAIN_TASK_STACK_SIZE` の既定は **3,584 B**
+（✅ `components/esp_system/Kconfig` で確認済み）。
 確かなのは「iSTFT 1 回で 4 KB 超を使う」ほうで、これだけで小さいスタックは
 足りない。合成は `app_main` ではなく専用タスク（`SAAN_TASK_STACK = 16384`）で回す。
 
@@ -354,7 +370,9 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 
 ### そのほか
 
-- **PIE (SIMD) カーネル** — c'-3。移植可能 C のまま
+- ~~**PIE (SIMD) カーネル**~~ — ✅ **入った**（M-57 / M-58 / M-62）。
+  `idf.py -DSAAN_ENABLE_PIE=1 build` で有効（既定は無効）。
+  ⚠️ **速度は未測定**／**出荷構成にするかは未決**
 - **`saan_tf` のポインタ解決** — コアは毎チャンク `saan_tf()` を多数回呼び、
   1 回ごとに `vsnprintf` + 183 エントリの線形 `strncmp`（ヘッダ 19,048 B）を走る。
   ホストの 0.022 × RT にはこのコストが既に含まれているが、ESP32 では 64 KB の
@@ -378,6 +396,7 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | `main/saan_i2s.{h,c}` | I2S 設定 / プリロール / float→int16 |
 | `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
 | `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
+| [`TESTING.md`](TESTING.md) | **実機を持っている人向けの手順**（配線・焼き方・報告してほしい 4 行） |
 
 検査スクリプト（リポジトリのルートから）:
 
@@ -385,5 +404,5 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 bash scripts/check_esp32_template.sh    # 9 ゲート全部
 uv run python scripts/check_partitions.py
 cmake -P scripts/check_cmake_syntax.cmake
-make -C csrc arena                       # arena の実測（既知の欠陥で現状 exit 1）
+make -C csrc arena                       # arena の実測（✅ 通る）
 ```

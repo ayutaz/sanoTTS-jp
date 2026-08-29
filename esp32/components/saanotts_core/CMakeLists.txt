@@ -62,6 +62,24 @@ target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra)
 #        （SRAM 512 KB の 39%。下の g_arena 208 KB には収まる）
 #      - ⚠️ **速度は一度も測っていない。** QEMU はサイクル精度ではない。実機が要る
 #
-# 有効にするときはこの 2 行のコメントを外す:
-# target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
-# target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PIE=1)
+# 切り替えは**ビルド時のフラグ 1 本**にしてある（既定は無効 = W8A32・移植可能 C）:
+#
+#     idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_MODEL_BLOB=<int8 blob> build
+#
+# ⚠️ **2 つを別々に定義できないようにしてある。** `SAAN_PIE=1` だけを定義しても
+#    PIE カーネルは W8A8 経路（`saan_conv1d_i8a`）の中にしか無いので 1 命令も出ない。
+#    「片方だけ定義して効かない」を構造的に潰す。
+if(SAAN_ENABLE_PIE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1 SAAN_PIE=1)
+    message(STATUS "sanoTTS: W8A8 + PIE **有効**（SNR 低下と arena +4.2 KB を許容する構成）")
+elseif(SAAN_W8A8_NOPIE)
+    # ⚠️ **陰性対照専用。出荷構成ではない。**
+    #    「PIE カーネルがスカラ実装と bit 一致するか」を**同じターゲット上で**
+    #    確かめるために、W8A8 のままスカラに落とす。ホストと比べても意味は無い
+    #    （アーキテクチャが違えば float の丸めが変わるので必ずずれる）。
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
+    message(STATUS "sanoTTS: W8A8 / PIE 無し（**陰性対照**。出荷構成ではない）")
+else()
+    message(STATUS "sanoTTS: W8A8 + PIE 無効（既定 = W8A32 / 移植可能 C）"
+                   " — 有効化は -DSAAN_ENABLE_PIE=1")
+endif()

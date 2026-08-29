@@ -137,6 +137,24 @@ static void tts_task(void *arg) {
     saan_weights w;
     if (!saan_model_open(&w)) { vTaskDelete(NULL); return; }
 
+#if SAAN_INT8_ACT
+    /* ⚠️ **W8A8/PIE を有効にしても、blob が fp32 なら 1 命令も効かない。**
+     *    `saan_conv1d_w` は `W.f32` があればそこで return するので、
+     *    **速度が変わらないのに理由が分からない**という最悪の壊れ方をする。
+     *    int8 blob だけが `<name>.scale` を持つ（fp32 blob は 0 個）ので、それで判る。 */
+    {
+        uint32_t dt = 0, d[4] = {0};
+        uint64_t nb = 0;
+        if (!saan_tensor(&w, "duration.blocks.0.c1.weight.scale", &dt, d, &nb)) {
+            ESP_LOGE(TAG, "W8A8/PIE 有効でビルドしたのに **fp32 blob** が焼かれている。"
+                          "この構成では PIE は 1 命令も効かない。"
+                          "int8 blob を焼くこと: -DSAAN_MODEL_BLOB=<...>/student_i8.bin");
+            vTaskDelete(NULL); return;
+        }
+        ESP_LOGI(TAG, "W8A8 + PIE 有効 / int8 blob を確認");
+    }
+#endif
+
     if (!saan_i2s_setup(SAAN_SR)) { vTaskDelete(NULL); return; }
 
     /* --- 端末側 G2P --------------------------------------------------------
@@ -289,6 +307,17 @@ done:
                  chunk_ms > 0 ? mean_rest / chunk_ms : 0.0);
         ESP_LOGI(TAG, "アンダーラン %d / %d チャンク", underruns, chunks);
         ESP_LOGI(TAG, "int16 クリップ %u sample", (unsigned)saan_i2s_clip_count());
+        /* ⚠️ **移植が正しいことの唯一の機械的な証拠。** 「音が鳴った」ではなく
+         *    この 2 つがホスト（esp32/host_stub）と一致するかで判定する。 */
+        ESP_LOGI(TAG, "出力 PCM: %u sample / FNV-1a 0x%016llx",
+                 (unsigned)saan_i2s_pcm_samples(),
+                 (unsigned long long)saan_i2s_pcm_checksum());
+        /* ⚠️ **checksum が違っても、ここが合っていれば丸め差。**
+         *    ホストとターゲットで bit 一致は**期待できない**（float の丸めが違う）。
+         *    bit 一致を主張してよいのは**同じターゲット上の 2 構成**を比べたときだけ。 */
+        ESP_LOGI(TAG, "        |max| %d / Σx² %llu",
+                 (int)saan_i2s_pcm_absmax(),
+                 (unsigned long long)saan_i2s_pcm_sqsum());
         ESP_LOGI(TAG, "タスクスタック残り %u B（%d B 中）",
                  (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)),
                  (int)SAAN_TASK_STACK);

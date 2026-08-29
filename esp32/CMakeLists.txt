@@ -30,18 +30,28 @@ project(saanotts_jp)
 #    partitions.csv で offset を 64 KB 境界に置けば 16 バイト境界も自動的に満たす
 #    （将来 PIE を使うときの SOC_SIMD_PREFERRED_DATA_ALIGNMENT = 16 もこれで足りる）。
 #
-# ⚠️ **既定は fp32 の student.bin (2,249,792 B)。** int8 の student_i8.bin
-#    (643,936 B) に切り替えるときは SAAN_MODEL_BLOB を変えて、
-#    partitions.csv の model サイズも見直すこと。理由は README.md の
-#    「どちらの blob を焼くか」を読むこと。
+# **既定は int8 の student_i8.bin (643,936 B)。**
+#    ⚠️ かつて fp32 の student.bin (2,249,792 B) を既定にしていたが、これは
+#    「int8 経路がまだ確定していない」時期の保守的な選択だった。int8 は
+#    **flash と D-cache で 3.5 倍有利**で、リリースで配布しているのもこちら。
+#    ⚠️ **W8A8 + PIE は fp32 blob では 1 命令も効かない**（`saan_conv1d_w` が
+#    `W.f32` で早期 return する）。main.c が起動時にこれを検査して止める。
+#    fp32 に戻すには -DSAAN_MODEL_BLOB=<...>/student.bin を渡す。
 if(NOT DEFINED SAAN_MODEL_BLOB)
-    set(SAAN_MODEL_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/student.bin")
+    set(SAAN_MODEL_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/student_i8.bin")
 endif()
 
 if(NOT EXISTS "${SAAN_MODEL_BLOB}")
     message(FATAL_ERROR
         "重み blob が無い: ${SAAN_MODEL_BLOB}\n"
-        "  uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt")
+        "  ⚠️ blob は git 管理外なので、クローンしただけでは存在しない。\n"
+        "  (a) リリースから取る（推奨）:\n"
+        "      https://github.com/ayutaz/sanoTTS-jp/releases/latest\n"
+        "      saanotts-jp-v3-int8.bin を落として -DSAAN_MODEL_BLOB=<その絶対パス>\n"
+        "  (b) 自分で書き出す（教師 ckpt と runs/v3/stage4.pt が要る）:\n"
+        "      uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \\\n"
+        "          --out csrc/student_i8.bin --golden csrc/golden_i8.bin \\\n"
+        "          --int8 --golden-from-quantized --report csrc/export_i8.json")
 endif()
 
 file(SIZE "${SAAN_MODEL_BLOB}" SAAN_MODEL_BLOB_SIZE)

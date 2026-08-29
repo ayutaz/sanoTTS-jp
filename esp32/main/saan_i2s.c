@@ -45,14 +45,35 @@ static int16_t s_i16[SAAN_I2S_MAXBUF];
 static int16_t s_preroll[SAAN_I2S_PREROLL_SAMPLES];
 static size_t  s_preroll_fill;
 
+/* 出力 PCM の FNV-1a（リトルエンディアンの 2 バイトを順に食う）。
+ * ⚠️ ホストと**同じ順序・同じ幅**で食うこと。片方だけ変えると比較が無意味になる */
+static uint64_t s_pcm_fnv = 1469598103934665603ull;
+static uint32_t s_pcm_n;
+/* ⚠️ **checksum だけでは「1 LSB 違い」と「全部でたらめ」を区別できない。**
+ * ホストとターゲットで float の丸めが違えば checksum は必ず変わるので、
+ * **大きさも併せて出す**（これが一致していれば丸め差、外れていればバグ）。 */
+static int32_t  s_pcm_absmax;
+static uint64_t s_pcm_sqsum;
+
 int16_t saan_f32_to_i16(float x) {
     long v = lrintf(x * 32767.0f);
     if (v > 32767) { v = 32767; ++s_clips; }
     else if (v < -32768) { v = -32768; ++s_clips; }
+    uint16_t u = (uint16_t)(int16_t)v;
+    s_pcm_fnv = (s_pcm_fnv ^ (uint8_t)(u & 0xff)) * 1099511628211ull;
+    s_pcm_fnv = (s_pcm_fnv ^ (uint8_t)(u >> 8)) * 1099511628211ull;
+    { int32_t av = (int32_t)(v < 0 ? -v : v);
+      if (av > s_pcm_absmax) s_pcm_absmax = av;
+      s_pcm_sqsum += (uint64_t)((int64_t)v * (int64_t)v); }
+    ++s_pcm_n;
     return (int16_t)v;
 }
 
 uint32_t saan_i2s_clip_count(void) { return s_clips; }
+uint64_t saan_i2s_pcm_checksum(void) { return s_pcm_fnv; }
+uint32_t saan_i2s_pcm_samples(void) { return s_pcm_n; }
+int32_t  saan_i2s_pcm_absmax(void) { return s_pcm_absmax; }
+uint64_t saan_i2s_pcm_sqsum(void) { return s_pcm_sqsum; }
 
 bool saan_i2s_setup(uint32_t sample_rate) {
     i2s_chan_config_t cc = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
@@ -100,6 +121,14 @@ bool saan_i2s_preroll_push(const float *pcm, size_t n_samples) {
     return true;
 }
 
+#if SAAN_SKIP_I2S
+/* ⚠️ **QEMU 用の逃げ道であって、実機の構成ではない。**
+ * QEMU の esp32s3 マシンは I2S の DMA を捌かないので、`i2s_channel_write` が
+ * 永久にブロックして合成ループへ入れない（実測: プリロール完了後に停止）。
+ * ペリフェラルへの書き込みだけを外し、**float→int16 変換は必ず通す**ので
+ * `saan_i2s_pcm_checksum()` はホストと突き合わせられる。 */
+static bool write_i16(const int16_t *p, size_t n) { (void)p; (void)n; return true; }
+#else
 static bool write_i16(const int16_t *p, size_t n) {
     size_t wrote = 0;
     esp_err_t err = i2s_channel_write(s_tx, p, n * sizeof(int16_t), &wrote,
@@ -115,8 +144,14 @@ static bool write_i16(const int16_t *p, size_t n) {
     }
     return true;
 }
+#endif /* SAAN_SKIP_I2S */
 
 bool saan_i2s_start(void) {
+#if SAAN_SKIP_I2S
+    ESP_LOGW(TAG, "SAAN_SKIP_I2S: I2S を鳴らさない（QEMU 用。音は出ない）");
+    if (s_preroll_fill > 0) { write_i16(s_preroll, s_preroll_fill); s_preroll_fill = 0; }
+    return true;
+#else
     esp_err_t err = i2s_channel_enable(s_tx);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "i2s_channel_enable: %s", esp_err_to_name(err));
@@ -128,10 +163,13 @@ bool saan_i2s_start(void) {
         s_preroll_fill = 0;
     }
     return true;
+#endif
 }
 
 void saan_i2s_stop(void) {
+#if !SAAN_SKIP_I2S
     if (s_tx) i2s_channel_disable(s_tx);
+#endif
 }
 
 bool saan_i2s_write_f32(const float *pcm, size_t n_samples) {
