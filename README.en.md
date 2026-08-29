@@ -19,7 +19,7 @@ Porting the English recipe as-is breaks. These three walls are specific to Japan
 | Wall | How it was solved |
 |---|---|
 | **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **913 B table**. Kanji→kana happens offline on the host |
-| **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **35/36 sign agreement** with the teacher |
+| **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **37/37 sign agreement** with the teacher |
 | **Devoiced vowels** — the `i` and `u` in です / した are acoustically close to frication | Separability was confirmed with per-phoneme-class spectral flatness (AUC 0.847) before adding them to the noise-injection set |
 
 **The first one mattered most.** It is not a smaller dictionary — it is a different
@@ -31,7 +31,7 @@ a counterpart.
 | Axis | State |
 |---|---|
 | **Quality** | **66 % of the teacher** (SCOREQ ratio 0.661), above the 0.5427 ratio the paper reports for English |
-| **Accent** | **35/36** sign agreement with the teacher across 36 minimal pairs |
+| **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 629 KB in int8 (flash) |
 | **Speed** | ⚠️ **Not met.** Ported as fp32 it runs at **2.47× real-time** (too slow) |
 
@@ -59,7 +59,7 @@ Verified by actually running it in a fresh clone. No teacher model or trained we
 
 ```bash
 git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
-uv sync
+uv sync          # first run builds the venv and takes a few minutes — do this first
 ```
 
 ```bash

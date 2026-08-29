@@ -35,9 +35,13 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-08-28）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
-検証タスク **B-0 〜 B-12** と **D-4** も全部完了。
-設計値は D-016 〜 D-034 として凍結。実行はすべて手元の M4 Max（D-027）。
+**現状（2026-08-29）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
+検証タスク **B-0 〜 B-12** と **D-4 / E-1 / E-2 / E-2b** も全部完了。
+**PIE カーネルも実装・QEMU 検証まで完了**（M-57 / M-58）。
+設計値は D-016 〜 D-037 として凍結。実行はすべて手元の M4 Max（D-027）。
+
+⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
+`runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
 
 **残りは実機での速度実測だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
 **P-1 の実装は完了**（M-57）/ **P-2** β の聴取（人が要る）。
@@ -81,14 +85,18 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 ⚠️ **論文流の置換定義だと acoustic 0.508 > decoder 0.395 で順序が逆**になる。
 ⚠️ **かな CER の劣化は decoder の段だけで起きる**（+0.039、acoustic/duration は 0）。
 
-**アクセント型も再現できている**（M-44 / D-030、n=38 ペア / 15 群）:
-教師ゲート通過 36 ペアで**符号一致 35/36 = 0.972** [0.897, 1.000]、
-3 メンバー群（箸/橋/端・牡蠣/柿/垣）の同定 **4/4**（chance 1/6）。
+**アクセント型も再現できている**（M-44 / D-030 は v2、**v3 は M-59**）:
+**v3 は教師ゲート通過 37 ペアすべてで符号一致 = 1.000** [1.000, 1.000]、
+30 群すべての同定に成功（2 メンバー 26/26 / 3 メンバー 4/4）。
+⚠️ **`magnitude_ratio` 1.193** — 生徒の起伏が教師より **19% 大きい**。
+過剰強調の可能性があり**聴取でしか判断できない**。
+（旧 v2: 符号一致 35/36 = 0.972 [0.897, 1.000]、3 メンバー群の同定 4/4）。
 ⚠️ **chance は 0.5 ではない**（経験的ヌル 0.614）。**聴取は未実施。**
 
 **C99 コアは ESP32-S3 の SRAM に載った**: ストリーミング化で
-**1,258 KB → 197 KB**、一括版と **bit 完全一致**（M-42）。
-**残るのはレイテンシだけ** — `irfft` が naive DFT (O(N²)) なので一度も測っていない。
+**1,258 KB → 197 KB**、一括版と **bit 完全一致**（M-42）。FFT 化で手元 0.022× RT（M-43）。
+**PIE カーネルも書けて QEMU で bit 一致まで確認した**（MAC の 99.40%。M-57 / M-58）。
+⚠️ **速度は一度も測っていない** — QEMU はサイクル精度ではない。**実機が唯一の残り。**
 
 ```bash
 uv sync --extra eval
@@ -98,7 +106,19 @@ uv run python scripts/test_labelpack.py            # パック往復 + ゲート
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
 uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（83 ケース + commit ガード）
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
-make -C csrc test                                  # C99 コアの golden test
+make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
+                                                   #   int8 / int8-golden / int8-e2e / arena /
+                                                   #   g2p / **pad**）
+```
+
+**ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56）:
+
+```bash
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"   # ⚠️ 3.14 では venv が壊れる
+. ~/esp/esp-idf/export.sh
+export PATH="$HOME/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin:$PATH"
+cd esp32 && idf.py set-target esp32s3 && idf.py build     # 雛形（PIE は無効）
+cd esp32/pie_probe && idf.py qemu                         # PIE の bit 一致検証
 ```
 
 ## アーキテクチャ（固定仕様）
