@@ -30,13 +30,13 @@ a counterpart.
 
 | Axis | State |
 |---|---|
-| **Quality** | **61 % of the teacher** (SCOREQ ratio 0.611), above the 0.5427 ratio the paper reports for English |
+| **Quality** | **66 % of the teacher** (SCOREQ ratio 0.661), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **35/36** sign agreement with the teacher across 36 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 629 KB in int8 (flash) |
 | **Speed** | ⚠️ **Not met.** Ported as fp32 it runs at **2.47× real-time** (too slow) |
 
 ⚠️ **Everything above is a predictor score at n = 24–200. Nobody has listened to the audio.**
-"Teacher ratio 0.611" does not mean "61 % as good as the teacher" — it is a ratio of
+"Teacher ratio 0.661" does not mean "66 % as good as the teacher" — it is a ratio of
 scores from predictors that are **not calibrated for Japanese**. Real human Japanese
 speech scores only **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute
 numbers against English papers**.
