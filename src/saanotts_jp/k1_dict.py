@@ -311,10 +311,30 @@ class Louds:
         return self._keys[rank]
 
     def terminal_keys(self) -> list[bytes]:
-        """終端 rank 順の鍵。値の並び順はこれに合わせること。"""
-        if self._keys is None:
-            raise ValueError("鍵を保持していない（from_bytes で読んだ場合）")
-        return list(self._keys)
+        """終端 rank 順の鍵。値の並び順はこれに合わせること。
+
+        直列化した blob から読み戻した場合は **trie を BFS で辿って復元する**。
+        鍵は trie そのものが持っているので、別に文字列表を置くのは冗長
+        （370,863 entries では 3,881,011 B = blob の 33% に相当した）。
+        """
+        if self._keys is not None:
+            return list(self._keys)
+        keys: list[bytes] = []
+        # BFS。ノード番号は BFS 順なので、番号順に親から埋まる。
+        prefix: dict[int, bytes] = {0: b""}
+        for node in range(len(self.labels)):
+            if node:
+                pass
+            p = self._sel0[node] + 1
+            while p < self.bitlen and self._bit(p):
+                c = self._rank1[p]
+                if c < len(self.labels):
+                    prefix[c] = prefix[node] + bytes([self.labels[c]])
+                p += 1
+            if self._tbit(node):
+                keys.append(prefix[node])
+        self._keys = keys
+        return list(keys)
 
     def with_broken_label(self, node: int) -> "Louds":
         """陰性対照用: 指定ノードのラベルを 1 ビット反転した複製を返す。"""
@@ -396,6 +416,8 @@ class DictBlob:
         self.counts = counts
         self.records = records
         self.pool = pool
+        if surfaces is None:
+            surfaces = [self.keys.decode(k) for k in louds.terminal_keys()]
         self.surfaces = surfaces
         self._start = [0]
         for c in counts:
@@ -566,8 +588,10 @@ class DictBlob:
     #      各セクション本体（16 B 境界）
     #
     VERSION = 1
+    # ⚠️ 見出し語の文字列表は持たない。trie の鍵がそれ自身なので冗長
+    #    （370,863 entries では 3,881,011 B = blob の 33%）。
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
-                  "classes", "chains", "records", "pool", "surfid")
+                  "classes", "chains", "records", "pool")
 
     @staticmethod
     def _pack_strtab(items) -> bytes:
@@ -603,7 +627,6 @@ class DictBlob:
             "chains": self._pack_strtab(self.chains),
             "records": self.records,
             "pool": self.pool,
-            "surfid": self._pack_strtab(self.surfaces),
         }
 
     def to_bytes(self) -> bytes:
@@ -672,5 +695,5 @@ class DictBlob:
             counts=list(sec("counts")),
             records=sec("records"),
             pool=sec("pool"),
-            surfaces=cls._unpack_strtab(sec("surfid")),
+            surfaces=None,            # trie から復元する
         )

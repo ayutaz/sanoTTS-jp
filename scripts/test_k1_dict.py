@@ -332,13 +332,40 @@ def test_blob_layout() -> None:
           f"{rl} B / {DictBlob.RECORD_SIZE} = {rl // DictBlob.RECORD_SIZE}")
 
 
+def test_no_redundant_surface_table() -> None:
+    """見出し語の文字列を二重に持たない。
+
+    LOUDS の鍵がすでに見出し語そのものなので、別の文字列表を持つのは冗長。
+    370,863 entries の実測ではこの表だけで 3,881,011 B（blob の 33%）あった。
+    """
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 見出し語表の冗長性 ===")
+    entries = _sample_entries()
+    raw = DictBlob.build(entries).to_bytes()
+    secs = DictBlob.sections(raw)
+
+    check("surfid セクションを持たない", "surfid" not in secs, str(sorted(secs)))
+
+    back = DictBlob.from_bytes(raw)
+    check("読み戻した trie から鍵を復元できる",
+          len(back.louds.terminal_keys()) == len(set(e.surface for e in entries)),
+          f"{len(back.louds.terminal_keys())}")
+    check("見出し語が一致",
+          sorted(back.surfaces) == sorted(set(e.surface for e in entries)))
+    check("往復は保たれる",
+          sorted(back.all_entries(), key=lambda e: (e.surface, e.wcost))
+          == sorted(entries, key=lambda e: (e.surface, e.wcost)))
+
+
 # ---------------------------------------------------------------- 実行
 
 def main() -> int:
     tests = [test_mora_codec, test_key_codec, test_louds_search,
              test_louds_negative_control, test_louds_serialize,
              test_blob_roundtrip, test_blob_negative_control,
-             test_pool_offset_checkpoint, test_blob_layout]
+             test_pool_offset_checkpoint, test_blob_layout,
+             test_no_redundant_surface_table]
     for t in tests:
         try:
             t()
