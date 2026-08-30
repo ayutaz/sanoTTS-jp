@@ -166,6 +166,7 @@ sanoTTS-jp/
 │   ├── decisions.md                       決定記録 D-001〜D-034 + 訂正履歴 C-001〜C-027
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-51
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
+│   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/phase-a-decisions.md          Phase A の決定

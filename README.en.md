@@ -223,6 +223,7 @@ The documentation is in Japanese.
 | [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-040 and the **correction log C-001–C-039** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
+| [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
 | [`esp32/README.md`](esp32/README.md) | ESP32-S3 build and design decisions |
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **How to run it on real hardware** (flashing, speaking, the 4 lines to report) |
 | [`MODEL_CARD.md`](MODEL_CARD.md) | What the model is, how it was evaluated, known limits |

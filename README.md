@@ -215,6 +215,7 @@ uv sync
 | [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-040 と**訂正履歴 C-001〜C-039** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
+| [`docs/release-notes/`](docs/release-notes/) | 各リリースで何が変わったか（**訂正も残してある**） |
 | [`esp32/README.md`](esp32/README.md) | ESP32-S3 のビルドと設計判断 |
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **実機で動かす手順**（焼き方・喋らせ方・報告してほしい 4 行） |
 | [`MODEL_CARD.md`](MODEL_CARD.md) | モデルの中身・評価・既知の制約 |
