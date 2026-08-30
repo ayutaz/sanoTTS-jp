@@ -4553,3 +4553,44 @@ uv run --no-project python scripts/synthesize_student.py \
 ⚠️ **SHA-256 は「JSON が自己整合か」しか見ない。** phonemizer が変わって live 側だけ
 動いたケースは捕まえられないので、`uv run python scripts/kana_g2p.py` が
 **live と frozen の全 195 件を突き合わせる**（piper-plus がある環境でのみ走る）。
+
+---
+
+## M-66. `esp32/TESTING.md` の手順を、新規 clone + リリース資産で 1 行ずつなぞった（自己実測）
+
+**実機を持っている人に渡す手順書なので、書いたコマンドが本当に通るかを確かめた。**
+条件: `git ls-files` で追跡ファイルだけ展開したディレクトリ（`csrc/*.bin` 無し）+
+`gh release download v0.1.0` で落とした `saanotts-jp-v3-int8.bin`。
+
+### 手順書に**欠陥が 2 件**あった
+
+| # | 症状 | 実測 |
+|---|---|---|
+| 1 | **1 行目の `idf.py set-target esp32s3` が失敗する** | exit 2 / `CMake Error: 重み blob が無い`。`-DSAAN_MODEL_BLOB` が付いていないため。⚠️ **そもそも set-target は不要**（`sdkconfig.defaults` が `CONFIG_IDF_TARGET="esp32s3"` を持つ） |
+| 2 | **USB Serial/JTAG への切り替えが黙って無視される** | `sdkconfig` が既にあると `SDKCONFIG_DEFAULTS` は効かない。**ビルドは成功し、コンソールは UART0 のまま**。「切り替えたのに入力が届かない」という追えない形になる |
+
+どちらも修正した（1: 手順から削除 + CMake のエラーに「set-target は不要」を追記、
+2: `rm -f sdkconfig` を必須と明記 + 確認コマンドを併記）。
+
+### 修正後に通ることを確認した
+
+```bash
+cd esp32
+idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_MODEL_BLOB=<絶対パス>/saanotts-jp-v3-int8.bin build
+```
+
+| 構成 | `saanotts_jp.bin` | コンソール | PIE |
+|---|---:|---|---:|
+| 既定（W8A32、`-B build_a -DSDKCONFIG=build_a/sdkconfig`） | 284,912 B | UART0 | **0** |
+| **W8A8 + PIE**（`-B build_b -DSDKCONFIG=build_b/sdkconfig`） | **286,272 B** | UART0 | **5** |
+| W8A8 + PIE（`rm -f sdkconfig` + USB overlay） | 271,872 B | **USB Serial/JTAG** | 5 |
+
+⚠️ **`-DSDKCONFIG=` を build ディレクトリごとに分けないと設定が漏れる**（同上の 2 と同型）。
+手順書の A/B 比較にも入れた。
+
+### ⚠️ これでも確かめていないこと
+
+- **焼けるか / 起動するか / 速度**（実機が無い）
+- **DAC を繋がずに I2S が回るか** — 「そのまま測れるはず」と書いたが**未検証**。
+  止まったときの逃げ道（`-DSAAN_QEMU=1`）も併記した
+- **`idf.py monitor` から UTF-8 のかなが本当に届くか**（QEMU の擬似シリアルでは届いた）

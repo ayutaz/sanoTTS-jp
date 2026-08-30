@@ -45,6 +45,9 @@ if(NOT EXISTS "${SAAN_MODEL_BLOB}")
     message(FATAL_ERROR
         "重み blob が無い: ${SAAN_MODEL_BLOB}\n"
         "  ⚠️ blob は git 管理外なので、クローンしただけでは存在しない。\n"
+        "  ⚠️ `idf.py set-target esp32s3` でこれが出たなら、**set-target は不要**。\n"
+        "     sdkconfig.defaults が CONFIG_IDF_TARGET=\"esp32s3\" を持っているので、\n"
+        "     そのまま build に -DSAAN_MODEL_BLOB=<絶対パス> を付けて打てばよい。\n"
         "  (a) リリースから取る（推奨）:\n"
         "      https://github.com/ayutaz/sanoTTS-jp/releases/latest\n"
         "      saanotts-jp-v3-int8.bin を落として -DSAAN_MODEL_BLOB=<その絶対パス>\n"

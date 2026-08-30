@@ -7,6 +7,11 @@ ESP32-S3 の実機が 1 枚あれば決着します。手元では QEMU まで�
 **所要 15〜30 分。**⚠️ 最初に [ライセンス](../LICENSE-MODEL.md)を読んでください
 （重みは MIT ではありません）。
 
+✅ **この手順書は 2026-08-30 に、新規 clone + リリースから落とした blob で
+1 行ずつなぞって直しました**（`set-target` で落ちる / USB 切り替えが黙って
+無視される、の 2 件を修正）。それでも詰まったら
+[Issue](https://github.com/ayutaz/sanoTTS-jp/issues/new) に投げてください。
+
 ---
 
 ## 用意するもの
@@ -43,27 +48,44 @@ DAC が無い方は下の**「音を出さない場合」**へ。
 ```bash
 git clone https://github.com/ayutaz/sanoTTS-jp.git
 cd sanoTTS-jp/esp32
-idf.py set-target esp32s3
 
-# ★ ここが本命。W8A8 + PIE（ESP32-S3 の整数 SIMD）を有効にする
+# ★ これ 1 本。W8A8 + PIE（ESP32-S3 の整数 SIMD）を有効にする
 idf.py -DSAAN_ENABLE_PIE=1 \
        -DSAAN_MODEL_BLOB=/絶対パス/saanotts-jp-v3-int8.bin build
 
-idf.py -p /dev/ttyUSB0 flash monitor
+idf.py -p <ポート> flash monitor
 ```
+
+⚠️ **`idf.py set-target esp32s3` は打たないでください。** `sdkconfig.defaults` が
+`CONFIG_IDF_TARGET="esp32s3"` を持っているので**不要**で、しかも打つと
+`-DSAAN_MODEL_BLOB` が付いていないぶん **blob が見つからず configure に失敗します**
+（エラー自体は「blob が無い」と正しく出ますが、1 行目でつまずくので混乱します。実測）。
+
+⚠️ **ポート名**: macOS は `/dev/tty.usbmodem…` か `/dev/cu.usbserial…`、
+Linux は `/dev/ttyUSB0` か `/dev/ttyACM0`。`idf.py -p` を省くと自動検出を試みます。
 
 `idf.py flash` がアプリと**重み blob を両方**焼きます（blob は `model`
 パーティション、3 MB 確保してあります）。
 
-#### 音を出さない場合
+✅ **この 2 行は新規 clone + リリースの blob でそのまま通ることを実測済み**
+（ESP-IDF v5.5 / `saanotts_jp.bin` 286,272 B / コアの PIE 命令 5）。
 
-`-DSAAN_QEMU=1` を足すと I2S ペリフェラルへの書き込みだけを外します
-（**変換と合成は通る**ので測定値は有効）。
+#### DAC が無い場合
+
+**そのままで測れるはずです。** I2S は DAC がつながっていなくても DMA が回るので、
+配線しなくても `定常 xRT` は出ます（⚠️ **これ自体は未検証**。実機を持っていないため）。
+
+**もし I2S で止まったら**、書き込みだけ外す逃げ道があります
+（**変換と合成は通る**ので測定値は有効）:
 
 ```bash
 idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_QEMU=1 \
        -DSAAN_MODEL_BLOB=/絶対パス/saanotts-jp-v3-int8.bin build
 ```
+
+⚠️ 名前は `QEMU` ですが、やっているのは **`i2s_channel_write` を no-op にするだけ**です
+（QEMU の esp32s3 が I2S DMA を捌かないので付けたフラグ）。**止まったのが I2S かどうか**
+自体、有益な報告になります。
 
 ---
 
@@ -76,6 +98,23 @@ idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_QEMU=1 \
 かな> こんにちわ
 かな> きょ][おわよ][いて][んきです°ね
 ```
+
+⚠️ **`idf.py monitor` の中でそのまま打てます**（貼り付けも可）。
+抜けるのは **Ctrl-]**。⚠️ ターミナルが UTF-8 で送る設定になっていること。
+
+### ★ まずこの 1 行を打ってください
+
+```
+かな> きょ][おわよ][いて][んきです°ね
+```
+
+**これが基準の発話です**（「今日は良い天気ですね。」）。
+下の「報告してほしいもの」の期待値は**すべてこの 1 行を打ったときの値**です。
+
+⚠️ **打たずに測りたい場合**（コンソールに触れない・自動で流したい）は
+`-DSAAN_BOOT_SPEAK=1` を足すと、起動時に同じ文を 1 回喋ります（値も同じ）。
+
+### 記号
 
 | 記号 | 意味 |
 |---|---|
@@ -99,6 +138,10 @@ uv run python scripts/to_intermediate.py "電源を入れてください。"
 （この 1 行を端末に貼り付ける。`--ids` を足すと期待 ids も出るので、
 端末のログの `G2P: ... -> N ids` と突き合わせられます。）
 
+⚠️ **`to_intermediate.py` はホスト側で、piper-plus のクローンが要ります**
+（OpenJTalk。手順は [`../README.md`](../README.md) の「フルセットアップ」）。
+**このテストには必須ではありません** — 上の基準の 1 行を打つだけなら不要です。
+
 ### ⚠️ どちらの USB ポートに挿すか
 
 ESP32-S3 の DevKit には USB ポートが 2 つあります。
@@ -109,22 +152,22 @@ ESP32-S3 の DevKit には USB ポートが 2 つあります。
 native 側 1 本で済ませたい場合はこちら:
 
 ```bash
+rm -f sdkconfig          # ⚠️ **これが要る。理由は下**
 idf.py -DSAAN_ENABLE_PIE=1 \
        -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.usb_serial_jtag" \
        -DSAAN_MODEL_BLOB=<int8 blob> build
 ```
 
-### ★ まずこの 1 行を打ってください
+⚠️ **`rm -f sdkconfig` を忘れると、この指定は黙って無視されます。**
+`SDKCONFIG_DEFAULTS` は `sdkconfig` を**新規に作るときだけ**効くので、既に一度
+ビルドしていると**ビルドは成功するのにコンソールは UART0 のまま**になります。
+「切り替えたのに入力が届かない」という、原因の分からない形で詰まります（実測）。
 
+切り替わったかは必ず確認してください:
+
+```bash
+grep CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y sdkconfig    # 出れば OK
 ```
-かな> きょ][おわよ][いて][んきです°ね
-```
-
-**これが基準の発話です**（「今日は良い天気ですね。」）。
-下の「報告してほしいもの」の期待値は**すべてこの 1 行を打ったときの値**です。
-
-⚠️ **打たずに測りたい場合**（コンソールに触れない・自動で流したい）は
-`-DSAAN_BOOT_SPEAK=1` を足すと、起動時に同じ文を 1 回喋ります（値も同じ）。
 
 ### 編集キー
 
@@ -141,7 +184,9 @@ idf.py -DSAAN_ENABLE_PIE=1 \
 
 ## 報告してほしいもの
 
-`idf.py monitor` の**ログを丸ごと**貼ってもらえれば十分です。
+**[Issue](https://github.com/ayutaz/sanoTTS-jp/issues/new) に
+`idf.py monitor` のログを丸ごと**貼ってもらえれば十分です
+（ボード名と ESP-IDF のバージョンも書いてもらえると助かります）。
 特に見たいのはこの 4 行:
 
 ```
@@ -172,10 +217,19 @@ I (xxx) saanotts: 終了時: 内部 DRAM free ????? B
 
 ```bash
 # A: 最適化なし（W8A32 / 移植可能 C）
-idf.py -B build_a -DSAAN_MODEL_BLOB=<int8 blob> build && idf.py -B build_a -p PORT flash monitor
+idf.py -B build_a -DSDKCONFIG=build_a/sdkconfig \
+       -DSAAN_MODEL_BLOB=<int8 blob> build
+idf.py -B build_a -DSDKCONFIG=build_a/sdkconfig -p <ポート> flash monitor
+
 # B: W8A8 + PIE
-idf.py -B build_b -DSAAN_ENABLE_PIE=1 -DSAAN_MODEL_BLOB=<int8 blob> build && idf.py -B build_b -p PORT flash monitor
+idf.py -B build_b -DSDKCONFIG=build_b/sdkconfig -DSAAN_ENABLE_PIE=1 \
+       -DSAAN_MODEL_BLOB=<int8 blob> build
+idf.py -B build_b -DSDKCONFIG=build_b/sdkconfig -p <ポート> flash monitor
 ```
+
+⚠️ **`-DSDKCONFIG=` を build ディレクトリごとに分けてください。** 省くと
+両方が `esp32/sdkconfig` を共有し、**片方の設定がもう片方に漏れます**
+（同じ理由で上の USB 切り替えも壊れます）。
 
 外挿では A は **2.47× 実時間**（間に合わない）と予想しています。
 ⚠️ **この外挿が当たっているかどうかも、まだ誰も確かめていません。**
