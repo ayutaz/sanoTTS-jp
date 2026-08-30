@@ -55,39 +55,86 @@ int8 multiply-accumulate), verified **bit-identical to the scalar path under QEM
 never been measured**. Whether it reaches 0.22× real-time can only be settled on real
 ESP32-S3 hardware.
 
-## What you can run today
+## Getting started
 
-Verified by actually running it in a fresh clone. No teacher model or trained weights needed.
+**Four entry points, each needing something different.** A is the lightest — just a download.
+
+| | Goal | What you need | Time |
+|---|---|---|---|
+| **A** | **Hear it** | `saanotts-jp-v3-samples.zip` from [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | 1 min |
+| **B** | **Synthesize your own text** | + setup (below) + `saanotts-jp-v3-stage4.pt` | 15 min |
+| **C** | **Make an ESP32-S3 speak** | + ESP-IDF v5.5 + a board (DAC optional) | 15–30 min |
+| **D** | **Run the code gates** | setup only (no weights, no teacher) | 5 min |
+
+### Setup (shared by B / C / D)
+
+⚠️ **`git clone` followed by `uv sync` does not work.** `[tool.uv.sources]` in
+`pyproject.toml` points at an **absolute path to piper-plus**, so until you retarget it,
+`uv sync` fails with `error: Distribution not found at: file://...` (measured).
 
 ```bash
+git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT. Teacher impl + G2P
 git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
-uv sync          # first run builds the venv and takes a few minutes — do this first
+python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ before uv sync
+uv sync                                                               # a few minutes the first time
 ```
 
+⚠️ **The teacher checkpoint (private) is not required.** All you need is the piper-plus
+source (OpenJTalk G2P and `piper_train`). The teacher is only needed to regenerate labels
+or retrain.
+
+### B. Synthesize your own text
+
+Download `saanotts-jp-v3-stage4.pt` (2.7 MB) from
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
+
 ```bash
-# On-device G2P — the most interesting part of this repo
-make -C csrc g2p
-#   → 2,819 vectors match the Python implementation exactly, table SHA-256 check, negative control
+# Kanji text → the same "kana intermediate form" the device consumes (host side, OpenJTalk)
+uv run python scripts/to_intermediate.py "今日は良い天気ですね。"
+#   → きょ][おわよ][いて][んきです°ね
 
-# Inverse FFT (1,435× faster than the naive DFT)
-make -C csrc fft
+# Synthesize (writes a 22.05 kHz WAV to out/cli_000.wav)
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+    --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
+```
 
-# Loss properties and label-pack round-trip
+⚠️ **`--text "今日は良い天気ですね。"` also works, but that path needs the private teacher
+checkpoint** (it builds phoneme IDs through the teacher's `phoneme_id_map`).
+`--intermediate` reads zero bytes of the teacher and produces a **byte-identical WAV** for
+the same input (verified).
+
+⚠️ **The model weights are not MIT.** Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) first.
+
+### C. Make an ESP32-S3 speak
+
+Full instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over serial:
+
+```
+かな> きょ][おわよ][いて][んきです°ね
+```
+
+⚠️ **The device does not accept kanji** (the dictionary does not fit). Paste the line that
+`to_intermediate.py` produces. ⚠️ **Nobody has measured the speed yet.**
+
+### D. Run the code gates (no weights, no teacher)
+
+```bash
+make -C csrc g2p        # On-device G2P: 2,819 vectors match the Python implementation exactly
+make -C csrc line       # Terminal line editing. ⚠️ With a positive control (a naive impl fails 20 checks)
+make -C csrc fft        # Inverse FFT (1,435× faster than the naive DFT)
 uv run python scripts/test_losses.py
 uv run python scripts/test_labelpack.py
 ```
 
-### What you cannot run
+⚠️ **`make -C csrc all-test` will not pass** — the golden comparison needs `csrc/*.bin`
+(exported weights). Run `scripts/export_c_weights.py --ckpt <the .pt you downloaded>` first.
+
+### What you still cannot do
 
 | | Why |
 |---|---|
-| **Hear the audio** | Synthesized audio is not distributed yet (**planned for the initial release**) |
-| **Trained weights** | Not distributed yet (**planned for the initial release**). `csrc/*.bin` is not part of the distribution today |
-| **Label generation / training** | The teacher checkpoint lives in a private repository |
-| **`make -C csrc all-test`** | Needs the weights, so it does not pass in a fresh clone |
-
-⚠️ **In other words, this repository alone cannot reproduce the audio.** What is published
-is the **method, the code, and the measurement record** — not a working model.
+| **Regenerate labels / retrain** | The teacher checkpoint lives in a private repository |
+| **Measure real-hardware speed** | ⚠️ **No ESP32-S3 board here.** See [`esp32/TESTING.md`](esp32/TESTING.md) |
 
 ## Architecture
 
@@ -111,6 +158,9 @@ sentences and cannot read held-out text.
   caller-supplied arena. The streaming build is **bit-identical** to the batch build
   (27,136 samples)
 - **On-device G2P** (`csrc/g2p.c`) — 913 B table / 2.4 KB code / **0 B working memory**
+- **Free-form input on the device** — type one line of the kana intermediate form over
+  serial and it speaks (`csrc/line.c`, 369 B). From kanji text:
+  `uv run python scripts/to_intermediate.py "..."` (host side)
 - **The full distillation path** — teacher label generation → 4-stage training → evaluation
   (SCOREQ / UTMOS / DNSMOS / kana CER / per-phoneme-class spectral flatness)
 
@@ -120,6 +170,9 @@ sentences and cannot read held-out text.
   TTS decoder
 - **`csrc/g2p.c` + `scripts/kana_g2p.py`** — the kana intermediate representation and its C
   implementation. **One answer to the G2P problem when putting Japanese TTS on an MCU**
+- **`csrc/line.c`** — 369 B of UTF-8-aware line editing. If you let people type Japanese
+  over an MCU serial port, you will hit both of these: **arrow keys inserting a markup
+  character, and backspace splitting a UTF-8 sequence**
 - **`docs/measurements.md`** — a measurement log where every entry carries a reproduction
   command: ESP32 memory budget, extrapolation from esp-dsp cycle counts, calibration of MOS
   predictors on Japanese, and more
@@ -144,10 +197,13 @@ The documentation is in Japanese.
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
-| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-51. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-034 and the **correction log C-001–C-028** |
+| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-63. Every entry has a reproduction command |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-040 and the **correction log C-001–C-039** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
+| [`esp32/README.md`](esp32/README.md) | ESP32-S3 build and design decisions |
+| [`esp32/TESTING.md`](esp32/TESTING.md) | **How to run it on real hardware** (flashing, speaking, the 4 lines to report) |
+| [`MODEL_CARD.md`](MODEL_CARD.md) | What the model is, how it was evaluated, known limits |
 | [`CLAUDE.md`](CLAUDE.md) | Implementation notes; also the operating rules for AI agents |
 
 ## How this repository is run
@@ -156,13 +212,13 @@ The documentation is in Japanese.
 that is written into the repository itself.
 
 - **Never write a guess as a number.** If it was not measured, it says "not measured"
-- **Never delete the correction log.** **28 entries** record errors of the form
+- **Never delete the correction log.** **39 entries** record errors of the form
   "something one command would have answered, inferred instead of measured." They exist so
   the same mistake is not repeated
 - **Never delete a risk just because it was settled.** Deleting it makes the question resurface
 - **Always report n and a CI when n is small** (a difference at n = 3 was once turned into a
   conclusion, then refuted)
-- **Do not write a gate you cannot break on purpose.** Six defects hid behind green tests;
+- **Do not write a gate you cannot break on purpose.** Seven defects hid behind green tests;
   they are collected in `.claude/skills/writing-gates/`
 
 `.claude/hooks/guard_bash.py` mechanically blocks writes to the teacher repository,

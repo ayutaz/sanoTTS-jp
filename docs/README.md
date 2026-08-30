@@ -3,18 +3,22 @@
 arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 上で動く
 日本語 TTS** を作るプロジェクトの調査・設計・実測記録。
 
+⚠️ **「まず動かしたい」なら、ここではなく [`../README.md`](../README.md) の「はじめかた」から。**
+セットアップ（`uv sync` の前に piper-plus を向け直す）と、音を出すまでの最短手順がある。
+実機に載せるのは [`../esp32/TESTING.md`](../esp32/TESTING.md)。
+
 ## 読む順序
 
 | # | ドキュメント | 内容 | 更新頻度 |
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-034 と**訂正履歴 C-001〜C-027** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-51。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-040 と**訂正履歴 C-001〜C-039** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-63。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
-| 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | **vast.ai 実行手順**。ラベル一括生成 → 本学習。教師の同一性照合とゲート | 実行時 |
+| 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | vast.ai 実行手順。⚠️ **通常は不要**（D-027 で手元完結に変更）。λ の並列探索などで使う | 実行時 |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
@@ -23,7 +27,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 
 ⚠️ 例外は [`upstream-sanotts.md`](upstream-sanotts.md)。**あれは上流の申告値であって、うちの実測ではない。** M-番号と混ぜないこと。
 
-## 現在地（2026-08-28 時点）
+## 現在地（2026-08-30 時点）
 
 ```
 [完了] 論文の仕様抽出        論文 PDF から全数値を抽出
@@ -162,7 +166,7 @@ sanoTTS-jp/
 │   ├── decisions.md                       決定記録 D-001〜D-034 + 訂正履歴 C-001〜C-027
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-51
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
-│   ├── vastai-runbook.md                  vast.ai の実行手順（次のフェーズ）
+│   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/phase-a-decisions.md          Phase A の決定
 │   └── research/
@@ -184,12 +188,21 @@ sanoTTS-jp/
 │   ├── saanotts_stream.h / .c             **ストリーミング版**（196.9 KB / SRAM に載る）
 │   ├── saanotts_internal.h                両版で共有するカーネル（**2 回書かない**）
 │   ├── fft.h / fft.c                      radix-2 逆実 FFT（naive の 1,435 倍）
-│   ├── saanotts_int8.h / .c               int8 カーネル（⚠️ **PIE 未使用**）
+│   ├── saanotts_int8.h / .c               int8 カーネル + **PIE（ESP32-S3 の整数 SIMD）**
+│   ├── g2p.h / g2p.c / g2p_table.h        端末側 G2P（中間表現 → 生徒インデックス。表 913 B）
+│   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
 │   ├── fft_test.c / int8_test.c           各カーネルの単体検証
+│   ├── g2p_test.c / line_test.c           G2P と行編集（**どちらも陽性対照つき**）
 │   ├── bench.c                            レイテンシ測定（段別の内訳）
 │   └── Makefile                           `make all-test` / `make run-bench`
+├── esp32/                                 **ESP-IDF アプリ**（QEMU で完走。⚠️ 実機未検証）
+│   ├── main/main.c                        arena / 合成ループ / 計測ログ / 対話ループ
+│   ├── main/saan_console.{h,c}            シリアルからの 1 行入力（UART0 / USB Serial/JTAG）
+│   ├── host_stub/                         IDF API の偽ヘッダ。**デバイスには載らない**
+│   ├── TESTING.md                         **実機を持っている人向けの手順**
+│   └── README.md                          ビルドと設計判断
 ├── deploy/                                vast.ai 用（⚠️ 現在は使っていない、D-027）
 │   ├── vastai_bootstrap.sh                setup → parity → labels → train
 │   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す
@@ -272,8 +285,10 @@ uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 
 
 ⚠️ **ラベルは一度だけ生成する**（D-015）。hook が `data/pack` の破棄と再生成を deny する。
 
-**Python は必ず `uv` 経由**（`pip install` を使わない）。**学習は vast.ai**（[D-012](decisions.md)）。
-手元で `--split train` のラベルを丸ごと生成しようとすると hook が止める。
+**Python は必ず `uv` 経由**（`pip install` を使わない）。
+⚠️ **学習もラベル生成も手元の M4 Max で完結する**（[D-027](decisions.md)。D-012 の実行環境部分は撤回済み）。
+かつてここに「学習は vast.ai」と書いてあったが**古い**。vast.ai は λ の並列探索など任意。
+⚠️ 本番パック `data/pack` を破棄・再生成しようとすると hook が止める（[D-015](decisions.md)）。
 
 ## 外部依存
 
@@ -282,7 +297,7 @@ uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 
 | 教師モデル | `ayousanz/piper-plus-zero-shot-tsukuyomi` (HF private) | `epoch=499-step=22000.ckpt` 927 MB |
 | piper-plus | `~/Documents/piper-plus` | v2.0.0 HEAD。**読み取り専用で使う** |
 | Python 環境 | 本リポジトリの `uv`（`pyproject.toml`） | Python 3.14.0 / torch 2.13.0。教師ラベルは piper-plus venv と bit 一致 |
-| 学習環境 | **vast.ai** | ラベル生成も向こうで実行（D-012）。手順は [`vastai-runbook.md`](vastai-runbook.md) |
+| 学習環境 | **手元の M4 Max**（D-027） | ラベル生成 CPU 40 分 / 学習 MPS 約 1.3 時間。⚠️ vast.ai は任意（[`vastai-runbook.md`](vastai-runbook.md)。**CUDA parity ゲートは未通過**） |
 | 評価指標 | `scoreq==1.0.1`（PyPI） | `uv sync --extra eval`。ラッパは `src/saanotts_jp/scoreq_metric.py` |
 
 ⚠️ **piper-plus のコミットは `src/saanotts_jp/teacher_identity.py` にピン留めしてある。**

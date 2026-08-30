@@ -2331,3 +2331,50 @@ D-040 の初版は、起動時に錨の 1 文を合成する理由を 2 つ挙�
 
 **教訓**: 直前の段落で実証した事実が、次の段落の主張を無効にしていた。
 **同じ文書の中でも、根拠は 1 つずつ「それはこの結論を支えるか」を見ること。**
+
+---
+
+## C-040: リリースに載せた「使い方」が動かなかった（2 か所とも未実行）
+
+**2026-08-30、ユーザーに「セットアップの資料はあるか」と聞かれて発覚した。**
+
+v0.1.0 のリリースノートに載せた手順:
+
+```bash
+git clone ... && cd sanoTTS-jp && uv sync
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+    --text "今日は良い天気ですね。" --out out/
+```
+
+**2 行とも、リリースだけを落とした人には通らない。**
+
+1. **`uv sync` が失敗する。** `pyproject.toml` の `[tool.uv.sources]` が piper-plus への
+   **絶対パス**を指している。実測: 存在しない path source で `uv sync` は
+   `error: Distribution not found at: file:///...` で止まる。
+   ⚠️ **`deploy/retarget_sources.py` の docstring に「vast.ai にはそのパスが無いので
+   `uv sync` が失敗する」と自分で書いてあった。**
+2. **`--text` は教師 ckpt を要求する。** `synthesize_student.py` が
+   `G.snapshot()` で HF キャッシュの教師 config から `phoneme_id_map` を読む。
+   教師は private なので、**外の人には原理的に実行できない**。
+
+**なぜ気づかなかったか**: 手元では piper-plus も教師キャッシュも揃っているので、
+書いたコマンドがそのまま通ってしまう。**「自分の環境で動いた」は「読者の環境で動く」ではない。**
+`README.md` に「新規 clone で**実際に通ることを確認済み**」とまで書いていたが、
+確認したのは**この環境での新規 clone** だった。
+
+対応:
+
+- `synthesize_student.py` に **`--intermediate`** を足した。かな中間表現を直接受け、
+  生徒インデックスは `gen_g2p_vectors.encode()`（= `csrc/g2p.c` の期待値を作るのと同じ関数）
+  で組む。**教師 ckpt を 1 バイトも読まない。** 同じ入力に対し `--text` 経路と
+  **WAV がバイト単位で一致**することを確認した（M-64）
+- 教師が無いときのエラーを「HF キャッシュに無い」から
+  **「`--intermediate` を使え」まで書く**ようにした
+- `README.md` / `README.en.md` に「はじめかた」を置き、**要るものを入口ごとに分けた**
+  （A 聴くだけ / B 合成 / C 実機 / D ゲート）。piper-plus の向け直しを `uv sync` の前に明記
+- `docs/release-notes/v0.1.0.md` に**誤っていた手順をそのまま残して訂正**した
+
+⚠️ **GitHub の Release 本文はまだ古いまま**（リポジトリ内のコピーだけ直した）。
+
+**教訓**: 手順書を書いたら、**自分の環境に無いものを外して**もう一度読む。
+「教師が無い人」「piper-plus が無い人」を仮定するだけで両方見つかった。

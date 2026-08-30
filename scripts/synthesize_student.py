@@ -14,6 +14,19 @@
         --texts data/splits/corpus_heldout.tsv --limit 24 --out reports/student_wav
     uv run python scripts/synthesize_student.py --ckpt runs/v1/stage4.pt \
         --text "今日は良い天気ですね。" --out /tmp/one
+
+⚠️ **`--text` / `--texts`（漢字混じり文）は教師 ckpt を要求する。**
+音素 ID を教師の `phoneme_id_map` 経由で組むため。教師は private リポジトリにあるので、
+**リリースの重みだけを持っている人はこの経路を使えない**。
+
+その場合は `--intermediate` で**かな中間表現を直接**渡す。**端末が受け取るのと同じ形**で、
+教師 ckpt を 1 バイトも読まない:
+
+    uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+        --intermediate "きょ][おわよ][いて][んきです°ね" --out /tmp/one
+
+⚠️ **どちらの経路も同じ ids を作る**（生徒インデックスまで一致することを確認済み）。
+漢字文から中間表現を作るのは `scripts/to_intermediate.py`。
 """
 
 from __future__ import annotations
@@ -98,7 +111,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--ckpt", required=True, help="runs/<name>/stage4.pt")
     ap.add_argument("--texts", help="TSV (source, id, text)")
-    ap.add_argument("--text", help="1 文だけ合成する")
+    ap.add_argument("--text", help="1 文だけ合成する（漢字可。⚠️ 教師 ckpt が要る）")
+    ap.add_argument("--intermediate",
+                    help="かな中間表現を直接渡す（例: きょ][おわよ...）。"
+                         "**教師 ckpt が要らない唯一の経路**")
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--out", required=True)
     ap.add_argument("--s-v", type=float, default=S_V)
@@ -107,8 +123,8 @@ def main() -> int:
     ap.add_argument("--device", default=None)
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
-    if not (args.texts or args.text):
-        raise SystemExit("--texts か --text が要ります")
+    if not (args.texts or args.text or args.intermediate):
+        raise SystemExit("--texts / --text / --intermediate のどれかが要ります")
 
     device = args.device or (
         "mps" if torch.backends.mps.is_available()
@@ -121,25 +137,55 @@ def main() -> int:
     elif args.beta > 0:
         raise SystemExit("ckpt に c_stats がありません。Stage 2 を回し直してください")
 
-    import gen_teacher_labels as G
     import kana_g2p as K
     table = K.build_mora_table()
-    G.ENCODE_TABLE = table
-    pim = json.load(open(G.snapshot() + "config.json"))["phoneme_id_map"]
 
     rows: list[tuple[str, str]] = []
-    if args.text:
-        rows.append(("cli_000", args.text))
+    if args.intermediate:
+        # --- 中間表現を直接受ける経路（**教師 ckpt を読まない**）-----------
+        # ⚠️ 生徒インデックスは `gen_g2p_vectors.encode()` で作る。これは
+        #    `csrc/g2p.c` の期待値を作っているのと**同じ関数**なので、
+        #    端末が同じ 1 行から作る ids と一致することが `make -C csrc g2p` で
+        #    毎回検査されている。教師の phoneme_id_map を経由する下の経路とも
+        #    一致する（`scripts/gen_demo_ids.py` の錨がその突き合わせ）。
+        from gen_g2p_vectors import encode as encode_student
+
+        def to_student_ids(text: str) -> list[int]:
+            info = encode_student(text, table)
+            if info["kind"] != 0:
+                raise KeyError(f"{info['err_byte']} バイト目が中間表現として読めない")
+            return info["ids"]
+
+        rows.append(("cli_000", args.intermediate))
     else:
-        excluded = G.load_exclusions()
-        for r in csv.reader(open(args.texts), delimiter="\t"):
-            if not r or not r[-1] or r[0] == "source":
-                continue
-            if len(r) >= 3 and r[1] in excluded:
-                continue          # B-10: 教師の学習テキストは評価に使わない
-            rows.append((r[1] if len(r) >= 3 else f"utt_{len(rows):04d}", r[-1]))
-            if args.limit and len(rows) >= args.limit:
-                break
+        # --- 漢字混じり文の経路（⚠️ **教師 ckpt が要る**）-------------------
+        import gen_teacher_labels as G
+        G.ENCODE_TABLE = table
+        try:
+            pim = json.load(open(G.snapshot() + "config.json"))["phoneme_id_map"]
+        except SystemExit:
+            raise SystemExit(
+                "教師 ckpt が HF キャッシュに無い（private リポジトリ）。\n"
+                "  リリースの重みだけを持っている場合は、かな中間表現を直接渡すこと:\n"
+                '    --intermediate "きょ][おわよ][いて][んきです°ね"\n'
+                "  漢字文からの変換は scripts/to_intermediate.py（OpenJTalk を使う）"
+            ) from None
+
+        def to_student_ids(text: str) -> list[int]:
+            return map_ids(G.encode_intermediate(K.text_to_intermediate(text, table), pim))
+
+        if args.text:
+            rows.append(("cli_000", args.text))
+        else:
+            excluded = G.load_exclusions()
+            for r in csv.reader(open(args.texts), delimiter="\t"):
+                if not r or not r[-1] or r[0] == "source":
+                    continue
+                if len(r) >= 3 and r[1] in excluded:
+                    continue      # B-10: 教師の学習テキストは評価に使わない
+                rows.append((r[1] if len(r) >= 3 else f"utt_{len(rows):04d}", r[-1]))
+                if args.limit and len(rows) >= args.limit:
+                    break
 
     outdir = pathlib.Path(args.out)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -148,8 +194,7 @@ def main() -> int:
     index, skipped = [], []
     for uid, text in rows:
         try:
-            ids_t = G.encode_intermediate(K.text_to_intermediate(text, table), pim)
-            ids_s = map_ids(ids_t)
+            ids_s = to_student_ids(text)
         except KeyError as exc:
             skipped.append({"uid": uid, "text": text, "why": str(exc)})
             continue

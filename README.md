@@ -57,39 +57,85 @@ toolchain（ESP-IDF v5.5）と QEMU は導入済みで、ビルドと bit 一致
 > 🙏 **ESP32-S3 の実機をお持ちの方へ** — 15〜30 分で決着します。
 > 手順は [`esp32/TESTING.md`](esp32/TESTING.md)。**DAC が無くても測れます。**
 
-## いま試せること
+## はじめかた
 
-新規 clone で**実際に通ることを確認済み**。教師モデルも学習済み重みも要らない。
+**入口は 4 つあり、要るものが違う。** 一番軽いのは A（ダウンロードだけ）。
+
+| | やりたいこと | 要るもの | 所要 |
+|---|---|---|---|
+| **A** | **音を聴く** | [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` だけ | 1 分 |
+| **B** | **自分の文を合成する** | + セットアップ（下記）+ `saanotts-jp-v3-stage4.pt` | 15 分 |
+| **C** | **ESP32-S3 で喋らせる** | + ESP-IDF v5.5 + ボード（DAC は任意） | 15〜30 分 |
+| **D** | **コードのゲートを回す** | セットアップだけ（重みも教師も不要） | 5 分 |
+
+### セットアップ（B / C / D の共通）
+
+⚠️ **`git clone` して `uv sync` では通らない。** `pyproject.toml` の
+`[tool.uv.sources]` が **piper-plus への絶対パス**を指しているため、
+向け直すまで `error: Distribution not found at: file://...` で失敗する（実測）。
 
 ```bash
+git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT。教師の実装と G2P
 git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
-uv sync          # ⚠️ 初回は venv 作成に数分かかる。先に済ませておくこと
+python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ uv sync の前
+uv sync                                                               # 初回は数分かかる
 ```
 
+⚠️ **教師 checkpoint（private）は要らない。** 要るのは piper-plus のソース
+（OpenJTalk の G2P と `piper_train`）だけ。教師が要るのは
+**ラベル生成と学習をやり直すときだけ**。
+
+### B. 自分の文を合成する
+
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) から
+`saanotts-jp-v3-stage4.pt`（2.7 MB）を落とす。
+
 ```bash
-# オンデバイス G2P（このリポジトリで一番おもしろい部分）
-make -C csrc g2p
-#   → 2,819 ベクタで Python 実装と ids が完全一致 / テーブル SHA-256 照合 / 陰性対照
+# 漢字混じり文 → 端末と同じ「かな中間表現」（ホスト側・OpenJTalk）
+uv run python scripts/to_intermediate.py "今日は良い天気ですね。"
+#   → きょ][おわよ][いて][んきです°ね
 
-# 逆 FFT（naive DFT の 1,435 倍）
-make -C csrc fft
+# 合成（22.05 kHz の WAV が out/cli_000.wav に出る）
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+    --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
+```
 
-# 損失の性質・ラベルパックの往復
+⚠️ **`--text "今日は良い天気ですね。"` でも合成できるが、そちらは教師 ckpt（private）が要る**
+（音素 ID を教師の `phoneme_id_map` 経由で組むため）。`--intermediate` は教師を
+1 バイトも読まず、**同じ入力に対して WAV がバイト単位で一致する**（確認済み）。
+
+⚠️ **モデルの重みは MIT ではない。** 使う前に [`LICENSE-MODEL.md`](LICENSE-MODEL.md) を読むこと。
+
+### C. ESP32-S3 で喋らせる
+
+手順は [`esp32/TESTING.md`](esp32/TESTING.md)。焼いたあとシリアルで:
+
+```
+かな> きょ][おわよ][いて][んきです°ね
+```
+
+⚠️ **端末は漢字を受け付けない**（辞書が載らないため）。上の `to_intermediate.py` が作る
+1 行を貼り付ける。⚠️ **速度はまだ誰も測っていない。**
+
+### D. コードのゲートを回す（重みも教師も要らない）
+
+```bash
+make -C csrc g2p        # オンデバイス G2P。2,819 ベクタで Python と ids が完全一致
+make -C csrc line       # 端末の行編集。⚠️ 陽性対照つき（素直な実装が 20 項目落ちる）
+make -C csrc fft        # 逆 FFT（naive DFT の 1,435 倍）
 uv run python scripts/test_losses.py
 uv run python scripts/test_labelpack.py
 ```
 
-### 試せないこと
+⚠️ **`make -C csrc all-test` は通らない** — golden との突き合わせに `csrc/*.bin`
+（重みの書き出し）が要る。`scripts/export_c_weights.py --ckpt <落とした .pt>` を先に走らせること。
+
+### まだできないこと
 
 | | 理由 |
 |---|---|
-| **音を聴く** | 合成音声をまだ配布していない（**初期リリースで配布予定**） |
-| **学習済み重み** | まだ配布していない（**初期リリースで配布予定**）。`csrc/*.bin` は現時点で配布物に含まれない |
-| **ラベル生成・学習** | 教師 checkpoint が private リポジトリにある |
-| **`make -C csrc all-test`** | 重みが要るので新規 clone では通らない |
-
-⚠️ **つまり、このリポジトリだけでは音を再現できない。** 公開しているのは
-**手法・コード・実測記録**であって、動くモデルではない。
+| **ラベル生成・学習をやり直す** | 教師 checkpoint が private リポジトリにある |
+| **実機での速度** | ⚠️ **ESP32-S3 の実機が無い。** [`esp32/TESTING.md`](esp32/TESTING.md) |
 
 ## アーキテクチャ
 
@@ -145,10 +191,13 @@ uv run python scripts/test_labelpack.py
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-51。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-034 と**訂正履歴 C-001〜C-028** |
+| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-63。全項目に再現コマンド付き |
+| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-040 と**訂正履歴 C-001〜C-039** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
+| [`esp32/README.md`](esp32/README.md) | ESP32-S3 のビルドと設計判断 |
+| [`esp32/TESTING.md`](esp32/TESTING.md) | **実機で動かす手順**（焼き方・喋らせ方・報告してほしい 4 行） |
+| [`MODEL_CARD.md`](MODEL_CARD.md) | モデルの中身・評価・既知の制約 |
 | [`CLAUDE.md`](CLAUDE.md) | 実装時の要点。AI エージェント向けの運用ルールでもある |
 
 ## このリポジトリの進め方
@@ -158,11 +207,11 @@ uv run python scripts/test_labelpack.py
 
 - **推測を数値として書かない。** 測っていないことは「未測定」と書く
 - **訂正履歴を消さない。** 「1 コマンド打てば分かることを、打たずに推論した」種類の誤りが
-  **28 件**記録してある。同じ間違いを繰り返さないための資料
+  **39 件**記録してある。同じ間違いを繰り返さないための資料
 - **決着したリスクも消さない。** 消すと同じ疑問が再燃する
 - **n が小さいときは n と CI を必ず併記する**（n=3 の差を結論にして反証されたことがある）
 - **ゲートは「落ちる壊し方」を言えないと書かない。** テストが緑のまま欠陥が潜んでいた例が
-  6 件あり、`.claude/skills/writing-gates/` にまとめてある
+  7 件あり、`.claude/skills/writing-gates/` にまとめてある
 
 `.claude/hooks/guard_bash.py` が、教師リポジトリへの書き込み・`pip install`・
 本番ラベルパックの破棄・GPL ソースの取得・コーパス本文を含むコミットを機械的に止める

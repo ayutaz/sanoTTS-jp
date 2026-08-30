@@ -4454,3 +4454,34 @@ DRAM は**同じ設定・同じ QEMU で前後を測った**（どちらも `-DS
 - 実機の UART で本当に 1 バイトずつ取れるか（QEMU のシリアルは実機のタイミングではない）
 - 端末上のエコーの見た目・全角の表示幅
 - 実機の I2S（QEMU は DMA を捌かない）
+
+---
+
+## M-64. `--intermediate` は教師経路と**バイト単位で一致**する（自己実測）
+
+`scripts/synthesize_student.py --intermediate` は教師 ckpt を読まない
+（C-040）。教師の `phoneme_id_map` を経由する `--text` 経路と同じ音になるかを確かめた。
+
+再現（⚠️ **教師 ckpt がある環境でしか両方は走らない**）:
+
+```bash
+uv run python scripts/synthesize_student.py --ckpt runs/v3/stage4.pt \
+    --intermediate "きょ][おわよ][いて][んきです°ね" --out /tmp/syn_i
+uv run python scripts/synthesize_student.py --ckpt runs/v3/stage4.pt \
+    --text "今日は良い天気ですね。" --out /tmp/syn_t
+cmp /tmp/syn_i/cli_000.wav /tmp/syn_t/cli_000.wav      # 差分なし
+```
+
+| | SHA-256 |
+|---|---|
+| `--intermediate` | `4dfd49faec4a73b1b9a111cdb9693fa95ed7850120b164e25d1bb1275713d2d1` |
+| `--text`（教師の phoneme_id_map 経由） | **同じ** |
+
+⚠️ **陰性対照つき。** `--intermediate "こんにちわ"` は一致しない
+（一致してしまうなら比較が空虚 = 引数を無視している）。
+
+⚠️ **これが言えるのは「ids が同じなら音も同じ」までで、`--intermediate` が
+中間表現を正しく解釈していることの証明ではない**。そちらは
+`make -C csrc g2p`（Python と C で ids が完全一致）と
+`scripts/to_intermediate.py --ids` が `esp32/main/demo_ids.h` の錨 53 ids を
+再現することで担保している。
