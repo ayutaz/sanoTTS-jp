@@ -157,6 +157,7 @@ uv run python scripts/test_discriminator.py        # 判別器（23 チェック
 uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（83 ケース + commit ガード）
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
 uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号（陽性対照つき。C-042）
+uv run python scripts/k1/k0_verify_dict.py         # 使う辞書が D-042 の凍結物か（陰性対照 2 種。C-045）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
                                                    #   g2p / pad / **line**）

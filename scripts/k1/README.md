@@ -6,6 +6,7 @@
 ## 使い方
 
 ```bash
+uv run python scripts/k1/k0_verify_dict.py       # **最初にこれ**。使う辞書が D-042 の凍結物か
 uv run python scripts/k1/dump_entries2.py        # 辞書を .k1work/entries.tsv に展開（約 4 秒）
 uv run python scripts/k1/completeness_audit.py   # 形式の完全性監査
 uv run python scripts/k1/format_analyzer.py 200  # G9/G10/G11（新形式だけで MeCab を再現）
@@ -43,6 +44,17 @@ uv run python scripts/k1/heldout_source_check.py # held-out のソース順の�
 
 `run_all.sh` / `build_probe.sh` / `build_pages2.sh` は `oj/` とクロスコンパイラに依存するので、
 **そのままでは動かない**。RAM 測定を再現するには OpenJTalk のソース展開が要る。
+
+## K-0 の凍結物
+
+| ファイル | 役割 |
+|---|---|
+| `dict_manifest.json` | D-042 で凍結した辞書の同一性（8 ファイルの SHA-256 + ヘッダ + 環境） |
+| `k0_freeze_dict.py` | 凍結する。既存と食い違えば **exit 1 で止まる**（`--force` で更新） |
+| `k0_verify_dict.py` | 照合する。G0-2 / G0-3a（合成）/ G0-3b（別リビジョン実物） |
+| `k0_mmu_window.py` | ESP-IDF ヘッダから MMU 窓を確定 |
+| `k0_fit_point.py` | 予算に入るエントリ数を二分探索（内挿は C-009 で禁止） |
+| `k0_dict_inventory.py` | マシン上の sys.dic を全数え上げ |
 
 ## 出力
 
