@@ -200,11 +200,110 @@ def test_louds_serialize() -> None:
     check("バイト列が空でない", len(blob) > 0)
 
 
+# ---------------------------------------------------------------- 辞書 blob
+
+def _sample_entries():
+    """小さいが形式のすべての枝を踏む entry 集合。"""
+    from saanotts_jp.k1_dict import Entry
+    P6 = ("名詞", "一般", "*", "*", "*", "*")
+    P6b = ("動詞", "自立", "*", "*", "一段", "基本形")
+    return [
+        # surface, lc, rc, wcost, pos6, posid, orig, read, pron, acc, chain
+        Entry("今日", 1345, 1345, 6455, P6, 38, "今日", "キョウ", "キョー", "1/2", "C3"),
+        Entry("今日", 1300, 1300, 5000, P6, 38, "今日", "コンニチ", "コンニチ", "0/4", "C1"),
+        Entry("は", 284, 284, 3143, P6, 16, "は", "ハ", "ワ", "0/1", "名詞%F1"),
+        Entry("電源", 1345, 1345, 4000, P6, 38, "電源", "デンゲン", "デンゲン", "0/4", "C1"),
+        # orig が見出し語と違う（活用形）
+        Entry("食べる", 772, 772, 5000, P6b, 31, "食べる", "タベル", "タベル", "2/3", "*"),
+        Entry("食べ", 773, 773, 5100, P6b, 31, "食べる", "タベ", "タベ", "2/2", "*"),
+        # read != pron（は→ワ 型）、複合語
+        Entry("昔々", 1375, 1375, 381, P6, 67, "昔:々", "ムカシ:ムカシ",
+              "ムカシ:ムカシ", "0/3:0/3", "C2"),
+        # acc が */*
+        Entry("。", 5, 5, 1526, ("記号", "句点", "*", "*", "*", "*"), 4,
+              "。", "。", "。", "*/*", "*"),
+    ]
+
+
+def test_blob_roundtrip() -> None:
+    """G1: blob から復元した 11 フィールドが元と一致する。"""
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 辞書 blob: 往復（G1）===")
+    entries = _sample_entries()
+    blob = DictBlob.build(entries)
+    back = DictBlob.from_bytes(blob.to_bytes())
+
+    got = back.all_entries()
+    check("エントリ数が一致", len(got) == len(entries), f"{len(got)} / {len(entries)}")
+
+    exp_sorted = sorted(entries, key=lambda e: (e.surface,))
+    got_sorted = sorted(got, key=lambda e: (e.surface,))
+    diffs = [(a, b) for a, b in zip(exp_sorted, got_sorted) if a != b]
+    check("11 フィールドすべて一致", not diffs, f"不一致 {len(diffs)} 件 {diffs[:1]}")
+
+    # 見出し語から引ける
+    e = back.lookup("今日")
+    check("同綴り 2 件が順序どおり引ける",
+          len(e) == 2 and e[0].wcost == 6455 and e[1].wcost == 5000,
+          str([x.wcost for x in e]))
+    check("引けない語は空", back.lookup("存在しない") == [])
+
+
+def test_blob_negative_control() -> None:
+    """G2: 陰性対照 — レコードを 1 バイト壊すと G1 が落ちる。"""
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 辞書 blob: 陰性対照（G2）===")
+    entries = _sample_entries()
+    raw = DictBlob.build(entries).to_bytes()
+
+    ok = DictBlob.from_bytes(raw).all_entries()
+    check("壊す前は一致", sorted(ok, key=lambda e: e.surface)
+          == sorted(entries, key=lambda e: e.surface))
+
+    off = DictBlob.record_region(raw)
+    check("レコード領域が空でない", off[1] > off[0], f"{off}")
+    broken = bytearray(raw)
+    broken[off[0] + 1] ^= 0xFF
+    try:
+        got = DictBlob.from_bytes(bytes(broken)).all_entries()
+        differs = sorted(got, key=lambda e: e.surface) != sorted(entries, key=lambda e: e.surface)
+    except Exception:
+        differs = True          # 復元できないのも「落ちた」
+    check("1 バイト壊すと復元結果が変わる", differs)
+
+
+def test_pool_offset_checkpoint() -> None:
+    """G5: チェックポイントからのオフセット復元が materialise 版と一致する。
+
+    K-1 §4-3: 間隔 256 だと 1 回の復元で最大 2,295 B 読む。**32 間隔**にする。
+    """
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 値プールのオフセット（G5）===")
+    entries = _sample_entries() * 20          # チェックポイントを跨がせる
+    b = DictBlob.build(entries)
+
+    check("チェックポイント間隔は 32", b.CHECKPOINT == 32, f"{b.CHECKPOINT}")
+    mat = b.pool_offsets_materialised()
+    ck = [b.pool_offset_from_checkpoint(i) for i in range(len(mat))]
+    check("復元が materialise 版と一致", mat == ck,
+          f"{sum(1 for a, c in zip(mat, ck) if a != c)} 件ずれ / {len(mat)} 件")
+
+    broken = b.with_broken_checkpoint(1)
+    ck2 = [broken.pool_offset_from_checkpoint(i) for i in range(len(mat))]
+    check("陰性対照: チェックポイントをずらすと落ちる", ck2 != mat,
+          f"{sum(1 for a, c in zip(mat, ck2) if a != c)} 件ずれ")
+
+
 # ---------------------------------------------------------------- 実行
 
 def main() -> int:
     tests = [test_mora_codec, test_key_codec, test_louds_search,
-             test_louds_negative_control, test_louds_serialize]
+             test_louds_negative_control, test_louds_serialize,
+             test_blob_roundtrip, test_blob_negative_control,
+             test_pool_offset_checkpoint]
     for t in tests:
         try:
             t()

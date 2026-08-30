@@ -12,8 +12,10 @@
 """
 from __future__ import annotations
 
+import pickle
+import struct
 from collections import Counter
-from typing import Iterable
+from typing import Iterable, NamedTuple
 
 # 小書き仮名。直前の文字とあわせて 1 モーラになる。
 SMALL_KANA = frozenset("ァィゥェォャュョヮヵヶ")
@@ -239,6 +241,14 @@ class Louds:
             q = nxt
         pos = {n: i for i, n in enumerate(order)}
 
+        # ⚠️ **終端 rank は BFS 順であって辞書順ではない。**
+        #    ここを取り違えると lookup が静かに別のエントリを返す（TDD で検出）。
+        key_of_node: dict[int, bytes] = {0: b""}
+        for n in order:
+            for b in sorted(kids[n]):
+                key_of_node[kids[n][b]] = key_of_node[n] + bytes([b])
+        term_keys = [key_of_node[n] for n in order if term_flag[n]]
+
         bitlen = 2 + sum(len(kids[n]) + 1 for n in order)
         bits = bytearray((bitlen + 7) // 8)
         labels = bytearray(len(order))
@@ -258,7 +268,7 @@ class Louds:
                 p += 1
             p += 1                            # 子の並びの終端 0
         assert p == bitlen, (p, bitlen)
-        return cls(bits, bitlen, labels, term, keys)
+        return cls(bits, bitlen, labels, term, term_keys)
 
     # --- 検索 ---------------------------------------------------------------
     def _child(self, node: int, ch: int) -> int | None:
@@ -296,9 +306,16 @@ class Louds:
         return out
 
     def key_of(self, rank: int) -> bytes:
+        """終端 rank から鍵を戻す。**rank は BFS 順**（辞書順ではない）。"""
         if self._keys is None:
             raise ValueError("鍵を保持していない（from_bytes で読んだ場合）")
         return self._keys[rank]
+
+    def terminal_keys(self) -> list[bytes]:
+        """終端 rank 順の鍵。値の並び順はこれに合わせること。"""
+        if self._keys is None:
+            raise ValueError("鍵を保持していない（from_bytes で読んだ場合）")
+        return list(self._keys)
 
     def with_broken_label(self, node: int) -> "Louds":
         """陰性対照用: 指定ノードのラベルを 1 ビット反転した複製を返す。"""
@@ -323,3 +340,247 @@ class Louds:
         nt = (n_nodes + 7) // 8
         term = bytearray(blob[o:o + nt])
         return cls(bits, bitlen, labels, term, None)
+
+
+class Entry(NamedTuple):
+    """辞書 1 エントリ。sys.dic の token + feature 11 列に対応する。"""
+    surface: str
+    lc: int
+    rc: int
+    wcost: int
+    pos6: tuple                 # (品詞, 細分類1..3, 活用型, 活用形)
+    posid: int
+    orig: str
+    read: str
+    pron: str
+    acc: str                    # "1/2" / "0/3:0/3" / "*/*"
+    chain: str
+
+
+def _encode_acc(acc: str) -> list[tuple[int, int]]:
+    out = []
+    for unit in acc.split(":"):
+        a, m = unit.split("/", 1) if "/" in unit else (unit, "*")
+        out.append((255 if a == "*" else int(a), 255 if m == "*" else int(m)))
+    return out
+
+
+def _decode_acc(vals: list[tuple[int, int]]) -> str:
+    return ":".join(("*" if a == 255 else str(a)) + "/" + ("*" if m == 255 else str(m))
+                    for a, m in vals)
+
+
+class DictBlob:
+    """TTS 専用の辞書バイナリ。
+
+    レコードは固定長、可変長の値は 1 本のプールに置く。
+    オフセットは **32 エントリおきのチェックポイント + レコードの長さ欄**から復元する
+    （K-1 §4-3: 256 間隔だと 1 回の復元で最大 2,295 B 読むことになる）。
+
+    `orig` / `read` は多くが冗長なのでフラグで持ち、例外だけプールに置く
+    （K-1 §2-2: `orig` は 63.73% が見出し語と一致、`read` は 82.88% が `pron` と一致）。
+    """
+
+    CHECKPOINT = 32
+
+    _F_ORIG_EQ_SURFACE = 0x01
+    _F_READ_EQ_PRON = 0x02
+
+    def __init__(self, *, keys: KeyCodec, moras: MoraCodec, louds: Louds,
+                 classes: list[tuple], chains: list[str], counts: list[int],
+                 records: bytes, pool: bytes, surfaces: list[str]) -> None:
+        self.keys = keys
+        self.moras = moras
+        self.louds = louds
+        self.classes = classes
+        self.chains = chains
+        self.counts = counts
+        self.records = records
+        self.pool = pool
+        self.surfaces = surfaces
+        self._start = [0]
+        for c in counts:
+            self._start.append(self._start[-1] + c)
+
+    # --- 構築 ---------------------------------------------------------------
+    @classmethod
+    def build(cls, entries: list[Entry]) -> "DictBlob":
+        keys = KeyCodec.from_surfaces(e.surface for e in entries)
+        moras = MoraCodec.from_prons(
+            [e.pron for e in entries] + [e.read for e in entries])
+
+        by: dict[str, list[Entry]] = {}
+        for e in entries:
+            by.setdefault(e.surface, []).append(e)
+        surfaces = sorted(by)
+        louds = Louds.build([keys.encode(s) for s in surfaces])
+        # ⚠️ **値の並びは LOUDS の終端 rank 順に合わせる。** 辞書順ではない。
+        order = [keys.decode(k) for k in louds.terminal_keys()]
+        assert sorted(order) == surfaces, "終端鍵と見出し語集合が食い違う"
+        surf_id = {s: i for i, s in enumerate(order)}
+
+        classes: dict[tuple, int] = {}
+        chains: dict[str, int] = {}
+        flat: list[Entry] = []
+        counts: list[int] = []
+        for s in order:
+            counts.append(len(by[s]))
+            flat.extend(by[s])
+        for e in flat:
+            classes.setdefault((e.lc, e.rc, e.pos6, e.posid), len(classes))
+            chains.setdefault(e.chain, len(chains))
+
+        records = bytearray()
+        pool = bytearray()
+        for e in flat:
+            flags = 0
+            extra = bytearray()
+            if e.orig == e.surface:
+                flags |= cls._F_ORIG_EQ_SURFACE
+            elif e.orig in surf_id:
+                # E1: 見出し語集合にある orig は ID で持つ（K-1 §6-3: 99.79%）
+                extra += b"\x01" + surf_id[e.orig].to_bytes(3, "little")
+            else:
+                b = e.orig.encode("utf-8")
+                extra += b"\x00" + bytes([len(b)]) + b
+            if e.read == e.pron:
+                flags |= cls._F_READ_EQ_PRON
+            else:
+                rb = moras.encode(e.read)     # E3: read もモーラ ID 列で持つ
+                extra += bytes([len(rb)]) + rb
+            pb = moras.encode(e.pron)
+            accs = _encode_acc(e.acc)
+            for a, m in accs:
+                extra += bytes([a, m])
+            if len(pb) > 255 or len(extra) > 255:
+                raise ValueError(f"可変長が 255 B を超えた: {e.surface}")
+            records += struct.pack(
+                "<HhHBBB", classes[(e.lc, e.rc, e.pos6, e.posid)], e.wcost,
+                chains[e.chain], flags, len(pb), len(extra))
+            pool += pb + extra
+
+        inv_c = [None] * len(classes)
+        for k, v in classes.items():
+            inv_c[v] = k
+        inv_ch = [None] * len(chains)
+        for k, v in chains.items():
+            inv_ch[v] = k
+        return cls(keys=keys, moras=moras, louds=louds, classes=inv_c,
+                   chains=inv_ch, counts=counts, records=bytes(records),
+                   pool=bytes(pool), surfaces=order)
+
+    # --- オフセット ---------------------------------------------------------
+    RECORD_SIZE = 9
+
+    def _lens(self, i: int) -> tuple[int, int]:
+        _c, _w, _ch, _f, pl, el = struct.unpack(
+            "<HhHBBB", self.records[i * self.RECORD_SIZE:(i + 1) * self.RECORD_SIZE])
+        return pl, el
+
+    def pool_offsets_materialised(self) -> list[int]:
+        off = [0]
+        for i in range(len(self.records) // self.RECORD_SIZE):
+            pl, el = self._lens(i)
+            off.append(off[-1] + pl + el)
+        return off[:-1]
+
+    def checkpoints(self) -> list[int]:
+        if getattr(self, "_ckpt", None) is None:
+            mat = self.pool_offsets_materialised()
+            self._ckpt = [mat[i] for i in range(0, len(mat), self.CHECKPOINT)]
+        return self._ckpt
+
+    def pool_offset_from_checkpoint(self, i: int) -> int:
+        """端末がやる復元: 直近のチェックポイント + 途中のレコード長を足す。"""
+        base = i // self.CHECKPOINT
+        off = self.checkpoints()[base]
+        for j in range(base * self.CHECKPOINT, i):
+            pl, el = self._lens(j)
+            off += pl + el
+        return off
+
+    def with_broken_checkpoint(self, idx: int) -> "DictBlob":
+        import copy
+        d = copy.copy(self)
+        ck = list(self.checkpoints())
+        ck[idx] += 1
+        d._ckpt = ck
+        return d
+
+    # --- 復元 ---------------------------------------------------------------
+    def _entry_at(self, i: int, surface: str) -> Entry:
+        cid, wcost, chid, flags, pl, el = struct.unpack(
+            "<HhHBBB", self.records[i * self.RECORD_SIZE:(i + 1) * self.RECORD_SIZE])
+        o = self.pool_offset_from_checkpoint(i)
+        pb = self.pool[o:o + pl]
+        ex = self.pool[o + pl:o + pl + el]
+        pron = self.moras.decode(pb)
+        j = 0
+        if flags & self._F_ORIG_EQ_SURFACE:
+            orig = surface
+        elif ex[j] == 1:
+            orig = self.surfaces[int.from_bytes(ex[j + 1:j + 4], "little")]
+            j += 4
+        else:
+            n = ex[j + 1]
+            orig = ex[j + 2:j + 2 + n].decode("utf-8")
+            j += 2 + n
+        if flags & self._F_READ_EQ_PRON:
+            read = pron
+        else:
+            n = ex[j]
+            read = self.moras.decode(ex[j + 1:j + 1 + n])
+            j += 1 + n
+        accs = []
+        while j < len(ex):
+            accs.append((ex[j], ex[j + 1]))
+            j += 2
+        lc, rc, pos6, posid = self.classes[cid]
+        return Entry(surface, lc, rc, wcost, pos6, posid, orig, read, pron,
+                     _decode_acc(accs), self.chains[chid])
+
+    def lookup(self, surface: str) -> list[Entry]:
+        res = self.louds.common_prefix_search(self.keys.encode(surface), 0)
+        want = len(self.keys.encode(surface))
+        for length, rank in res:
+            if length == want:
+                return [self._entry_at(i, surface)
+                        for i in range(self._start[rank], self._start[rank + 1])]
+        return []
+
+    def all_entries(self) -> list[Entry]:
+        out = []
+        for rank, s in enumerate(self.surfaces):
+            for i in range(self._start[rank], self._start[rank + 1]):
+                out.append(self._entry_at(i, s))
+        return out
+
+    # --- 直列化（骨組み。K-2 で C から読む形に詰める）------------------------
+    def to_bytes(self) -> bytes:
+        blob = pickle.dumps({
+            "keys": (self.keys.table, self.keys.esc_table),
+            "moras": self.moras.table,
+            "louds": self.louds.to_bytes(),
+            "classes": self.classes, "chains": self.chains,
+            "counts": self.counts, "records": self.records,
+            "pool": self.pool, "surfaces": self.surfaces,
+        })
+        return struct.pack("<4sI", b"K1D1", len(blob)) + blob
+
+    @classmethod
+    def record_region(cls, raw: bytes) -> tuple[int, int]:
+        """レコード領域の (開始, 終了)。陰性対照が壊す場所を知るために使う。"""
+        d = pickle.loads(raw[8:])
+        i = raw.index(d["records"])
+        return i, i + len(d["records"])
+
+    @classmethod
+    def from_bytes(cls, raw: bytes) -> "DictBlob":
+        magic, n = struct.unpack("<4sI", raw[:8])
+        if magic != b"K1D1":
+            raise ValueError(f"magic が違う: {magic!r}")
+        d = pickle.loads(raw[8:8 + n])
+        return cls(keys=KeyCodec(*d["keys"]), moras=MoraCodec(d["moras"]),
+                   louds=Louds.from_bytes(d["louds"]), classes=d["classes"],
+                   chains=d["chains"], counts=d["counts"], records=d["records"],
+                   pool=d["pool"], surfaces=d["surfaces"])
