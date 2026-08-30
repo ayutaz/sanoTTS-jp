@@ -154,6 +154,7 @@ uv run python scripts/test_labelpack.py            # パック往復 + ゲート
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
 uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（83 ケース + commit ガード）
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
+uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号（陽性対照つき。C-042）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
                                                    #   g2p / pad / **line**）
@@ -379,6 +380,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
+| テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号が実体とずれていないか**。⚠️ 番号は書いた瞬間から古くなる（C-042） |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**83 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
