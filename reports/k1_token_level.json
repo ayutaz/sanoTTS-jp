@@ -1,0 +1,29 @@
+{
+ "n_sentences": 2333,
+ "mono_phrase_default": 150,
+ "mono_phrase_c_feasible": 150,
+ "token_level": {
+  "vanilla": {
+   "phoneme_tokens": 126500,
+   "phoneme_err": 117,
+   "phoneme_agree": 0.9990750988142293,
+   "mark_tokens": 24412,
+   "mark_err": 552,
+   "mark_agree": 0.9773881697525807,
+   "all_tokens": 150912,
+   "all_err": 1338,
+   "all_agree": 0.9911339058524173
+  },
+  "c_feasible": {
+   "phoneme_tokens": 126500,
+   "phoneme_err": 117,
+   "phoneme_agree": 0.9990750988142293,
+   "mark_tokens": 24412,
+   "mark_err": 0,
+   "mark_agree": 1.0,
+   "all_tokens": 150912,
+   "all_err": 121,
+   "all_agree": 0.9991982082273113
+  }
+ }
+}

@@ -816,8 +816,15 @@ MMU の vaddr 共有（§2-4）と調達性（B-0 §5: N32R16V のみ、1.8 V oc
 
 ## 付録: 再現
 
-⚠️ **スクリプトは現時点でセッションの scratchpad にあり、リポジトリに入っていない。**
-`scripts/k1/` と `reports/k1_*.json` への移設が必要（未実施）。
+スクリプトは [`scripts/k1/`](../../scripts/k1/)、集計結果は `reports/k1_*.json`（22 本）。
+使い方と、移設時に加えた改変（絶対パスを `k1_paths.py` 経由に書き換えた）は
+[`scripts/k1/README.md`](../../scripts/k1/README.md)。
+
+```bash
+uv run python scripts/k1/dump_entries2.py        # 辞書を .k1work/ に展開（約 4 秒）
+uv run python scripts/k1/format_analyzer.py 200  # G9/G10/G11
+uv run python scripts/k1/verify_checkpoint.py    # G12/G13
+```
 
 主要な測定と対応するスクリプト:
 

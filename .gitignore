@@ -109,3 +109,6 @@ reports/e1_dnsmos/scratch/
 
 # ESP-IDF のビルドディレクトリ（複数構成を並べる）
 /esp32/build_*/
+
+# K-1 の中間生成物（entries.tsv 90 MB / trie キャッシュ 54 MB）
+.k1work/

@@ -1,0 +1,271 @@
+{
+ "n_sentences": 2333,
+ "variants": {
+  "full_int16": {
+   "matrix_bytes": 3792258,
+   "token_sentence_exact": 0.9995713673381912,
+   "pron_sentence_exact": 1.0,
+   "pron_sentence_exact_ci95": [
+    0.9983560717166281,
+    0.9999999999999999
+   ],
+   "pron_CER": 0.0,
+   "pron_del": 0,
+   "phoneme_sentence_exact": 1.0,
+   "phoneme_error_rate": 0.0,
+   "accphrase_sentence_exact": 1.0,
+   "accphrase_sentence_exact_ci95": [
+    0.9983560717166281,
+    0.9999999999999999
+   ],
+   "accphrase_error_rate": 0.0
+  },
+  "int8_sym": {
+   "matrix_bytes": 1896129,
+   "token_sentence_exact": 0.9759965709387055,
+   "pron_sentence_exact": 0.9952850407201028,
+   "pron_sentence_exact_ci95": [
+    0.9915764448048975,
+    0.9973652104617666
+   ],
+   "pron_CER": 0.00032358689602505857,
+   "pron_del": 6,
+   "phoneme_sentence_exact": 0.9952850407201028,
+   "phoneme_error_rate": 0.00025168169130096555,
+   "accphrase_sentence_exact": 0.9802828975567939,
+   "accphrase_sentence_exact_ci95": [
+    0.9738014410646272,
+    0.9851852527703338
+   ],
+   "accphrase_error_rate": 0.004069393874491326
+  },
+  "int4_sym": {
+   "matrix_bytes": 948064,
+   "token_sentence_exact": 0.7295327903986284,
+   "pron_sentence_exact": 0.9515645092156022,
+   "pron_sentence_exact_ci95": [
+    0.9420861011543166,
+    0.9595582379399549
+   ],
+   "pron_CER": 0.003300586339455597,
+   "pron_del": 37,
+   "phoneme_sentence_exact": 0.9528504072010288,
+   "phoneme_error_rate": 0.002463429887582178,
+   "accphrase_sentence_exact": 0.866695242177454,
+   "accphrase_sentence_exact_ci95": [
+    0.8522977127881245,
+    0.8798871302067967
+   ],
+   "accphrase_error_rate": 0.029128292996358964
+  },
+  "lowrank_r256": {
+   "matrix_bytes": 1410048,
+   "token_sentence_exact": 0.9969995713673382,
+   "pron_sentence_exact": 0.9978568366909558,
+   "pron_sentence_exact_ci95": [
+    0.9949925459238153,
+    0.9990842455882837
+   ],
+   "pron_CER": 9.06043308870164e-05,
+   "pron_del": 0,
+   "phoneme_sentence_exact": 0.9978568366909558,
+   "phoneme_error_rate": 7.626717918211077e-05,
+   "accphrase_sentence_exact": 0.997428204029147,
+   "accphrase_sentence_exact_ci95": [
+    0.9944001130992235,
+    0.9988208223719697
+   ],
+   "accphrase_error_rate": 0.00042835724994645533
+  },
+  "lowrank_r128": {
+   "matrix_bytes": 705024,
+   "token_sentence_exact": 0.9704243463351907,
+   "pron_sentence_exact": 0.9931418774110587,
+   "pron_sentence_exact_ci95": [
+    0.9888882005273875,
+    0.9957741745347476
+   ],
+   "pron_CER": 0.00041419122691207496,
+   "pron_del": 3,
+   "phoneme_sentence_exact": 0.9931418774110587,
+   "phoneme_error_rate": 0.00035845574215592063,
+   "accphrase_sentence_exact": 0.982426060865838,
+   "accphrase_sentence_exact_ci95": [
+    0.9762467503537652,
+    0.9870192236857246
+   ],
+   "accphrase_error_rate": 0.003694581280788177
+  },
+  "lowrank_r64": {
+   "matrix_bytes": 352512,
+   "token_sentence_exact": 0.8071153021860266,
+   "pron_sentence_exact": 0.9674239177025289,
+   "pron_sentence_exact_ci95": [
+    0.9594168143942347,
+    0.9738941982135517
+   ],
+   "pron_CER": 0.0022521647963344078,
+   "pron_del": 34,
+   "phoneme_sentence_exact": 0.9682811830261466,
+   "phoneme_error_rate": 0.0019448130691438247,
+   "accphrase_sentence_exact": 0.91941705957994,
+   "accphrase_sentence_exact_ci95": [
+    0.9076698583080397,
+    0.9297852777182961
+   ],
+   "accphrase_error_rate": 0.016759477404155065
+  },
+  "lowrank_r32": {
+   "matrix_bytes": 176256,
+   "token_sentence_exact": 0.6043720531504501,
+   "pron_sentence_exact": 0.9438491213030433,
+   "pron_sentence_exact_ci95": [
+    0.9337569206858979,
+    0.9524820096720691
+   ],
+   "pron_CER": 0.003999534034869724,
+   "pron_del": 41,
+   "phoneme_sentence_exact": 0.9404200600085727,
+   "phoneme_error_rate": 0.003691331472414161,
+   "accphrase_sentence_exact": 0.8401200171453065,
+   "accphrase_sentence_exact_ci95": [
+    0.8246906991764178,
+    0.8544310692823429
+   ],
+   "accphrase_error_rate": 0.035767830370529025
+  },
+  "lowrank_r16": {
+   "matrix_bytes": 88128,
+   "token_sentence_exact": 0.541363051864552,
+   "pron_sentence_exact": 0.9262751821688813,
+   "pron_sentence_exact_ci95": [
+    0.9149558447603076,
+    0.9361929879205212
+   ],
+   "pron_CER": 0.00508678600551392,
+   "pron_del": 50,
+   "phoneme_sentence_exact": 0.9207029575653665,
+   "phoneme_error_rate": 0.004751445263045501,
+   "accphrase_sentence_exact": 0.7869695670810116,
+   "accphrase_sentence_exact_ci95": [
+    0.7698898413486537,
+    0.8031057780377866
+   ],
+   "accphrase_error_rate": 0.0495288070250589
+  },
+  "lowrank_r8": {
+   "matrix_bytes": 44064,
+   "token_sentence_exact": 0.39177025289327044,
+   "pron_sentence_exact": 0.8855550792970425,
+   "pron_sentence_exact_ci95": [
+    0.8719980429002482,
+    0.8978444658945285
+   ],
+   "pron_CER": 0.00823205063487749,
+   "pron_del": 77,
+   "phoneme_sentence_exact": 0.8752678954136305,
+   "phoneme_error_rate": 0.007603837764456444,
+   "accphrase_sentence_exact": 0.6403771967423918,
+   "accphrase_sentence_exact_ci95": [
+    0.6206877403660428,
+    0.6596051130306103
+   ],
+   "accphrase_error_rate": 0.09273934461340758
+  },
+  "int8_perrow": {
+   "matrix_bytes": 1901637,
+   "token_sentence_exact": 0.9939991427346764,
+   "pron_sentence_exact": 0.9991427346763824,
+   "pron_sentence_exact_ci95": [
+    0.9968794792735548,
+    0.9997648803612617
+   ],
+   "pron_CER": 3.8830427523007026e-05,
+   "pron_del": 0,
+   "phoneme_sentence_exact": 0.9991427346763824,
+   "phoneme_error_rate": 3.050687167284431e-05,
+   "accphrase_sentence_exact": 0.997428204029147,
+   "accphrase_sentence_exact_ci95": [
+    0.9944001130992235,
+    0.9988208223719697
+   ],
+   "accphrase_error_rate": 0.0005354465624330692
+  },
+  "lowrank_int8_r128": {
+   "matrix_bytes": 352520,
+   "token_sentence_exact": 0.8701243034719246,
+   "pron_sentence_exact": 0.9854264894984998,
+   "pron_sentence_exact_ci95": [
+    0.9797045141465368,
+    0.9895524521792936
+   ],
+   "pron_CER": 0.0008930998330291617,
+   "pron_del": 15,
+   "phoneme_sentence_exact": 0.9862837548221175,
+   "phoneme_error_rate": 0.0006482710230479416,
+   "accphrase_sentence_exact": 0.942134590655808,
+   "accphrase_sentence_exact_ci95": [
+    0.931912999955633,
+    0.9509025062387106
+   ],
+   "accphrase_error_rate": 0.012475904904690511
+  },
+  "lowrank_int8_r64": {
+   "matrix_bytes": 176264,
+   "token_sentence_exact": 0.7882554650664381,
+   "pron_sentence_exact": 0.9657093870552936,
+   "pron_sentence_exact_ci95": [
+    0.9575259485685136,
+    0.9723616398756497
+   ],
+   "pron_CER": 0.002303938699698417,
+   "pron_del": 29,
+   "phoneme_sentence_exact": 0.9661380197171024,
+   "phoneme_error_rate": 0.0020134535304077244,
+   "accphrase_sentence_exact": 0.9099871410201458,
+   "accphrase_sentence_exact_ci95": [
+    0.897689498002393,
+    0.9209368051240149
+   ],
+   "accphrase_error_rate": 0.01895480831013065
+  },
+  "all_zero": {
+   "matrix_bytes": 0,
+   "token_sentence_exact": 0.053579082726103726,
+   "pron_sentence_exact": 0.7141020145735105,
+   "pron_sentence_exact_ci95": [
+    0.6954265962624974,
+    0.732073496169955
+   ],
+   "pron_CER": 0.020023557126030624,
+   "pron_del": 162,
+   "phoneme_sentence_exact": 0.6759537076725246,
+   "phoneme_error_rate": 0.018365136747052275,
+   "accphrase_sentence_exact": 0.1881697385340763,
+   "accphrase_sentence_exact_ci95": [
+    0.1728270072129252,
+    0.20453772302809753
+   ],
+   "accphrase_error_rate": 0.3695652173913043
+  },
+  "shuffled_NEGCTRL": {
+   "matrix_bytes": 3792258,
+   "token_sentence_exact": 0.02186026575225032,
+   "pron_sentence_exact": 0.5550792970424346,
+   "pron_sentence_exact_ci95": [
+    0.5348392335955185,
+    0.575138267660878
+   ],
+   "pron_CER": 0.03532274557009539,
+   "pron_del": 352,
+   "phoneme_sentence_exact": 0.5216459494213459,
+   "phoneme_error_rate": 0.0316737595143306,
+   "accphrase_sentence_exact": 0.1264466352336048,
+   "accphrase_sentence_exact_ci95": [
+    0.11357140285008056,
+    0.14055005750050545
+   ],
+   "accphrase_error_rate": 0.4727457699721568
+  }
+ }
+}
