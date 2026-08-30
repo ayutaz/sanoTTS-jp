@@ -34,6 +34,8 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`README.md`](README.md) の「はじめかた」 | **外の人向けの入口**。セットアップ → 合成 → 実機 |
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **実機を持っている人への依頼**（焼く・喋らせる・報告） |
 | [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
+| [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md) | **K-1**。端末で漢字を扱えるかの実測。B-0 の否定的結論のうち 4 つが崩れた |
+| [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md) | K-1 の実装計画。K-0〜K-8 に目的・ゴール・受け入れ条件 |
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
@@ -732,14 +734,23 @@ xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（�
 
 ## ⚠️ 未知語は誤読ではなく「無音で消える」
 
-B-0 の実測。`unk.dic` の 40 エントリは**読み・アクセントを一切持たない**ため、
-未知語は `njd_set_pronunciation.c` の規則で `、`（読点）に置換される。
-**例外も警告も出ず、語が丸ごと音声から消える。**
+`unk.dic` の未知語エントリは**読み・アクセントを一切持たない**（feature が 7 列しかなく
+`read` / `pron` / `acc` / `chain` が無い）ため、未知語は `njd_set_pronunciation.c` の規則で
+`、`（読点）に置換される。**例外も警告も出ず、語が丸ごと音声から消える。**
+
+⚠️ **かつてここに 齟齬 / 蜃気楼 / 氷点下 を実例として挙げていたが、
+フル辞書では 3 語とも正しく読まれる**（C-044。`齟齬` → `s o g o`、
+`蜃気楼` → `sh i N k i r o o`）。**あれは枝刈り辞書での観測だった。**
+
+**フル辞書で実際に消えるのは外字・幽霊漢字**（彁 / 妛 / 椦）、
+**サロゲートペア漢字**（𡈽 / 𩸽）、**歴史的カタカナ**（ヷヸヹ）:
 
 ```
-齟齬 → 無音        蜃気楼 → 蜃気(無音) + 楼(無音)
-氷点下 → コーリ+テン+カ（1文字ずつ既知だと誤読になる）
+彁 → 無音     𩸽 → 無音     ヷヸヹ → 無音
+躑躅 → ツツジ  髑髏 → ドクロ  鱲子 → カラスミ   ← フル辞書なら読める
 ```
 
-**フル辞書でも起きる**（外字・幽霊漢字）ので、ホスト側 G2P に倒しても
-入力サニタイズは別途必要。
+実文での未知語率は **held-out 全 2,333 文で 83/38,269 token = 0.22%（文の 3.34%）**、
+中身は**ほぼカタカナの外国固有名詞の断片**（`ーヌ` `ーヴァ` `ーリャ`）。
+**枝刈りすると激増する**ので、ホスト側 G2P に倒しても入力サニタイズは別途必要。
+再現: `uv run python scripts/k1/silent_deletion.py`
