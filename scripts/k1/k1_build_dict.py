@@ -173,13 +173,19 @@ def main() -> int:
           f"2 記号以上 {multi:,d} 件 ({100*multi/max(hits,1):.1f}%)")
 
     print("\n=== G4: 陰性対照（ヒット経路上のラベルを壊す）===")
-    used = []
+    # ⚠️ **「辿ったノード」では弱い。** ヒットを 1 件も生まない経路のノードを壊しても
+    #    参照側も空なので一致してしまい、陰性対照が空虚になる（実際に踏んだ）。
+    #    **ヒットに実際に寄与したノード**（照合成功した終端そのもの）を壊す。
+    hit_nodes = []
     for t in texts[:20]:
         kb = back.keys.encode(t)
         for i in range(len(kb)):
-            used.extend(back.louds.visited_nodes(kb, i))
-    check("ヒット経路のノードを特定", len(used) > 0, f"{len(used):,d} ノード")
-    bad_trie = back.louds.with_broken_label(used[len(used) // 2])
+            seen = back.louds.visited_nodes(kb, i)
+            for n, _r in back.louds.common_prefix_search(kb, i):
+                hit_nodes.append(seen[n - 1])       # 長さ n のヒットを作った終端
+    check("ヒットを生んだノードを特定", len(hit_nodes) > 0,
+          f"{len(hit_nodes):,d} 件（辿っただけのノードではない）")
+    bad_trie = back.louds.with_broken_label(hit_nodes[len(hit_nodes) // 2])
     mism2 = 0
     for t in texts[:20]:
         kb = back.keys.encode(t)
@@ -197,7 +203,15 @@ def main() -> int:
     idx = random.sample(range(len(mat)), min(20000, len(mat)))
     bad5 = sum(1 for i in idx if back.pool_offset_from_checkpoint(i) != mat[i])
     check("チェックポイント復元が一致", bad5 == 0, f"不一致 {bad5} / 標本 {len(idx):,d}")
-    bck = back.with_broken_checkpoint(1)
+    # ⚠️ **固定の 1 番を壊すのは弱い。** チェックポイント 1 が覆うのは
+    #    エントリ 32..63 だけで、789,388 件から 20,000 件を抽くと
+    #    そこに 1 件も当たらないことがある（実際に不一致 0 件で空虚になった）。
+    #    **標本が実際に入っているブロック**を壊す。
+    target_block = idx[0] // back.CHECKPOINT
+    bck = back.with_broken_checkpoint(target_block)
+    in_block = [i for i in idx if i // back.CHECKPOINT == target_block]
+    check("壊すブロックに標本が入っている", len(in_block) > 0,
+          f"ブロック {target_block} に {len(in_block)} 件")
     bad5b = sum(1 for i in idx if bck.pool_offset_from_checkpoint(i) != mat[i])
     check("陰性対照: ずらすと落ちる", bad5b > 0, f"不一致 {bad5b} 件")
 
