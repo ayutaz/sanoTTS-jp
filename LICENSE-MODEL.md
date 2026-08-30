@@ -38,6 +38,7 @@ MIT は「無制限に (without restriction)」の利用を認めます。しか
 | `saanotts-jp-v3-fp32.bin` | 同 fp32 版 |
 | `golden-v3-fp32.bin` / `golden-v3-int8.bin` | 移植検証用のゴールデン中間出力 |
 | `samples/*.wav` | 本モデルが生成した音声サンプル |
+| `esp32s3-firmware-*.bin` | **重みを含む** ESP32-S3 用の flash イメージ（v0.1.1 以降） |
 
 本モデルから派生したもの（ファインチューン、量子化、変換、蒸留の結果を含む）、
 および**本モデルが生成した音声**にも、本ライセンスの条件が及びます。

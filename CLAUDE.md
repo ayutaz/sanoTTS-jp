@@ -37,10 +37,12 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-08-29）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
+**現状（2026-08-30）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 検証タスク **B-0 〜 B-12** と **D-4 / E-1 / E-2 / E-2b** も全部完了。
 **PIE カーネルも実装・QEMU 検証まで完了**（M-57 / M-58）。
-設計値は D-016 〜 D-037 として凍結。実行はすべて手元の M4 Max（D-027）。
+**端末でかなの自由入力もできる**（M-63 / D-040）。
+**v0.1.1 で焼くだけの firmware も配布している**（M-67）。
+設計値は D-016 〜 D-041 として凍結。実行はすべて手元の M4 Max（D-027）。
 
 ⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
 `runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
@@ -571,7 +573,8 @@ import sys; sys.path.insert(0, "~/Documents/piper-plus/src/python")
 [ 上昇 / ] 下降核 / # 句境界 / ° 無声化
 ```
 
-- 端末側は **mora テーブル 951 B + `ん` の異音規則 18 件**のみ（`scripts/kana_g2p.py`）
+- 端末側は **テーブル 877 B のみ**（mora 195 件 780 B + 記号 10 件 40 B + `ん` 異音 21 件 57 B。
+  `csrc/g2p_table.h`。⚠️ **951 B / 913 B と書いていたのは誤り** = C-042）
 - ホスト側で漢字文から中間表現を生成する（オフライン・OpenJTalk 使用）
 - held-out で表現可能 96.40% / 往復一致 **100%** / 教師出力と **bit 完全一致**
 

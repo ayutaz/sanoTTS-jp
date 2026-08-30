@@ -2457,3 +2457,44 @@ uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
 `mora_table()` は **(表, どちらを使ったか)** を返す形にした。
 `build_mora_table()` が失敗したら黙って JSON を読む実装にしていたら、
 上の汚染にも、将来「凍結テーブルが古い」にも気づけない。
+
+---
+
+## C-042: 端末側 G2P のテーブルサイズを、4 つのドキュメントが**4 通り**に書いていた
+
+**2026-08-30、「ドキュメントは全部最新か」と聞かれて突き合わせて発覚した。**
+
+| 書いてあった値 | どこ | 何を測った値か |
+|---:|---|---|
+| **951 B** | `CLAUDE.md` / `docs/requirements.md` / `docs/README.md` | 出所不明（現在のコードから再現できない） |
+| **913 B** | `README.md` / `README.en.md` / `docs/README.md` | 同上 |
+| 1,786 B | （どこにも書いていない） | `kana_g2p.table_size_bytes()` = Python 側の素の文字列長 |
+| **877 B** | `scripts/gen_g2p_tables.py` の出力 | **端末に載る実体**（`csrc/g2p_table.h` の rodata） |
+
+**877 B が正しい。** 内訳も生成器が出す:
+
+```
+mora 195 行 (780 B) / 記号 10 件 (40 B) / 異音 57 B
+```
+
+ESP32-S3 のライブラリからも同じ値が取れる（`.rodata.kSaanG2p*` の合計）:
+
+```bash
+xtensa-esp32s3-elf-size -A esp32/build_plain/esp-idf/saanotts_core/libsaanotts_core.a \
+  | awk '$1 ~ /^\.rodata\.kSaanG2p/{d+=$2} END{print d}'      # → 877
+```
+
+⚠️ **コードサイズ「2.4 KB」も外れていた。** ESP32-S3 実測は
+**1,549 B**（`.text` 1,457 + `.literal` 92）。`README` の 2.4 KB は
+どの環境で測ったか特定できない。
+
+⚠️ **`ん` の異音規則を「18 件」と書いていたのも誤り。** 素の `N_ALLOPHONE` は 18 件だが、
+`build_mora_table()` が外来音の 3 件（`kw` / `gw` / `v`）を足すので**端末に載るのは 21 件**。
+`csrc/g2p_table.h` も 21 件で生成されている。
+
+**なぜ 4 つに分かれたか**: 「テーブルのサイズ」に**4 通りの定義**があり
+（Python の文字列長 / C の rodata / 何かの中間形式 / 出所不明の 2 つ）、
+**どの定義かを書かずに数字だけ書いた**ため、更新のたびに別の場所が取り残された。
+
+対応: **生成器が出す 877 B に統一し、内訳と再現コマンドを併記した。**
+以後この数字を書くときは「`csrc/g2p_table.h` の rodata 実体」と定義を添える。

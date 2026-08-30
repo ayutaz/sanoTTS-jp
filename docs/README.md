@@ -13,8 +13,8 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-040 と**訂正履歴 C-001〜C-039** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-63。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-041 と**訂正履歴 C-001〜C-041** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-67。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -36,7 +36,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [完了] 音素化経路の確定       canonical 経路を特定、発話速度 8.4 mora/s を確認
 [完了] スコープ確定           ESP32 のみ。ブラウザは対象外
 [完了] B-0 G2P フットプリント  辞書路線は不成立と判明（40 MiB 必要）
-[完了] 入力仕様の確定         ひらがな + アクセント記号 + 無声化マーク → 端末 951 B
+[完了] 入力仕様の確定         ひらがな + アクセント記号 + 無声化マーク → 端末 877 B
 [完了] 変換器の実装           scripts/kana_g2p.py。往復 100%、教師出力と bit 一致
 [完了] 要件定義              requirements.md
 [完了] ESP32 メモリ収支      I2S 逐次出力で 96 KB / SRAM 残 416 KB。中止材料なし
@@ -89,11 +89,26 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             ⚠️ **速度は一度も測っていない。実機が要る**
 [完了] P-2 β の聴取決定      **β=0 で確定。式7 は不要**（M-60 / D-038）。⚠️ 上流（英語）は 6.0
                             ⚠️ **聴取者 1 名**。v2↔v3 も 7 試行で聴き分けられず（C-037）
+[完了] QEMU で出荷ファーム完走 起動 → 重み mmap(183 tensors) → G2P → 合成 → int16 まで通り、
+                            **PIE が全経路で bit 一致**（27,136 sample・陰性対照つき）（M-62）
+                            ⚠️ ホストとターゲットは bit 一致しない。それは正常（float の丸め）
+[完了] 端末でかなの自由入力    UART / USB-JTAG から 1 行受けて合成。QEMU の UART で実測（M-63 / D-040）
+                            ⚠️ **音では気づけない欠陥を 2 件出した**（CRLF で空行 / 行頭が
+                            エコーされない）。どちらも呼び出し側の読み違い。G9 / G10 で固定
+                            ⚠️ 起動時の 1 発話はやめた（既定 SAAN_BOOT_SPEAK=0。C-039）
+[完了] 外の人が動かせる状態に  **piper-plus も教師も無しで合成できる**（M-64 / M-65 / D-041）。
+                            mora テーブルを csrc/g2p_table.json に凍結（SHA-256 検証つき）
+                            ⚠️ **リリース v0.1.0 の手順は動かなかった**（C-040）
+                            ⚠️ 「piper-plus 無しで通った」と**誤って観測**した（C-041）
+[完了] v0.1.1 リリース        手順書を新規 clone でなぞって欠陥 2 件を修正（M-66）。
+                            **焼くだけの ESP32 firmware 2 種**を追加（M-67）。
+                            ⚠️ モデルは v0.1.0 と bit 同一（再学習していない）
 [未]   Phase D-3d           実機測定（**ESP32-S3 ボード待ち**。これは本物の待ち）
 ```
 
-**残りは (1) 実機でのサイクル実測 / (2) 出荷ファームで W8A8+PIE を有効にするかの判断 /
-(3) 聴取**。詳細は
+**残りは (1) 実機でのサイクル実測 / (2) 出荷ファームで W8A8+PIE を既定にするかの判断 /
+(3) アクセントの過剰強調（`magnitude_ratio` 1.193）の聴取確認**。
+⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
 ⚠️ **「金属的な尾が出たら E-2 の仮説 (a) の証拠になる」は撤回**（C-026）。
@@ -135,7 +150,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 - 45 MMAC/s は言語非依存なので ESP32 の 0.22× RT はそのまま日本語に移る見込み
 - **日本語のデプロイ語彙は 57**（変換器の閉包）。論文の英語 157 より小さい
 
-- **オンデバイス G2P は 951 B で成立する**（往復 100%、教師出力と bit 一致）
+- **オンデバイス G2P は 877 B で成立する**（往復 100%、教師出力と bit 一致）
 
 **未知（プロジェクトの成否を左右する順）**
 
@@ -163,8 +178,8 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-034 + 訂正履歴 C-001〜C-027
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-51
+│   ├── decisions.md                       決定記録 D-001〜D-041 + 訂正履歴 C-001〜C-041
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-67
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）
@@ -190,7 +205,7 @@ sanoTTS-jp/
 │   ├── saanotts_internal.h                両版で共有するカーネル（**2 回書かない**）
 │   ├── fft.h / fft.c                      radix-2 逆実 FFT（naive の 1,435 倍）
 │   ├── saanotts_int8.h / .c               int8 カーネル + **PIE（ESP32-S3 の整数 SIMD）**
-│   ├── g2p.h / g2p.c / g2p_table.h        端末側 G2P（中間表現 → 生徒インデックス。表 913 B）
+│   ├── g2p.h / g2p.c / g2p_table.h        端末側 G2P（中間表現 → 生徒インデックス。表 877 B）
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）

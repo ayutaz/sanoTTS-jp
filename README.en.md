@@ -19,7 +19,7 @@ Porting the English recipe as-is breaks. These three walls are specific to Japan
 
 | Wall | How it was solved |
 |---|---|
-| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **913 B table**. Kanji→kana happens offline on the host |
+| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host |
 | **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **37/37 sign agreement** with the teacher |
 | **Devoiced vowels** — the `i` and `u` in です / した are acoustically close to frication | Separability was confirmed with per-phoneme-class spectral flatness (AUC 0.847) before adding them to the noise-injection set |
 
@@ -165,7 +165,7 @@ Japanese text (kanji + kana)
    │  host side, offline (OpenJTalk)
    ▼
 kana intermediate    きょ][おわよ][いて][んきです°ね    [ rise / ] downstep / # phrase / ° devoiced
-   │  device side — a 913 B table, nothing else
+   │  device side — a 877 B table, nothing else
    ▼
 phoneme ids ──▶ Duration Dα ──▶ Acoustic Aβ ──▶ iSTFT Decoder Gγ ──▶ 22.05 kHz PCM
                  33 K params      195 K            331 K
@@ -179,7 +179,7 @@ sentences and cannot read held-out text.
 - **C99 inference core** (`csrc/`) — libm is the only dependency. No `malloc`; it uses a
   caller-supplied arena. The streaming build is **bit-identical** to the batch build
   (27,136 samples)
-- **On-device G2P** (`csrc/g2p.c`) — 913 B table / 2.4 KB code / **0 B working memory**
+- **On-device G2P** (`csrc/g2p.c`) — **877 B** table / 1,549 B code (measured on ESP32-S3) / **0 B working memory**
 - **Free-form input on the device** — type one line of the kana intermediate form over
   serial and it speaks (`csrc/line.c`, 369 B). From kanji text:
   `uv run python scripts/to_intermediate.py "..."` (host side)
@@ -219,8 +219,8 @@ The documentation is in Japanese.
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
-| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-63. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-040 and the **correction log C-001–C-039** |
+| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-67. Every entry has a reproduction command |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-041 and the **correction log C-001–C-041** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
@@ -235,13 +235,13 @@ The documentation is in Japanese.
 that is written into the repository itself.
 
 - **Never write a guess as a number.** If it was not measured, it says "not measured"
-- **Never delete the correction log.** **39 entries** record errors of the form
+- **Never delete the correction log.** **41 entries** record errors of the form
   "something one command would have answered, inferred instead of measured." They exist so
   the same mistake is not repeated
 - **Never delete a risk just because it was settled.** Deleting it makes the question resurface
 - **Always report n and a CI when n is small** (a difference at n = 3 was once turned into a
   conclusion, then refuted)
-- **Do not write a gate you cannot break on purpose.** Seven defects hid behind green tests;
+- **Do not write a gate you cannot break on purpose.** Six defects hid behind green tests;
   they are collected in `.claude/skills/writing-gates/`
 
 `.claude/hooks/guard_bash.py` mechanically blocks writes to the teacher repository,

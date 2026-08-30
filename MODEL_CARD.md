@@ -162,10 +162,21 @@ bit 完全一致まで確認**しているが（MAC の 99.40%）、**QEMU は�
 ## 8. 再現
 
 ```bash
-git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp && uv sync
-uv run python scripts/synthesize_student.py --ckpt <重み>.pt \
-    --text "今日は良い天気ですね。" --out out/
+git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
+uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
+
+uv run --no-project python scripts/synthesize_student.py --ckpt <重み>.pt \
+    --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
 ```
+
+⚠️ **`uv sync` は使わないこと**（`pyproject.toml` の path 依存が piper-plus を要求する）。
+生徒の推論に要るのは **torch / numpy / soundfile の 3 つだけ**です。
+⚠️ **入力は「かな中間表現」**（`[` 上昇 / `]` 下降核 / `#` 句境界 / `°` 無声化）。
+**漢字混じり文からの変換**（`scripts/to_intermediate.py`）と `--text` は、
+それぞれ piper-plus / 教師 ckpt が要ります。
+
+⚠️ **v0.1.0 に載せた手順（`uv sync` + `--text`）は、リリースだけを落とした人には
+動きませんでした**（C-040）。上の手順は**新規 clone で実測しています**（M-65）。
 
 学習の完全な再現には教師 ckpt（HF private）とラベルパック（5.5 GB、要生成）が要ります。
 手順は [`docs/README.md`](docs/README.md)。
