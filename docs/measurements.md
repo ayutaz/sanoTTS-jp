@@ -4518,6 +4518,15 @@ uv run --no-project python scripts/synthesize_student.py \
 | `make -C csrc g2p PYTHON="uv run --no-project python"` | **frozen テーブルで通過**（2,819 ベクタ） |
 | `scripts/test_losses.py` / `test_labelpack.py` | 通過 |
 
+**リリースから実際に落とした資産で追試した**（`gh release download v0.1.0`）:
+9 資産すべて `shasum -a 256 -c SHA256SUMS.txt` を通過し、
+`saanotts-jp-v3-stage4.pt` は `runs/v3/stage4.pt` と SHA-256 が一致
+（`4724bcf8…`）。その `.pt` で合成しても**同じ WAV** が出た。
+
+⚠️ **Release 本文の `MODEL_CARD.md` の SHA-256 だけ古い値 (`6d9be727…`) を載せていた**
+（差し替え前のファイルのもの）。**配布物と `SHA256SUMS.txt` は正しく `b80ea4a3…`** で、
+`shasum -c` は最初から通っていた。本文を訂正した。
+
 ⚠️ **`uv sync` はこの環境でも通ってしまうので、検証には使えない。**
 `pyproject.toml` の絶対パスがこのマシンには実在するため。
 「path が無いと落ちる」は**別の空プロジェクトで実測**した
