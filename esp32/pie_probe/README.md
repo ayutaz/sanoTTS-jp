@@ -3,6 +3,11 @@
 ESP32-S3 の **PIE（128-bit 整数 SIMD）** が使えるかを確かめる最小プロジェクト。
 **P-1（PIE カーネル）の前提検証**であって、成果物ではない。
 
+⚠️ **前提検証は終わっている。** 本体のカーネルは実装済みで（M-57 / M-58、MAC の 99.40%）、
+出荷ファームでも `idf.py -DSAAN_ENABLE_PIE=1 build` で有効にでき、
+**QEMU で全経路 bit 一致**を確認した（M-62）。
+このプローブは**最小の切り分け用**として残してある（実機で不正命令例外が出たときなど）。
+
 ```bash
 export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
 . ~/esp/esp-idf/export.sh

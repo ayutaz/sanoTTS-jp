@@ -40,7 +40,7 @@ gh api repos/Ampixa/sanoTTS/contents/docs/repository-layout.md --jq '.content' |
 ポーティングレシピは「音素ID in / 波形 out」を境界としており、
 上流自身が *"A complete arbitrary-text product still needs the language frontend
 packaged or reimplemented"* と書いている。
-**うちの 951 B オンデバイス G2P はこの穴を埋めるもので、上流に対応物が無い**
+**うちの 877 B オンデバイス G2P はこの穴を埋めるもので、上流に対応物が無い**
 （上流は espeak-ng を同梱。`en_dict` だけで 168,204 B）。
 
 ## 上流申告値 vs うちの実測値

@@ -149,7 +149,7 @@ from saanotts_jp.labelpack import PackReader
 | `round` | C の `roundf` は half-away-from-zero、`torch.round` は **half-to-even**。ちょうど .5 で割れる |
 
 ```bash
-uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt
+uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt
 make -C csrc all-test    # golden / stream G1〜G4 / FFT / int8
 make -C csrc run-bench   # レイテンシ（段別の内訳）
 ```
@@ -196,13 +196,20 @@ fp32 の丸め差 7e-07 が乗って、実装バグと区別できない。
 ## 学習を回す
 
 ```bash
-uv run python scripts/train_student.py --run runs/v2 --stage 1 --steps 20000 --accum 8
-uv run python scripts/train_student.py --run runs/v2 --stage 2 --steps 60000 --accum 8
-uv run python scripts/train_student.py --run runs/v2 --stage 3 --steps 40000 --accum 8
-uv run python scripts/train_student.py --run runs/v2 --stage 4 --steps 60000 --accum 8
-uv run --extra eval python scripts/eval_student.py --ckpt runs/v2/stage4.pt --n 24 \
-    --out reports/eval_v2
+uv run python scripts/train_student.py --run runs/v3 --stage 1 --steps 20000 --accum 8
+uv run python scripts/train_student.py --run runs/v3 --stage 2 --steps 60000 --accum 8
+uv run python scripts/train_student.py --run runs/v3 --stage 3 --steps 80000 --accum 8
+uv run python scripts/train_student.py --run runs/v3 --stage 4 --steps 60000 --accum 8
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 24 \
+    --out reports/eval_v3
 ```
+
+⚠️ **Stage 3 は 80,000 step。40,000 ではない**（D-037）。
+40k → 80k にしただけで SCOREQ +0.0653 [+0.022, +0.108] / DNSMOS +0.0660 /
+アクセント 35/36 → **37/37** と 5 指標すべて改善した（M-59）。
+⚠️ **160k は無駄**（最終品質は 80k と有意差なし）。**80k が最適点。**
+⚠️ **効くのは容量ではなく学習量**（M-52。params を 43% 増やしても gap は
++0.0006 しか動かない）。**decoder を作り直す前に Stage 3 を延ばすこと。**
 
 **step 配分の実測（M-37）**: Stage 3 は **20,000 step で SNR +8.91 dB に飽和**する
 （40,000 は半分無駄）。Stage 2 の val はまだ下がる余地がある。

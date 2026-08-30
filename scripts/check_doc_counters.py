@@ -20,7 +20,11 @@ import sys
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # 走査するファイルと、そこに書かれうる表記のゆれ
-TARGETS = ["README.md", "README.en.md", "docs/README.md", "CLAUDE.md"]
+TARGETS = [
+    "README.md", "README.en.md", "docs/README.md", "CLAUDE.md",
+    # ⚠️ skill も件数を名乗る。実際に C-001〜C-027 のまま取り残されていた
+    ".claude/skills/recording-measurements/SKILL.md",
+]
 
 # 「M-1〜M-63」「M-1–M-63」「D-001〜D-040」「C-001–C-039」を拾う。
 # ⚠️ **接頭辞ごとに桁数まで固定する。** `D-0*1` のように緩くすると
@@ -31,7 +35,7 @@ RANGES = {
     "C": re.compile(r"\bC-001\s*[〜–~-]\s*(?:C-)?0*(\d+)"),
 }
 # 「**39 件**記録」「**39 entries** record」
-COUNT_JA = re.compile(r"\*\*(\d+) 件\*\*記録")
+COUNT_JA = re.compile(r"\*\*(\d+) 件\*\*記録|訂正は (\d+) 件")
 COUNT_EN = re.compile(r"\*\*(\d+) entries\*\* record")
 
 
@@ -64,9 +68,10 @@ def check(paths: list[str], truth: dict[str, tuple[int, int]]) -> list[str]:
                     want = truth[prefix][0]
                     if int(got) != want:
                         bad.append(f"{rel}:{i}  {prefix}-…〜{prefix}-{got} → 実体は {want}")
-            for m in COUNT_JA.finditer(line) :
-                if int(m.group(1)) != truth["C"][1]:
-                    bad.append(f"{rel}:{i}  訂正 {m.group(1)} 件 → 実体は {truth['C'][1]} 件")
+            for m in COUNT_JA.finditer(line):
+                got = m.group(1) or m.group(2)
+                if int(got) != truth["C"][1]:
+                    bad.append(f"{rel}:{i}  訂正 {got} 件 → 実体は {truth['C'][1]} 件")
             for m in COUNT_EN.finditer(line):
                 if int(m.group(1)) != truth["C"][1]:
                     bad.append(f"{rel}:{i}  {m.group(1)} entries → 実体は {truth['C'][1]}")
@@ -84,19 +89,20 @@ def main() -> int:
     probe = ROOT / "docs" / ".counter_probe.md"
     probe.write_text(
         f"M-1〜M-{truth['M'][0] + 1} / D-001〜D-{truth['D'][0] + 1:03d} / "
-        f"C-001〜C-{truth['C'][0] + 1:03d} と**{truth['C'][1] + 1} 件**記録\n",
+        f"C-001〜C-{truth['C'][0] + 1:03d} と**{truth['C'][1] + 1} 件**記録 / "
+        f"訂正は {truth['C'][1] + 1} 件\n",
         encoding="utf-8")
     try:
         control = check(["docs/.counter_probe.md"], truth)
     finally:
         probe.unlink()
-    if len(control) < 4:
-        print(f"NG! 陽性対照が {len(control)} 件しか捕まらない（4 件ずらしてある）"
+    if len(control) < 5:
+        print(f"NG! 陽性対照が {len(control)} 件しか捕まらない（5 件ずらしてある）"
               f" = **このゲートは空虚**")
         for c in control:
             print("     " + c)
         return 1
-    print(f"陽性対照: わざとずらした 4 箇所すべてを検出")
+    print(f"陽性対照: わざとずらした 5 箇所すべてを検出")
 
     bad = check(TARGETS, truth)
     if bad:
