@@ -1,5 +1,5 @@
 {
- "dict_dir": "/Users/s19447/Desktop/saanoTTS-jp/.venv/lib/python3.14/site-packages/pyopenjtalk/dictionary",
+ "dict_dir": "<repo>/.venv/lib/python3.14/site-packages/pyopenjtalk/dictionary",
  "sys_dic_bytes": 103131410,
  "n": 2333,
  "neg_control_detected": [
