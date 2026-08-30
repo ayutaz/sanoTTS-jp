@@ -4594,3 +4594,61 @@ idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_MODEL_BLOB=<絶対パス>/saanotts-jp-v3-int8.
 - **DAC を繋がずに I2S が回るか** — 「そのまま測れるはず」と書いたが**未検証**。
   止まったときの逃げ道（`-DSAAN_QEMU=1`）も併記した
 - **`idf.py monitor` から UTF-8 のかなが本当に届くか**（QEMU の擬似シリアルでは届いた）
+
+---
+
+## M-67. v0.1.1 で配布する firmware イメージを作り、QEMU で起動まで確かめた（自己実測）
+
+**実機テストの障壁を下げるため、ESP-IDF 無しで焼ける merge 済みイメージを作った。**
+
+再現:
+
+```bash
+cd esp32
+idf.py -B build_rel_a -DSDKCONFIG=build_rel_a/sdkconfig \
+       -DSAAN_MODEL_BLOB=$PWD/../csrc/student_i8.bin build                    # W8A32
+idf.py -B build_rel_b -DSDKCONFIG=build_rel_b/sdkconfig -DSAAN_ENABLE_PIE=1 \
+       -DSAAN_MODEL_BLOB=$PWD/../csrc/student_i8.bin build                    # W8A8 + PIE
+(cd build_rel_a && esptool.py --chip esp32s3 merge_bin -o /tmp/a.bin @flash_args)
+(cd build_rel_b && esptool.py --chip esp32s3 merge_bin -o /tmp/b.bin @flash_args)
+```
+
+| イメージ | サイズ | PIE | SHA-256（先頭 12） |
+|---|---:|---:|---|
+| `esp32s3-firmware-w8a32.bin` | 2,806,624 B | **0** | `3ba8fdd7600f` |
+| `esp32s3-firmware-w8a8-pie.bin` | 2,806,624 B | **5** | `f18b0523345e` |
+
+⚠️ **サイズが同じなので、別物であることを別に確かめた**（`cmp` で不一致 / PIE 命令 0 vs 5）。
+同じ名前で上書きしていたら気づけない類の事故。
+
+### QEMU で起動を確認（⚠️ 合成は通していない）
+
+⚠️ **QEMU は 2 / 4 / 8 / 16 MB のイメージしか受け付けない**
+（`Drive size error`）。配布用は 2.8 MB なので、**`--fill-flash-size 8MB` 版で検証し、
+配布用がその先頭と bit 一致することを示した**:
+
+| | 配布用 (2,806,624 B) | 8 MB 版の先頭 |
+|---|---|---|
+| w8a32 | `3ba8fdd7600f…` | **同一** |
+| w8a8-pie | `f18b0523345e…` | **同一** |
+
+残り 5,581,984 B は **0xFF 以外が 0 バイト**（純粋なパディング）。
+
+両イメージが到達したところ:
+
+```
+I (73) saan_model: 重み OK: 183 tensors / base 0x3c050000
+I (69) saanotts: W8A8 + PIE 有効 / int8 blob を確認     ← pie 版のみ
+I (82) saanotts:      OK  53 ids が demo_ids.h の錨と完全一致
+I (82) saan_con: 入力: UART0 @ 115200 baud
+I (82) saanotts: ==================== 対話モード ====================
+```
+
+⚠️ **合成は 1 度も走っていない。** これらは `SAAN_QEMU` を付けていない
+（= 実機用の）ビルドなので、1 行打つと `i2s_channel_write` で止まる。
+起動時に喋らない既定（`SAAN_BOOT_SPEAK=0`）のおかげでプロンプトまでは到達する。
+**合成経路の検証は SKIP_I2S 版（M-62 / M-63）が担っている。**
+
+⚠️ **実機では一度も動かしていない。速度も未測定。**
+⚠️ **I2S の GPIO は BCLK=5 / WS=6 / DOUT=7 の仮置き**（根拠なし）。
+DAC を鳴らすならソースから作り直す必要がある。
