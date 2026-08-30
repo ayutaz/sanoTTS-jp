@@ -1,12 +1,14 @@
 # sanoTTS-jp — ESP32-S3 の雛形（c'-4）
 #
-# ⚠️ **実機では一度も動かしていない。** ビルドは通る（2026-08-28 / ESP-IDF v5.5 / M-54）。
-# 速度は QEMU では測れないので、実機（ESP32-S3 ボード）が来るまで未検証。
-#    手元で確認したのは CMake の構文とホスト stub ビルドだけ。詳細は README.md。
+# ⚠️ **実機では一度も動かしていない。速度も一度も測っていない。**
+# ビルドは通り（ESP-IDF v5.5 / M-54）、**QEMU で起動から合成完了まで通る**（M-62）。
+# QEMU はサイクル精度ではないので速度は測れない。実機（ESP32-S3）が唯一の残り。
 #
-#   idf.py set-target esp32s3
-#   idf.py build
+#   idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_MODEL_BLOB=<絶対パス>/student_i8.bin build
 #   idf.py -p /dev/tty.usbmodemXXXX flash monitor
+#
+# ⚠️ **`idf.py set-target esp32s3` は打たない。** sdkconfig.defaults が
+#    CONFIG_IDF_TARGET を持つので不要で、blob 未指定だと configure が落ちる（M-66）。
 
 cmake_minimum_required(VERSION 3.16)
 

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # esp32/ 雛形の手元ゲート（c'-4）
 #
-# ⚠️ **ここで通るのは「手元で確かめられること」だけ。**
-#    ESP-IDF も xtensa toolchain もこの環境に無いので、
-#    idf.py build / flash / 実 SRAM / 実レイテンシ / I2S の実サンプルレートは
-#    **1 つも検証していない**。esp32/README.md の「未検証」節を読むこと。
+# ⚠️ **ここで通るのは「ホストで確かめられること」だけ。**
+#    ⚠️ **かつて「ESP-IDF も xtensa toolchain もこの環境に無い」と書いていたが誤り**
+#    （導入していなかっただけ。C-033）。v5.5 は導入済みで、`idf.py build` は通り、
+#    QEMU で出荷ファームが完走する（M-54 / M-62）。**それはこのスクリプトの外**で、
+#    ここは ESP-IDF 無しで走る検査だけを持つ。
+#    **flash / 実 SRAM / 実レイテンシ / I2S の実サンプルレートは今も未検証。**
 #
 #   bash scripts/check_esp32_template.sh
 set -u
@@ -168,9 +170,9 @@ for blob in student.bin student_i8.bin; do
 done
 
 # ---------------------------------------------------------------- 9
-hdr "9. ESP-IDF API の棚卸し（**手元では実在を確認できない**）"
-echo "  esp32/main が呼ぶ IDF の識別子。ホスト stub は自作なので、"
-echo "  **綴りが本物の IDF v5.x と一致するかは検証していない**。実機が来たら最初にここを見る:"
+hdr "9. ESP-IDF API の棚卸し（**このスクリプトでは実在を確認しない**）"
+echo "  esp32/main が呼ぶ IDF の識別子。ホスト stub は自作なので、ここでは綴りを検証しない。"
+echo "  ✅ ただし **v5.5 で実際にビルドが通り QEMU で動いた**ので、綴り自体は確認済み（M-54 / M-62）:"
 grep -ohE '\b(i2s_[a-z0-9_]+|esp_partition_[a-z0-9_]+|esp_timer_[a-z0-9_]+|heap_caps_[a-z0-9_]+|xTaskCreate|vTaskDelete|uxTaskGetStackHighWaterMark|esp_err_to_name|ESP_LOG[IWED]|I2S_[A-Z0-9_]+|ESP_PARTITION_[A-Z0-9_]+|MALLOC_CAP_[A-Z0-9_]+|portMAX_DELAY|CONFIG_[A-Z0-9_]+)\b' \
   esp32/main/*.c esp32/main/*.h | sort -u | sed 's/^/      /'
 
@@ -184,12 +186,15 @@ fi
 cat <<'MSG'
 
 ⚠️ **手元では判定できないもの（ゲートにしていない）**:
-   1. idf.py build が通るか — ESP-IDF も xtensa-esp32s3-elf-gcc もこの環境に無い
-   2. flash に焼けるか / 起動するか
-   3. 実際の SRAM 消費（IDF + FreeRTOS + I2S DMA を含む free heap）
-   4. 実際の xRT とアンダーランの有無 — M-43 の 2.47 x RT は**外挿**であって実測ではない
-   5. I2S の実サンプルレート誤差（ESP32-S3 に APLL が無い）
-   6. flash から mmap した重みが D-cache を thrash しないか
-   7. sdkconfig.defaults のオプション名が実在するか（menuconfig にかけていない）
+   1. flash に焼けるか / 実機で起動するか
+   2. 実際の SRAM 消費（IDF + FreeRTOS + I2S DMA を含む free heap）
+   3. 実際の xRT とアンダーランの有無 — M-43 の 2.47 x RT は**外挿**であって実測ではない
+   4. I2S の実サンプルレート誤差（ESP32-S3 に APLL が無い）
+   5. flash から mmap した重みが D-cache を thrash しないか
+   6. 実機の UART からかなが届くか（QEMU の擬似シリアルでは届いた。M-63）
+
+   ✅ **ここから外れたもの**（このスクリプトの外で検証済み）:
+      idf.py build（M-54）/ QEMU での起動と合成完走（M-62）/
+      sdkconfig.defaults のオプション名 / IDF API の綴り（ビルドが通った）
 MSG
 exit "$FAIL"
