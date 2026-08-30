@@ -12,7 +12,6 @@
 """
 from __future__ import annotations
 
-import pickle
 import struct
 from collections import Counter
 from typing import Iterable, NamedTuple
@@ -555,32 +554,123 @@ class DictBlob:
                 out.append(self._entry_at(i, s))
         return out
 
-    # --- 直列化（骨組み。K-2 で C から読む形に詰める）------------------------
-    def to_bytes(self) -> bytes:
-        blob = pickle.dumps({
-            "keys": (self.keys.table, self.keys.esc_table),
-            "moras": self.moras.table,
+    # --- 直列化 -------------------------------------------------------------
+    #
+    # C から読める平坦形式。ヘッダの直後にセクション表を置き、各セクションは
+    # **16 バイト境界**に並べる（esp_partition_mmap が返すポインタの整列に合わせる。
+    # esp32/partitions.csv の model パーティションと同じ理由）。
+    #
+    #   0  magic "K1D1" (4)
+    #   4  version u16 / n_sections u16
+    #   8  section[n] = { name[8], offset u32, length u32 }   … 16 B ずつ
+    #      各セクション本体（16 B 境界）
+    #
+    VERSION = 1
+    _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
+                  "classes", "chains", "records", "pool", "surfid")
+
+    @staticmethod
+    def _pack_strtab(items) -> bytes:
+        """NUL 区切りの文字列表。"""
+        return b"".join(x.encode("utf-8") + b"\0" for x in items)
+
+    @staticmethod
+    def _unpack_strtab(blob: bytes) -> list[str]:
+        if not blob:
+            return []
+        parts = blob.split(b"\0")
+        if parts and parts[-1] == b"":
+            parts.pop()
+        return [p.decode("utf-8") for p in parts]
+
+    def _section_payloads(self) -> dict:
+        cls_blob = bytearray()
+        pos6_strs: list[str] = []
+        pos6_id: dict[tuple, int] = {}
+        for lc, rc, pos6, posid in self.classes:
+            if pos6 not in pos6_id:
+                pos6_id[pos6] = len(pos6_strs)
+                pos6_strs.append(",".join(pos6))
+            cls_blob += struct.pack("<HHHH", lc, rc, pos6_id[pos6], posid)
+        return {
+            "keytab": self._pack_strtab(self.keys.table),
+            "keyesc": self._pack_strtab(self.keys.esc_table),
+            "moratab": self._pack_strtab(self.moras.table),
             "louds": self.louds.to_bytes(),
-            "classes": self.classes, "chains": self.chains,
-            "counts": self.counts, "records": self.records,
-            "pool": self.pool, "surfaces": self.surfaces,
-        })
-        return struct.pack("<4sI", b"K1D1", len(blob)) + blob
+            "counts": bytes(self.counts),
+            "classes": (struct.pack("<I", len(self.classes)) + bytes(cls_blob)
+                        + self._pack_strtab(pos6_strs)),
+            "chains": self._pack_strtab(self.chains),
+            "records": self.records,
+            "pool": self.pool,
+            "surfid": self._pack_strtab(self.surfaces),
+        }
+
+    def to_bytes(self) -> bytes:
+        pay = self._section_payloads()
+        names = [n for n in self._SEC_NAMES if n in pay]
+        head_len = 8 + 16 * len(names)
+        out = bytearray(struct.pack("<4sHH", b"K1D1", self.VERSION, len(names)))
+        table = bytearray()
+        body = bytearray()
+        off = (head_len + 15) // 16 * 16
+        for n in names:
+            pad = (-off) % 16
+            body += b"\0" * pad
+            off += pad
+            table += struct.pack("<8sII", n.encode("ascii"), off, len(pay[n]))
+            body += pay[n]
+            off += len(pay[n])
+        out += table
+        out += b"\0" * ((-len(out)) % 16)
+        out += body
+        return bytes(out)
 
     @classmethod
-    def record_region(cls, raw: bytes) -> tuple[int, int]:
+    def sections(cls, raw: bytes) -> dict:
+        magic, ver, n = struct.unpack("<4sHH", raw[:8])
+        if magic != b"K1D1":
+            raise ValueError(f"magic が違う: {magic!r}")
+        if ver != cls.VERSION:
+            raise ValueError(f"version が違う: {ver}")
+        out = {}
+        for i in range(n):
+            name, off, ln = struct.unpack("<8sII", raw[8 + 16 * i: 24 + 16 * i])
+            out[name.rstrip(b"\0").decode("ascii")] = (off, ln)
+        return out
+
+    @classmethod
+    def record_region(cls, raw: bytes) -> tuple:
         """レコード領域の (開始, 終了)。陰性対照が壊す場所を知るために使う。"""
-        d = pickle.loads(raw[8:])
-        i = raw.index(d["records"])
-        return i, i + len(d["records"])
+        o, l = cls.sections(raw)["records"]
+        return o, o + l
 
     @classmethod
     def from_bytes(cls, raw: bytes) -> "DictBlob":
-        magic, n = struct.unpack("<4sI", raw[:8])
-        if magic != b"K1D1":
-            raise ValueError(f"magic が違う: {magic!r}")
-        d = pickle.loads(raw[8:8 + n])
-        return cls(keys=KeyCodec(*d["keys"]), moras=MoraCodec(d["moras"]),
-                   louds=Louds.from_bytes(d["louds"]), classes=d["classes"],
-                   chains=d["chains"], counts=d["counts"], records=d["records"],
-                   pool=d["pool"], surfaces=d["surfaces"])
+        secs = cls.sections(raw)
+
+        def sec(n: str) -> bytes:
+            o, l = secs[n]
+            return raw[o:o + l]
+
+        cb = sec("classes")
+        n_cls = struct.unpack("<I", cb[:4])[0]
+        pos6_strs = cls._unpack_strtab(cb[4 + 8 * n_cls:])
+        pos6 = [tuple(x.split(",")) for x in pos6_strs]
+        classes = []
+        for i in range(n_cls):
+            lc, rc, p6, posid = struct.unpack("<HHHH", cb[4 + 8 * i: 12 + 8 * i])
+            classes.append((lc, rc, pos6[p6], posid))
+
+        return cls(
+            keys=KeyCodec(cls._unpack_strtab(sec("keytab")),
+                          cls._unpack_strtab(sec("keyesc"))),
+            moras=MoraCodec(cls._unpack_strtab(sec("moratab"))),
+            louds=Louds.from_bytes(sec("louds")),
+            classes=classes,
+            chains=cls._unpack_strtab(sec("chains")),
+            counts=list(sec("counts")),
+            records=sec("records"),
+            pool=sec("pool"),
+            surfaces=cls._unpack_strtab(sec("surfid")),
+        )

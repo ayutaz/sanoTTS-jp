@@ -297,13 +297,48 @@ def test_pool_offset_checkpoint() -> None:
           f"{sum(1 for a, c in zip(mat, ck2) if a != c)} 件ずれ")
 
 
+def test_blob_layout() -> None:
+    """C から読める平坦な形式であること。
+
+    K-2 は C でこの blob を読む。pickle のような Python 固有の容れ物は使えない。
+    セクション表を持ち、各セクションは 16 バイト境界に置く
+    （`esp32/partitions.csv` が model パーティションに課しているのと同じ理由）。
+    """
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== blob の配置（C から読めるか）===")
+    raw = DictBlob.build(_sample_entries()).to_bytes()
+
+    check("magic が K1D1", raw[:4] == b"K1D1", raw[:4].hex())
+    secs = DictBlob.sections(raw)
+    check("セクション表が読める", len(secs) > 0, f"{len(secs)} 個: {sorted(secs)}")
+
+    need = {"records", "pool", "louds", "counts"}
+    check("必要なセクションがある", need <= set(secs), f"欠け: {need - set(secs)}")
+
+    misaligned = {n: o for n, (o, _l) in secs.items() if o % 16}
+    check("全セクションが 16 バイト境界", not misaligned, str(misaligned))
+
+    inside = all(0 <= o and o + l <= len(raw) for o, l in secs.values())
+    check("全セクションが blob 内に収まる", inside)
+
+    check("pickle を使っていない", b"pickle" not in raw and raw[8:10] != b"\x80\x05",
+          "先頭 10 B: " + raw[:10].hex())
+
+    # レコード領域はセクション表から引ける（陰性対照が壊す場所）
+    ro, rl = secs["records"]
+    check("records の長さがレコード数と整合",
+          rl % DictBlob.RECORD_SIZE == 0 and rl // DictBlob.RECORD_SIZE == 8,
+          f"{rl} B / {DictBlob.RECORD_SIZE} = {rl // DictBlob.RECORD_SIZE}")
+
+
 # ---------------------------------------------------------------- 実行
 
 def main() -> int:
     tests = [test_mora_codec, test_key_codec, test_louds_search,
              test_louds_negative_control, test_louds_serialize,
              test_blob_roundtrip, test_blob_negative_control,
-             test_pool_offset_checkpoint]
+             test_pool_offset_checkpoint, test_blob_layout]
     for t in tests:
         try:
             t()
