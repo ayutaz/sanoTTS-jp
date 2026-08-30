@@ -57,77 +57,99 @@ ESP32-S3 hardware.
 
 ## Getting started
 
-**Four entry points, each needing something different.** A is the lightest — just a download.
+**Four entry points. A / B / D need neither piper-plus nor the teacher model**
+(measured on a fresh clone).
 
 | | Goal | What you need | Time |
 |---|---|---|---|
 | **A** | **Hear it** | `saanotts-jp-v3-samples.zip` from [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | 1 min |
-| **B** | **Synthesize your own text** | + setup (below) + `saanotts-jp-v3-stage4.pt` | 15 min |
+| **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
 | **C** | **Make an ESP32-S3 speak** | + ESP-IDF v5.5 + a board (DAC optional) | 15–30 min |
-| **D** | **Run the code gates** | setup only (no weights, no teacher) | 5 min |
+| **D** | **Run the code gates** | minimal setup only | 5 min |
 
-### Setup (shared by B / C / D)
+### Minimal setup (B / D) — no piper-plus, no teacher
 
-⚠️ **`git clone` followed by `uv sync` does not work.** `[tool.uv.sources]` in
-`pyproject.toml` points at an **absolute path to piper-plus**, so until you retarget it,
-`uv sync` fails with `error: Distribution not found at: file://...` (measured).
+⚠️ **Do not use `uv sync`.** `[tool.uv.sources]` in `pyproject.toml` points at an
+**absolute path to piper-plus**, so without it you get
+`error: Distribution not found at: file://...` (measured). Student inference needs
+only **torch / numpy / soundfile**, so create a venv that bypasses the project:
 
 ```bash
-git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT. Teacher impl + G2P
 git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
-python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ before uv sync
-uv sync                                                               # a few minutes the first time
+uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 ```
-
-⚠️ **The teacher checkpoint (private) is not required.** All you need is the piper-plus
-source (OpenJTalk G2P and `piper_train`). The teacher is only needed to regenerate labels
-or retrain.
 
 ### B. Synthesize your own text
 
 Download `saanotts-jp-v3-stage4.pt` (2.7 MB) from
-[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) and pass the
+**kana intermediate form**:
 
 ```bash
-# Kanji text → the same "kana intermediate form" the device consumes (host side, OpenJTalk)
-uv run python scripts/to_intermediate.py "今日は良い天気ですね。"
-#   → きょ][おわよ][いて][んきです°ね
-
-# Synthesize (writes a 22.05 kHz WAV to out/cli_000.wav)
-uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+uv run --no-project python scripts/synthesize_student.py \
+    --ckpt saanotts-jp-v3-stage4.pt \
     --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
+#   → out/cli_000.wav (22.05 kHz, 1.2 s) "今日は良い天気ですね。"
 ```
 
-⚠️ **`--text "今日は良い天気ですね。"` also works, but that path needs the private teacher
+```
+[ pitch rise / ] accent nucleus / # phrase boundary / ° devoicing
+```
+
+⚠️ **Turning kanji into the intermediate form needs the full setup** (OpenJTalk).
+Writing kana directly does not:
+
+```bash
+uv run python scripts/to_intermediate.py "電源を入れてください。"   # full setup
+#   → で[んげんおい[れてくださ]い
+```
+
+⚠️ `--text "<kanji text>"` also synthesizes, but **that path needs the private teacher
 checkpoint** (it builds phoneme IDs through the teacher's `phoneme_id_map`).
-`--intermediate` reads zero bytes of the teacher and produces a **byte-identical WAV** for
-the same input (verified).
+`--intermediate` calls neither the teacher nor OpenJTalk and produces a
+**byte-identical WAV** for the same input (M-64 / M-65).
 
 ⚠️ **The model weights are not MIT.** Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) first.
 
 ### C. Make an ESP32-S3 speak
 
-Full instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over serial:
+Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over serial:
 
 ```
 かな> きょ][おわよ][いて][んきです°ね
 ```
 
-⚠️ **The device does not accept kanji** (the dictionary does not fit). Paste the line that
-`to_intermediate.py` produces. ⚠️ **Nobody has measured the speed yet.**
+⚠️ **The device does not accept kanji** (the dictionary does not fit).
+⚠️ **Nobody has measured the speed yet.**
 
-### D. Run the code gates (no weights, no teacher)
+### D. Run the code gates
 
 ```bash
-make -C csrc g2p        # On-device G2P: 2,819 vectors match the Python implementation exactly
-make -C csrc line       # Terminal line editing. ⚠️ With a positive control (a naive impl fails 20 checks)
-make -C csrc fft        # Inverse FFT (1,435× faster than the naive DFT)
-uv run python scripts/test_losses.py
-uv run python scripts/test_labelpack.py
+make -C csrc line                                       # Line editing (**with a positive control**)
+make -C csrc fft                                        # Inverse FFT (1,435× the naive DFT)
+make -C csrc g2p PYTHON="uv run --no-project python"    # On-device G2P (2,819 vectors)
+uv run --no-project python scripts/test_losses.py
+uv run --no-project python scripts/test_labelpack.py
 ```
 
+⚠️ **Omitting `PYTHON=...` falls back to `uv run python`, which requires piper-plus.**
+(Before separating the two, "it passed without piper-plus" was observed incorrectly. C-041)
+
 ⚠️ **`make -C csrc all-test` will not pass** — the golden comparison needs `csrc/*.bin`
-(exported weights). Run `scripts/export_c_weights.py --ckpt <the .pt you downloaded>` first.
+(exported weights). Export them from the `.pt` you downloaded with
+`scripts/export_c_weights.py`.
+
+### Full setup (kanji→kana conversion / training / label generation)
+
+```bash
+git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT
+cd sanoTTS-jp
+python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ before uv sync
+uv sync
+```
+
+⚠️ **This still does not get you the teacher checkpoint (private).** It is only needed to
+regenerate labels or retrain; kanji→kana conversion works with the piper-plus source alone.
 
 ### What you still cannot do
 

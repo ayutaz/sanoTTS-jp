@@ -32,6 +32,7 @@
 from __future__ import annotations
 
 import os
+import json
 import pathlib
 import sys
 
@@ -44,6 +45,10 @@ from saanotts_jp.vocab import TOKENS                     # noqa: E402
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "csrc" / "g2p_table.h"
+# ⚠️ **同じ生成器から出す 2 つ目の表現。** C 側と隣に置いて、片方だけ古くなったら
+#    目で見て分かるようにする。SHA-256 は同じ関数で計算するので、
+#    ずれたら `make -C csrc g2p` の G1 と loader の検証の両方が落ちる。
+OUT_JSON = ROOT / "csrc" / "g2p_table.json"
 
 KANA_BASE = 0x3040          # キーはこの値からの差分 1 バイトで持つ
 IDX = {tok: i for i, tok in enumerate(TOKENS)}
@@ -252,6 +257,26 @@ def main() -> int:
 
     text = "\n".join(L) + "\n"
     OUT.write_text(text, encoding="utf-8")
+
+    # --- Python 側の凍結テーブル（**OpenJTalk が無くても読める**）-------------
+    # ⚠️ `build_mora_table()` は piper-plus の phonemizer を呼ぶので、
+    #    piper-plus を持っていない人は 1 文字も変換できない。リリースの重みだけで
+    #    合成できるようにするために、同じ表を JSON でも凍結する（C-041）。
+    # ⚠️ **`N_ALLOPHONE` は build_mora_table() が 3 件足したあとの値**を書く
+    #    （kw / gw / v）。素の 18 件を書くと異音規則が静かに欠ける。
+    OUT_JSON.write_text(json.dumps({
+        "_comment": "自動生成 — 手で編集しない（uv run python scripts/gen_g2p_tables.py）。"
+                    "kana_g2p.load_frozen_mora_table() が sha256 を検証して読む。",
+        "sha256": sha,
+        "mora": {k: table[k] for k in sorted(table)},
+        "n_allophone": {k: K.N_ALLOPHONE[k] for k in sorted(K.N_ALLOPHONE)},
+    }, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+
+    # 書いたものが読み返せて、生の表と**完全に一致する**ことをその場で確かめる。
+    # ⚠️ これが無いと「書けた」だけで「読める」を確認していないことになる。
+    frozen = K.load_frozen_mora_table()
+    assert frozen == table, "凍結テーブルが build_mora_table() と一致しない"
+
 
     n_mora_bytes = len(rows) * 4
     n_mark_bytes = len(marks) * 4

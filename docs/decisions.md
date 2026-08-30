@@ -2378,3 +2378,82 @@ uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
 
 **教訓**: 手順書を書いたら、**自分の環境に無いものを外して**もう一度読む。
 「教師が無い人」「piper-plus が無い人」を仮定するだけで両方見つかった。
+
+---
+
+## D-041: mora テーブルを **JSON でも凍結**し、piper-plus 無しでも生徒を動かせるようにする
+
+**決定（2026-08-30）。** `kana_g2p.build_mora_table()` は piper-plus の phonemizer
+（OpenJTalk）をキャリア法で叩いて表を作る。**ハードコードしないのは C-002 の再発防止**で、
+これ自体は正しい。しかし副作用として、**piper-plus を持っていない人は
+かな 1 文字も音素にできず、リリースの重みがあっても音が出せなかった**（C-040）。
+
+`scripts/gen_g2p_tables.py` が `csrc/g2p_table.h` を書くときに、
+**同じ表を `csrc/g2p_table.json` にも書く**ことにした。
+
+### 「2 か所に同じ表がある」問題をどう塞いだか
+
+⚠️ **手で書き写さない**（C-002 の再発）だけでは足りない。3 段で守る:
+
+1. **生成器が同時に書く。** 片方だけ更新される経路が無い
+2. **読むときに SHA-256 を検証する。** `load_frozen_mora_table()` が
+   `gen_g2p_vectors.table_sha256()`（C 側ヘッダと同じ関数）で計算し直して突き合わせる。
+   ⚠️ 陽性対照で確認済み — モーラ 1 件の改竄も、異音規則 1 件の欠落も落ちる（M-65）
+3. **live との突き合わせ。** SHA-256 は「JSON が自己整合か」しか見ないので、
+   **phonemizer が変わって live 側だけ動いた**ケースは捕まえられない。
+   `uv run python scripts/kana_g2p.py` が全 195 件を突き合わせる
+   （piper-plus がある環境でのみ走る）
+
+### どちらを使ったかを**必ず返す**
+
+`mora_table()` は `(表, "live" | "frozen")` を返し、呼び出し側がログに出す。
+⚠️ **黙ってフォールバックすると、凍結テーブルが古いときに
+「なぜか端末と音が違う」になって追えない。** 実際、この可視化のおかげで
+測定環境の汚染に気づけた（C-041）。
+
+### `--intermediate` は**常に frozen**
+
+`synthesize_student.py --intermediate` は piper-plus がある環境でも凍結テーブルを使う。
+経路を 1 本にして、**開発機と外の人で同じものが走る**ようにするため。
+教師経路（`--text`）と WAV がバイト単位で一致することを確認している（M-64 / M-65）。
+
+⚠️ **`uv sync` は依然として piper-plus を要求する。** extra に移しても解決しない
+（`uv sync` は lock 全体を解決するので、選んでいない extra の path source が
+無くても落ちる。実測）。最小構成は `uv venv` + torch / numpy / soundfile を直接入れ、
+`uv run --no-project` で走らせる（README の「最小セットアップ」）。
+
+---
+
+## C-041: 「piper-plus 無しで通った」を 1 回誤って観測した（環境が汚れていた）
+
+**2026-08-30、M-65 の測定中。** 新規 clone 相当のディレクトリで
+`make -C csrc g2p` が通ったので「piper-plus 無しで動く」と書きかけた。
+
+**実際には動いていなかった。** `csrc/Makefile` のベクタ生成ルールが
+`cd .. && uv run python scripts/gen_g2p_vectors.py` を呼んでおり、
+`uv run` は**プロジェクト環境を sync する**。`pyproject.toml` の
+`[tool.uv.sources]` が指す piper-plus は**このマシンには実在する**ので、
+クリーンなはずの `.venv` に piper が 5 パッケージ入り、
+**live テーブル**（OpenJTalk 経由）で通っていた。
+
+気づけたのは、生成器に「どちらのテーブルを使ったか」を出させていたため
+（`mora テーブル: live（195 件）`）。**出していなければ気づかなかった。**
+
+対応:
+
+- `csrc/Makefile` に `PYTHON ?= uv run python` を切り出した。
+  `make -C csrc g2p PYTHON="uv run --no-project python"` で分離できる
+- 測り直した結果、**venv 内の piper 系パッケージは前後とも 0 件**、
+  frozen テーブルで全ゲート通過（M-65）
+
+**教訓（C-040 と同型・同日 2 回目）**: **「動いた」は「その依存が要らない」ではない。**
+依存を落としたつもりの環境で測るときは、**落としたはずのものが本当に無いことを
+その場で数える**（`ls site-packages | grep -c piper`）。
+そして、**どちらの経路を通ったかを実行時に出力させる**と、汚染が可視化される。
+
+## C-041 に付随: フォールバックは**黙って**切り替えてはいけない
+
+凍結テーブルへのフォールバックを入れるとき、
+`mora_table()` は **(表, どちらを使ったか)** を返す形にした。
+`build_mora_table()` が失敗したら黙って JSON を読む実装にしていたら、
+上の汚染にも、将来「凍結テーブルが古い」にも気づけない。

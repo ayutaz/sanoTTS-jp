@@ -14,6 +14,16 @@
 #
 # ⚠️ **naive DFT は消していない。** `make CFLAGS_EXTRA=-DSAAN_USE_NAIVE_DFT test` で
 #    切り替わる。FFT の検証基準として残してある（D-3a）。
+# ⚠️ **ベクタ生成に使う Python。** 既定はプロジェクト環境（piper-plus への path 依存を
+#    解決するので、**piper-plus のクローンが要る**）。持っていない人はプロジェクトを
+#    経由しない環境を指すこと — 生成器は凍結テーブル（csrc/g2p_table.json）に落ちるので
+#    stdlib だけで走る:
+#
+#      make -C csrc g2p PYTHON="uv run --no-project python"
+#
+# ⚠️ **既定のままだと「動いた」が piper-plus のおかげか分からない。**
+#    実際に、これを分けるまで「piper-plus 無しで通った」と誤って観測した（C-041）。
+PYTHON       ?= uv run python
 CC           ?= cc
 CFLAGS       ?= -std=c99 -O2 -Wall -Wextra
 CFLAGS_EXTRA ?=
@@ -87,7 +97,7 @@ line_test: line_test.c line.c line.h
 # 自己完結ベクタ。mora テーブルだけから機械生成するので**コーパス本文を含まない**。
 # ⚠️ `/csrc/*.bin` は .gitignore 済み。クリーン clone では毎回生成する
 g2p_vectors.bin:
-	cd .. && uv run python scripts/gen_g2p_vectors.py --closed \
+	cd .. && $(PYTHON) scripts/gen_g2p_vectors.py --closed \
 	    --out csrc/g2p_vectors.bin --manifest csrc/g2p_vectors.json
 
 # コーパス全行（23,000 行級）。中間表現と期待 ids だけで、原文も uid も入らない。
@@ -95,7 +105,7 @@ g2p_vectors.bin:
 #    エラー期待が 1 件も無いと G2（allow/deny 両側）と G8（黙って落ちる件数）が
 #    空虚になる（実測: コーパスだけだと `ー` drop 0 / `°` drop 0）。
 g2p_vectors_corpus.bin:
-	cd .. && uv run python scripts/gen_g2p_vectors.py --closed --corpus \
+	cd .. && $(PYTHON) scripts/gen_g2p_vectors.py --closed --corpus \
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
 .PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \

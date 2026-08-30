@@ -138,7 +138,13 @@ def main() -> int:
         raise SystemExit("ckpt に c_stats がありません。Stage 2 を回し直してください")
 
     import kana_g2p as K
-    table = K.build_mora_table()
+    # ⚠️ **どちらのテーブルを使ったかを必ずログに出す。** 黙って切り替えると
+    #    「なぜか端末と音が違う」を追えなくなる。
+    #    `--intermediate` は**常に凍結テーブル**を使う（OpenJTalk を呼ばない = 誰でも走る）。
+    #    漢字経路はどのみち OpenJTalk が要るので live を使う。
+    table, which = K.mora_table(prefer_frozen=bool(args.intermediate))
+    print(f"mora テーブル: {which}（{len(table)} 件）"
+          + ("  ← csrc/g2p_table.json / sha256 検証済み" if which == "frozen" else ""))
 
     rows: list[tuple[str, str]] = []
     if args.intermediate:

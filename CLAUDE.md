@@ -136,9 +136,17 @@ G9 / G10 で固定した。
 
 ⚠️ **速度は一度も測っていない** — QEMU はサイクル精度ではない。**実機が唯一の残り。**
 
+⚠️ **`uv sync` は piper-plus のクローンを要求する**（`[tool.uv.sources]` が絶対パス）。
+外の人が**重みだけで音を出す / ゲートを回す**経路は別にある（D-041 / M-65。README の
+「最小セットアップ」）: `uv venv` + torch/numpy/soundfile を入れ、
+`uv run --no-project python scripts/synthesize_student.py --intermediate "..."`。
+かな→音素の表は `csrc/g2p_table.json` に凍結してあり、**OpenJTalk が要らない**
+（SHA-256 検証つき。live との突き合わせは `uv run python scripts/kana_g2p.py`）。
+
 ```bash
 uv sync --extra eval
 uv run python scripts/phase0_verify_teacher.py     # 教師の疎通（6 チェック）
+uv run python scripts/kana_g2p.py                  # 変換器 10 ケース + **凍結テーブルのドリフト検査**
 uv run python scripts/test_losses.py               # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）

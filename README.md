@@ -59,50 +59,55 @@ toolchain（ESP-IDF v5.5）と QEMU は導入済みで、ビルドと bit 一致
 
 ## はじめかた
 
-**入口は 4 つあり、要るものが違う。** 一番軽いのは A（ダウンロードだけ）。
+**入口は 4 つ。A / B / D は piper-plus も教師モデルも要らない**（新規 clone で実測）。
 
 | | やりたいこと | 要るもの | 所要 |
 |---|---|---|---|
 | **A** | **音を聴く** | [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` だけ | 1 分 |
-| **B** | **自分の文を合成する** | + セットアップ（下記）+ `saanotts-jp-v3-stage4.pt` | 15 分 |
+| **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v3-stage4.pt` | 10 分 |
 | **C** | **ESP32-S3 で喋らせる** | + ESP-IDF v5.5 + ボード（DAC は任意） | 15〜30 分 |
-| **D** | **コードのゲートを回す** | セットアップだけ（重みも教師も不要） | 5 分 |
+| **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
 
-### セットアップ（B / C / D の共通）
+### 最小セットアップ（B / D）— piper-plus も教師も要らない
 
-⚠️ **`git clone` して `uv sync` では通らない。** `pyproject.toml` の
-`[tool.uv.sources]` が **piper-plus への絶対パス**を指しているため、
-向け直すまで `error: Distribution not found at: file://...` で失敗する（実測）。
+⚠️ **`uv sync` は使わない。** `pyproject.toml` の `[tool.uv.sources]` が
+piper-plus への**絶対パス**を指しているので、持っていない人は
+`error: Distribution not found at: file://...` で止まる（実測）。
+生徒の推論に要るのは **torch / numpy / soundfile の 3 つだけ**なので、
+プロジェクトを経由しない venv を作る:
 
 ```bash
-git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT。教師の実装と G2P
 git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
-python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ uv sync の前
-uv sync                                                               # 初回は数分かかる
+uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 ```
 
-⚠️ **教師 checkpoint（private）は要らない。** 要るのは piper-plus のソース
-（OpenJTalk の G2P と `piper_train`）だけ。教師が要るのは
-**ラベル生成と学習をやり直すときだけ**。
-
-### B. 自分の文を合成する
+### B. 好きな文を合成する
 
 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) から
-`saanotts-jp-v3-stage4.pt`（2.7 MB）を落とす。
+`saanotts-jp-v3-stage4.pt`（2.7 MB）を落として、**かな中間表現**を渡す。
 
 ```bash
-# 漢字混じり文 → 端末と同じ「かな中間表現」（ホスト側・OpenJTalk）
-uv run python scripts/to_intermediate.py "今日は良い天気ですね。"
-#   → きょ][おわよ][いて][んきです°ね
-
-# 合成（22.05 kHz の WAV が out/cli_000.wav に出る）
-uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+uv run --no-project python scripts/synthesize_student.py \
+    --ckpt saanotts-jp-v3-stage4.pt \
     --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
+#   → out/cli_000.wav（22.05 kHz / 1.2 秒）「今日は良い天気ですね。」
 ```
 
-⚠️ **`--text "今日は良い天気ですね。"` でも合成できるが、そちらは教師 ckpt（private）が要る**
-（音素 ID を教師の `phoneme_id_map` 経由で組むため）。`--intermediate` は教師を
-1 バイトも読まず、**同じ入力に対して WAV がバイト単位で一致する**（確認済み）。
+```
+[ アクセント上昇 / ] 下降核 / # 句境界 / ° 無声化
+```
+
+⚠️ **漢字から中間表現を作るにはフルセットアップが要る**（OpenJTalk）。
+かなを直接書けば不要:
+
+```bash
+uv run python scripts/to_intermediate.py "電源を入れてください。"   # ← フルセットアップ側
+#   → で[んげんおい[れてくださ]い
+```
+
+⚠️ `--text "漢字混じり文"` でも合成できるが、**そちらは教師 ckpt（private）が要る**
+（音素 ID を教師の `phoneme_id_map` 経由で組むため）。`--intermediate` は教師も
+OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一致する**（M-64 / M-65）。
 
 ⚠️ **モデルの重みは MIT ではない。** 使う前に [`LICENSE-MODEL.md`](LICENSE-MODEL.md) を読むこと。
 
@@ -114,21 +119,36 @@ uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
 かな> きょ][おわよ][いて][んきです°ね
 ```
 
-⚠️ **端末は漢字を受け付けない**（辞書が載らないため）。上の `to_intermediate.py` が作る
-1 行を貼り付ける。⚠️ **速度はまだ誰も測っていない。**
+⚠️ **端末は漢字を受け付けない**（辞書が載らないため）。⚠️ **速度はまだ誰も測っていない。**
 
-### D. コードのゲートを回す（重みも教師も要らない）
+### D. コードのゲートを回す
 
 ```bash
-make -C csrc g2p        # オンデバイス G2P。2,819 ベクタで Python と ids が完全一致
-make -C csrc line       # 端末の行編集。⚠️ 陽性対照つき（素直な実装が 20 項目落ちる）
-make -C csrc fft        # 逆 FFT（naive DFT の 1,435 倍）
-uv run python scripts/test_losses.py
-uv run python scripts/test_labelpack.py
+make -C csrc line                                       # 端末の行編集（**陽性対照つき**）
+make -C csrc fft                                        # 逆 FFT（naive DFT の 1,435 倍）
+make -C csrc g2p PYTHON="uv run --no-project python"    # オンデバイス G2P（2,819 ベクタ）
+uv run --no-project python scripts/test_losses.py
+uv run --no-project python scripts/test_labelpack.py
 ```
 
+⚠️ **`PYTHON=...` を省くと `uv run python` になり、piper-plus を要求する。**
+（この区別を付けるまで「piper-plus 無しで通った」と誤って観測した。C-041）
+
 ⚠️ **`make -C csrc all-test` は通らない** — golden との突き合わせに `csrc/*.bin`
-（重みの書き出し）が要る。`scripts/export_c_weights.py --ckpt <落とした .pt>` を先に走らせること。
+（重みの書き出し）が要る。落とした `.pt` から
+`scripts/export_c_weights.py` で書き出せば通る。
+
+### フルセットアップ（漢字→かな変換 / 学習 / ラベル生成）
+
+```bash
+git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT
+cd sanoTTS-jp
+python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ uv sync の前
+uv sync
+```
+
+⚠️ **教師 checkpoint（private）はこれでも入らない。** 要るのは
+**ラベル生成と学習をやり直すときだけ**で、漢字→かな変換は piper-plus のソースだけで動く。
 
 ### まだできないこと
 

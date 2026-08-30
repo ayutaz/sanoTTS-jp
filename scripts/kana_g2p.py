@@ -28,6 +28,7 @@
 
 from __future__ import annotations
 
+import pathlib
 import sys
 
 import os
@@ -169,6 +170,67 @@ def build_mora_table() -> dict[str, list[str]]:
     N_ALLOPHONE.setdefault("gw", "N_ng")
     N_ALLOPHONE.setdefault("v", "N_m")   # 唇歯音。両唇音に寄せる
     return table
+
+
+FROZEN_TABLE = pathlib.Path(__file__).resolve().parent.parent / "csrc" / "g2p_table.json"
+"""`gen_g2p_tables.py` が `csrc/g2p_table.h` と一緒に書く凍結テーブル。"""
+
+
+def load_frozen_mora_table() -> dict[str, list[str]]:
+    """凍結した mora テーブルを読む。**piper-plus (OpenJTalk) が要らない。**
+
+    `build_mora_table()` は phonemizer を呼ぶので、piper-plus を持っていない人は
+    1 文字も変換できない。リリースの重みだけで合成できるようにするための経路
+    （C-041）。⚠️ **漢字→かな**はこれでは出来ない（`text_to_intermediate` は
+    OpenJTalk が要る）。**かな中間表現→音素**だけ。
+
+    ⚠️ **読んだ表の SHA-256 を必ず検証する。** 手で編集された表や、
+    生成器と食い違った表をそのまま使うと、**音は出るのに端末と違う列**になる。
+    ハッシュは `gen_g2p_vectors.table_sha256()` と同じ関数で計算する。
+
+    ⚠️ **副作用がある。** `build_mora_table()` と同じく `N_ALLOPHONE` に
+    外来音の 3 件（kw / gw / v）を反映する。ここを揃えないと `ん` の異音が
+    静かに変わる。
+    """
+    import json
+
+    if not FROZEN_TABLE.exists():
+        raise SystemExit(
+            f"凍結テーブルが無い: {FROZEN_TABLE}\n"
+            "  uv run python scripts/gen_g2p_tables.py で生成する"
+            "（piper-plus が要る）")
+    blob = json.loads(FROZEN_TABLE.read_text(encoding="utf-8"))
+    table = {k: list(v) for k, v in blob["mora"].items()}
+    N_ALLOPHONE.update(blob["n_allophone"])
+
+    from gen_g2p_vectors import table_sha256   # ⚠️ 循環を避けるため関数内で import
+
+    # ⚠️ **異音規則は自分のものを渡す。** このファイルをスクリプトとして実行すると
+    #    こちらは `__main__`、`gen_g2p_vectors` の `import kana_g2p` は**別実体**になり、
+    #    向こうの `N_ALLOPHONE` は build 前の 18 件のまま。渡さないと必ず落ちる。
+    got = table_sha256(table, allophone=N_ALLOPHONE)
+    if got != blob["sha256"]:
+        raise SystemExit(
+            f"凍結テーブルの SHA-256 が合わない\n"
+            f"  記録: {blob['sha256']}\n"
+            f"  実際: {got}\n"
+            "  **手で編集したか、生成器と食い違っている。**"
+            " uv run python scripts/gen_g2p_tables.py を打ち直すこと")
+    return table
+
+
+def mora_table(prefer_frozen: bool = False) -> tuple[dict[str, list[str]], str]:
+    """使える方の mora テーブルを返す。戻り値は (表, どちらを使ったか)。
+
+    ⚠️ **どちらを使ったかを必ず呼び出し側に返す。** 黙って切り替えると、
+    凍結テーブルが古いときに「なぜか端末と音が違う」になって追えなくなる。
+    """
+    if prefer_frozen:
+        return load_frozen_mora_table(), "frozen"
+    try:
+        return build_mora_table(), "live"
+    except ImportError:
+        return load_frozen_mora_table(), "frozen"
 
 
 def table_size_bytes(table: dict[str, list[str]]) -> int:
@@ -407,6 +469,21 @@ def main() -> int:
         print(f"{text[:22]:<24}{joined[:28]:<30}{'OK' if ok else 'NG'}  {note}")
 
     print()
+
+    # --- 凍結テーブルのドリフト検査 -----------------------------------------
+    # ⚠️ **ここでしか捕まえられない。** `load_frozen_mora_table()` の SHA-256 は
+    #    「JSON が自己整合か」しか見ない。**phonemizer が変わって live 側だけ動いた**
+    #    ケースは、両方が揃っているこの環境で突き合わせるしかない。
+    frozen = load_frozen_mora_table()
+    if frozen != table:
+        diff = sorted(set(frozen) ^ set(table)) or \
+            [k for k in table if frozen.get(k) != table[k]]
+        print(f"NG  csrc/g2p_table.json が build_mora_table() と食い違う: {diff[:10]}")
+        print("    uv run python scripts/gen_g2p_tables.py を打ち直すこと")
+        failures += 1
+    else:
+        print(f"凍結テーブル {FROZEN_TABLE.name}: {len(frozen)} 件が live と完全一致")
+
     if failures:
         print(f"{failures} 件 NG")
         return 1

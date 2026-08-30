@@ -4485,3 +4485,62 @@ cmp /tmp/syn_i/cli_000.wav /tmp/syn_t/cli_000.wav      # 差分なし
 `make -C csrc g2p`（Python と C で ids が完全一致）と
 `scripts/to_intermediate.py --ids` が `esp32/main/demo_ids.h` の錨 53 ids を
 再現することで担保している。
+
+---
+
+## M-65. **piper-plus も教師も無い環境で音が出る**ことを、新規 clone で確かめた（自己実測）
+
+C-040 で「リリースの手順が動かない」と分かったので、依存を落として実測した。
+
+### やったこと
+
+1. `git ls-files` で追跡ファイルだけを空のディレクトリへ展開（= 新規 clone 相当）
+2. `uv venv` + **torch / numpy / soundfile の 3 つだけ** を入れる（`uv sync` は使わない）
+3. `runs/v3/stage4.pt` を `saanotts-jp-v3-stage4.pt` として置く（= リリース資産）
+4. `uv run --no-project` で走らせる
+
+```bash
+uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
+uv run --no-project python scripts/synthesize_student.py \
+    --ckpt saanotts-jp-v3-stage4.pt \
+    --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
+```
+
+### 結果
+
+| 項目 | 結果 |
+|---|---|
+| venv 内の piper 系パッケージ | **開始時 0 件 / 終了時 0 件** |
+| 使った mora テーブル | **frozen**（`csrc/g2p_table.json` / sha256 検証済み） |
+| 出力 | 1 文 / 1.2 秒 / peak 0.2903 |
+| **教師ありの環境で作った WAV との比較** | **バイト完全一致** |
+| `make -C csrc line` / `fft` | 通過 |
+| `make -C csrc g2p PYTHON="uv run --no-project python"` | **frozen テーブルで通過**（2,819 ベクタ） |
+| `scripts/test_losses.py` / `test_labelpack.py` | 通過 |
+
+⚠️ **`uv sync` はこの環境でも通ってしまうので、検証には使えない。**
+`pyproject.toml` の絶対パスがこのマシンには実在するため。
+「path が無いと落ちる」は**別の空プロジェクトで実測**した
+（`error: Distribution not found at: file:///nonexistent/...`）。
+⚠️ **extra に移しても解決しない** — `uv sync` は lock 全体を解決するので、
+選んでいない extra の path source が無くても同じエラーで落ちる（実測）。
+
+### ⚠️ 途中で 1 回、誤って「通った」と観測した（C-041）
+
+`make -C csrc g2p` は Makefile の中で `uv run python` を呼ぶ。これは
+**プロジェクト環境を sync する**ので、piper-plus がこのマシンに実在する以上、
+クリーンなはずの venv に piper が 5 パッケージ入り、**live テーブルで通っていた**。
+`PYTHON ?= uv run python` に切り出し、`PYTHON="uv run --no-project python"` で
+分離できるようにしてから測り直した。
+
+### 凍結テーブル（`csrc/g2p_table.json`）の陽性対照
+
+| 壊し方 | 結果 |
+|---|---|
+| `か` の音素を `['g','a']` に書き換え | **SHA-256 不一致で SystemExit** |
+| `n_allophone` から `kw` を削除 | **SHA-256 不一致で SystemExit** |
+| 無改変 | 読める |
+
+⚠️ **SHA-256 は「JSON が自己整合か」しか見ない。** phonemizer が変わって live 側だけ
+動いたケースは捕まえられないので、`uv run python scripts/kana_g2p.py` が
+**live と frozen の全 195 件を突き合わせる**（piper-plus がある環境でのみ走る）。

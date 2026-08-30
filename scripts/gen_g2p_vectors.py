@@ -238,15 +238,25 @@ def encode(text: str, table: dict[str, list[str]]) -> dict:
 # --- テーブルのハッシュ -----------------------------------------------------
 
 
-def table_sha256(table: dict[str, list[str]]) -> str:
+def table_sha256(table: dict[str, list[str]],
+                 allophone: dict[str, str] | None = None) -> str:
     """mora テーブル + `ん` 異音規則 + 語彙の正準シリアライズの SHA-256。
 
     C 側の `saan_g2p_table_sha256[]` と突き合わせて、**違うテーブルで作ったベクタと
     突き合わせる事故**を塞ぐ。ベクタが古いのか実装が古いのかを区別できる。
+
+    ⚠️ **`allophone` を明示的に渡せるようにしてある。** 既定は `K.N_ALLOPHONE` だが、
+    それは**この翻訳単位が掴んでいる `kana_g2p`** のグローバルであって、呼び出し側が
+    見ているものとは限らない。`scripts/kana_g2p.py` を**スクリプトとして実行**すると
+    そちらは `__main__`、こちらの `import kana_g2p` は**別のモジュール実体**になり、
+    `build_mora_table()` が足す 3 件（kw / gw / v）が入っていない 18 件の方を読む。
+    実際に踏んだ（ハッシュ検証が落ちて気づいた）。**自分のを渡すこと。**
     """
+    if allophone is None:
+        allophone = K.N_ALLOPHONE
     lines = [f"{k}\t{' '.join(table[k])}" for k in sorted(table)]
     lines.append("--allophone--")
-    lines += [f"{k}\t{K.N_ALLOPHONE[k]}" for k in sorted(K.N_ALLOPHONE)]
+    lines += [f"{k}\t{allophone[k]}" for k in sorted(allophone)]
     lines.append("--vocab--")
     lines += [f"{i}\t{tok}" for i, tok in enumerate(TOKENS)]
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
@@ -503,7 +513,11 @@ def main() -> int:
     if not args.closed and not args.corpus:
         args.closed = True
 
-    table = K.build_mora_table()
+    # ⚠️ **piper-plus が無くても走れるようにする。** OpenJTalk が入っていない環境では
+    #    凍結テーブル（csrc/g2p_table.json / sha256 検証つき）に落ちる。
+    #    どちらを使ったかは必ず出す（黙って切り替えると追えない）。
+    table, which = K.mora_table()
+    print(f"mora テーブル: {which}（{len(table)} 件）")
     sanity_checks(table)
     sha = table_sha256(table)
 
