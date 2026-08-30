@@ -45,6 +45,33 @@
 
 static const char *TAG = "saanotts";
 
+/* --- 起動時に 1 文喋るか --------------------------------------------------
+ *
+ * **既定は「喋らない」。** 対話入力が入ったので、同じことは
+ * `きょ][おわよ][いて][んきです°ね` と 1 行打てばできる。**しかも bit 単位で同じ列になる**
+ * （M-63 の T1 で確認済み）。起動のたびに 1.2 秒の音声を作るのは、
+ * 実機では 2.47 × RT の外挿でおよそ 3 秒の待ちになる。
+ *
+ * ⚠️ **ただし非対話ビルドでは唯一の出力経路。** ホスト stub
+ * （`scripts/check_esp32_template.sh` のゲート 8）は `app_main()` を同期実行して
+ * I2S に出た int16 を golden と突き合わせるので、ここで喋らないと比較対象が 0 sample になる。
+ * **そのときゲートは「27136 sample vs 0 sample」で落ちる**（-DSAAN_BOOT_SPEAK=0 で実測）
+ * ので空虚にはならないが、**ゲートが常に赤になって役に立たない**。
+ * だから SAAN_INTERACTIVE=0 のときは既定で喋る。
+ *
+ * 実機でも「打たずに測りたい」ときは `-DSAAN_BOOT_SPEAK=1`
+ * （コンソールに触れない環境・`idf.py qemu` をそのまま流す回帰確認など）。
+ *
+ * ⚠️ **錨との照合（`boot_selftest`）は喋るかどうかに関係なく必ず走る。**
+ *    あれが「テーブルと実装がずれていない」唯一の機械的な証拠で、G2P だけで済む。 */
+#ifndef SAAN_BOOT_SPEAK
+#  if SAAN_INTERACTIVE
+#    define SAAN_BOOT_SPEAK 0
+#  else
+#    define SAAN_BOOT_SPEAK 1
+#  endif
+#endif
+
 /* --- arena ---------------------------------------------------------------
  *
  * ⚠️ **`saan_stream_arena_needed()` の戻り値を使わないこと。** あれは緩い上限で、
@@ -420,13 +447,18 @@ static void tts_task(void *arg) {
     int32_t demo_n_ids = 0;
     if (!boot_selftest(&demo_n_ids)) { vTaskDelete(NULL); return; }
 
-    /* --- 起動時の 1 発話 --------------------------------------------------
-     * ⚠️ **これを消さないこと。** ホスト / QEMU と checksum を突き合わせる
-     *    基準がこの 1 文（M-62 の記録値はこれ）。対話入力は毎回違う列なので
-     *    突き合わせに使えない。 */
+#if SAAN_BOOT_SPEAK
+    /* ⚠️ **ホスト / QEMU / 実機を突き合わせる基準はこの 1 文**（M-62 / M-63 の記録値）。
+     *    対話入力は毎回違う列なので突き合わせに使えない。ただし**同じ中間表現を
+     *    打てば同じ列になる**ことは確認済みなので、既定では喋らない（上の #define）。 */
     ESP_LOGI(TAG, "起動時の 1 発話: \"%s\"", SAAN_DEMO_TEXT);
     (void)synth_once(&w, g_ids, demo_n_ids);
     log_heap("1 発話後");
+#else
+    (void)demo_n_ids;   /* 錨との照合だけして喋らない */
+    ESP_LOGI(TAG, "起動時は喋らない。突き合わせ用の 1 文を出すには "
+                  "-DSAAN_BOOT_SPEAK=1（同じ中間表現を打っても同じ列になる）");
+#endif
 
 #if SAAN_INTERACTIVE
     if (!saan_console_init()) {

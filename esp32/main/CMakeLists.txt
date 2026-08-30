@@ -30,3 +30,16 @@ if(SAAN_QEMU)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_SKIP_I2S=1)
     message(STATUS "sanoTTS: SAAN_SKIP_I2S=1（QEMU 用。**音は出ない**）")
 endif()
+
+# --- 起動時に 1 文喋る（既定は喋らない）-------------------------------------
+#
+#     idf.py -DSAAN_BOOT_SPEAK=1 build
+#
+# 対話入力が入ったので、既定では起動時に喋らない（`かな>` に 1 行打てば同じ列になる。
+# **bit 単位で同じ**ことは M-63 の T1 で確認済み）。
+# ⚠️ **コンソールに触れない環境で測りたいとき**や、`idf.py qemu` をそのまま流して
+#    checksum を突き合わせる回帰確認のためにフラグを残してある。
+if(SAAN_BOOT_SPEAK)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_BOOT_SPEAK=1)
+    message(STATUS "sanoTTS: 起動時に 1 文喋る（突き合わせ用）")
+endif()
