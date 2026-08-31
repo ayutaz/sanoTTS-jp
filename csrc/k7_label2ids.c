@@ -110,7 +110,16 @@ static int label_prosody(const char *lab, int *a1, int *a2, int *a3) {
 
 /* ---------------------------------------------------------------- 本体 */
 
-#define MAX_TOKENS 2048
+/* ⚠️ **2048 にしていたら .bss を 32,768 B 食って、実機で I2S を有効にすると
+ *    DRAM が 19,304 B 溢れた**（QEMU ビルドは I2S を gc-sections が落とすので
+ *    通っていた）。端末は ids 350 個で拒否する（`SAAN_MAX_IDS`）ので、
+ *    トークンは高々 175 個。**640 なら 3 倍以上の余裕がある。**
+ * ⚠️ ホスト側のゲートは held-out の長文を通すので、`-DK7_MAX_TOKENS=2048` で
+ *    上書きできるようにしてある。 */
+#ifndef K7_MAX_TOKENS
+#define K7_MAX_TOKENS 640
+#endif
+#define MAX_TOKENS K7_MAX_TOKENS
 #define TOK_MAX 16
 
 k7_status k7_label2ids(const char *const *labels, int n_labels,
@@ -122,7 +131,11 @@ k7_status k7_label2ids(const char *const *labels, int n_labels,
     int nt = 0;
     const char *q = question_type(text);
 
-    for (int i = 0; i < n_labels && nt < MAX_TOKENS; i++) {
+    /* ⚠️ **溢れたら切り詰めずにエラーを返す。** 先頭だけ喋ると
+     *    「端末とホストで同じ列」が崩れるのに、音としては再生できてしまう。 */
+#define NEED(k) do { if (nt + (k) > MAX_TOKENS) return K7_ERR_OVERFLOW; } while (0)
+    for (int i = 0; i < n_labels; i++) {
+        NEED(4);          /* 音素 1 個 + 記号 3 個が最悪 */
         char ph[TOK_MAX];
         if (label_phoneme(labels[i], ph, sizeof ph) != 0) continue;
 
@@ -147,13 +160,14 @@ k7_status k7_label2ids(const char *const *labels, int n_labels,
             if (label_prosody(labels[i + 1], &b1, &b2, &b3) == 0) a2n = b2;
         }
         /* ⚠️ **3 つとも独立に判定する**（else if にしない）。Python 版と同じ */
-        if (a1 == 0 && a2n == a2 + 1 && nt < MAX_TOKENS)
+        if (a1 == 0 && a2n == a2 + 1)
             snprintf(tok[nt++], TOK_MAX, "]");
-        if (a2 == a3 && a2n == 1 && nt < MAX_TOKENS)
+        if (a2 == a3 && a2n == 1)
             snprintf(tok[nt++], TOK_MAX, "#");
-        if (a2 == 1 && a2n == 2 && nt < MAX_TOKENS && !k7_debug_drop_rise)
+        if (a2 == 1 && a2n == 2 && !k7_debug_drop_rise)
             snprintf(tok[nt++], TOK_MAX, "[");
     }
+#undef NEED
 
     /* `ん` の異音: **後続の音素**で決まる。記号は飛ばす。 */
     for (int i = 0; i < nt; i++) {
