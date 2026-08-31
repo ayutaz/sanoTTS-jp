@@ -51,10 +51,12 @@ uv run python scripts/k1/heldout_source_check.py # held-out のソース順の�
 uv run python scripts/k1/k1_build_dict.py        # 本番の辞書 blob を組んで G1〜G5
 uv run python scripts/k1/k1_fit_point.py         # 予算に入るエントリ数（本番エンコーダで実測）
 uv run python scripts/k1/k2_gen_vectors.py       # C 側ゲートの参照ベクタ（参照は MeCab）
-make -C csrc k2                                  # C リーダ + Viterbi の受け入れ（G6〜G8）
+uv run python scripts/k1/k4_gen_vectors.py       # K-4 の参照ベクタ（参照は Python 版の 4 段）
+make -C csrc k2                                  # K-2/K-3 の受け入れ（G6〜G11）
+make -C csrc k4                                  # K-4 の受け入れ（G12/G13）
 ```
 
-⚠️ `make -C csrc k2` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
+⚠️ `make -C csrc k2` / `k4` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
 数 MB の生成ベクタが要るので、`g2p-corpus` と同じ扱い。
 
 エンコーダ本体は `src/saanotts_jp/k1_dict.py`、その単体テストは

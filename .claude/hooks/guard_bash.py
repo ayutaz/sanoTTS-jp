@@ -292,6 +292,42 @@ def check_production_pack(cmd: str) -> None:
                 )
 
 
+#: D-042 で凍結した辞書の同一性。消すと G0-2 が参照を失う
+FROZEN_ARTIFACTS = (
+    ("scripts/k1/dict_manifest.json",
+     "D-042 で凍結した辞書の SHA-256 です。\n"
+     "このマシンには `sys.dic` が **3 リビジョン同居**していて、\n"
+     "取り違えると測定が別物になります（C-045: B-0 のアクセント天井は\n"
+     "教師が一度も使っていない辞書で測られていた）。\n"
+     "作り直すなら `uv run python scripts/k1/k0_freeze_dict.py --force` を使ってください\n"
+     "（既存と食い違えば止まります）。"),
+    ("csrc/g2p_table.json",
+     "端末に載る mora テーブルの凍結版です（D-041）。\n"
+     "`kana_g2p.py` が SHA-256 で検証しているので、消すと\n"
+     "**piper-plus 無しで合成する経路**が壊れます。\n"
+     "作り直すなら `uv run python scripts/gen_g2p_tables.py` を使ってください。"),
+)
+
+
+def check_frozen_artifacts(cmd: str) -> None:
+    """凍結した成果物の破棄を止める。
+
+    ⚠️ **生成スクリプト側のガードだけでは足りない。** `k0_freeze_dict.py` は
+    既存と食い違えば exit 1 で止まるが、`rm` やリダイレクトはそれを迂回する。
+    """
+    for path, why in FROZEN_ARTIFACTS:
+        # ⚠️ **直後に `.` が来る場合も除く。** これが無いと
+        #    `dict_manifest.json.bak` のような別ファイルまで deny する
+        #    （誤検知は C-011 / C-020 / C-025 で 5 回踏んでいる）。
+        target = re.escape(path) + r"(?![\w.-])"
+        for word in DESTRUCTIVE:
+            if re.search(rf"{CMD_POS}{re.escape(word)}\s+[^;&|\n]*{target}", cmd):
+                deny(f"`{word}` が凍結物 `{path}` を対象にしています。\n" + why)
+        # `> path` / `>> path` のリダイレクト上書き
+        if re.search(rf">>?\s*{target}", cmd):
+            deny(f"リダイレクトが凍結物 `{path}` を上書きしようとしています。\n" + why)
+
+
 def check_label_regeneration(cmd: str) -> None:
     """既にある本番パックへの再生成を止める（D-015: ラベルは一度だけ）。
 
@@ -467,6 +503,7 @@ def main() -> int:
     check_python_invocation(cmd)
     check_production_pack(cmd)
     check_label_regeneration(cmd)
+    check_frozen_artifacts(cmd)
     check_upstream_gpl(cmd)
     check_upstream_package(cmd)
     check_corpus_text_commit(cmd)

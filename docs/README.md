@@ -152,7 +152,8 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 であって正しさではなく、**聴取はゼロ**。
 
 ゲート: `uv run python scripts/test_k1_dict.py` / `uv run python scripts/k1/k0_verify_dict.py`
-／ `make -C csrc k2`（⚠️ 辞書が要るので `all-test` には入れていない）
+／ `make -C csrc k2`（G6〜G11）／ `make -C csrc k4`（G12/G13）
+⚠️ **k2 / k4 は `all-test` に入れていない**（辞書と生成ベクタが要る。g2p-corpus と同じ扱い）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
@@ -238,7 +239,8 @@ sanoTTS-jp/
 ├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
 │   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）
 │   ├── k1_build_dict.py                   本番の辞書 blob を組んで G1〜G5 を通す
-│   └── k2_gen_vectors.py                  C 側ゲートの参照ベクタ（参照は MeCab）
+│   ├── k2_gen_vectors.py                  K-2/K-3 の参照ベクタ（参照は MeCab）
+│   └── k4_gen_vectors.py                  K-4 の参照ベクタ（参照は Python 版の 4 段）
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
@@ -258,8 +260,9 @@ sanoTTS-jp/
 │   ├── fft.h / fft.c                      radix-2 逆実 FFT（naive の 1,435 倍）
 │   ├── saanotts_int8.h / .c               int8 カーネル + **PIE（ESP32-S3 の整数 SIMD）**
 │   ├── g2p.h / g2p.c / g2p_table.h        端末側 G2P（中間表現 → 生徒インデックス。表 877 B）
-│   ├── k1dict.h / k1dict.c                **K-2: 辞書 blob リーダ + LOUDS + Viterbi**
-│   ├── k2_test.c                          K-2 の受け入れ（MeCab と一致。陰性対照つき）
+│   ├── k1dict.h / k1dict.c                **K-2/K-3: 辞書 blob リーダ + LOUDS + Viterbi + 未知語**
+│   ├── k4_accent.h / k4_accent.c          **K-4: アクセント規則 4 段（126 行）** ← 新規性の中核
+│   ├── k2_test.c / k4_test.c              K-2〜K-4 の受け入れ（どちらも陰性対照つき）
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）

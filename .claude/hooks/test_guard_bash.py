@@ -157,6 +157,19 @@ CASES: list[tuple[str, str, str]] = [
     ("allow", "git add -A && git commit -m wip", "add してから commit も通す"),
     ("allow", "echo 'git commit -m x' >> notes.md", "文字列の中の git commit に反応しない"),
     ("allow", "grep -rn 'git commit' docs/", "grep の引数に反応しない"),
+    # --- 凍結物の保護（D-041 / D-042）---
+    ("deny", "rm scripts/k1/dict_manifest.json", "凍結した辞書の同一性を消させない"),
+    ("deny", "rm -f csrc/g2p_table.json", "凍結した mora テーブルを消させない"),
+    ("deny", "mv scripts/k1/dict_manifest.json /tmp/", "mv でも止める"),
+    ("deny", "echo '{}' > scripts/k1/dict_manifest.json", "リダイレクト上書きも止める"),
+    ("deny", "cat x.json >> csrc/g2p_table.json", "追記も止める"),
+    # ⚠️ **誤検知しないこと**が同じくらい大事（C-011 / C-020 / C-025 で 5 回踏んだ）
+    ("allow", "cat scripts/k1/dict_manifest.json", "読むのは通す"),
+    ("allow", "git diff csrc/g2p_table.json", "差分を見るのは通す"),
+    ("allow", "uv run python scripts/k1/k0_freeze_dict.py --force", "正規の作り直しは通す"),
+    ("allow", "rm -rf .k1work", "中間生成物は消してよい"),
+    ("allow", "rm scripts/k1/dict_manifest.json.bak", "別名のファイルには反応しない"),
+    ("allow", "grep -n sha256 scripts/k1/dict_manifest.json", "grep も通す"),
 ]
 
 
