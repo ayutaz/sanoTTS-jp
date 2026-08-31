@@ -19,7 +19,7 @@ Porting the English recipe as-is breaks. These three walls are specific to Japan
 
 | Wall | How it was solved |
 |---|---|
-| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host |
+| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host. ⚠️ **Re-measuring later broke this premise and the implementation went through** — a TTS-only format is 130 B → **28 B** per entry, so 438,750 entries fit a 16 MB board, and QEMU synthesizes from kanji end to end (K-7 / M-78). ⚠️ **Untested on hardware; not in the release** |
 | **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **37/37 sign agreement** with the teacher |
 | **Devoiced vowels** — the `i` and `u` in です / した are acoustically close to frication | Separability was confirmed with per-phoneme-class spectral flatness (AUC 0.847) before adding them to the noise-injection set |
 
@@ -119,8 +119,24 @@ Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over seria
 かな> きょ][おわよ][いて][んきです°ね
 ```
 
-⚠️ **The device does not accept kanji** (the dictionary does not fit).
-⚠️ **Nobody has measured the speed yet.**
+⚠️ **The shipped firmware does not accept kanji.** ⚠️ **Nobody has measured the speed yet.**
+
+> The stated reason used to be "the dictionary does not fit". Re-measuring broke that
+> premise, and the implementation now runs: with a TTS-only dictionary format a 16 MB
+> board holds 438,750 entries, and typing `!今日は良い天気ですね。` into the QEMU UART
+> makes the device tokenize the sentence itself and synthesize to completion
+> ([M-78](docs/measurements.md)). The audio came out **bit-identical** to the frozen
+> kana intermediate (`0x78c209af06affc01`).
+>
+> - Matches MeCab on **1,977/1,977** sentences (unknown words included)
+> - The 126-line accent rules match the Python version **2,333/2,333**
+> - The NJD chain matches the host **635/635**; labels → phoneme ids **298/298**
+> - Peak RAM per sentence **104,589 B**; dictionary 13,702,320 B (438,750 entries)
+>
+> ⚠️ **0.32% of phonemes differ from the host** (n=298, M-78) — the on-device
+> dictionary is pruned, so some readings change.
+> ⚠️ **Never run on real hardware; speed and audio are unmeasured; not in the release.**
+> (See [`esp32/README.md`](esp32/README.md), section 漢字対応ビルド.)
 
 ### D. Run the code gates
 
@@ -219,8 +235,8 @@ The documentation is in Japanese.
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
-| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-67. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-041 and the **correction log C-001–C-043** |
+| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-78. Every entry has a reproduction command |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-044 and the **correction log C-001–C-051** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
@@ -235,7 +251,7 @@ The documentation is in Japanese.
 that is written into the repository itself.
 
 - **Never write a guess as a number.** If it was not measured, it says "not measured"
-- **Never delete the correction log.** **43 entries** record errors of the form
+- **Never delete the correction log.** **51 entries** record errors of the form
   "something one command would have answered, inferred instead of measured." They exist so
   the same mistake is not repeated
 - **Never delete a risk just because it was settled.** Deleting it makes the question resurface

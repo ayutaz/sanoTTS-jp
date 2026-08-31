@@ -1,0 +1,90 @@
+{
+ "record_bytes": 7104492,
+ "fields": [
+  {
+   "field": "class_id",
+   "cur_bits": 16,
+   "distinct": 1271,
+   "log2": 11,
+   "H": 5.0674225284926475,
+   "cur_bytes": 1578776,
+   "H_bytes": 500020.31686521927
+  },
+  {
+   "field": "wcost",
+   "cur_bits": 16,
+   "distinct": 13931,
+   "log2": 14,
+   "H": 8.822577390940138,
+   "cur_bytes": 1578776,
+   "H_bytes": 870554.5901849316
+  },
+  {
+   "field": "chain_id",
+   "cur_bits": 16,
+   "distinct": 115,
+   "log2": 7,
+   "H": 1.6762698403327545,
+   "cur_bytes": 1578776,
+   "H_bytes": 165403.41209007404
+  },
+  {
+   "field": "flags",
+   "cur_bits": 8,
+   "distinct": 4,
+   "log2": 2,
+   "H": 1.569417049519743,
+   "cur_bytes": 789388,
+   "H_bytes": 154859.87323578636
+  },
+  {
+   "field": "pron_len",
+   "cur_bits": 8,
+   "distinct": 29,
+   "log2": 5,
+   "H": 2.5780220176453046,
+   "cur_bytes": 789388,
+   "H_bytes": 254382.45555812397
+  },
+  {
+   "field": "extra_len",
+   "cur_bits": 8,
+   "distinct": 71,
+   "log2": 7,
+   "H": 2.4672648868949043,
+   "cur_bytes": 789388,
+   "H_bytes": 243453.66181702435
+  }
+ ],
+ "sum_H_bits": 22.180973713825487,
+ "joint_H_bits": 13.670490731269597,
+ "distinct_records": 189658,
+ "packed_bits_per_record": 46,
+ "packed_bytes": 4538981,
+ "code_tables": 30738,
+ "packed_total": 4569719,
+ "wcost": {
+  "distinct": 13931,
+  "H": 8.822577390940138,
+  "min": -32750,
+  "max": 21463,
+  "codebook_bytes": 1409291,
+  "int16_bytes": 1578776
+ },
+ "dedup_records": {
+  "distinct": 189658,
+  "id_bits": 18,
+  "ids": 1776123,
+  "table": 1090534,
+  "total": 2897395,
+  "delta": -4207097
+ },
+ "gates": {
+  "G3_1": false,
+  "G3_2": true,
+  "G3_3": true,
+  "G3_4": true,
+  "G3_5": true,
+  "G3_6": true
+ }
+}

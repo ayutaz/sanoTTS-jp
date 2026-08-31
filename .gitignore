@@ -109,3 +109,38 @@ reports/e1_dnsmos/scratch/
 
 # ESP-IDF のビルドディレクトリ（複数構成を並べる）
 /esp32/build_*/
+
+# K-1 の中間生成物（entries.tsv 90 MB / trie キャッシュ 54 MB）
+.k1work/
+
+# K-2 の検証ベクタ（blob 込みで数 MB。make -C csrc k2 が生成する）
+csrc/k2_vectors.bin
+csrc/k2_test
+csrc/k4_vectors.bin
+csrc/k4_test
+
+# K-4b / K-5 の生成物（`make -C csrc k4b` / `k5` で再生成できる）
+csrc/k4b_test
+csrc/k4b_stderr.log
+csrc/k5_mem_test
+csrc/k5_mem_ctrl
+csrc/k5_stderr.log
+csrc/k5_ctrl/
+# ⚠️ ラベルはコーパス由来の派生物なので**コミットしない**（数 MB あるのに加えて、
+#    フルコンテキストラベルは元の文をかなり復元できる）
+csrc/k5_labels*.txt
+csrc/openjtalk/*.o
+csrc/k6_test
+csrc/k6_stderr.log
+csrc/k7_test
+csrc/k7_stderr.log
+
+# K-7 のビルド出力
+esp32/build_kanji/
+esp32/build_nokanji/
+csrc/k1_dict.bin
+csrc/k6_vectors.bin
+
+# K-8 の聴取セット（コーパス由来の音声。**生成物は配布しない**方針に合わせて追跡しない）
+#   uv run --extra eval python scripts/k1/k8_audio_gap.py --ids ... --wav-dir reports/k8_listen
+/reports/k8_listen/

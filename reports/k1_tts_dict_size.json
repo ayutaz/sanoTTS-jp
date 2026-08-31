@@ -1,0 +1,36 @@
+{
+ "entries": 788923,
+ "surfaces": 677700,
+ "trie_nodes": 2075882,
+ "parts": {
+  "trie_louds_bits": 518971,
+  "trie_labels": 2075882,
+  "trie_terminal_bits": 259486,
+  "trie_rank_index": 145964,
+  "surface_entry_count": 677700,
+  "surface_count_checkpoint": 10592,
+  "entry_records_7B": 5522461,
+  "pron_pool": 3638543,
+  "pron_offset_checkpoint": 12328,
+  "mora_size_exception_table": 1758,
+  "class_table": 8328,
+  "pos6_table": 36092,
+  "chain_rule_table": 3323,
+  "mora_table": 1305
+ },
+ "lexicon_total_bytes": 12912733,
+ "runtime_total_bytes": 16973181,
+ "bytes_per_entry": 16.36754537515068,
+ "distinct": {
+  "pos6": 763,
+  "chain_rule": 115,
+  "lc_rc": 1272,
+  "class": 1388,
+  "wcost": 13905,
+  "mora_symbols": 288
+ },
+ "gates": {
+  "G1_roundtrip": true,
+  "G3_negative_control": true
+ }
+}

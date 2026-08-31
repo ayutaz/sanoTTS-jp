@@ -1,0 +1,468 @@
+{
+ "n": 2333,
+ "unusable_flags": {
+  "use_tsqyomi=True": "RuntimeError: tsqyomi model is not loaded; call pyopenjtalk.tsqyomi.load_model() first",
+  "run_marine=True": "ImportError: Please install marine by `pip install pyopenjtalk-plus[marine]`"
+ },
+ "variants": {
+  "use_vanilla=True": {
+   "U1_phoneme": {
+    "agree": 2264,
+    "n": 2333,
+    "rate": 0.9704243463351907,
+    "ci95": [
+     0.9627386700948292,
+     0.9765633347992978
+    ],
+    "disagree": 69
+   },
+   "U2_accphrase": {
+    "agree": 1867,
+    "n": 2333,
+    "rate": 0.8002571795970853,
+    "ci95": [
+     0.7835457366726715,
+     0.8159814199818489
+    ],
+    "disagree": 466
+   },
+   "U3_pipertok": {
+    "agree": 1813,
+    "n": 2333,
+    "rate": 0.7771110158594084,
+    "ci95": [
+     0.7597749587866677,
+     0.7935359716589389
+    ],
+    "disagree": 520
+   },
+   "U4_marks": {
+    "agree": 1856,
+    "n": 2333,
+    "rate": 0.7955422203171881,
+    "ci95": [
+     0.7786970036714462,
+     0.81141573653311
+    ],
+    "disagree": 477
+   }
+  },
+  "use_sudachi_kanji_yomi=False": {
+   "U1_phoneme": {
+    "agree": 2274,
+    "n": 2333,
+    "rate": 0.9747106729532791,
+    "ci95": [
+     0.9675169001909736,
+     0.9803436651122117
+    ],
+    "disagree": 59
+   },
+   "U2_accphrase": {
+    "agree": 2329,
+    "n": 2333,
+    "rate": 0.9982854693527646,
+    "ci95": [
+     0.9955995799852959,
+     0.9993330675677088
+    ],
+    "disagree": 4
+   },
+   "U3_pipertok": {
+    "agree": 2274,
+    "n": 2333,
+    "rate": 0.9747106729532791,
+    "ci95": [
+     0.9675169001909736,
+     0.9803436651122117
+    ],
+    "disagree": 59
+   },
+   "U4_marks": {
+    "agree": 2322,
+    "n": 2333,
+    "rate": 0.9952850407201028,
+    "ci95": [
+     0.9915764448048975,
+     0.9973652104617666
+    ],
+    "disagree": 11
+   }
+  },
+  "predict_nani=False": {
+   "U1_phoneme": {
+    "agree": 2323,
+    "n": 2333,
+    "rate": 0.9957136733819117,
+    "ci95": [
+     0.9921274200131852,
+     0.9976700912943849
+    ],
+    "disagree": 10
+   },
+   "U2_accphrase": {
+    "agree": 2333,
+    "n": 2333,
+    "rate": 1.0,
+    "ci95": [
+     0.9983560717166281,
+     0.9999999999999999
+    ],
+    "disagree": 0
+   },
+   "U3_pipertok": {
+    "agree": 2323,
+    "n": 2333,
+    "rate": 0.9957136733819117,
+    "ci95": [
+     0.9921274200131852,
+     0.9976700912943849
+    ],
+    "disagree": 10
+   },
+   "U4_marks": {
+    "agree": 2324,
+    "n": 2333,
+    "rate": 0.9961423060437206,
+    "ci95": [
+     0.9926842326460029,
+     0.997969134702473
+    ],
+    "disagree": 9
+   }
+  },
+  "both_lexical=False": {
+   "U1_phoneme": {
+    "agree": 2264,
+    "n": 2333,
+    "rate": 0.9704243463351907,
+    "ci95": [
+     0.9627386700948292,
+     0.9765633347992978
+    ],
+    "disagree": 69
+   },
+   "U2_accphrase": {
+    "agree": 2329,
+    "n": 2333,
+    "rate": 0.9982854693527646,
+    "ci95": [
+     0.9955995799852959,
+     0.9993330675677088
+    ],
+    "disagree": 4
+   },
+   "U3_pipertok": {
+    "agree": 2264,
+    "n": 2333,
+    "rate": 0.9704243463351907,
+    "ci95": [
+     0.9627386700948292,
+     0.9765633347992978
+    ],
+    "disagree": 69
+   },
+   "U4_marks": {
+    "agree": 2313,
+    "n": 2333,
+    "rate": 0.9914273467638234,
+    "ci95": [
+     0.9867952539259407,
+     0.9944436969725711
+    ],
+    "disagree": 20
+   }
+  },
+  "use_read_as_pron=True": {
+   "U1_phoneme": {
+    "agree": 239,
+    "n": 2333,
+    "rate": 0.10244320617231033,
+    "ci95": [
+     0.09078481435164354,
+     0.11540870770821707
+    ],
+    "disagree": 2094
+   },
+   "U2_accphrase": {
+    "agree": 2327,
+    "n": 2333,
+    "rate": 0.997428204029147,
+    "ci95": [
+     0.9944001130992235,
+     0.9988208223719697
+    ],
+    "disagree": 6
+   },
+   "U3_pipertok": {
+    "agree": 239,
+    "n": 2333,
+    "rate": 0.10244320617231033,
+    "ci95": [
+     0.09078481435164354,
+     0.11540870770821707
+    ],
+    "disagree": 2094
+   },
+   "U4_marks": {
+    "agree": 2221,
+    "n": 2333,
+    "rate": 0.951993141877411,
+    "ci95": [
+     0.9425504853038971,
+     0.9599497098312801
+    ],
+    "disagree": 112
+   }
+  },
+  "revert_long_vowels=True": {
+   "U1_phoneme": {
+    "agree": 1043,
+    "n": 2333,
+    "rate": 0.4470638662666095,
+    "ci95": [
+     0.42699194675045654,
+     0.4673098321976757
+    ],
+    "disagree": 1290
+   },
+   "U2_accphrase": {
+    "agree": 2332,
+    "n": 2333,
+    "rate": 0.9995713673381912,
+    "ci95": [
+     0.9975758819266725,
+     0.9999243337490498
+    ],
+    "disagree": 1
+   },
+   "U3_pipertok": {
+    "agree": 1043,
+    "n": 2333,
+    "rate": 0.4470638662666095,
+    "ci95": [
+     0.42699194675045654,
+     0.4673098321976757
+    ],
+    "disagree": 1290
+   },
+   "U4_marks": {
+    "agree": 2328,
+    "n": 2333,
+    "rate": 0.9978568366909558,
+    "ci95": [
+     0.9949925459238153,
+     0.9990842455882837
+    ],
+    "disagree": 5
+   }
+  },
+  "revert_yotsugana=True": {
+   "U1_phoneme": {
+    "agree": 2327,
+    "n": 2333,
+    "rate": 0.997428204029147,
+    "ci95": [
+     0.9944001130992235,
+     0.9988208223719697
+    ],
+    "disagree": 6
+   },
+   "U2_accphrase": {
+    "agree": 2333,
+    "n": 2333,
+    "rate": 1.0,
+    "ci95": [
+     0.9983560717166281,
+     0.9999999999999999
+    ],
+    "disagree": 0
+   },
+   "U3_pipertok": {
+    "agree": 2327,
+    "n": 2333,
+    "rate": 0.997428204029147,
+    "ci95": [
+     0.9944001130992235,
+     0.9988208223719697
+    ],
+    "disagree": 6
+   },
+   "U4_marks": {
+    "agree": 2333,
+    "n": 2333,
+    "rate": 1.0,
+    "ci95": [
+     0.9983560717166281,
+     0.9999999999999999
+    ],
+    "disagree": 0
+   }
+  },
+  "c_feasible": {
+   "U1_phoneme": {
+    "agree": 2264,
+    "n": 2333,
+    "rate": 0.9704243463351907,
+    "ci95": [
+     0.9627386700948292,
+     0.9765633347992978
+    ],
+    "disagree": 69
+   },
+   "U2_accphrase": {
+    "agree": 2329,
+    "n": 2333,
+    "rate": 0.9982854693527646,
+    "ci95": [
+     0.9955995799852959,
+     0.9993330675677088
+    ],
+    "disagree": 4
+   },
+   "U3_pipertok": {
+    "agree": 2264,
+    "n": 2333,
+    "rate": 0.9704243463351907,
+    "ci95": [
+     0.9627386700948292,
+     0.9765633347992978
+    ],
+    "disagree": 69
+   },
+   "U4_marks": {
+    "agree": 2313,
+    "n": 2333,
+    "rate": 0.9914273467638234,
+    "ci95": [
+     0.9867952539259407,
+     0.9944436969725711
+    ],
+    "disagree": 20
+   }
+  }
+ },
+ "per_source": {
+  "cv/sentence_collector": {
+   "n": 947,
+   "vanilla_u3": 836,
+   "cfeas_u3": 923,
+   "vanilla_u1": 923,
+   "cfeas_u1": 923
+  },
+  "cv/singleword-benchmark": {
+   "n": 1,
+   "vanilla_u3": 1,
+   "cfeas_u3": 1,
+   "vanilla_u1": 1,
+   "cfeas_u1": 1
+  },
+  "cv/yumie-text-1": {
+   "n": 158,
+   "vanilla_u3": 92,
+   "cfeas_u3": 146,
+   "vanilla_u1": 146,
+   "cfeas_u1": 146
+  },
+  "ita/emotion100": {
+   "n": 10,
+   "vanilla_u3": 8,
+   "cfeas_u3": 9,
+   "vanilla_u1": 9,
+   "cfeas_u1": 9
+  },
+  "ita/recitation324": {
+   "n": 32,
+   "vanilla_u3": 26,
+   "cfeas_u3": 31,
+   "vanilla_u1": 31,
+   "cfeas_u1": 31
+  },
+  "jsut/basic5000": {
+   "n": 500,
+   "vanilla_u3": 394,
+   "cfeas_u3": 478,
+   "vanilla_u1": 478,
+   "cfeas_u1": 478
+  },
+  "jsut/countersuffix26": {
+   "n": 3,
+   "vanilla_u3": 0,
+   "cfeas_u3": 3,
+   "vanilla_u1": 3,
+   "cfeas_u1": 3
+  },
+  "jsut/loanword128": {
+   "n": 13,
+   "vanilla_u3": 12,
+   "cfeas_u3": 13,
+   "vanilla_u1": 13,
+   "cfeas_u1": 13
+  },
+  "jsut/onomatopee300": {
+   "n": 30,
+   "vanilla_u3": 24,
+   "cfeas_u3": 30,
+   "vanilla_u1": 30,
+   "cfeas_u1": 30
+  },
+  "jsut/precedent130": {
+   "n": 13,
+   "vanilla_u3": 10,
+   "cfeas_u3": 12,
+   "vanilla_u1": 12,
+   "cfeas_u1": 12
+  },
+  "jsut/repeat500": {
+   "n": 10,
+   "vanilla_u3": 5,
+   "cfeas_u3": 10,
+   "vanilla_u1": 10,
+   "cfeas_u1": 10
+  },
+  "jsut/travel1000": {
+   "n": 96,
+   "vanilla_u3": 59,
+   "cfeas_u3": 94,
+   "vanilla_u1": 94,
+   "cfeas_u1": 94
+  },
+  "jsut/utparaphrase512": {
+   "n": 52,
+   "vanilla_u3": 47,
+   "cfeas_u3": 52,
+   "vanilla_u1": 52,
+   "cfeas_u1": 52
+  },
+  "rohan4600": {
+   "n": 460,
+   "vanilla_u3": 293,
+   "cfeas_u3": 454,
+   "vanilla_u1": 454,
+   "cfeas_u1": 454
+  },
+  "curated/question_eos": {
+   "n": 8,
+   "vanilla_u3": 6,
+   "cfeas_u3": 8,
+   "vanilla_u1": 8,
+   "cfeas_u1": 8
+  }
+ },
+ "cat_vanilla": {
+  "accent:mark_order": 135,
+  "phoneme:devoicing_only": 45,
+  "accent:position_only": 248,
+  "phoneme:reading_length_differs": 21,
+  "accent:secondary_to_phoneme_change": 26,
+  "phoneme:reading_same_length": 3,
+  "accent:nucleus_count": 14,
+  "accent:phrase_boundary_count": 54
+ },
+ "cat_cfeasible": {
+  "phoneme:devoicing_only": 45,
+  "phoneme:reading_length_differs": 21,
+  "accent:secondary_to_phoneme_change": 20,
+  "phoneme:reading_same_length": 3
+ }
+}

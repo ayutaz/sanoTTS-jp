@@ -1,0 +1,53 @@
+{
+ "_comment": "K-0 / D-042 で凍結した辞書の同一性。scripts/k1/k0_verify_dict.py が照合する。このマシンには 3 リビジョンが同居している（C-045）ので、取り違え検出が要る。",
+ "frozen_by": "scripts/k1/k0_freeze_dict.py",
+ "decision": "D-042",
+ "environment": {
+  "pyopenjtalk_version": "0.4.1-post9",
+  "python": "3.14.0",
+  "platform": "macOS-26.2-arm64-arm-64bit-Mach-O"
+ },
+ "files": {
+  "sys.dic": {
+   "bytes": 103131410,
+   "sha256": "0328ca62355100aba6df13af56912ad88cf10246e2a286005b89cb8ce2cef652"
+  },
+  "matrix.bin": {
+   "bytes": 3792262,
+   "sha256": "62fd16b4f64c851d5dc352ef0d5740c5fc83ddc7c203b2b0b1fc5271969a14ce"
+  },
+  "char.bin": {
+   "bytes": 262496,
+   "sha256": "888ee94c5a8a7a26d24ab3f1b7155441351954fd51ea06b4a2f78bd742492b2f"
+  },
+  "unk.dic": {
+   "bytes": 5690,
+   "sha256": "f8ce58a6b49795680d68c4f2c5801296d4d3b047b4b7708baa1610f7e2d91f1f"
+  },
+  "left-id.def": {
+   "bytes": 77672,
+   "sha256": "db1adac8a7f9e5854cd82ea044c85115249206c8181b9d88cf92ae2ee5e87b84"
+  },
+  "right-id.def": {
+   "bytes": 77672,
+   "sha256": "db1adac8a7f9e5854cd82ea044c85115249206c8181b9d88cf92ae2ee5e87b84"
+  },
+  "pos-id.def": {
+   "bytes": 1923,
+   "sha256": "3460aa742053085af47cdfc889a1e0e6f557e89b406e501ba81c9ccc286de0c7"
+  },
+  "rewrite.def": {
+   "bytes": 7457,
+   "sha256": "7f7c8dfbfe24092e8a149a9b6e0a3a7f1c2cf37d6c3dc29d1cccc6c004da9c1c"
+  }
+ },
+ "sys_dic_header": {
+  "lexsize": 789388,
+  "lsize": 1377,
+  "rsize": 1377,
+  "darts_bytes": 23224696,
+  "token_bytes": 12630208,
+  "feature_bytes": 67276434,
+  "charset": "utf-8"
+ }
+}

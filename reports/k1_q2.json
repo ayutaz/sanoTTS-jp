@@ -1,0 +1,87 @@
+{
+ "pool_now": 11472280,
+ "pron_bytes": 3640169,
+ "extra_bytes": 7832111,
+ "acc_bytes": 1579862,
+ "orig_exceptions": 286160,
+ "read_exceptions": 135196,
+ "distinct_pron": 340525,
+ "distinct_extra": 143796,
+ "distinct_pair": 529783,
+ "distinct_pron_bytes": 1758772,
+ "A": {
+  "pool": 1758772,
+  "ptr": 2368164,
+  "W": 3,
+  "total": 11959047
+ },
+ "B": {
+  "pool": 8512711,
+  "ptr": 2368164,
+  "W": 3,
+  "total": 10880875
+ },
+ "C": [
+  {
+   "K": 2,
+   "body": 1879327,
+   "bucket_off": 510789,
+   "idx": 2368164,
+   "total": 12590391,
+   "delta": 1118111
+  },
+  {
+   "K": 4,
+   "body": 1599500,
+   "bucket_off": 255396,
+   "idx": 2368164,
+   "total": 12055171,
+   "delta": 582891
+  },
+  {
+   "K": 8,
+   "body": 1459401,
+   "bucket_off": 127698,
+   "idx": 2368164,
+   "total": 11787374,
+   "delta": 315094
+  },
+  {
+   "K": 16,
+   "body": 1389409,
+   "bucket_off": 63849,
+   "idx": 2368164,
+   "total": 11653533,
+   "delta": 181253
+  },
+  {
+   "K": 32,
+   "body": 1354345,
+   "bucket_off": 31926,
+   "idx": 2368164,
+   "total": 11586546,
+   "delta": 114266
+  },
+  {
+   "K": 64,
+   "body": 1336792,
+   "bucket_off": 15963,
+   "idx": 2368164,
+   "total": 11553030,
+   "delta": 80750
+  }
+ ],
+ "D": {
+  "body": 2404484,
+  "bucket_off": 148011,
+  "rank": 2368164,
+  "total": 12752770
+ },
+ "gates": {
+  "G2_1": false,
+  "G2_2a": true,
+  "G2_2b": true,
+  "G2_3": true,
+  "G2_4": true
+ }
+}

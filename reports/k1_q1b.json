@@ -1,0 +1,25 @@
+{
+ "n_chars": 7225,
+ "cover255": 0.7283992359387635,
+ "sym_width": 2,
+ "n_nodes": 980359,
+ "parts": {
+  "louds.bits": 245090,
+  "louds.sup": 30640,
+  "louds.blk": 30637,
+  "louds.sel0": 7660,
+  "labels(2B)": 1960718,
+  "term.bits": 122545,
+  "term.sup": 15320,
+  "term.blk": 15319,
+  "char_table(utf8)": 28852
+ },
+ "total": 2456781,
+ "gates": {
+  "G1b_1": true,
+  "G1b_2": true,
+  "positions": 8436,
+  "hits": 13728,
+  "sentences": 400
+ }
+}

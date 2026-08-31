@@ -13,13 +13,15 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-041 と**訂正履歴 C-001〜C-043** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-67。全数値に再現コマンド付き | 実測のたび |
-| 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2** | フェーズ移行時 |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-044 と**訂正履歴 C-001〜C-051** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-78。全数値に再現コマンド付き | 実測のたび |
+| 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画（かなトラック）**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2**。⚠️ **K トラックは 4.6 の別計画** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | vast.ai 実行手順。⚠️ **通常は不要**（D-027 で手元完結に変更）。λ の並列探索などで使う | 実行時 |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
+| 4.5 | [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) | **K-1 の結論レポート**。B-0 の否定的結論のうち 4 つが崩れた。辞書は mmap / TTS 専用バイナリで 1 エントリ 28.29 B / アクセント天井は 126 行。**§0 に「その後どうなったか」**（実装で分かったずれ 3 件） | 固定（§0 だけ追記） |
+| 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K トラックの実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件（G1〜G32。⚠️ G15/G16 は欠番）。**K-7 まで完了。冒頭に「残っているもの」の 4 行表** | 進行中（残り K-8 と判断 2 件） |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -27,7 +29,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 
 ⚠️ 例外は [`upstream-sanotts.md`](upstream-sanotts.md)。**あれは上流の申告値であって、うちの実測ではない。** M-番号と混ぜないこと。
 
-## 現在地（2026-08-30 時点）
+## 現在地（2026-08-31 時点）
 
 ```
 [完了] 論文の仕様抽出        論文 PDF から全数値を抽出
@@ -106,8 +108,113 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [未]   Phase D-3d           実機測定（**ESP32-S3 ボード待ち**。これは本物の待ち）
 ```
 
-**残りは (1) 実機でのサイクル実測 / (2) 出荷ファームで W8A8+PIE を既定にするかの判断 /
-(3) アクセントの過剰強調（`magnitude_ratio` 1.193）の聴取確認**。
+**(1) の残りは (a) 実機でのサイクル実測 / (b) 出荷ファームで W8A8+PIE を既定にするかの判断 /
+(c) アクセントの過剰強調（`magnitude_ratio` 1.193）の聴取確認**。
+
+---
+
+## 残っているタスク（**両トラック合わせて 4 つ。全部ボードが要る**）
+
+| # | 何 | トラック | ゲート | 実機が要るか |
+|---|---|---|---|---|
+| **1** | **サイクル実測**（速度） | 両方 | G28 / G29（K）+ D-3d（かな） | ✅ **要る** |
+| **2** | **聴取** | 両方 | G32 | ❌ 不要（WAV は用意済み） |
+| **3** | 起動から合成まで落ちない / checksum が QEMU と一致 | K | G30 / G31 | ✅ 要る |
+| **4** | 出荷ファームで **W8A8 + PIE** を有効にするかの判断 | かな | — | ✅ 実質要る（動機が速度） |
+
+✅ **「音の測定」は済んだ**（M-78）。実機は要らなかった — 端末の ids はホストの
+生徒モデルにそのまま入るので、**端末の音とホストの音を直接比べられる**。
+**SCOREQ の差は −0.0019（全体）/ −0.0127（違う 44 文だけ）で、どちらも CI が 0 を跨ぐ。**
+⚠️ **枝刈りは音を汚していない。変えるのは読みだけ。**
+⚠️ ただし **SCOREQ は誤読を罰しない**ので、読み違いの重大さは**聴取でしか分からない**。
+**聴取セットは `reports/k8_listen/` に 12 組ある**（`k8_audio_gap.py --wav-dir` で再生成）。
+
+⚠️ **4 は「今すぐ決められる」ように見えて決められない。** 有効にする動機は速度なのに、
+**その速度が測れるのは実機だけ**。
+
+⚠️ **ボードは N16R8 を選ぶこと。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
+16 MB なら**かなトラックの構成もそのまま焼ける**。**別々に取りに行くと 2 回焼き直しになる。**
+
+**実装として書くものは残っていない。** 4 つとも「測る」「聴く」「決める」。
+
+⚠️ **聴取が決定を覆す可能性がある**: D-044（動作点 438,750）は
+**「音素の 0.32%」だけで決めた**。
+
+---
+
+## 現在地 (2) — K トラック（端末で漢字を扱う）
+
+B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの根拠が崩れた**。
+結論は [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md)、
+計画は [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md)。
+
+```
+[完了] K-1 調査              辞書は **mmap**（98.4 MB マップ / 常駐 1,040 KB）。
+                            TTS 専用バイナリで 1 エントリ **130 B → 28.29 B**。
+                            アクセントの天井 76.22% は語彙資源ではなく**外部資源ゼロの 126 行**
+                            （SudachiDict 217 MB と nani ONNX の寄与は合計 0.13pt）
+[完了] K-0 前提の凍結        **D-042**: N16R8 / OTA 無し / 辞書 SHA-256 を凍結
+                            ⚠️ **エントリ数は D-044 で 438,750 に引き上げた** /
+                            辞書 SHA-256 を凍結（`scripts/k1/dict_manifest.json`）
+                            ESP-IDF 5.5.0 のヘッダで MMU 窓 32 MiB を PSRAM と共有と確認。
+                            **フル辞書は現行の調達可能なボードに載らない**
+[完了] K-1 エンコーダ        blob **13,702,320 B**（438,750 entries・行列 3.79 MB / char / unk 込み）。
+                            G1〜G5 通過（11 フィールド往復 370,863/370,863、陰性対照つき）
+                            ⚠️ **かつて 7,967,364 B と書いていたのは辞書本体だけ**の値。
+                            端末に置くものを全部入れると 1.53 倍になる（C-047 と同じ形）
+[完了] K-2 C リーダ+Viterbi  **MeCab と 1,918/1,918 文一致**（token 31,412 件）。G6〜G8 通過
+                            ⚠️ ゲートが実バグを捕まえた（白熊 シロクマ/ハグマ の同点）
+                            ⚠️ 半角→全角正規化は K-2 の対象外。端末側の前処理として別途要る
+[完了] K-3 未知語ノード生成   **経路なし 0 / 1,977 文**。MeCab と **1,977/1,977 一致**、
+                            未知語を含む文も **59/59**（G9〜G11）
+[完了] K-4 アクセント規則移植 126 行を C へ。**Python 版と 2,333/2,333 一致**（G12/G13）
+                            **外部資源は かな表 76 件だけ**
+                            ⚠️ 「段の順序は入れ替え不可」は**未検証**（corpus が区別しない）
+                            ⚠️ **この 4 段はホスト既定 7 段のうちの 4 つ**（C-049）。
+                            残り 3 段（ONNX / Sudachi / 踊り字）は端末に載らない
+[完了] K-4b NJD チェーン統合  Open JTalk **34 ファイル**を vendoring（修正 BSD）。
+                            ホストと **635/635 文・NJD ノード 10,206 件**一致（M-69）
+                            ⚠️ **取り込み元は素の pyopenjtalk ではなく pyopenjtalk-plus**
+                            （22/34 ファイルが違う。取り違えると 75/600 で止まる。C-048）
+                            ⚠️ 素の Open JTalk に無い段が chaining の前にもう 1 つあった
+                            （`apply_original_rule_before_chaining` の 12 規則）
+[完了] K-5 メモリの詰め      `MAXBUFLEN` 1024 → 256。1 文ピーク **268,941 → 104,589 B**（M-71）
+                            G24 はラベルが**ホストと 34,997 本一致**（陽性対照つき）
+                            ⚠️ 改変は `k4b_vendor.py` の `PATCHES` に登録し `--check` で守る
+[完了] K-6 ホストとの一致    **素性が一致した 244 文でラベル差 0 件**（陰性対照 44 件。M-74）
+                            食い違いは**全部が辞書の枝刈り**で、移植の誤りではない
+                            ⚠️ **G17 の「0.60% 以下」は取り下げた**（C-050）。あれは
+                            同形異音語 14 文の数で、枝刈りの代償ではなかった（実測 12〜18%）
+[完了] K-7 ESP32 / QEMU     **漢字文から合成まで完走**（M-78）。app 359,584 B / 2 MB、
+                            dict **13,702,320 B** / 13,828,096 B（**枠は D-042 の予算と一致**）
+                            **3 経路が bit 一致** `0x78c209af06affc01`
+                            ⚠️ DRAM が 2 回溢れた（.bss で 419 KB / heap の空き 20,964 B）。
+                            大きい 2 配列を**合成用 arena から切り出して**解決
+                            ⚠️ **PSRAM は QEMU が持っていない**ので使えなかった
+[未]   K-8 実機             **ボード待ち。速度も音も未測定**
+```
+
+⚠️ **K トラックは実機で一度も動かしていない。速度も音も未測定。**
+QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字**。
+一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
+
+✅ **動作点は決まった**（D-044 / M-78）: **438,750 entries / 接続行列は int16 のまま。**
+
+| entries | 行列 | blob | 枠の余り | **音素の誤り** |
+|---:|---|---:|---:|---:|
+| 370,863（旧 D-042） | int16 | 12,153,280 | 1,674,816 | 0.55% |
+| **438,750 ← これ** | **int16** | **13,702,320** | **125,776** | **0.32%** |
+| 528,750 | uint8 | 13,781,959 | 46,137 | 0.22% |
+
+**決め手は「文が一致するか」から「どれだけ違うか」へ測り直したこと**（M-78）。
+⚠️ **音としては測っていない。** 0.32% は「ホストと違う音素の割合」。
+
+ゲート: `uv run python scripts/test_k1_dict.py` / `uv run python scripts/k1/k0_verify_dict.py`
+／ `make -C csrc k2`（G6〜G11）／ `k4`（G12/G13）／ `k4b`（G14a〜c）／ `k5`（G22〜G24）
+／ `k6`（G17）／ `k7`（G25〜G27）
+／ `uv run python scripts/k1/k4b_vendor.py --sdist <tgz> --check`（取り込んだ C の同一性）
+⚠️ **k2 / k4 / k4b / k5 / k6 / k7 は `all-test` に入れていない**
+（辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
@@ -178,22 +285,34 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-041 + 訂正履歴 C-001〜C-043
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-67
+│   ├── decisions.md                       決定記録 D-001〜D-044 + 訂正履歴 C-001〜C-051
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-78
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/phase-a-decisions.md          Phase A の決定
+│   ├── plan/k1-kanji-implementation-plan.md  K トラックの実装計画（K-0〜K-8）
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
+│       ├── k1-kanji-katakana-ondevice.md  K-1 の結論（B-0 を測り直した）
 │       └── sanotts-jp-feasibility.md     初期調査
+├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
+│   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）
+│   ├── k1_build_dict.py                   本番の辞書 blob を組んで G1〜G5 を通す
+│   ├── k2_gen_vectors.py                  K-2/K-3 の参照ベクタ（参照は MeCab）
+│   ├── k4_gen_vectors.py                  K-4 の参照ベクタ（参照は Python 版の 4 段）
+│   ├── k4b_gen_vectors.py                 K-4b の参照ベクタ（参照は NJD チェーン）
+│   ├── k4b_vendor.py                      **取り込みと --check**（上流 + PATCHES と突き合わせ）
+│   ├── k5_gen_labels.py                   K-5 の basis（ホストのフルコンテキストラベル）
+│   └── k6_gen_vectors.py                  K-6/K-7 の参照ベクタ（ラベル + ids の 2 基準）
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
 │   ├── discriminator.py                   一次差分判別器（学習専用）
 │   ├── vocab.py                           ⚠️ デプロイ語彙 57 と教師IDの写像（重みと一緒に凍結）
 │   ├── labelpack.py                       ラベルパックの読み書き + 13 ゲート
+│   ├── k1_dict.py                         **K-1: TTS 専用の辞書バイナリ形式**（TDD で実装）
 │   ├── durations.py                       全行 duration の読み込み
 │   ├── flatness.py                        音素クラス別 SFM（設定と教師ベースラインを凍結）
 │   ├── accent.py                          アクセント型ミニマルペア評価（設定を凍結・D-030）
@@ -206,6 +325,18 @@ sanoTTS-jp/
 │   ├── fft.h / fft.c                      radix-2 逆実 FFT（naive の 1,435 倍）
 │   ├── saanotts_int8.h / .c               int8 カーネル + **PIE（ESP32-S3 の整数 SIMD）**
 │   ├── g2p.h / g2p.c / g2p_table.h        端末側 G2P（中間表現 → 生徒インデックス。表 877 B）
+│   ├── k1dict.h / k1dict.c                **K-2/K-3/K-6: 辞書 blob リーダ + LOUDS + Viterbi
+│   │                                        + 未知語 + 素性の復元 + 読みの推測**
+│   ├── k4_accent.h / k4_accent.c          **K-4: アクセント規則 4 段（126 行）** ← 新規性の中核
+│   ├── k4b_njd.h / k4b_njd.c              **K-4b: chaining 前の 12 規則**（フォークが足した段）
+│   ├── k7_label2ids.h / k7_label2ids.c    **K-7: ラベル → 生徒インデックス**
+│   ├── k7_table.h / k7_dan.h              語彙 57 / `_DAN_MAP` 76（**どちらも機械生成**）
+│   ├── k5_alloc.h / k5_alloc.c            K-5 の追跡アロケータ（取り込んだ C を改変せず測る）
+│   ├── openjtalk/                         **取り込んだ Open JTalk 34 ファイル**（修正 BSD）
+│   │                                        ⚠️ PROVENANCE.md / 改変は PATCHES の 1 件だけ
+│   ├── k2_test.c / k4_test.c              K-2〜K-4 の受け入れ（どちらも陰性対照つき）
+│   ├── k4b_test.c / k5_mem_test.c         K-4b / K-5 の受け入れ
+│   ├── k6_test.c / k7_test.c              K-6 / K-7 の受け入れ
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
@@ -216,6 +347,11 @@ sanoTTS-jp/
 ├── esp32/                                 **ESP-IDF アプリ**（QEMU で完走。⚠️ 実機未検証）
 │   ├── main/main.c                        arena / 合成ループ / 計測ログ / 対話ループ
 │   ├── main/saan_console.{h,c}            シリアルからの 1 行入力（UART0 / USB Serial/JTAG）
+│   ├── main/saan_dict.{h,c}               **K-7: dict パーティションの mmap**
+│   ├── main/saan_kanji.{h,c}              **K-7: 漢字文 → 生徒インデックス**（端末の全段）
+│   ├── partitions.csv                     8 MB（かな入力だけの出荷構成）
+│   ├── partitions_16mb.csv                **16 MB + dict 13,828,096 B**（漢字対応）
+│   ├── sdkconfig.kanji                    漢字対応ビルドの上書き
 │   ├── host_stub/                         IDF API の偽ヘッダ。**デバイスには載らない**
 │   ├── TESTING.md                         **実機を持っている人向けの手順**
 │   └── README.md                          ビルドと設計判断
@@ -285,6 +421,8 @@ uv run python scripts/test_discriminator.py      # 判別器（23 チェック�
 uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（83 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号が実体と一致するか
+uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
+uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か
 
 # C99 推論コア（Phase D）
 uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt

@@ -1,0 +1,90 @@
+{
+ "gates": {
+  "G5_common_prefix_search": true,
+  "G6_negative_control": true,
+  "positions_checked": 12546,
+  "hits": 4592
+ },
+ "budget_fit": [
+  {
+   "budget_name": "8MB / B (OTA2, model 別)",
+   "budget_bytes": 3342336,
+   "lossless": {
+    "entries": 41001,
+    "bytes": 2781971,
+    "ph": 64.516,
+    "acc": 52.43
+   },
+   "lossy": {
+    "entries": 60000,
+    "bytes": 3173347,
+    "ph": 69.935,
+    "acc": 58.323
+   }
+  },
+  {
+   "budget_name": "16MB / C (OTA2, model 内蔵)",
+   "budget_bytes": 10944512,
+   "lossless": {
+    "entries": 263000,
+    "bytes": 10275693,
+    "ph": 91.312,
+    "acc": 81.548
+   },
+   "lossy": {
+    "entries": 263000,
+    "bytes": 8151370,
+    "ph": 91.312,
+    "acc": 81.548
+   }
+  },
+  {
+   "budget_name": "16MB / B (OTA2, model 別)",
+   "budget_bytes": 11730944,
+   "lossless": {
+    "entries": 263000,
+    "bytes": 10275693,
+    "ph": 91.312,
+    "acc": 81.548
+   },
+   "lossy": {
+    "entries": 400000,
+    "bytes": 11366521,
+    "ph": 95.527,
+    "acc": 89.29
+   }
+  },
+  {
+   "budget_name": "16MB / A (OTA 無し)",
+   "budget_bytes": 13828096,
+   "lossless": {
+    "entries": 263000,
+    "bytes": 10275693,
+    "ph": 91.312,
+    "acc": 81.548
+   },
+   "lossy": {
+    "entries": 400000,
+    "bytes": 11366521,
+    "ph": 95.527,
+    "acc": 89.29
+   }
+  },
+  {
+   "budget_name": "32MB / B (OTA2, model 別)",
+   "budget_bytes": 28508160,
+   "lossless": {
+    "entries": 400000,
+    "bytes": 14467408,
+    "ph": 95.527,
+    "acc": 89.29
+   },
+   "lossy": {
+    "entries": 400000,
+    "bytes": 11366521,
+    "ph": 95.527,
+    "acc": 89.29
+   }
+  }
+ ]
+}

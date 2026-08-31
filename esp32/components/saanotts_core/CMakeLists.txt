@@ -23,6 +23,27 @@ endif()
 #    入れない（golden_test 等はリンクしないため）。**非対称なのは意図的。**
 #      g2p.c  … main.c が saan_g2p() を呼ぶ
 #      line.c … saan_console.c が saan_line_feed() を呼ぶ（行編集ステートマシン）
+# --- K トラック（端末で漢字を扱う）------------------------------------------
+#
+# ⚠️ **既定では入れない。** 辞書リーダ + 取り込んだ Open JTalk で app が
+#    大きくなり、辞書パーティション（13.5 MB）も要る。かな入力だけの
+#    出荷構成（v0.1.1）はこれ無しで動く。
+#
+#     idf.py -DSAAN_KANJI=1 -DPARTITION_TABLE=partitions_16mb.csv build
+#
+# ⚠️ **取り込んだ Open JTalk は改変しない**（csrc/openjtalk/PROVENANCE.md）。
+#    `-DCHARSET_UTF_8` が要る（無いと `#error CHARSET is not specified`）。
+set(SAAN_K_SRCS "")
+if(SAAN_KANJI)
+    file(GLOB SAAN_OJT "${SAAN_CSRC}/openjtalk/*.c")
+    set(SAAN_K_SRCS
+        "${SAAN_CSRC}/k1dict.c"
+        "${SAAN_CSRC}/k4_accent.c"
+        "${SAAN_CSRC}/k4b_njd.c"
+        "${SAAN_CSRC}/k7_label2ids.c"
+        ${SAAN_OJT})
+endif()
+
 idf_component_register(
     SRCS "${SAAN_CSRC}/saanotts.c"
          "${SAAN_CSRC}/saanotts_stream.c"
@@ -30,9 +51,15 @@ idf_component_register(
          "${SAAN_CSRC}/saanotts_int8.c"
          "${SAAN_CSRC}/g2p.c"
          "${SAAN_CSRC}/line.c"
-    INCLUDE_DIRS "${SAAN_CSRC}"
+         ${SAAN_K_SRCS}
+    INCLUDE_DIRS "${SAAN_CSRC}" "${SAAN_CSRC}/openjtalk"
     REQUIRES ""
 )
+
+if(SAAN_KANJI)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC CHARSET_UTF_8 SAAN_KANJI=1)
+    message(STATUS "sanoTTS: **漢字対応を有効**（辞書 13.5 MB のパーティションが要る）")
+endif()
 
 # ℹ️ **かつて「-std=c99 を足すな」と書いていたが、もう地雷ではない。**
 #    newlib の M_PI が __STRICT_ANSI__ の下で隠れる問題は実在し、実際に

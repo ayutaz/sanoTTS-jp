@@ -1,0 +1,76 @@
+{
+ "orig_ex": 286160,
+ "orig_bytes": 3855500,
+ "orig_distinct": 34176,
+ "orig_in_dict": 285567,
+ "read_ex": 135196,
+ "read_bytes": 2396749,
+ "read_distinct": 63517,
+ "read_mora_encodable": 133715,
+ "acc_bytes": 1579862,
+ "acc_max_a": 255,
+ "acc_max_m": 255,
+ "options": {
+  "現行": {
+   "orig": 3855500,
+   "read": 2396749,
+   "acc": 1579862,
+   "total": 7832111,
+   "delta": 4349
+  },
+  "E1 orig を見出し語 ID に": {
+   "orig": 1151729,
+   "read": 2396749,
+   "acc": 1579862,
+   "total": 5128340,
+   "delta": -2699422
+  },
+  "E2 orig を distinct 表+ptr": {
+   "orig": 1322217,
+   "read": 2396749,
+   "acc": 1579862,
+   "total": 5298828,
+   "delta": -2528934
+  },
+  "E3 read を mora ID に": {
+   "orig": 3855500,
+   "read": 844644,
+   "acc": 1579862,
+   "total": 6280006,
+   "delta": -1547756
+  },
+  "E4 read を distinct 表+ptr": {
+   "orig": 3855500,
+   "read": 1765535,
+   "acc": 1579862,
+   "total": 7200897,
+   "delta": -626865
+  },
+  "E1+E3": {
+   "orig": 1151729,
+   "read": 844644,
+   "acc": 1579862,
+   "total": 3576235,
+   "delta": -4251527
+  },
+  "E2+E4": {
+   "orig": 1322217,
+   "read": 1765535,
+   "acc": 1579862,
+   "total": 4667614,
+   "delta": -3160148
+  },
+  "orig/read を捨てる (TTS 最小)": {
+   "orig": 0,
+   "read": 0,
+   "acc": 1579862,
+   "total": 1579862,
+   "delta": -6247900
+  }
+ },
+ "gates": {
+  "G2b_1": false,
+  "G2b_2": true,
+  "G2b_3": true
+ }
+}

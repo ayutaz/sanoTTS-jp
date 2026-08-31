@@ -1,0 +1,22 @@
+# saanoTTS-jp / 漢字対応版のパーティション表（**16 MB flash 前提** = N16R8）
+#
+# ⚠️ **8 MB の partitions.csv では辞書が入らない。** K-1 の blob は
+#    370,863 entries で 12,153,280 B ある（接続行列 3.79 MB 込み）。
+#
+# ⚠️ **`model` と `dict` の offset は 64 KB (0x10000) 境界に置くこと。**
+#    esp_partition_mmap() は MMU のページ境界で丸める。半端な offset にすると
+#    blob 先頭がずれてアライン例外になる（partitions.csv と同じ理由）。
+#
+# 割り当て（D-042 の「16 MB / OTA 無し」の予算 13,828,096 B と一致させてある）:
+#   factory 2 MB   … app（コア + 辞書リーダ + 取り込んだ Open JTalk）
+#   model   768 KB … 生徒の int8 blob 643,936 B
+#   dict    13,828,096 B … K-1 の辞書 blob
+#
+# 検査: uv run python scripts/check_partitions.py --file esp32/partitions_16mb.csv
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x200000,
+model,    data, 0x40,    0x210000, 0xC0000,
+dict,     data, 0x41,    0x2D0000, 0xD30000,

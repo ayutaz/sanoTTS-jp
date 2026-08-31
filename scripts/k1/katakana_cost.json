@@ -1,0 +1,8 @@
+{
+ "mora_keys": 195,
+ "G7_katakana_roundtrip": true,
+ "G8_negative_control": true,
+ "keys_needing_fold": 194,
+ "intermediate_lines_with_katakana": 0,
+ "table_bytes": 1786
+}

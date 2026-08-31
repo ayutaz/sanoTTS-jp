@@ -45,6 +45,16 @@
 
 static const char *TAG = "saanotts";
 
+#if SAAN_KANJI
+#include "saan_dict.h"
+#include "saan_kanji.h"
+/* ⚠️ **辞書は flash に mmap したまま使う。** RAM には読まない（12 MB ある）。 */
+static k1_dict_t g_dict;
+static bool g_dict_ok;
+/* ⚠️ **Viterbi は合成用の g_arena を borrow する。** G2P と合成は同時に
+ *    走らないので、別に 192 KB 持つと DRAM が足りない（G19 で実測）。 */
+#endif
+
 /* --- 起動時に 1 文喋るか --------------------------------------------------
  *
  * **既定は「喋らない」。** 対話入力が入ったので、同じことは
@@ -88,7 +98,14 @@ static const char *TAG = "saanotts";
  *     SAAN_ERR_ARENA で**きれいに失敗**（n_ids 1〜1000 の 23 点でクラッシュ 0）
  *   - 設計上限 350 ids に対し 15,360 B の余裕、かつ 520 ids まで伸びる
  */
+/* ⚠️ **漢字対応ビルドでは 204 KB に落とす。** PSRAM を有効にすると
+ *    IDF 側が DRAM を数 KB 追加で使い、208 KB では **3,776 B 溢れる**（実測）。
+ *    204 KB でも 350 ids に必要な 197,632 B に対し 11,264 B の余裕がある。 */
+#if SAAN_KANJI
+#define SAAN_ARENA_BYTES (204 * 1024)
+#else
 #define SAAN_ARENA_BYTES (208 * 1024)
+#endif
 
 /* ⚠️ **黙って確保に失敗したのを検出するための下限。**
  *
@@ -284,6 +301,41 @@ done:
     return ok;
 }
 
+#if SAAN_KANJI
+/* --- 漢字かな交じり文 1 行 → 合成 ----------------------------------------
+ *
+ * ⚠️ **ホスト（フル辞書）とは一致しない。** 枝刈りの分だけ食い違う
+ *    （実測 17.79% の文。M-74 / C-050）。**既知の代償**であって欠陥ではない。
+ * ⚠️ **音は一度も聞いていない。** */
+static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) {
+    if (nbytes == 0) {
+        ESP_LOGW(TAG, "空行。漢字かな交じり文を入力すること（例: 今日は良い天気ですね。）");
+        return false;
+    }
+    if (!g_dict_ok) {
+        ESP_LOGE(TAG, "辞書が開けていない。漢字モードは使えない");
+        return false;
+    }
+    int32_t n_ids = 0;
+    int n_tok = 0;
+    saan_kanji_status ks = saan_kanji_to_ids(&g_dict, text, nbytes,
+                                            g_arena, sizeof g_arena,
+                                            g_ids, SAAN_G2P_IDS_CAP,
+                                            &n_ids, &n_tok);
+    if (ks != SAAN_KANJI_OK) {
+        ESP_LOGE(TAG, "漢字 G2P 失敗: %s", saan_kanji_strerror(ks));
+        return false;
+    }
+    ESP_LOGI(TAG, "形態素 %d 個 / ids %d 個", n_tok, (int)n_ids);
+    if (n_ids > SAAN_MAX_IDS) {
+        ESP_LOGE(TAG, "ids が %d 個で上限 %d を超えた。**喋らない**（短く区切ること）",
+                 (int)n_ids, (int)SAAN_MAX_IDS);
+        return false;
+    }
+    return synth_once(w, g_ids, n_ids);
+}
+#endif
+
 /* --- 入力 1 行 → 合成 -----------------------------------------------------
  *
  * ⚠️ **拒否する理由を必ず「どの文字か」まで出す。** 未知語や記号は
@@ -406,9 +458,16 @@ static void print_usage(void) {
     ESP_LOGI(TAG, "  例:  きょ][おわよ][いて][んきです°ね     （今日は良い天気ですね。）");
     ESP_LOGI(TAG, "  例:  こんにちわ");
     ESP_LOGI(TAG, "記号:  [ 上昇 / ] 下降核 / # 句境界 / ° 無声化 / ? ?! ?. ?~ 疑問");
+#if SAAN_KANJI
+    ESP_LOGI(TAG, "**漢字対応ビルド**: `!` で始めると漢字かな交じり文として扱う。");
+    ESP_LOGI(TAG, "  例:  !今日は良い天気ですね。");
+    ESP_LOGI(TAG, "⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 17.79%% の文で"
+                  "読みが変わる**（M-74）。⚠️ 音は誰も聞いていない。");
+#else
     ESP_LOGI(TAG, "⚠️ **漢字・カタカナ・句読点は受け付けない**（端末に辞書が無い）。");
     ESP_LOGI(TAG, "   漢字混じり文からは**ホスト側**で作る:");
     ESP_LOGI(TAG, "     uv run python scripts/to_intermediate.py \"今日は良い天気ですね。\"");
+#endif
     ESP_LOGI(TAG, "⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**");
     ESP_LOGI(TAG, "編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 %d ids",
              (int)SAAN_MAX_IDS);
@@ -441,6 +500,18 @@ static void tts_task(void *arg) {
         }
         ESP_LOGI(TAG, "W8A8 + PIE 有効 / int8 blob を確認");
     }
+#endif
+
+#if SAAN_KANJI
+    /* ⚠️ **重みより後に開く。** MMU の窓は flash と PSRAM で共有なので、
+     *    先に 13.5 MB を貼ると model の mmap が落ちることがある。 */
+    g_dict_ok = saan_dict_open(&g_dict) && saan_kanji_init();
+    if (!g_dict_ok)
+        ESP_LOGW(TAG, "辞書を開けなかった（または作業領域を取れなかった）。"
+                      "**かな入力だけ**で続ける");
+    else
+        ESP_LOGI(TAG, "漢字経路の作業領域 %u B", (unsigned)saan_kanji_workbytes());
+    log_heap("辞書 mmap 後");
 #endif
 
     if (!saan_i2s_setup(SAAN_SR)) { vTaskDelete(NULL); return; }
@@ -479,6 +550,14 @@ static void tts_task(void *arg) {
                           "短く区切ること", (int)SAAN_CONSOLE_LINE_MAX - 1);
             continue;
         }
+#if SAAN_KANJI
+        /* ⚠️ **`!` を前置したときだけ漢字経路。** 既定をかなのままにするのは、
+         *    「同じ 1 行が構成で違う音になる」のを避けるため。 */
+        if (n > 0 && line[0] == '!') {
+            (void)speak_kanji(&w, line + 1, (size_t)n - 1);
+            continue;
+        }
+#endif
         (void)speak_line(&w, line, (size_t)n);
     }
 #else

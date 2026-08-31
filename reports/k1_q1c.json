@@ -1,0 +1,146 @@
+{
+ "n_chars": 7226,
+ "char_table_bytes": 28857,
+ "results": {
+  "utf8": {
+   "nodes": 2076856,
+   "plain": 3066615,
+   "plain_parts": {
+    "louds.bits": 519215,
+    "louds.sup": 64904,
+    "louds.blk": 64902,
+    "louds.sel0": 16228,
+    "labels": 2076856,
+    "term.bits": 259607,
+    "term.sup": 32452,
+    "term.blk": 32451,
+    "char_table": 0
+   },
+   "patricia": 2726920,
+   "patricia_cfg": "min_chain=2 dedup mode=id",
+   "patricia_parts": {
+    "clouds.bits": 257441,
+    "clouds.sup": 32184,
+    "clouds.blk": 32181,
+    "clouds.sel0": 8048,
+    "labels": 1029761,
+    "cterm.bits": 128721,
+    "cterm.sup": 16092,
+    "cterm.blk": 16091,
+    "has_tail.bits": 128721,
+    "has_tail.sup": 16092,
+    "has_tail.blk": 16091,
+    "tail_ptr(2B)": 509468,
+    "tail_idtab(3B)": 137226,
+    "tail_pool": 398803,
+    "char_table": 0
+   }
+  },
+  "id16": {
+   "nodes": 1446190,
+   "plain": 2164256,
+   "plain_parts": {
+    "louds.bits": 361548,
+    "louds.sup": 45196,
+    "louds.blk": 45194,
+    "louds.sel0": 11300,
+    "labels": 1446190,
+    "term.bits": 180774,
+    "term.sup": 22600,
+    "term.blk": 22597,
+    "char_table": 28857
+   },
+   "patricia": 2151335,
+   "patricia_cfg": "min_chain=2 dedup mode=id",
+   "patricia_parts": {
+    "clouds.bits": 225226,
+    "clouds.sup": 28156,
+    "clouds.blk": 28154,
+    "clouds.sel0": 7040,
+    "labels": 900901,
+    "cterm.bits": 112613,
+    "cterm.sup": 14080,
+    "cterm.blk": 14077,
+    "has_tail.bits": 112613,
+    "has_tail.sup": 14080,
+    "has_tail.blk": 14077,
+    "tail_ptr(2B)": 334296,
+    "tail_idtab(3B)": 97326,
+    "tail_pool": 219839,
+    "char_table": 28857
+   }
+  },
+  "idvar": {
+   "nodes": 1178886,
+   "plain": 1769568,
+   "plain_parts": {
+    "louds.bits": 294722,
+    "louds.sup": 36844,
+    "louds.blk": 36841,
+    "louds.sel0": 9212,
+    "labels": 1178886,
+    "term.bits": 147361,
+    "term.sup": 18424,
+    "term.blk": 18421,
+    "char_table": 28857
+   },
+   "patricia": 1887673,
+   "patricia_cfg": "min_chain=3 dedup mode=offset",
+   "patricia_parts": {
+    "clouds.bits": 237762,
+    "clouds.sup": 29724,
+    "clouds.blk": 29721,
+    "clouds.sel0": 7432,
+    "labels": 951044,
+    "cterm.bits": 118881,
+    "cterm.sup": 14864,
+    "cterm.blk": 14861,
+    "has_tail.bits": 118881,
+    "has_tail.sup": 14864,
+    "has_tail.blk": 14861,
+    "tail_ptr(3B)": 152127,
+    "tail_idtab(0B)": 0,
+    "tail_pool": 153794,
+    "char_table": 28857
+   }
+  }
+ },
+ "best": "idvar",
+ "gates": {
+  "utf8/plain": {
+   "mismatch": 0,
+   "positions": 62864,
+   "hits": 100183
+  },
+  "utf8/patricia": {
+   "mismatch": 0,
+   "positions": 62864,
+   "hits": 100183
+  },
+  "id16/plain": {
+   "mismatch": 0,
+   "positions": 62864,
+   "hits": 100183
+  },
+  "id16/patricia": {
+   "mismatch": 0,
+   "positions": 62864,
+   "hits": 100183
+  },
+  "idvar/plain": {
+   "mismatch": 0,
+   "positions": 62864,
+   "hits": 100183
+  },
+  "idvar/patricia": {
+   "mismatch": 0,
+   "positions": 62864,
+   "hits": 100183
+  }
+ },
+ "negative_control": {
+  "base": 0,
+  "broken": 23,
+  "passed": true
+ }
+}

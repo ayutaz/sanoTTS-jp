@@ -28,7 +28,19 @@ def parse_size(s: str) -> int:
     return int(s, 0)
 
 
-def main() -> int:
+def main(argv=None) -> int:
+    import argparse
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--file", default=None,
+                    help="検査する csv（既定は esp32/partitions.csv）")
+    ap.add_argument("--flash-size", type=int, default=None,
+                    help="フラッシュ容量（B）。終端がここを超えたら NG")
+    args = ap.parse_args(argv)   # ⚠️ `a` は下の for で使われている。被せない
+    global CSV
+    if args.file:
+        CSV = pathlib.Path(args.file)
+        if not CSV.is_absolute():
+            CSV = ROOT / args.file
     if not CSV.exists():
         print(f"NG! 無い: {CSV}")
         return 1
@@ -48,7 +60,7 @@ def main() -> int:
         })
 
     bad = 0
-    print(f"{CSV.relative_to(ROOT)}: {len(rows)} パーティション")
+    print(f"{CSV.name}: {len(rows)} パーティション")
     print(f"  {'name':10s} {'type':6s} {'subtype':9s} {'offset':>10s} {'size':>10s} {'end':>10s}")
     for r in rows:
         print(f"  {r['name']:10s} {r['type']:6s} {r['subtype']:9s} "
@@ -86,14 +98,20 @@ def main() -> int:
         else:
             print(f"  OK  model の offset 0x{m['offset']:08x} は 64 KB 境界")
 
-        blobs = {p.name: p for p in [ROOT / "csrc" / "student.bin",
-                                     ROOT / "csrc" / "student_i8.bin"] if p.exists()}
-        for name, p in sorted(blobs.items()):
-            n = p.stat().st_size
+        # ⚠️ **fp32 blob は既定の出荷物ではない**（v0.1.1 は int8）。
+        #    入らないのは想定どおりなので、**NG にしない**（注記だけ出す）。
+        for name, path, fatal in [
+                ("student.bin", ROOT / "csrc" / "student.bin", False),
+                ("student_i8.bin", ROOT / "csrc" / "student_i8.bin", True)]:
+            if not path.exists():
+                continue
+            n = path.stat().st_size
             ok = n <= m["size"]
-            print(f"  {'OK ' if ok else 'NG!'} {name} {n:,} B "
-                  f"{'<=' if ok else '>'} model {m['size']:,} B")
-            if not ok:
+            mark = "OK " if ok else ("NG!" if fatal else "－ ")
+            note = "" if ok or fatal else "（fp32 は出荷物ではない。int8 を焼く）"
+            print(f"  {mark} {name} {n:,} B "
+                  f"{'<=' if ok else '>'} model {m['size']:,} B{note}")
+            if not ok and fatal:
                 bad += 1
 
     # --- app パーティション ---
@@ -109,11 +127,29 @@ def main() -> int:
             if not ok:
                 bad += 1
 
+    # --- 辞書パーティション（漢字対応版だけ）---
+    for d in [r for r in rows if r["name"] == "dict"]:
+        if d["offset"] % MMAP_PAGE:
+            print(f"NG! dict の offset 0x{d['offset']:x} が 64 KB 境界でない")
+            bad += 1
+        else:
+            print(f"  OK  dict の offset 0x{d['offset']:08x} は 64 KB 境界")
+        blob = ROOT / "csrc" / "k1_dict.bin"
+        if blob.exists():
+            n = blob.stat().st_size
+            ok = n <= d["size"]
+            print(f"  {'OK ' if ok else 'NG!'} k1_dict.bin {n:,} B "
+                  f"{'<=' if ok else '>'} dict {d['size']:,} B")
+            if not ok:
+                bad += 1
+
     total = max(r["offset"] + r["size"] for r in rows)
+    # 表に dict があれば 16 MB 前提（partitions_16mb.csv）
+    flash = args.flash_size or (16 if any(r["name"] == "dict" for r in rows) else 8) * 1024 * 1024
     print(f"  末尾 0x{total:08x} = {total / 1048576:.2f} MB "
-          f"（sdkconfig.defaults は 8 MB flash を宣言）")
-    if total > 8 * 1024 * 1024:
-        print("NG! 8 MB flash に収まらない")
+          f"（前提のフラッシュ {flash // 1048576} MB）")
+    if total > flash:
+        print(f"NG! {flash // 1048576} MB flash に収まらない")
         bad += 1
 
     print("\n" + ("NG: partitions.csv に問題がある" if bad

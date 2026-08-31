@@ -16,6 +16,11 @@ ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 284,912 B
 （W8A8+PIE 版は 286,272 B / コンソールを native USB にすると 271,872 B。M-66）。
 **v0.1.1 からは焼くだけの merge 済みイメージ 2 種も配布している**（各 2.8 MB。M-67）。
 
+**2026-08-31、漢字対応ビルドも QEMU で合成まで完走した**（K-7 / M-76）。
+`!今日は良い天気ですね。` を UART に打ち込むと、端末が自分で形態素解析して
+ids 53 個を作り、**凍結してあるかな中間表現と同じ PCM**（`0x78c209af06affc01`）が出た。
+有効化は `idf.py -DSAAN_KANJI=1`（**既定は無効**。16 MB flash と 12 MB の辞書が要る）。
+
 ⚠️ **しかし実機（ESP32-S3 ボード）が無いので、実機では動かしたことが無い。**
 ⚠️ **QEMU はサイクル精度ではないので、速度は一切測れていない。**
 
@@ -129,6 +134,47 @@ idf.py -p /dev/tty.usbmodemXXXX flash monitor
 
 `idf.py flash` は `esptool_py_flash_to_partition(flash "model" ...)` によって
 重み blob も `model` パーティションへ一緒に焼く（トップの `CMakeLists.txt`）。
+
+---
+
+## 漢字対応ビルド（K-7。**既定は無効**）
+
+端末に辞書を載せて、**漢字かな交じり文をそのまま**受け付ける構成。
+QEMU で合成まで完走している（M-76）。⚠️ **実機では未検証。**
+
+```bash
+# 1. 辞書 blob を作る（438,750 entries = D-044。13,702,320 B）
+uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
+
+# 2. 16 MB 版のパーティション表でビルド
+cd esp32
+idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 build
+
+# 3. 焼く（app / model / dict がまとめて焼かれる）
+idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
+```
+
+```
+かな> !今日は良い天気ですね。
+形態素 7 個 / ids 53 個
+```
+
+| | サイズ | 枠 |
+|---|---:|---:|
+| app | 359,584 B | 2,097,152 B（17.1%） |
+| model（int8） | 643,936 B | 786,432 B |
+| **dict** | **13,702,320 B** | **13,828,096 B**（99.1%） |
+
+⚠️ **16 MB flash が要る**（`partitions_16mb.csv`）。8 MB のボードには載らない。
+⚠️ **ホストと違う音素は 0.32%**（n=298。M-77）。差は**辞書の枝刈り**で、
+`上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
+移植そのものは正確（素性が一致した文でラベル差 0 件）。
+⚠️ **PSRAM は使っていない。** N16R8 には 8 MB あるが **QEMU が octal PSRAM を
+持っていない**ので、作業領域（130,176 B）は**合成用 arena から切り出している**。
+実機で PSRAM を有効にすれば `kj_alloc()` がそちらを優先する。
+⚠️ **速度は測れていない。音も聞いていない。**
 
 ---
 
@@ -369,9 +415,13 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 ⚠️ ホスト stub のログに出る `0.05 ms` は**冷えた 1 回目**で、定常値ではない。
 ⚠️ ESP32-S3 の値ではない。
 
-⚠️ **漢字は端末で扱わない**（D-010 / D-011）。中間表現を作るのはホスト側
-（OpenJTalk）。**任意の文からは `scripts/to_intermediate.py` が作る**
+⚠️ **既定のビルドでは漢字を端末で扱わない**（D-010 / D-011）。中間表現を作るのは
+ホスト側（OpenJTalk）。**任意の文からは `scripts/to_intermediate.py` が作る**
 （`gen_demo_ids.py` は錨 1 件専用）。
+
+✅ **漢字対応ビルドもある**（K-7 / M-76。下の「漢字対応ビルド」節）。
+`idf.py -DSAAN_KANJI=1` で有効になり、`!` を前置した行を漢字かな交じり文として
+端末側で解析する。**既定は無効**（16 MB flash と 12 MB の辞書が要るため）。
 
 ### シリアルからの自由入力（M-63 / D-040）
 
@@ -420,13 +470,17 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | パス | 役割 |
 |---|---|
 | `CMakeLists.txt` | トップ。`model` パーティションへの blob 焼き込みもここ |
-| `partitions.csv` | カスタムパーティション表（既定では blob が入らない） |
+| `partitions.csv` | カスタムパーティション表（8 MB。既定では blob が入らない） |
+| `partitions_16mb.csv` | **漢字対応版**（16 MB。`dict` 13,828,096 B = D-042 の予算） |
 | `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション |
-| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照 |
+| `sdkconfig.kanji` | 漢字対応ビルドの上書き（16 MB flash + 表の差し替え） |
+| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
 | `main/main.c` | arena・プリロール・合成ループ・計測ログ |
 | `main/saan_model.{h,c}` | flash mmap → `saan_weights`（16 バイト境界を検査） |
 | `main/saan_i2s.{h,c}` | I2S 設定 / プリロール / float→int16 / PCM チェックサム |
 | `main/saan_console.{h,c}` | シリアルからの 1 行入力（UART0 / USB Serial/JTAG） |
+| `main/saan_dict.{h,c}` | **K-7: `dict` パーティションの mmap**（64 KB 境界を検査） |
+| `main/saan_kanji.{h,c}` | **K-7: 漢字文 → 生徒インデックス**（端末の全段） |
 | `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
 
 ビルド時のフラグ:
@@ -436,6 +490,7 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | `-DSAAN_ENABLE_PIE=1` | 無効 | W8A8 + PIE（整数 SIMD）。⚠️ int8 blob が要る |
 | `-DSAAN_W8A8_NOPIE=1` | 無効 | ⚠️ **陰性対照専用**（W8A8 のままスカラ） |
 | `-DSAAN_QEMU=1` | 無効 | I2S への書き込みだけ外す。⚠️ **音は出ない** |
+| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ 16 MB flash と 12 MB の辞書が要る |
 | `-DSAAN_BOOT_SPEAK=1` | 無効（非対話ビルドでは有効） | 起動時に錨の 1 文を喋る（突き合わせ用） |
 | `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
 | `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
