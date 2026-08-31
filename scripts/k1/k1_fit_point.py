@@ -1,5 +1,9 @@
 """K-1: **本番エンコーダ**で予算に入るエントリ数を二分探索する。
 
+⚠️ **辞書本体だけでは足りない。** 端末に置くイメージには接続行列 (3.79 MB) と
+`char.bin` (262 KB) と `unk.dic` も入る。これを忘れると **C-047** を踏む
+（C-046 で「630,000 entries 入る」と報告したが、行列を数えていなかった）。
+
 K-0 の `k0_fit_point.py` は研究時のサイズ模型（byte 鍵の LOUDS）だった。
 本番エンコーダは文字 ID 鍵で見出し語表も持たないので、実測はそれより小さい。
 D-042 のエントリ数を見直す材料を出す。
@@ -18,7 +22,8 @@ sys.path.insert(0, str(HERE.parent.parent / "src"))
 
 from dump_entries_lib import load_entries          # noqa: E402
 from k1_paths import TRAIN                         # noqa: E402
-from saanotts_jp.k1_dict import DictBlob, Entry    # noqa: E402
+from saanotts_jp.k1_dict import (CharProperty, ConnMatrix,  # noqa: E402
+                                 DictBlob, Entry, UnkDict)
 
 import k0_freeze_dict                              # noqa: E402
 import pyopenjtalk                                 # noqa: E402
@@ -45,6 +50,12 @@ ranked += sorted((s for s in bysurf if s not in seen),
 print(f"辞書 {dic}\n  {len(raw):,d} entries / {len(ranked):,d} 見出し語")
 
 
+_D = pathlib.Path(dic)
+MATRIX = ConnMatrix.from_matrix_bin((_D / "matrix.bin").read_bytes())
+CHARP = CharProperty.from_char_bin((_D / "char.bin").read_bytes())
+UNK = UnkDict.from_unk_dic((_D / "unk.dic").read_bytes())
+
+
 def size_of(target: int) -> tuple[int, int, int]:
     sub, n = [], 0
     for s in ranked:
@@ -53,7 +64,8 @@ def size_of(target: int) -> tuple[int, int, int]:
             break
     es = [Entry(r[0], r[1], r[2], r[3], r[4], 0, r[5], r[6], r[7], r[8], r[9])
           for r in sub]
-    b = DictBlob.build(es).to_bytes()
+    # ⚠️ **端末に置くものを全部入れて測る**（行列 / char / unk）。C-047。
+    b = DictBlob.build(es, matrix=MATRIX, char_prop=CHARP, unk=UNK).to_bytes()
     return len(b), len(es), len(set(e.surface for e in es))
 
 
@@ -76,4 +88,5 @@ for name, budget in BUDGETS:
               f"{budget-sz:>10,d}")
 print("""
 ⚠️ 精度は未測定。B-0 の実測点で挟むこと（400,000 → 音素 95.53% / アクセント 89.29%）。
-⚠️ 全 789,388 entries は 16,727,469 B = 15.95 MiB で、16 MB / A の予算には入らない。""")
+⚠️ **接続行列 (3.79 MB) と char.bin (262 KB) と unk.dic を含めた値**。
+   辞書本体だけで測ると 1.6 倍ほど多く入るように見える（C-047 で踏んだ）。""")
