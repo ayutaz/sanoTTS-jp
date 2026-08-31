@@ -5,12 +5,33 @@
 
 ## 入れてある（[`ci.yml`](ci.yml)）
 
-| job | 中身 | 依存 |
-|---|---|---|
-| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数 / md の相対リンク / hook の回帰 94 ケース / 本文検出 | **なし**（stdlib のみ） |
-| `csrc` | `line` `fft` `pad` `g2p` | cc のみ |
-| `python` | `test_losses`（26 項目）/ `test_labelpack` | torch（**CPU ビルド**）+ numpy |
-| `release-assets` | **ドキュメントが名前を挙げた資産がリリースに在るか**（C-052 の再発防止） | ネットワーク |
+| job | 中身 | 依存 | 実測 |
+|---|---|---|---:|
+| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数 / md の相対リンク / hook の回帰 94 ケース / 本文検出 | **なし**（stdlib のみ） | **9 s** |
+| `csrc` | `line` `fft` `pad` `g2p` | cc のみ | **26 s** |
+| `python` | `test_losses`（26 項目）/ `test_labelpack` | torch（**CPU ビルド**）+ numpy | **24 s** |
+| `release-assets` | **ドキュメントが名前を挙げた資産がリリースに在るか**（C-052 の再発防止） | ネットワーク | **9 s** |
+
+実測は run `33412561093`（2026-08-31、ubuntu-latest、uv のキャッシュあり）。
+再現: `gh run view <id> --json jobs -q '.jobs[] | "\(.name) \(.startedAt) \(.completedAt)"'`
+
+⚠️ **torch は `--torch-backend cpu` を明示している。** 外すと Linux で
+CUDA 版（数 GB）を引いて `python` job が数分になる。
+
+## 初回で移植性バグを 1 件見つけた
+
+`csrc` が Linux で落ちた。**CI の設定ではなくコードの欠陥**だった:
+
+```
+fft_test.c:27: error: 'M_PI' undeclared
+fft_test.c:56: error: 'CLOCK_MONOTONIC' undeclared
+```
+
+`M_PI` は C99 の `<math.h>` に無い（POSIX 拡張）。macOS では既定で見えるが、
+Linux + glibc の厳密 `-std=c99` では見えない。**出荷するコア 2 本
+（`saanotts.c` / `saanotts_stream.c`）も同じ穴を持っていた**（C-052 の追記 / C-033）。
+
+**1 つの OS でしか通していないビルドは「通る」と言えない。**
 
 ## 入れていない（**理由つき**）
 
