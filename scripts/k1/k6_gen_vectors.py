@@ -62,6 +62,10 @@ def main() -> int:
     ap.add_argument("--cases", type=int, default=2000)
     ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/k6_vectors.bin"))
     ap.add_argument("--skip-verify-dict", action="store_true")
+    ap.add_argument("--matrix-int8", choices=["sym", "affine"], default=None,
+                    help="接続行列を 1 B に丸める（判断 D の材料。M-72）。"
+                         "⚠️ **形式は int16 のまま値だけ丸める** — "
+                         "精度への影響だけを測るため。サイズの削減は別の話")
     ap.add_argument("--keep-single-char", action="store_true",
                     help="1 文字の見出し語を**必ず残す**（未知語フォールバックの土台。"
                          "M-73: 落ちる語の 97.9%% は単漢字で文字を覆える）")
@@ -114,9 +118,27 @@ def main() -> int:
     entries = [Entry(r[0], r[1], r[2], r[3], r[4], 0, r[5], r[6], r[7], r[8], r[9])
                for r in sub]
     D = pathlib.Path(dic)
+    matrix = ConnMatrix.from_matrix_bin((D / "matrix.bin").read_bytes())
+    if a.matrix_int8:
+        import numpy as np
+        M = np.frombuffer(matrix.data, dtype="<i2").reshape(
+            matrix.rsize, matrix.lsize).astype(np.int32)
+        if a.matrix_int8 == "sym":
+            amax = np.abs(M).max(axis=1)
+            sc = np.where(amax == 0, 1.0, amax / 127.0)
+            q = np.rint(M / sc[:, None]).clip(-127, 127)
+            M2 = np.rint(q * sc[:, None]).astype("<i2")
+        else:
+            lo = M.min(axis=1); hi = M.max(axis=1)
+            sc = np.where(hi == lo, 1.0, (hi - lo) / 255.0)
+            q = np.rint((M - lo[:, None]) / sc[:, None]).clip(0, 255)
+            M2 = np.rint(q * sc[:, None] + lo[:, None]).astype("<i2")
+        print(f"⚠️ 行列を {a.matrix_int8} で 1 B に丸めた: "
+              f"最大誤差 {int(np.abs(M2.astype(np.int32) - M).max())}")
+        matrix = ConnMatrix(matrix.lsize, matrix.rsize, M2.tobytes())
     blob = DictBlob.build(
         entries,
-        matrix=ConnMatrix.from_matrix_bin((D / "matrix.bin").read_bytes()),
+        matrix=matrix,
         char_prop=CharProperty.from_char_bin((D / "char.bin").read_bytes()),
         unk=UnkDict.from_unk_dic((D / "unk.dic").read_bytes()),
     ).to_bytes()

@@ -143,7 +143,7 @@ idf.py -p /dev/tty.usbmodemXXXX flash monitor
 QEMU で合成まで完走している（M-76）。⚠️ **実機では未検証。**
 
 ```bash
-# 1. 辞書 blob を作る（12,153,280 B）
+# 1. 辞書 blob を作る（438,750 entries = D-044。13,702,320 B）
 uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
 
 # 2. 16 MB 版のパーティション表でビルド
@@ -165,10 +165,10 @@ idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
 |---|---:|---:|
 | app | 359,584 B | 2,097,152 B（17.1%） |
 | model（int8） | 643,936 B | 786,432 B |
-| **dict** | **12,153,280 B** | **13,828,096 B**（87.9%） |
+| **dict** | **13,702,320 B** | **13,828,096 B**（99.1%） |
 
 ⚠️ **16 MB flash が要る**（`partitions_16mb.csv`）。8 MB のボードには載らない。
-⚠️ **ホストと同じ音素ID列になるのは 82.21% の文**（n=298。M-74 の追記）。差は**辞書の枝刈り**で、
+⚠️ **ホストと違う音素は 0.32%**（n=298。M-77）。差は**辞書の枝刈り**で、
 `上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
 移植そのものは正確（素性が一致した文でラベル差 0 件）。
 ⚠️ **PSRAM は使っていない。** N16R8 には 8 MB あるが **QEMU が octal PSRAM を

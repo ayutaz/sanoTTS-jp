@@ -73,6 +73,33 @@ static void k4_to_njd(NJD *njd, const k4_node_t *in, int n) {
     }
 }
 
+/* 記号（`^` `$` `?` 系 / `#` `[` `]` / `_`）か。音素だけの列を作るのに使う。 */
+static int k7_is_mark(int32_t id) {
+    static const char *const M[] = { "_", "^", "$", "?", "?!", "?.", "?~",
+                                     "#", "[", "]" };
+    for (size_t i = 0; i < sizeof M / sizeof *M; i++)
+        if (k7_token_id(M[i]) == id) return 1;
+    return 0;
+}
+
+/* 編集距離（Levenshtein）。列は数百なので素直な DP でよい。 */
+static int lev(const int32_t *a, int na, const int32_t *b, int nb) {
+    static int prev[MAX_IDS + 1], cur[MAX_IDS + 1];
+    for (int j = 0; j <= nb; j++) prev[j] = j;
+    for (int i = 1; i <= na; i++) {
+        cur[0] = i;
+        for (int j = 1; j <= nb; j++) {
+            int c = (a[i - 1] == b[j - 1]) ? 0 : 1;
+            int m = prev[j] + 1;
+            if (cur[j - 1] + 1 < m) m = cur[j - 1] + 1;
+            if (prev[j - 1] + c < m) m = prev[j - 1] + c;
+            cur[j] = m;
+        }
+        for (int j = 0; j <= nb; j++) prev[j] = cur[j];
+    }
+    return prev[nb];
+}
+
 static char labd[MAX_LABEL][512];
 static const char *labp[MAX_LABEL];
 static int32_t ids_dev[MAX_IDS], ids_full[MAX_IDS], ids_got[MAX_IDS];
@@ -115,6 +142,9 @@ int main(int argc, char **argv) {
 
     int ok25 = 0, ng25 = 0, ok26 = 0, ng26 = 0, err = 0, shown = 0;
     int ctrl25 = 0;
+    /* G26b: **どれだけ違うか**。合否ではなく判断材料（C / D）。 */
+    long ed_all = 0, len_all = 0;      /* 記号込みの列 */
+    long ed_ph  = 0, len_ph  = 0;      /* 音素だけの列 */
 
     for (int pass = 0; pass < 2; pass++) {
     /* pass 1 = 陰性対照: アクセント記号 `[` を出さない（k7 側を壊す） */
@@ -214,6 +244,28 @@ int main(int argc, char **argv) {
             for (int32_t i = 0; i < n2; i++)
                 if (ids_got[i] != ids_full[i]) { same2 = 0; break; }
         if (same2) ok26++; else ng26++;
+
+        /* --- G26b: 編集距離（PAD を除いた列で測る）------------------- */
+        {
+            static int32_t a[MAX_IDS], b[MAX_IDS];
+            static int32_t ap[MAX_IDS], bp[MAX_IDS];
+            int32_t pad = k7_token_id("_");
+            int na = 0, nb = 0, nap = 0, nbp = 0;
+            /* ⚠️ **PAD を落とす。** intersperse した PAD は音素 1 個につき
+             *    1 個入るので、残すと編集距離が倍に膨らんで読めなくなる。 */
+            for (int32_t i = 0; i < n2; i++)
+                if (ids_got[i] != pad) {
+                    a[na++] = ids_got[i];
+                    if (!k7_is_mark(ids_got[i])) ap[nap++] = ids_got[i];
+                }
+            for (uint32_t i = 0; i < nidf; i++)
+                if (ids_full[i] != pad) {
+                    b[nb++] = ids_full[i];
+                    if (!k7_is_mark(ids_full[i])) bp[nbp++] = ids_full[i];
+                }
+            ed_all += lev(a, na, b, nb); len_all += nb;
+            ed_ph  += lev(ap, nap, bp, nbp); len_ph += nbp;
+        }
         JPCommon_clear(&jp); NJD_clear(&njd);
     }
     }
@@ -228,6 +280,14 @@ int main(int argc, char **argv) {
     printf("  ホスト既定と一致 %d / %u 文（%.2f%% が食い違う / エラー %d）\n",
            ok26, n_cases, 100.0 * ng26 / (double)n_cases, err);
     printf("  ⚠️ この差は**辞書の枝刈り**が主因（C-050 / M-74）\n");
+
+    printf("\n=== G26b: **どれだけ違うか**（判断 C / D の材料）===\n");
+    printf("  記号込みの列  編集距離 %ld / ホスト長 %ld = **%.2f%%**\n",
+           ed_all, len_all, len_all ? 100.0 * ed_all / len_all : 0.0);
+    printf("  音素だけの列  編集距離 %ld / ホスト長 %ld = **%.2f%%**\n",
+           ed_ph, len_ph, len_ph ? 100.0 * ed_ph / len_ph : 0.0);
+    printf("  ⚠️ **PAD を除いた列で測っている**（intersperse した PAD を残すと倍に膨らむ）\n");
+    printf("  ⚠️ **これは音の良し悪しではない。** 「ホストと違う音素の割合」\n");
 
     printf("\n=== G27: 語彙表 ===\n");
     printf("  %d トークン（`src/saanotts_jp/vocab.py` から生成）\n", k7_n_tokens);

@@ -33,7 +33,7 @@ from k1_paths import HELDOUT, TRAIN                # noqa: E402
 from saanotts_jp.k1_dict import (CharProperty, ConnMatrix,  # noqa: E402
                                  DictBlob, Entry, UnkDict)
 
-TARGET_ENTRIES = 370_863          # D-042
+TARGET_ENTRIES = 438_750          # D-044（D-042 の 370,863 から引き上げ）
 FAILED: list[str] = []
 
 
