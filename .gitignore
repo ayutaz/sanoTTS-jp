@@ -116,3 +116,5 @@ reports/e1_dnsmos/scratch/
 # K-2 の検証ベクタ（blob 込みで数 MB。make -C csrc k2 が生成する）
 csrc/k2_vectors.bin
 csrc/k2_test
+csrc/k4_vectors.bin
+csrc/k4_test

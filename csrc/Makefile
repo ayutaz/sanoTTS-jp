@@ -9,7 +9,8 @@
 #   make bench     レイテンシ測定（段別の内訳）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
 #   make line      端末の行編集ステートマシン（**陽性対照つき**）
-#   make k2        K-2 辞書リーダ + Viterbi（MeCab との一致。陰性対照つき）
+#   make k2        K-2/K-3 辞書リーダ + Viterbi + 未知語（MeCab との一致）
+#   make k4        K-4 アクセント規則 4 段（Python 版との一致。陰性対照つき）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
 #   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line
 #
@@ -202,3 +203,13 @@ k2_test: k2_test.c k1dict.c k1dict.h
 .PHONY: k2
 k2: k2_test k2_vectors.bin
 	./k2_test k2_vectors.bin
+
+k4_vectors.bin:
+	$(PYTHON) ../scripts/k1/k4_gen_vectors.py --out $@
+
+k4_test: k4_test.c k4_accent.c k4_accent.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ k4_test.c k4_accent.c $(LDLIBS)
+
+.PHONY: k4
+k4: k4_test k4_vectors.bin
+	./k4_test k4_vectors.bin
