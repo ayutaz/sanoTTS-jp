@@ -11,7 +11,7 @@
 | K-2 C リーダ + Viterbi | ✅ MeCab と **1,918/1,918**。G6〜G8 |
 | K-3 未知語ノード生成 | ✅ MeCab と **1,977/1,977**、経路なし **0**。G9〜G11 |
 | K-4 アクセント規則 4 段 | ✅ Python 版と **2,333/2,333**。G12/G13 |
-| **K-4b NJD チェーンの統合** | ⚠️ **未着手。計画に無かった段**（K-4 で判明） |
+| **K-4b NJD チェーンの統合** | ⚠️ **次**。作業量は測った（**34 ファイル / 8,070 行**の vendoring） |
 | K-5 メモリの詰め | 未着手 |
 | K-6 ホストとの一致 | 未着手（K-4b 待ち） |
 | K-7 QEMU / K-8 実機 | 未着手 |
@@ -463,12 +463,39 @@ OpenJTalk の C 実装（`mecab2njd` + `njd_set_*` 群 + `jpcommon`）が担っ�
 |---|---|
 | G14a | held-out 全数で NJD ノード列（`pron` / `acc` / `mora_size` / `chain_flag`）がホストと一致 |
 | G14b | 陰性対照: `njd_set_*` を 1 つ抜くと G14a が落ちる |
-| G14c | ライセンスを確認して記録する（OpenJTalk は修正 BSD。**GPL の `sanoTTS` とは別物**） |
+| G14c | ✅ ライセンス確認済み（修正 BSD。`src/COPYING`。**GPL の `sanoTTS` とは別物**） |
+| G14d | 取り込んだ第三者コードの出所とバージョンを記録する（pyopenjtalk 0.4.1 同梱の OpenJTalk） |
 
-**要る作業量の見積もり**（⚠️ **未測定**）: `njd_set_pronunciation` /
-`njd_set_digit` / `njd_set_accent_phrase` / `njd_set_accent_type` /
-`njd_set_unvoiced_vowel` / `njd_set_long_vowel` / `mecab2njd` / `jpcommon`。
-**これらは移植ではなく vendoring**（既存の C をそのまま持ってくる）が現実的。
+**要る作業量 — 測った（2026-08-31）**
+
+OpenJTalk のソース（pyopenjtalk 0.4.1 の sdist 同梱）を数えた。
+**移植ではなく vendoring**（既存の C をそのまま持ってくる）。
+
+| モジュール | ファイル | 行数 |
+|---|---:|---:|
+| `text2mecab` | 3 | 466 |
+| `mecab2njd` | 2 | 133 |
+| `njd` | 3 | 1,177 |
+| `njd_set_pronunciation` | 3 | 727 |
+| **`njd_set_digit`** | 3 | **1,452** |
+| `njd_set_accent_phrase` | 3 | 401 |
+| `njd_set_accent_type` | 3 | 417 |
+| `njd_set_unvoiced_vowel` | 3 | 754 |
+| `njd_set_long_vowel` | 3 | 309 |
+| `njd2jpcommon` | 3 | 447 |
+| `jpcommon` | 5 | 1,787 |
+| **合計** | **34** | **8,070 行** |
+
+⚠️ **素で数えると 20,580 行**（79 ファイル）だが、その 61% は
+**文字コード別のヘッダ**（`_shift_jis` / `_euc_jp` / `_ascii_for_*`）。
+UTF-8 だけ残せば **8,070 行**になる。
+
+参考: **既存の `csrc/` は 31 ファイル / 8,606 行**。つまり
+**C コアと同じくらいの規模の第三者コードが増える。**
+
+**ライセンス**: 修正 BSD（`src/COPYING`。Nagoya Institute of Technology /
+HTS Working Group, 2008-2016）。MIT との同居に問題はない。
+⚠️ **GPL-3.0 の `Ampixa/sanoTTS` とは別物**（D-032 の凍結対象ではない）。
 
 ⚠️ **`njd_set_digit` は数詞・助数詞の読み分けを持つ**（B-0 が「1つ/1個/1人」で
 指摘した軸）。ここが抜けると数値が壊れるが、**音では気づけない**。
