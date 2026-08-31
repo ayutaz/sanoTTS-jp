@@ -2,7 +2,7 @@
 
     uv run python scripts/k1/k1_build_dict.py [--entries N] [--out PATH]
 
-既定は D-042 の **370,863 entries**（N16R8 / OTA 無し）。
+既定は D-044 の **438,750 entries**（N16R8 / OTA 無し。D-042 の 370,863 から引き上げ）。
 
 受け入れ条件（すべて陰性対照つき）:
   G1 全エントリで 11 フィールド往復一致

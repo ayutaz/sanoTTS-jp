@@ -2649,7 +2649,11 @@ ESP32 に載らない SudachiDict 217 MB と nani ONNX の寄与は**合計 0.13
 ## D-042: K-0 の動作点を凍結 — **N16R8 / OTA 無し / 370,863 entries / 辞書は `.venv` 側**
 
 - **日付**: 2026-08-31（ユーザー決定）
-- **状態**: **確定**
+- **状態**: **確定。ただしエントリ数だけ [D-044](#d-044-動作点を-438750-entries--接続行列は-int16-のままにする) で 438,750 に引き上げた**
+
+> ⚠️ **エントリ数 370,863 は D-044 で置き換わっている。**
+> ボード（N16R8）/ OTA 無し / 辞書予算 13,828,096 B / 辞書リビジョンの SHA-256 は
+> **そのまま有効**。**この節の「370,863」だけが古い。**
 - **一次データ**: [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) /
   [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) §1 /
   `scripts/k1/k0_{mmu_window,fit_point,dict_inventory}.py`
@@ -2661,7 +2665,7 @@ ESP32 に載らない SudachiDict 217 MB と nani ONNX の寄与は**合計 0.13
 | ボード | **ESP32-S3-WROOM-1-N16R8**（16 MB flash / 8 MB PSRAM） |
 | OTA | **要件に含めない** |
 | 辞書予算 | **13,828,096 B**（16 MB / シナリオ A。`reports/b0_flash_budget.json`） |
-| エントリ数 | **370,863**（見出し語 303,501）。実サイズ 13,685,361 B、余り 142,735 B |
+| エントリ数 | ~~**370,863**（見出し語 303,501）~~ → **D-044 で 438,750 に引き上げ**（見出し語 355,768 / blob 13,702,320 B / 余り 125,776 B） |
 | 辞書リビジョン | **本プロジェクト `.venv` 側** `sys.dic` 103,131,410 B / 789,388 entries |
 | その SHA-256 | `0328ca62355100aba6df13af56912ad88cf10246e2a286005b89cb8ce2cef652` |
 

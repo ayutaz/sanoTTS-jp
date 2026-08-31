@@ -10,6 +10,8 @@
 ```bash
 uv run python scripts/k1/k0_verify_dict.py                    # 辞書の同一性（**最初にこれ**）
 uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin   # 端末に焼く辞書 blob
+                                                              #   既定 438,750 entries（D-044）
+                                                              #   → 13,702,320 B / 枠 13,828,096 B
 uv run python scripts/k1/k1_fit_point.py                      # 予算に入るエントリ数
 uv run python scripts/k1/k4b_vendor.py --sdist <tgz> [--check]  # Open JTalk の取り込み / 検査
 uv run python scripts/k1/k2_gen_vectors.py                    # K-2/K-3 のベクタ
