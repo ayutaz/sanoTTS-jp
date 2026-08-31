@@ -5,11 +5,22 @@
 #    分割後の `esp_driver_i2s` などに依存する形で残っている（はず）。
 #    したがって **`driver` 1 本にしてある**のが保守的。
 #    ✅ **v5.5 でビルドが通ることを実測した**（2026-08-30）。
+set(SAAN_MAIN_K "")
+if(SAAN_KANJI)
+    set(SAAN_MAIN_K "saan_dict.c" "saan_kanji.c")
+endif()
+
 idf_component_register(
-    SRCS "main.c" "saan_model.c" "saan_i2s.c" "saan_console.c"
+    SRCS "main.c" "saan_model.c" "saan_i2s.c" "saan_console.c" ${SAAN_MAIN_K}
     INCLUDE_DIRS "."
     REQUIRES saanotts_core driver esp_partition esp_timer
 )
+
+# ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
+#    「漢字モードのプロンプト」がこれを見る。片方だけだとプロンプトが出ない。
+if(SAAN_KANJI)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_KANJI=1 CHARSET_UTF_8)
+endif()
 
 # --- QEMU 用: I2S ペリフェラルへの書き込みだけを外す -------------------------
 #

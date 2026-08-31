@@ -1,0 +1,15 @@
+# K-7: 漢字対応ビルドの上書き（16 MB flash / 辞書パーティション）
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_16mb.csv"
+
+# --- PSRAM は**使わない** ---
+#
+# ⚠️ N16R8 には 8 MB の PSRAM があるが、**QEMU が octal PSRAM を持っていない**
+#    （`PSRAM ID read error: 0x00000000` → `Failed to init external RAM!` で
+#    abort。実測）。K-7 は QEMU で検証する段なので有効にできない。
+#
+# ⚠️ **無くても足りる。** 漢字経路の作業領域（約 86 KB）は静的確保をやめて
+#    起動時に heap から取るようにしたので、DRAM に収まる（G19 で実測）。
+#    `kj_alloc()` は PSRAM を優先し、無ければ内部 RAM に落ちる — 実機で
+#    PSRAM を有効にすればそのまま移る。

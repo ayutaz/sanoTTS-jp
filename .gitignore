@@ -132,3 +132,11 @@ csrc/k5_labels*.txt
 csrc/openjtalk/*.o
 csrc/k6_test
 csrc/k6_stderr.log
+csrc/k7_test
+csrc/k7_stderr.log
+
+# K-7 のビルド出力
+esp32/build_kanji/
+esp32/build_nokanji/
+csrc/k1_dict.bin
+csrc/k6_vectors.bin

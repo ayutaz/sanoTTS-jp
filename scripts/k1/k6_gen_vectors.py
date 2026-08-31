@@ -19,7 +19,7 @@
 
 出力（既定 `csrc/k6_vectors.bin`）:
 
-    magic "K6V1" u32 / n_cases u32
+    magic "K6V2" u32 / n_cases u32
     _DAN_MAP: n u32 →（かな 1 文字 UTF-8 / 母音 1 B）× n
     blob_len u32 / <辞書 blob>
     ケース × n:
@@ -27,6 +27,8 @@
         feat: n u32 +（u16 長 + UTF-8）× n   ← ホストの MeCab feature 列
         full: n u32 +（u16 長 + UTF-8）× n
         dev : n u32 +（u16 長 + UTF-8）× n
+        ids_dev : n u32 + i32 × n   ← dev ラベルからホストが作る生徒インデックス
+        ids_full: n u32 + i32 × n   ← ホスト既定（フル辞書）の生徒インデックス
 
 ⚠️ **feature 列も持つ。** これが無いと「食い違い 18%」が
 辞書の枝刈りのせいなのか素性復元の誤りなのか切り分けられない。
@@ -131,6 +133,24 @@ def main() -> int:
         texts = [texts[int(i * len(texts) / a.cases)] for i in range(a.cases)]
 
     import piper_plus_g2p.japanese as J   # キャッシュを毎回落とすため
+    sys.path.insert(0, str(HERE.parent))
+    import kana_g2p as K                                        # noqa: E402
+    from gen_g2p_vectors import intersperse                     # noqa: E402
+    from piper_plus_g2p.japanese import JapanesePhonemizer      # noqa: E402
+    ph = JapanesePhonemizer()
+    orig_efc = J.pyopenjtalk.extract_fullcontext
+
+    def ids_from_labels(text, labels):
+        """⚠️ **canonical な `phonemize()` をそのまま使う。**
+        ラベル → 音素の規則を生成器側で書き直すと、C の移植と
+        「同じ間違い」を突き合わせることになって検査にならない。"""
+        J.pyopenjtalk.extract_fullcontext = lambda *_a, **_k: list(labels)
+        try:
+            J._phonemize_core_cached.cache_clear()
+            return intersperse(ph.phonemize(K.normalize_input(text)))
+        finally:
+            J.pyopenjtalk.extract_fullcontext = orig_efc
+            J._phonemize_core_cached.cache_clear()
 
     cases = []
     n_diff = 0
@@ -148,7 +168,13 @@ def main() -> int:
             continue
         if full != dev:
             n_diff += 1
-        cases.append((t, feats, full, dev))
+        try:
+            ids_dev = ids_from_labels(t, dev)
+            J._phonemize_core_cached.cache_clear()
+            ids_full = intersperse(ph.phonemize(K.normalize_input(t)))
+        except Exception:
+            continue
+        cases.append((t, feats, full, dev, ids_dev, ids_full))
 
     print(f"ケース {len(cases)}")
     print(f"⚠️ ホスト既定 vs 端末に載る段だけ: {n_diff} / {len(cases)} 文が食い違う"
@@ -156,18 +182,21 @@ def main() -> int:
 
     from pyopenjtalk import utils as pjt_utils
     dan = pjt_utils._DAN_MAP
-    out = bytearray(struct.pack("<4sI", b"K6V1", len(cases)))
+    out = bytearray(struct.pack("<4sI", b"K6V2", len(cases)))
     out += struct.pack("<I", len(dan))
     for k, v in sorted(dan.items()):
         out += _s(k) + v.encode("ascii")[:1]
     out += struct.pack("<I", len(blob)) + blob
     print(f"_DAN_MAP {len(dan)} 件")
-    for t, feats, full, dev in cases:
+    for t, feats, full, dev, ids_dev, ids_full in cases:
         out += _s(t)
         for group in (feats, full, dev):
             out += struct.pack("<I", len(group))
             for x in group:
                 out += _s(x)
+        for arr in (ids_dev, ids_full):
+            out += struct.pack("<I", len(arr))
+            out += struct.pack(f"<{len(arr)}i", *arr)
     pathlib.Path(a.out).write_bytes(bytes(out))
     print(f"書き出した → {a.out} ({len(out):,d} B)")
     return 0

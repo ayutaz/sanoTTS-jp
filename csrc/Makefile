@@ -14,6 +14,7 @@
 #   make k4b       K-4b NJD チェーン（ホストとの一致。段・規則ごとの陰性対照つき）
 #   make k5        K-5 1 文あたりのピーク RAM（ヒープ + スタックの実測）
 #   make k6        K-6 端末の全段をホストと突き合わせる（移植の正しさ + 枝刈りの代償）
+#   make k7        K-7 ラベル → 生徒インデックス（陰性対照つき）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
 #   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line
 #
@@ -192,7 +193,7 @@ all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line
 
 clean:
 	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
-	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log \
+	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
 	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
 	rm -rf k5_ctrl
 
@@ -327,3 +328,20 @@ k6_test: k6_test.c k1dict.c k4_accent.c k4b_njd.c $(OJT_SRC)
 k6: k6_test k6_vectors.bin
 	@./k6_test k6_vectors.bin 2>k6_stderr.log || \
 	  { echo "--- stderr ---"; cat k6_stderr.log; exit 1; }
+
+# ---------------------------------------------------------------- K-7
+# ラベル → 生徒インデックス（`k7_label2ids.c`）。K-6 のベクタをそのまま使う。
+# ⚠️ **合否は G25（移植の正しさ）だけ**。通しの一致（G26）は枝刈りの分だけ
+#    必ず食い違うので**数を出すだけ**（C-050 と同じ扱い）。
+k7_table.h:
+	cd .. && $(PYTHON) scripts/gen_k7_table.py
+
+k7_test: k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c k7_table.h $(OJT_SRC)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
+	    -o $@ k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c \
+	    $(OJT_SRC) $(LDLIBS)
+
+.PHONY: k7
+k7: k7_test k6_vectors.bin
+	@./k7_test k6_vectors.bin 2>k7_stderr.log || \
+	  { echo "--- stderr ---"; cat k7_stderr.log; exit 1; }

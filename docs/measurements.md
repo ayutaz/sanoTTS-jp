@@ -5162,3 +5162,102 @@ G17b は**数を出すだけ**にしてある。合否は「移植の正しさ�
 「無音消滅を防げる」と読んではいけない**（C-051）。あれは
 **辞書に無い token** の話で、それらは未知語にならず切り直される。
 
+---
+
+## M-76. K-7: ESP32-S3 へのビルドと QEMU での通し（自己実測）
+
+**漢字かな交じり文を QEMU の UART に打ち込み、合成まで完走した。**
+
+再現:
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
+. ~/esp/esp-idf/export.sh
+cd esp32 && idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 build
+cd build_kanji && esptool.py --chip esp32s3 merge_bin \
+    --fill-flash-size 16MB -o /tmp/flash16.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/flash16.bin,if=mtd,format=raw
+```
+
+### G19: 載った
+
+| | サイズ | 枠 | 使用率 |
+|---|---:|---:|---:|
+| app（漢字あり） | **359,584 B** | 2,097,152 B | 17.1% |
+| app（漢字なし） | 283,616 B | 2,097,152 B | 13.5% |
+| model（int8 blob） | 643,936 B | 786,432 B | 81.9% |
+| **dict（K-1 blob）** | **12,153,280 B** | **13,828,096 B** | **87.9%** |
+
+パーティション表は `esp32/partitions_16mb.csv`（16 MB / OTA 無し）。
+**dict の 13,828,096 B は D-042 が凍結した予算とバイト単位で一致する。**
+
+### G20: 動いた
+
+```
+かな> !今日は良い天気ですね。
+I (21915) saanotts: 形態素 7 個 / ids 53 個
+I (21926) saanotts: init 10.76 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (23072) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x78c209af06affc01
+```
+
+辞書の mmap も通った:
+
+```
+I (79) saan_dict: dict パーティション: offset 0x002d0000 size 13828096 B
+I (79) saan_dict: 辞書 OK: 見出し語 303483 / エントリ 370863 / 行列 1377x1377
+```
+
+### G21: 3 つの経路が **bit 一致**した（同じターゲット上）
+
+| 構成 | 入力 | 出力 PCM の FNV-1a |
+|---|---|---|
+| 漢字あり | `!今日は良い天気ですね。` | **0x78c209af06affc01** |
+| 漢字あり | `きょ][おわよ][いて][んきです°ね` | **0x78c209af06affc01** |
+| 漢字なし | `きょ][おわよ][いて][んきです°ね` | **0x78c209af06affc01** |
+
+**端末が自分で解析した漢字文が、凍結してあるかな中間表現と同じ ids 列になった。**
+⚠️ **これは 1 文だけの一致。** ホストとの一致率は 82.21%（M-74）で、
+残りは辞書の枝刈りで読みが変わる。
+⚠️ 陰性対照: 辞書なしビルドに `!今日は…` を打つと
+「中間表現に無い文字（0 バイト目）」で**正しく拒否される**。
+
+### メモリ
+
+| | |
+|---|---:|
+| 漢字経路の作業領域 | **130,176 B**（合成用 arena から切り出し） |
+| 合成 arena | 208,896 B 確保 / peak **194,848 B** |
+| 辞書 mmap 後の内部 DRAM 空き | 51,728 B（最大ブロック 38,912 B） |
+| タスクスタック残り | 8,940 B / 16,384 B |
+
+⚠️ **DRAM は 2 回溢れた。**
+(1) 作業領域を `.bss` に静的確保したら **419 KB 超過**。
+(2) heap から取ろうとしたら**空きが 20,964 B しか無かった**。
+**大きい 2 つ（feat 30,720 B / k4 ノード 50,304 B）を合成用 arena から
+切り出して解決した** — G2P と合成は同時に走らない。
+
+⚠️ **PSRAM は使えなかった。** N16R8 には 8 MB あるが
+**QEMU が octal PSRAM を持っていない**（`PSRAM ID read error: 0x00000000`
+→ `Failed to init external RAM!` で abort）。`kj_alloc` は PSRAM を優先する
+実装のままなので、実機で有効にすればそのまま移る。
+
+⚠️ **Viterbi の作業領域は 32 KB で足りる**（held-out 298 文。16 KB だと 1 文落ちる）。
+48 KB 取ってある。⚠️ 最初この測定は**空虚だった** — `k7_test.c` の
+`#define ARENA_N` が `-D` に勝っていて、1 KB でも「全部一致」と出ていた。
+`#ifndef` にして測り直した。
+
+### 速度
+
+```
+I (23104) saanotts: 定常 xRT = 0.661
+I (23104) saanotts: アンダーラン 1 / 14 チャンク
+```
+
+⚠️ **この数字は使えない。QEMU はサイクル精度ではない**（M-62 と同じ）。
+**実機のサイクル実測は K-8。まだ誰もやっていない。**
+⚠️ **音は一度も聞いていない。**
+

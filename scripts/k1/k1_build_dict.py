@@ -30,7 +30,8 @@ sys.path.insert(0, str(HERE.parent.parent / "src"))
 
 from dump_entries_lib import load_entries          # noqa: E402
 from k1_paths import HELDOUT, TRAIN                # noqa: E402
-from saanotts_jp.k1_dict import DictBlob, Entry    # noqa: E402
+from saanotts_jp.k1_dict import (CharProperty, ConnMatrix,  # noqa: E402
+                                 DictBlob, Entry, UnkDict)
 
 TARGET_ENTRIES = 370_863          # D-042
 FAILED: list[str] = []
@@ -103,7 +104,16 @@ def main() -> int:
 
     # --- 組み立て -----------------------------------------------------------
     t0 = time.time()
-    blob = DictBlob.build(entries)
+    # ⚠️ **端末に置くものを全部入れる**（接続行列 / char.bin / unk.dic）。
+    #    これを外すと Viterbi も未知語も動かない。C-047 で踏んだのと同じ形で、
+    #    **サイズも 8.1 MB と 12.2 MB で 1.5 倍違う**。
+    import k1_paths
+    _D = pathlib.Path(str(k1_paths.DICT_VENV))
+    blob = DictBlob.build(
+        entries,
+        matrix=ConnMatrix.from_matrix_bin((_D / "matrix.bin").read_bytes()),
+        char_prop=CharProperty.from_char_bin((_D / "char.bin").read_bytes()),
+        unk=UnkDict.from_unk_dic((_D / "unk.dic").read_bytes()))
     body = blob.to_bytes()
     print(f"\n=== 組み立て ({time.time()-t0:.0f} 秒) ===")
     secs = DictBlob.sections(body)

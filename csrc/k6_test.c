@@ -101,7 +101,7 @@ int main(int argc, char **argv) {
     uint8_t *buf = malloc((size_t)sz);
     if (!buf || fread(buf, 1, (size_t)sz, f) != (size_t)sz) return 1;
     fclose(f);
-    if (memcmp(buf, "K6V1", 4)) { fprintf(stderr, "NG: magic\n"); return 1; }
+    if (memcmp(buf, "K6V2", 4)) { fprintf(stderr, "NG: magic\n"); return 1; }
     g = buf + 4;
     uint32_t n_cases = rd32();
 
@@ -174,6 +174,9 @@ int main(int argc, char **argv) {
         uint32_t ndev = rd32();
         for (uint32_t i = 0; i < ndev; i++)
             rdstr(labd[i < MAX_LABEL ? i : MAX_LABEL - 1], sizeof labd[0]);
+        /* ⚠️ **ids は必ずここで読む。** 下に `continue` が何本もあるので、
+         *    後ろで読むとストリームがずれて残り全部が壊れる。 */
+        for (int k = 0; k < 2; k++) { uint32_t ni = rd32(); g += 4u * ni; }
 
         /* --- 端末側を走らせる ------------------------------------------- */
         size_t key_n = sizeof key;

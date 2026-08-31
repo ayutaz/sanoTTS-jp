@@ -65,3 +65,24 @@ message(STATUS "sanoTTS: model blob ${SAAN_MODEL_BLOB} (${SAAN_MODEL_BLOB_SIZE} 
 # partitions.csv の `model` パーティションに焼く。offset はパーティション名から
 # 自動解決される（components/esptool_py/project_include.cmake の定義）。
 esptool_py_flash_to_partition(flash "model" "${SAAN_MODEL_BLOB}")
+
+# --- K-7: 辞書 blob（漢字対応ビルドだけ）------------------------------------
+#
+#   idf.py -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=<絶対パス>/k1_dict.bin ... build
+#
+# ⚠️ **12 MB 以上ある。** リポジトリには入れない（生成物）。作り方:
+#     uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
+if(SAAN_KANJI)
+    if(NOT DEFINED SAAN_DICT_BLOB)
+        set(SAAN_DICT_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/k1_dict.bin")
+    endif()
+    if(NOT EXISTS "${SAAN_DICT_BLOB}")
+        message(FATAL_ERROR
+            "辞書 blob が無い: ${SAAN_DICT_BLOB}\n"
+            "  uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin\n"
+            "で作るか、-DSAAN_DICT_BLOB=<絶対パス> を渡すこと。")
+    endif()
+    file(SIZE "${SAAN_DICT_BLOB}" SAAN_DICT_BLOB_SIZE)
+    message(STATUS "sanoTTS: dict blob ${SAAN_DICT_BLOB} (${SAAN_DICT_BLOB_SIZE} B)")
+    esptool_py_flash_to_partition(flash "dict" "${SAAN_DICT_BLOB}")
+endif()
