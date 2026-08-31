@@ -124,7 +124,7 @@ OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一
 > かつて理由を「辞書が載らないため」と書いていたが、**測り直したら崩れ、
 > 実装まで通った**。辞書を TTS 専用のバイナリにすると 16 MB ボードに **438,750 entries** が載り、
 > **QEMU の UART に `!今日は良い天気ですね。` と打ち込むと端末が自分で形態素解析して
-> 合成まで完走する**（[M-77](docs/measurements.md)）。しかも出た音は
+> 合成まで完走する**（[M-78](docs/measurements.md)）。しかも出た音は
 > **凍結してあるかな中間表現と bit 一致**した（`0x78c209af06affc01`）。
 >
 > - MeCab と **1,977/1,977 文で一致**（未知語込み）
@@ -132,7 +132,7 @@ OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一
 > - NJD チェーンがホストと **635/635**、ラベル → 音素ID が **298/298**
 > - 1 文あたりのピーク RAM **104,589 B**、辞書 13,702,320 B（438,750 entries）
 >
-> ⚠️ **ホストと違う音素が 0.32% ある**（n=298。辞書を枝刈りしているため。M-77）。
+> ⚠️ **ホストと違う音素が 0.32% ある**（n=298。辞書を枝刈りしているため。M-78）。
 > ⚠️ **実機では一度も動かしておらず、速度も音も未測定。出荷物には入っていない。**
 > （[K-1 調査](docs/research/k1-kanji-katakana-ondevice.md) / [実装計画](docs/plan/k1-kanji-implementation-plan.md)
 > ／ 試すなら [`esp32/README.md`](esp32/README.md) の「漢字対応ビルド」）
@@ -227,7 +227,7 @@ uv sync
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-77。全項目に再現コマンド付き |
+| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-78。全項目に再現コマンド付き |
 | [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-044 と**訂正履歴 C-001〜C-051** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |

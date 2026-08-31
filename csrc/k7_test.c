@@ -106,6 +106,14 @@ static int32_t ids_dev[MAX_IDS], ids_full[MAX_IDS], ids_got[MAX_IDS];
 
 int main(int argc, char **argv) {
     const char *path = (argc > 1) ? argv[1] : "k6_vectors.bin";
+    /* --dump-ids <file>: 端末 ids とホスト ids を書き出す（音の測定に渡す）。
+     * ⚠️ **本文は書かない。** レポートにコーパス本文を混ぜないため（hook が deny する）。
+     * 形式: 1 行 1 文 `<index>\t<dev ids 空白区切り>\t<host ids 空白区切り>` */
+    const char *dump = NULL;
+    for (int i = 2; i + 1 < argc; i++)
+        if (strcmp(argv[i], "--dump-ids") == 0) dump = argv[i + 1];
+    FILE *df = dump ? fopen(dump, "wb") : NULL;
+    if (dump && !df) { fprintf(stderr, "NG: %s が開けない\n", dump); return 1; }
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "NG: ベクタが開けない: %s\n", path); return 1; }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -244,6 +252,13 @@ int main(int argc, char **argv) {
             for (int32_t i = 0; i < n2; i++)
                 if (ids_got[i] != ids_full[i]) { same2 = 0; break; }
         if (same2) ok26++; else ng26++;
+        if (df) {
+            fprintf(df, "%u\t", c);
+            for (int32_t i = 0; i < n2; i++) fprintf(df, "%s%d", i ? " " : "", ids_got[i]);
+            fprintf(df, "\t");
+            for (uint32_t i = 0; i < nidf; i++) fprintf(df, "%s%d", i ? " " : "", ids_full[i]);
+            fprintf(df, "\n");
+        }
 
         /* --- G26b: 編集距離（PAD を除いた列で測る）------------------- */
         {
@@ -294,6 +309,7 @@ int main(int argc, char **argv) {
 
     int bad = (ng25 != 0) || (ok25 == 0) || (ctrl25 == 0);
     printf("\n%s\n", bad ? "NG!" : "OK  G25 通過（ラベル → ids はホストと完全一致）");
+    if (df) { fclose(df); printf("\n  ids を %s に書き出した\n", dump); }
     free(arena); free(buf);
     return bad;
 }
