@@ -625,6 +625,37 @@ class DictBlob:
             off.append(off[-1] + pl + el)
         return off[:-1]
 
+    TERM_CHECKPOINT = 512
+
+    def terminal_rank_checkpoints(self) -> bytes:
+        """512 ノードごとに「それより前の終端の数」を u32 で並べたもの。
+
+        ⚠️ **2 方向に使う**:
+        - `term_rank(node)`（common-prefix-search の**ヒットごと**に呼ばれる）が
+          ノード 0 からの O(n) 走査でなくなる
+        - 逆向き（見出し語 rank → ノード）も引ける。`orig` が見出し語 ID で
+          入っているので K-6 に要る（K-1 §6-3: 99.79%）
+        大きさは ノード数/512 × 4 B。
+        """
+        L = self.louds
+        out = bytearray()
+        acc = 0
+        for i in range(len(L.labels)):
+            if i % self.TERM_CHECKPOINT == 0:
+                out += struct.pack("<I", acc)
+            acc += L._tbit(i)
+        return bytes(out)
+
+    def pool_checkpoints_bytes(self) -> bytes:
+        """値プールのオフセットを 32 エントリごとに u32 で並べたもの。
+
+        ⚠️ **これが blob に無いと、端末は entry i のフィールドを引くのに
+        レコードを 0 から全部舐めることになる**（370,863 回 × トークン数）。
+        K-6 で 1 トークンごとに引くので、無いと成立しない。
+        大きさは entries/32 × 4 B（370,863 entries で 46,360 B = blob の 0.4%）。
+        """
+        return b"".join(struct.pack("<I", o) for o in self.checkpoints())
+
     def checkpoints(self) -> list[int]:
         if getattr(self, "_ckpt", None) is None:
             mat = self.pool_offsets_materialised()
@@ -736,12 +767,12 @@ class DictBlob:
     #   8  section[n] = { name[8], offset u32, length u32 }   … 16 B ずつ
     #      各セクション本体（16 B 境界）
     #
-    VERSION = 1
+    VERSION = 2
     # ⚠️ 見出し語の文字列表は持たない。trie の鍵がそれ自身なので冗長
     #    （370,863 entries では 3,881,011 B = blob の 33%）。
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
                   "classes", "chains", "records", "pool", "matrix", "surfck",
-                  "char", "unk")
+                  "poolck", "termck", "char", "unk")
 
     @staticmethod
     def _pack_strtab(items) -> bytes:
@@ -779,6 +810,8 @@ class DictBlob:
             "pool": self.pool,
             **({"matrix": self.matrix.to_section()} if self.matrix else {}),
             "surfck": self.surface_checkpoints(),
+            "poolck": self.pool_checkpoints_bytes(),
+            "termck": self.terminal_rank_checkpoints(),
             **({"char": self.char_prop.to_section()} if self.char_prop else {}),
             **({"unk": self.unk.to_section()} if self.unk else {}),
         }

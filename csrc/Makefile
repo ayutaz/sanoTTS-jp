@@ -13,6 +13,7 @@
 #   make k4        K-4 アクセント規則 4 段（Python 版との一致。陰性対照つき）
 #   make k4b       K-4b NJD チェーン（ホストとの一致。段・規則ごとの陰性対照つき）
 #   make k5        K-5 1 文あたりのピーク RAM（ヒープ + スタックの実測）
+#   make k6        K-6 端末の全段をホストと突き合わせる（移植の正しさ + 枝刈りの代償）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
 #   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line
 #
@@ -191,7 +192,7 @@ all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line
 
 clean:
 	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
-	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log \
+	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log \
 	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
 	rm -rf k5_ctrl
 
@@ -308,3 +309,21 @@ k5: k5_mem_test k5_mem_ctrl k4b_vectors.bin k5_worst.bin k5_labels_host.txt
 	@echo "  打ち切り警告（本番）: $$(grep -c 'Label buffer exceeded' k5_stderr.log) 件"
 	@echo ""
 	@echo "OK  G22 / G23 / G24 通過"
+
+# ---------------------------------------------------------------- K-6
+# 端末の全段（K-2 辞書 → K-4b NJD → K-4 の 4 段 → ラベル）をホストと比べる。
+# ⚠️ **合否は「移植の正しさ」だけに置く**（素性が一致した文でラベルが一致するか）。
+#    辞書の枝刈りの代償は**測って出すだけで、閾値は置かない** —
+#    D-043 の 0.60% は同形異音語 14 文から出た数で、枝刈りの話ではない（C-050）。
+# ⚠️ k2 / k4 / k4b と同じく all-test には入れない（辞書と pyopenjtalk が要る）。
+k6_vectors.bin:
+	cd .. && $(PYTHON) scripts/k1/k6_gen_vectors.py --out csrc/k6_vectors.bin
+
+k6_test: k6_test.c k1dict.c k4_accent.c k4b_njd.c $(OJT_SRC)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
+	    -o $@ k6_test.c k1dict.c k4_accent.c k4b_njd.c $(OJT_SRC) $(LDLIBS)
+
+.PHONY: k6
+k6: k6_test k6_vectors.bin
+	@./k6_test k6_vectors.bin 2>k6_stderr.log || \
+	  { echo "--- stderr ---"; cat k6_stderr.log; exit 1; }

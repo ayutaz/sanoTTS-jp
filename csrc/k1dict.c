@@ -10,6 +10,7 @@
  *     **ノードごと**に最良の前任を持つ
  */
 #include "k1dict.h"
+#include <stdio.h>
 #include <string.h>
 
 #define SUPER_BITS   256u
@@ -53,7 +54,9 @@ int k1_open(k1_dict_t *d, const uint8_t *blob, size_t n) {
     struct sec s;
     memset(d, 0, sizeof *d);
     if (n < 8 || memcmp(blob, "K1D1", 4) != 0) return -1;
-    if (rd16(blob + 4) != 1) return -2;                 /* version */
+    /* version. ⚠️ 2 で poolck / termck が入った（K-6）。1 も読める。 */
+    uint16_t ver = rd16(blob + 4);
+    if (ver != 1 && ver != 2) return -2;
     d->blob = blob; d->blob_len = n;
 
     if (find_sec(blob, n, "louds", &s) != 0) return -3;
@@ -79,10 +82,19 @@ int k1_open(k1_dict_t *d, const uint8_t *blob, size_t n) {
     if (find_sec(blob, n, "classes", &s) != 0) return -8;
     d->n_classes = rd32(s.p);
     d->classes = s.p + 4;
+    /* classes セクションは [n u32][8 B × n][pos6 の NUL 区切り表] */
+    d->pos6tab = s.p + 4 + 8u * d->n_classes;
+    d->pos6tab_len = s.len - 4u - 8u * d->n_classes;
     if (find_sec(blob, n, "keytab", &s) != 0) return -9;
     d->keytab = s.p; d->keytab_len = s.len;
     if (find_sec(blob, n, "keyesc", &s) != 0) return -10;
     d->keyesc = s.p; d->keyesc_len = s.len;
+    /* K-6 で要るもの。⚠️ 無くても K-2 / K-3 は動くので **任意**にしてある
+     *    （古い blob をそのまま読めるように）。 */
+    if (find_sec(blob, n, "moratab", &s) == 0) { d->moratab = s.p; d->moratab_len = s.len; }
+    if (find_sec(blob, n, "chains", &s) == 0)  { d->chaintab = s.p; d->chaintab_len = s.len; }
+    if (find_sec(blob, n, "poolck", &s) == 0)  { d->poolck = s.p; }
+    if (find_sec(blob, n, "termck", &s) == 0)  { d->termck = s.p; d->n_termck = s.len / 4u; }
     if (find_sec(blob, n, "char", &s) == 0) {
         d->n_char_cats = rd32(s.p);
         d->char_names  = s.p + 4;
@@ -205,11 +217,9 @@ static int32_t child_of(const k1_dict_t *d, uint32_t node, uint8_t ch) {
     return -1;
 }
 
-static uint32_t term_rank(const k1_dict_t *d, uint32_t node) {
-    uint32_t r = 0;
-    for (uint32_t i = 0; i < node; i++) r += bit_at(d->term_bits, i);
-    return r;
-}
+/* 前方宣言。実体は K-6 の節（索引を使う）。 */
+static uint32_t term_rank_fast(const k1_dict_t *d, uint32_t node);
+#define term_rank(d, node) term_rank_fast((d), (node))
 
 int k1_common_prefix_search(const k1_dict_t *d, const uint8_t *key, size_t key_n,
                             size_t start, k1_hit_t *out, int max_out) {
@@ -249,6 +259,256 @@ void k1_entry_conn(const k1_dict_t *d, uint32_t entry,
     const uint8_t *c = d->classes + 8u * cid;
     *lc = rd16(c);
     *rc = rd16(c + 2);
+}
+
+/* ------------------------------------------------- K-6: 素性の復元 */
+
+/* 前方宣言（実体は下の「未知語」節にある）。 */
+static size_t cp_to_utf8(uint32_t cp, char *out);
+static const uint8_t *strtab_at(const uint8_t *tab, uint32_t len, int idx,
+                                uint32_t *out_len);
+static uint32_t key_codepoint(const k1_dict_t *d, const uint8_t *key, size_t p,
+                              uint32_t *sym_bytes);
+
+#define REC_FLAG_ORIG_EQ_SURFACE 0x01u
+#define REC_FLAG_READ_EQ_PRON    0x02u
+#define TERM_CHECKPOINT 512u
+
+/* node より前の終端の数。⚠️ **索引が無いと O(n) 走査**（K-6 以前の実装）。 */
+static uint32_t term_rank_fast(const k1_dict_t *d, uint32_t node) {
+    if (!d->termck) {
+        uint32_t r = 0;
+        for (uint32_t i = 0; i < node; i++) r += bit_at(d->term_bits, i);
+        return r;
+    }
+    uint32_t base = node / TERM_CHECKPOINT;
+    uint32_t r = rd32(d->termck + 4u * base);
+    for (uint32_t i = base * TERM_CHECKPOINT; i < node; i++)
+        r += bit_at(d->term_bits, i);
+    return r;
+}
+
+/* 終端 rank のノード番号。無ければ 0xFFFFFFFF。 */
+static uint32_t node_of_term_rank(const k1_dict_t *d, uint32_t rank) {
+    if (!d->termck) return 0xFFFFFFFFu;
+    /* 累積が rank 以下である最後のチェックポイントを二分探索 */
+    uint32_t lo = 0, hi = d->n_termck;
+    while (lo + 1 < hi) {
+        uint32_t mid = (lo + hi) / 2;
+        if (rd32(d->termck + 4u * mid) <= rank) lo = mid; else hi = mid;
+    }
+    uint32_t r = rd32(d->termck + 4u * lo);
+    for (uint32_t i = lo * TERM_CHECKPOINT; i < d->n_nodes; i++) {
+        if (bit_at(d->term_bits, i)) {
+            if (r == rank) return i;
+            r++;
+        }
+    }
+    return 0xFFFFFFFFu;
+}
+
+/* node 番目の 1 のビット位置（LOUDS の select1）。 */
+static uint32_t select1(const k1_dict_t *d, uint32_t node) {
+    uint32_t lo = 0, hi = d->louds_bitlen;
+    while (lo + 1 < hi) {                    /* rank1(x) <= node の最大 x */
+        uint32_t mid = (lo + hi) / 2;
+        if (rank1(d, mid) <= node) lo = mid; else hi = mid;
+    }
+    while (lo < d->louds_bitlen && !bit_at(d->louds_bits, lo)) lo++;
+    return lo;
+}
+
+/* ビット位置 i より前の 0 の数。 */
+static uint32_t rank0(const k1_dict_t *d, uint32_t i) { return i - rank1(d, i); }
+
+int k1_surface_of_rank(const k1_dict_t *d, uint32_t rank, char *out, size_t out_n) {
+    uint32_t node = node_of_term_rank(d, rank);
+    if (node == 0xFFFFFFFFu) return -1;
+    /* 親へ遡って鍵バイトを逆順に集める */
+    uint8_t key[256];
+    int kn = 0;
+    while (node != 0) {
+        if (kn >= (int)sizeof key) return -2;
+        key[kn++] = d->labels[node];
+        uint32_t p = select1(d, node);
+        uint32_t parent = rank0(d, p);
+        if (parent == 0) break;              /* 根の子 */
+        node = parent - 1;
+    }
+    /* 鍵は逆順。前から復号して UTF-8 にする */
+    size_t o = 0;
+    for (int i = kn - 1; i >= 0; ) {
+        /* key_codepoint は前方向の並びを前提にするので、いったん整列する */
+        uint8_t buf[8]; int bn = 0;
+        buf[bn++] = key[i];
+        if (key[i] == 0xFE && i >= 3) {      /* 直接コードポイント（4 B） */
+            buf[bn++] = key[i-1]; buf[bn++] = key[i-2]; buf[bn++] = key[i-3];
+            i -= 4;
+        } else if (key[i] == 0xFF && i >= 2) {
+            buf[bn++] = key[i-1]; buf[bn++] = key[i-2];
+            i -= 3;
+        } else {
+            i -= 1;
+        }
+        uint32_t sym; (void)sym;
+        uint32_t cp = key_codepoint(d, buf, 0, &sym);
+        /* コードポイント → UTF-8 */
+        if (o + 4 >= out_n) return -3;
+        o += cp_to_utf8(cp, out + o);
+    }
+    out[o] = 0;
+    return (int)o;
+}
+
+/* コードポイント → UTF-8。書いたバイト数を返す。 */
+static size_t cp_to_utf8(uint32_t cp, char *out) {
+    if (cp < 0x80) { out[0] = (char)cp; return 1; }
+    if (cp < 0x800) {
+        out[0] = (char)(0xC0 | (cp >> 6));
+        out[1] = (char)(0x80 | (cp & 0x3F));
+        return 2;
+    }
+    if (cp < 0x10000) {
+        out[0] = (char)(0xE0 | (cp >> 12));
+        out[1] = (char)(0x80 | ((cp >> 6) & 0x3F));
+        out[2] = (char)(0x80 | (cp & 0x3F));
+        return 3;
+    }
+    out[0] = (char)(0xF0 | (cp >> 18));
+    out[1] = (char)(0x80 | ((cp >> 12) & 0x3F));
+    out[2] = (char)(0x80 | ((cp >> 6) & 0x3F));
+    out[3] = (char)(0x80 | (cp & 0x3F));
+    return 4;
+}
+
+int k1_key_to_utf8(const k1_dict_t *d, const uint8_t *key, size_t from, size_t to,
+                   char *out, size_t out_n) {
+    size_t o = 0;
+    for (size_t p = from; p < to; ) {
+        uint32_t sym = 0;
+        uint32_t cp = key_codepoint(d, key, p, &sym);
+        if (sym == 0) return -1;
+        if (o + 4 >= out_n) return -2;
+        o += cp_to_utf8(cp, out + o);
+        p += sym;
+    }
+    out[o] = 0;
+    return (int)o;
+}
+
+/* 値プール中の entry のオフセット。 */
+static uint32_t pool_offset(const k1_dict_t *d, uint32_t entry) {
+    uint32_t base = entry / CHECKPOINT;
+    uint32_t off = d->poolck ? rd32(d->poolck + 4u * base) : 0;
+    uint32_t from = d->poolck ? base * CHECKPOINT : 0;
+    for (uint32_t j = from; j < entry; j++) {
+        const uint8_t *r = d->records + (size_t)j * REC_SIZE;
+        off += r[7] + r[8];                  /* pool_len + extra_len */
+    }
+    return off;
+}
+
+/* モーラ ID 列 → UTF-8。書いたバイト数を返す。 */
+static size_t mora_decode(const k1_dict_t *d, const uint8_t *p, size_t n,
+                          char *out, size_t out_n) {
+    size_t o = 0;
+    for (size_t i = 0; i < n; i++) {
+        int idx = p[i];
+        if (idx == 0xFF && i + 2 < n) {       /* エスケープ（副表） */
+            idx = ((int)p[i+1] << 8) | p[i+2];
+            i += 2;
+        }
+        uint32_t len; const uint8_t *s = strtab_at(d->moratab, d->moratab_len, idx, &len);
+        if (!s || o + len >= out_n) break;
+        memcpy(out + o, s, len); o += len;
+    }
+    out[o] = 0;
+    return o;
+}
+
+static size_t put(char *out, size_t o, size_t out_n, const char *s) {
+    size_t n = strlen(s);
+    if (o + n >= out_n) return o;
+    memcpy(out + o, s, n);
+    return o + n;
+}
+
+int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
+                     const char *surface, char *out, size_t out_n) {
+    if (entry >= d->n_entries) return -1;
+    const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
+    uint16_t cid = rd16(r);
+    uint16_t chid = rd16(r + 4);
+    uint8_t flags = r[6], pl = r[7], el = r[8];
+    if (cid >= d->n_classes) return -2;
+    uint16_t p6 = rd16(d->classes + 8u * cid + 4);
+
+    uint32_t off = pool_offset(d, entry);
+    const uint8_t *pb = d->pool + off;
+    const uint8_t *ex = pb + pl;
+
+    char pron[256], read[256], orig[256];
+    mora_decode(d, pb, pl, pron, sizeof pron);
+
+    uint32_t j = 0;
+    if (flags & REC_FLAG_ORIG_EQ_SURFACE) {
+        snprintf(orig, sizeof orig, "%s", surface);
+    } else if (ex[j] == 1) {
+        uint32_t sid = (uint32_t)ex[j+1] | ((uint32_t)ex[j+2] << 8)
+                     | ((uint32_t)ex[j+3] << 16);
+        if (k1_surface_of_rank(d, sid, orig, sizeof orig) < 0) return -3;
+        j += 4;
+    } else {
+        uint32_t n = ex[j+1];
+        if (n >= sizeof orig) return -4;
+        memcpy(orig, ex + j + 2, n); orig[n] = 0;
+        j += 2 + n;
+    }
+    if (flags & REC_FLAG_READ_EQ_PRON) {
+        snprintf(read, sizeof read, "%s", pron);
+    } else {
+        uint32_t n = ex[j];
+        mora_decode(d, ex + j + 1, n, read, sizeof read);
+        j += 1 + n;
+    }
+
+    uint32_t p6len; const uint8_t *p6s = strtab_at(d->pos6tab, d->pos6tab_len,
+                                                   p6, &p6len);
+    uint32_t chlen; const uint8_t *chs = strtab_at(d->chaintab, d->chaintab_len,
+                                                   chid, &chlen);
+    if (!p6s || !chs) return -5;
+
+    size_t o = 0;
+    o = put(out, o, out_n, surface);
+    if (o + 1 < out_n) out[o++] = ',';
+    if (o + p6len < out_n) { memcpy(out + o, p6s, p6len); o += p6len; }
+    if (o + 1 < out_n) out[o++] = ',';
+    o = put(out, o, out_n, orig);
+    if (o + 1 < out_n) out[o++] = ',';
+    o = put(out, o, out_n, read);
+    if (o + 1 < out_n) out[o++] = ',';
+    o = put(out, o, out_n, pron);
+    if (o + 1 < out_n) out[o++] = ',';
+    /* アクセント: "acc/mora" を ':' で連結。255 は '*' */
+    int first = 1;
+    for (; j + 1 < el; j += 2) {
+        char tmp[24];
+        if (!first && o + 1 < out_n) out[o++] = ':';
+        first = 0;
+        /* ⚠️ **必ず "a/m" の形で書く。** 255 は "*"。
+         *    Python の `_decode_acc` がそう書くので、`*` 単独にすると
+         *    記号（読点など）で 251 / 300 文が食い違う。 */
+        char a[8], m[8];
+        if (ex[j] == 255) snprintf(a, sizeof a, "*"); else snprintf(a, sizeof a, "%u", ex[j]);
+        if (ex[j+1] == 255) snprintf(m, sizeof m, "*"); else snprintf(m, sizeof m, "%u", ex[j+1]);
+        snprintf(tmp, sizeof tmp, "%s/%s", a, m);
+        o = put(out, o, out_n, tmp);
+    }
+    if (o + 1 < out_n) out[o++] = ',';
+    if (o + chlen < out_n) { memcpy(out + o, chs, chlen); o += chlen; }
+    if (o >= out_n) return -6;
+    out[o] = 0;
+    return (int)o;
 }
 
 int16_t k1_trans(const k1_dict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
@@ -495,6 +755,36 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
         out[w].entry = nodes[k].entry;
     }
     return cnt;
+}
+
+/* 未知語の feature。⚠️ **8 列しか無い**（読み/発音/acc/結合規則が無い）。
+ * これが「未知語は無音で消える」の入口（B-0 / M-73）。 */
+int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
+                   const char *surface, char *out, size_t out_n) {
+    if (!(entry & K1_UNKNOWN_FLAG)) return -1;
+    uint32_t i = entry & ~K1_UNKNOWN_FLAG;
+    const uint8_t *p = d->unk;
+    const uint8_t *e = d->unk + d->unk_len;
+    for (uint32_t k = 0; k < d->n_unk; k++) {
+        if (p + 6 > e) return -2;
+        p += 6;
+        while (p < e && *p) p++;             /* カテゴリ名 */
+        p++;
+        const uint8_t *f0 = p;
+        while (p < e && *p) p++;             /* feature 本体 */
+        uint32_t flen = (uint32_t)(p - f0);
+        p++;
+        if (k == i) {
+            size_t n = strlen(surface);
+            if (n + 1 + flen >= out_n) return -3;
+            memcpy(out, surface, n);
+            out[n] = ',';
+            memcpy(out + n + 1, f0, flen);
+            out[n + 1 + flen] = 0;
+            return (int)(n + 1 + flen);
+        }
+    }
+    return -4;
 }
 
 int k1_analyze(const k1_dict_t *d, const uint8_t *key, size_t key_n,

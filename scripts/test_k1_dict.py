@@ -313,6 +313,80 @@ def test_pool_offset_checkpoint() -> None:
           f"{sum(1 for a, c in zip(mat, ck2) if a != c)} 件ずれ")
 
 
+def test_pool_checkpoint_in_blob() -> None:
+    """G5b: **プールのオフセット索引が blob に載っている**（K-6 の前提）。
+
+    ⚠️ G5 は「Python が materialise した表と一致するか」しか見ていない。
+    その表は **blob に入っていない**ので、端末は entry i のフィールドを引くのに
+    レコードを 0 から全部舐めることになる（370,863 回）。
+    K-6 で 1 トークンごとに引くので、**索引が blob に無いと成立しない**。
+    """
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 値プールの索引が blob に載っているか（G5b）===")
+    entries = _sample_entries() * 20
+    b = DictBlob.build(entries)
+    raw = b.to_bytes()
+    secs = DictBlob.sections(raw)
+    check("poolck セクションがある", "poolck" in secs, str(sorted(secs)))
+
+    mat = b.pool_offsets_materialised()
+    if "poolck" in secs:
+        import struct as _s
+        o, ln = secs["poolck"]
+        got = list(_s.unpack(f"<{ln // 4}I", raw[o:o + ln]))
+        # ⚠️ **セクションの中身を直に読む。** from_bytes 経由で比べると
+        #    Python が materialise し直すので、**セクションが無くても通る**。
+        want = mat[::32]
+        check("セクションの値が 32 個ごとのオフセットと一致", got == want,
+              f"{len(got)} 件 / 先頭 {got[:3]} vs {want[:3]}")
+        check("索引の粒度が 32", len(got) == (len(mat) + 31) // 32,
+              f"{len(got)} 件 / entries {len(mat)}")
+    else:
+        check("セクションの値が 32 個ごとのオフセットと一致", False, "セクションが無い")
+        check("索引の粒度が 32", False, "セクションが無い")
+
+
+def test_terminal_rank_index() -> None:
+    """G5c: **終端ランクの索引が blob に載っている**（K-6 の前提）。
+
+    ⚠️ これが無いと C 側の `term_rank()` が「ノード 0 から数える」O(n) 走査になる。
+    common-prefix-search の**ヒットごとに**呼ばれるので、辞書が大きいほど効く。
+    さらに K-6 では逆向き（rank → ノード）も要る — `orig` が見出し語 ID で
+    格納されているため（K-1 §6-3: 99.79%）。**索引はその両方を賄う。**
+
+    形式: 512 ノードごとに「それより前の終端の数」を u32。
+    """
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 終端ランクの索引（G5c）===")
+    entries = _sample_entries() * 20
+    b = DictBlob.build(entries)
+    raw = b.to_bytes()
+    secs = DictBlob.sections(raw)
+    check("termck セクションがある", "termck" in secs, str(sorted(secs)))
+
+    n_nodes = len(b.louds.labels)
+    want = []
+    acc = 0
+    for i in range(n_nodes):
+        if i % 512 == 0:
+            want.append(acc)
+        if b.louds._tbit(i):
+            acc += 1
+    if "termck" in secs:
+        import struct as _s
+        o, ln = secs["termck"]
+        got = list(_s.unpack(f"<{ln // 4}I", raw[o:o + ln]))
+        check("値が 512 ノードごとの累積終端数と一致", got == want,
+              f"{len(got)} 件 / 先頭 {got[:3]} vs {want[:3]}")
+        check("粒度が 512", len(got) == (n_nodes + 511) // 512,
+              f"{len(got)} 件 / ノード {n_nodes}")
+    else:
+        check("値が 512 ノードごとの累積終端数と一致", False, "セクションが無い")
+        check("粒度が 512", False, "セクションが無い")
+
+
 def test_blob_layout() -> None:
     """C から読める平坦な形式であること。
 
@@ -577,7 +651,9 @@ def main() -> int:
     tests = [test_mora_codec, test_key_codec, test_louds_search,
              test_louds_negative_control, test_louds_serialize,
              test_blob_roundtrip, test_blob_negative_control,
-             test_pool_offset_checkpoint, test_blob_layout,
+             test_pool_offset_checkpoint, test_pool_checkpoint_in_blob,
+             test_terminal_rank_index,
+             test_blob_layout,
              test_no_redundant_surface_table, test_connection_matrix,
              test_louds_rank_index, test_surface_count_checkpoint,
              test_char_property, test_unk_dict,

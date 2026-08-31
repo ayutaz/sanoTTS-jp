@@ -130,3 +130,5 @@ csrc/k5_ctrl/
 #    フルコンテキストラベルは元の文をかなり復元できる）
 csrc/k5_labels*.txt
 csrc/openjtalk/*.o
+csrc/k6_test
+csrc/k6_stderr.log

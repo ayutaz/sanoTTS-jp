@@ -46,6 +46,15 @@ typedef struct {
     uint32_t       keytab_len;
     const uint8_t *keyesc;       /* 同・副表 */
     uint32_t       keyesc_len;
+    const uint8_t *moratab;      /* NUL 区切りのモーラ表（read / pron の復号） */
+    uint32_t       moratab_len;
+    const uint8_t *chaintab;     /* NUL 区切りのアクセント結合規則 */
+    uint32_t       chaintab_len;
+    const uint8_t *pos6tab;      /* NUL 区切りの "品詞,細分類1..3,活用型,活用形" */
+    uint32_t       pos6tab_len;
+    const uint8_t *poolck;       /* 32 エントリごとの値プール offset u32 */
+    const uint8_t *termck;       /* 512 ノードごとの累積終端数 u32 */
+    uint32_t       n_termck;
 
     /* K-3: 未知語 */
     const uint8_t *char_names;   /* 32 B ずつのカテゴリ名 */
@@ -84,6 +93,31 @@ void k1_entry_conn(const k1_dict_t *d, uint32_t entry,
 
 /* 遷移コスト。⚠️ 索引は flat[rc_prev + lsize*lc_cur]（K-1 §9-3）。 */
 int16_t k1_trans(const k1_dict_t *d, uint16_t rc_prev, uint16_t lc_cur);
+
+/* 見出し語 rank の表層形を UTF-8 で書き出す。バイト数を返す（負でエラー）。
+ * ⚠️ **LOUDS を親へ遡って組み立てる。** 見出し語の文字列表は blob に無い
+ *    （鍵そのものが表層形なので冗長。K-1）。 */
+int k1_surface_of_rank(const k1_dict_t *d, uint32_t rank, char *out, size_t out_n);
+
+/* 鍵バイト列の [from, to) を UTF-8 に戻す。バイト数を返す（負でエラー）。
+ * ⚠️ **トークンの begin/end は「鍵」の上の位置**で、元テキストの位置ではない。
+ *    表層形はここで作る。 */
+int k1_key_to_utf8(const k1_dict_t *d, const uint8_t *key, size_t from, size_t to,
+                   char *out, size_t out_n);
+
+/* エントリ entry の MeCab feature 文字列を組む（surface は呼び出し側が渡す）。
+ *
+ *   "表層,品詞,細分類1,細分類2,細分類3,活用型,活用形,原形,読み,発音,アクセント,結合規則"
+ *
+ * これを `mecab2njd()` にそのまま渡せる。バイト数を返す（負でエラー）。 */
+int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
+                     const char *surface, char *out, size_t out_n);
+
+/* 未知語ノード（entry の最上位ビットが立っているもの）の feature 文字列。
+ * ⚠️ **未知語は 8 列しか無い**（読み/発音/acc/結合規則が無い）。
+ *    これがそのまま「無音で消える」の入口（B-0）。 */
+int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
+                   const char *surface, char *out, size_t out_n);
 
 /* Viterbi。arena は作業領域。返り値はトークン数、負でエラー。 */
 int k1_analyze(const k1_dict_t *d, const uint8_t *key, size_t key_n,
