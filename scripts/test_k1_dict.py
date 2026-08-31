@@ -546,6 +546,31 @@ def test_unk_dict() -> None:
           f"{e.n_feature_fields} 列: {e.feature}")
 
 
+def test_blob_carries_unknown_tables() -> None:
+    """blob が未知語処理に要る 2 表を運ぶ（K-3）。"""
+    from saanotts_jp.k1_dict import CharProperty, DictBlob, UnkDict
+
+    print("\n=== blob が char / unk を運ぶ ===")
+    cp = CharProperty.from_char_bin(_char_bin())
+    uk = UnkDict.from_unk_dic(_unk_dic())
+    raw = DictBlob.build(_sample_entries(), char_prop=cp, unk=uk).to_bytes()
+    secs = DictBlob.sections(raw)
+    check("char セクションがある", "char" in secs, str(sorted(secs)))
+    check("unk セクションがある", "unk" in secs)
+
+    back = DictBlob.from_bytes(raw)
+    check("char が往復する",
+          back.char_prop is not None
+          and back.char_prop.names == cp.names
+          and back.char_prop.default_type(ord("漢")) == cp.default_type(ord("漢")))
+    check("unk が往復する",
+          back.unk is not None and back.unk.n_entries == uk.n_entries
+          and [e.wcost for e in back.unk.by_category("KANJI")]
+              == [e.wcost for e in uk.by_category("KANJI")])
+    check("無しでも組める（K-1/K-2 と後方互換）",
+          DictBlob.from_bytes(DictBlob.build(_sample_entries()).to_bytes()).unk is None)
+
+
 # ---------------------------------------------------------------- 実行
 
 def main() -> int:
@@ -555,7 +580,8 @@ def main() -> int:
              test_pool_offset_checkpoint, test_blob_layout,
              test_no_redundant_surface_table, test_connection_matrix,
              test_louds_rank_index, test_surface_count_checkpoint,
-             test_char_property, test_unk_dict]
+             test_char_property, test_unk_dict,
+             test_blob_carries_unknown_tables]
     for t in tests:
         try:
             t()

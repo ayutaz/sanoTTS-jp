@@ -83,6 +83,17 @@ int k1_open(k1_dict_t *d, const uint8_t *blob, size_t n) {
     d->keytab = s.p; d->keytab_len = s.len;
     if (find_sec(blob, n, "keyesc", &s) != 0) return -10;
     d->keyesc = s.p; d->keyesc_len = s.len;
+    if (find_sec(blob, n, "char", &s) == 0) {
+        d->n_char_cats = rd32(s.p);
+        d->char_names  = s.p + 4;
+        d->char_info   = s.p + 4 + 32u * d->n_char_cats;
+        d->n_codepoints = (s.len - 4u - 32u * d->n_char_cats) / 4u;
+    }
+    if (find_sec(blob, n, "unk", &s) == 0) {
+        d->n_unk = rd32(s.p);
+        d->unk = s.p + 4;
+        d->unk_len = s.len - 4;
+    }
     if (find_sec(blob, n, "matrix", &s) == 0) {
         d->lsize = rd16(s.p); d->rsize = rd16(s.p + 2);
         d->matrix = (const int16_t *)(const void *)(s.p + 4);
@@ -245,6 +256,85 @@ int16_t k1_trans(const k1_dict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
     return d->matrix[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
 }
 
+/* ---------------------------------------------------------------- 未知語 */
+
+#define MAX_GROUPING 24u          /* MeCab の MAX_GROUPING_SIZE */
+
+static uint32_t char_raw(const k1_dict_t *d, uint32_t cp) {
+    if (!d->char_info || cp >= d->n_codepoints) return 0;   /* 表の外は DEFAULT */
+    return rd32(d->char_info + 4u * cp);
+}
+static uint32_t ci_type(uint32_t v)    { return v & 0x3FFFFu; }
+static uint32_t ci_default(uint32_t v) { return (v >> 18) & 0xFFu; }
+static uint32_t ci_length(uint32_t v)  { return (v >> 26) & 0xFu; }
+static uint32_t ci_group(uint32_t v)   { return (v >> 30) & 1u; }
+static uint32_t ci_invoke(uint32_t v)  { return (v >> 31) & 1u; }
+
+/* NUL 区切り表の idx 番目を返す（長さも返す）。 */
+static const uint8_t *strtab_at(const uint8_t *tab, uint32_t len, int idx,
+                                uint32_t *out_len) {
+    uint32_t i = 0; int k = 0;
+    while (i < len) {
+        uint32_t j = i;
+        while (j < len && tab[j]) j++;
+        if (k == idx) { *out_len = j - i; return tab + i; }
+        k++; i = j + 1;
+    }
+    *out_len = 0; return NULL;
+}
+
+/* 鍵バイト列の位置 p にある記号のコードポイントと、記号のバイト長。 */
+static uint32_t key_codepoint(const k1_dict_t *d, const uint8_t *key, size_t p,
+                              uint32_t *sym_bytes) {
+    uint8_t c = key[p];
+    if (c == 0xFE) { *sym_bytes = 4;
+        return ((uint32_t)key[p+1] << 16) | ((uint32_t)key[p+2] << 8) | key[p+3]; }
+    if (c == 0xFF) {
+        *sym_bytes = 3;
+        int idx = ((int)key[p+1] << 8) | key[p+2];
+        uint32_t n; const uint8_t *u = strtab_at(d->keyesc, d->keyesc_len, idx, &n);
+        return u ? utf8_cp(u, n) : 0;
+    }
+    *sym_bytes = 1;
+    uint32_t n; const uint8_t *u = strtab_at(d->keytab, d->keytab_len, c, &n);
+    return u ? utf8_cp(u, n) : 0;
+}
+
+/* unk エントリ i の (lc, rc, wcost, カテゴリ名)。 */
+static int unk_at(const k1_dict_t *d, uint32_t i, uint16_t *lc, uint16_t *rc,
+                  int16_t *wcost, const uint8_t **cat, uint32_t *cat_len) {
+    const uint8_t *p = d->unk;
+    const uint8_t *e = d->unk + d->unk_len;
+    for (uint32_t k = 0; k < d->n_unk; k++) {
+        if (p + 6 > e) return -1;
+        uint16_t l = rd16(p), r = rd16(p + 2); int16_t w = (int16_t)rd16(p + 4);
+        p += 6;
+        const uint8_t *c0 = p;
+        while (p < e && *p) p++;
+        uint32_t clen = (uint32_t)(p - c0); p++;          /* カテゴリ名 */
+        while (p < e && *p) p++;
+        p++;                                              /* feature */
+        if (k == i) { *lc = l; *rc = r; *wcost = w; *cat = c0; *cat_len = clen; return 0; }
+    }
+    return -1;
+}
+
+/* カテゴリ番号 cat の unk エントリを列挙する。 */
+static int unk_of_category(const k1_dict_t *d, uint32_t cat,
+                           uint32_t *out, int max_out) {
+    if (!d->unk || !d->char_names || cat >= d->n_char_cats) return 0;
+    const uint8_t *want = d->char_names + 32u * cat;
+    uint32_t wlen = 0;
+    while (wlen < 32 && want[wlen]) wlen++;
+    int n = 0;
+    for (uint32_t i = 0; i < d->n_unk; i++) {
+        uint16_t lc, rc; int16_t w; const uint8_t *c; uint32_t cl;
+        if (unk_at(d, i, &lc, &rc, &w, &c, &cl) != 0) break;
+        if (cl == wlen && memcmp(c, want, wlen) == 0 && n < max_out) out[n++] = i;
+    }
+    return n;
+}
+
 /* ---------------------------------------------------------------- Viterbi */
 
 typedef struct {
@@ -253,6 +343,32 @@ typedef struct {
     int32_t  cost;
     int32_t  prev;     /* -1 = BOS */
 } vnode_t;
+
+/* nodes[k] の前任を選び、終端リストに繋ぐ。既知語と未知語で共有する。 */
+static int link_node(vnode_t *nodes, int32_t *ends_head, int32_t *next_at_end,
+                     uint32_t k, size_t i, int16_t wcost, int use_cost,
+                     const k1_dict_t *d) {
+    vnode_t *v = &nodes[k];
+    if (i == 0) {
+        v->cost = (use_cost ? k1_trans(d, BOS_RC, v->lc) : 0) + wcost;
+        v->prev = -1;
+    } else {
+        int32_t best = COST_INF, bp = -2;
+        for (int32_t pk = ends_head[i]; pk >= 0; pk = next_at_end[pk]) {
+            if (nodes[pk].cost >= COST_INF) continue;
+            int32_t c = nodes[pk].cost
+                      + (use_cost ? k1_trans(d, nodes[pk].rc, v->lc) : 0);
+            /* ⚠️ 同点は辞書順で先勝ち（= ノード番号が小さい方）。K-2 で踏んだ。 */
+            if (c < best || (c == best && (bp < 0 || pk < bp))) { best = c; bp = pk; }
+        }
+        if (bp == -2) return 0;
+        v->cost = best + wcost;
+        v->prev = bp;
+    }
+    next_at_end[k] = ends_head[v->end];
+    ends_head[v->end] = (int32_t)k;
+    return 1;
+}
 
 static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
                         void *arena, size_t arena_n, k1_token_t *out, int max_out,
@@ -273,6 +389,72 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
         if (i > 0 && ends_head[i] < 0) continue;
         if (i == key_n) continue;
         int nh = k1_common_prefix_search(d, key, key_n, i, hits, 64);
+
+        /* --- 未知語ノード（K-3）--------------------------------------
+         * MeCab の規則: 辞書に当たらなかったか、その文字カテゴリが invoke なら
+         * 未知語ノードを作る。group なら同カテゴリの連なり（最大 24 文字）を
+         * 1 ノードに、length があれば 1..length 文字のノードも作る。
+         * ⚠️ wcost は unk.dic の値を**そのまま**使う（実測で確認。スケールしない）。 */
+        uint32_t unk_len_list[MAX_GROUPING + 2];
+        int n_unk_len = 0;
+        if (d->unk && d->char_info) {
+            uint32_t sb = 0;
+            uint32_t cp0 = key_codepoint(d, key, i, &sb);
+            uint32_t v0 = char_raw(d, cp0);
+            if (nh == 0 || ci_invoke(v0)) {
+                uint32_t cat = ci_default(v0);
+                /* group: 同カテゴリの連なり */
+                if (ci_group(v0)) {
+                    size_t p2 = i + sb;
+                    uint32_t nch = 1;
+                    while (p2 < key_n && nch < MAX_GROUPING) {
+                        uint32_t sb2 = 0;
+                        uint32_t cpx = key_codepoint(d, key, p2, &sb2);
+                        if (!(ci_type(char_raw(d, cpx)) & (1u << cat))) break;
+                        p2 += sb2; nch++;
+                    }
+                    unk_len_list[n_unk_len++] = (uint32_t)(p2 - i);
+                }
+                /* length: 1..length 文字。
+                 * ⚠️ **同カテゴリの文字しか伸ばせない。** これを入れないと
+                 *    「たけーな」で `ー`(KATAKANA, length=2) が次の `な`(HIRAGANA) を
+                 *    巻き込んで 2 文字ノードになり、MeCab と食い違う（実際に踏んだ）。 */
+                for (uint32_t k2 = 1; k2 <= ci_length(v0); k2++) {
+                    size_t p2 = i; uint32_t m2 = 0;
+                    while (p2 < key_n && m2 < k2) {
+                        uint32_t sb2 = 0;
+                        uint32_t cpx = key_codepoint(d, key, p2, &sb2);
+                        if (m2 > 0 && !(ci_type(char_raw(d, cpx)) & (1u << cat))) break;
+                        p2 += sb2; m2++;
+                    }
+                    if (m2 != k2) break;
+                    uint32_t bl = (uint32_t)(p2 - i);
+                    int dup = 0;
+                    for (int z = 0; z < n_unk_len; z++) if (unk_len_list[z] == bl) dup = 1;
+                    if (!dup) unk_len_list[n_unk_len++] = bl;
+                }
+                uint32_t ids[32];
+                int nid = unk_of_category(d, cat, ids, 32);
+                for (int z = 0; z < n_unk_len; z++) {
+                    for (int y = 0; y < nid; y++) {
+                        if (n >= cap) return -1;
+                        uint16_t lc, rc; int16_t w;
+                        const uint8_t *cn; uint32_t cl;
+                        if (unk_at(d, ids[y], &lc, &rc, &w, &cn, &cl) != 0) continue;
+                        vnode_t *v = &nodes[n];
+                        v->begin = (uint32_t)i;
+                        v->end   = (uint32_t)(i + unk_len_list[z]);
+                        v->entry = K1_UNKNOWN_FLAG | ids[y];
+                        v->lc = lc; v->rc = rc;
+                        v->cost = COST_INF; v->prev = -2;
+                        if (link_node(nodes, ends_head, next_at_end, n, i, w, use_cost, d))
+                            { }
+                        n++;
+                    }
+                }
+            }
+        }
+
         for (int h = 0; h < nh; h++) {
             uint32_t first, cnt;
             k1_entry_range(d, hits[h].rank, &first, &cnt);
@@ -286,31 +468,8 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
                 v->entry = first + e;
                 v->lc = lc; v->rc = rc;
                 v->cost = COST_INF; v->prev = -2;
-                /* 前任を選ぶ。⚠️ 位置ごとではなく **ノードごと**に持つ */
-                if (i == 0) {
-                    v->cost = (use_cost ? k1_trans(d, BOS_RC, lc) : 0) + w;
-                    v->prev = -1;
-                } else {
-                    int32_t best = COST_INF, bp = -2;
-                    for (int32_t pk = ends_head[i]; pk >= 0; pk = next_at_end[pk]) {
-                        if (nodes[pk].cost >= COST_INF) continue;
-                        int32_t c = nodes[pk].cost
-                                  + (use_cost ? k1_trans(d, nodes[pk].rc, lc) : 0);
-                        /* ⚠️ **同点は辞書順で先勝ち**（= ノード番号が小さい方）。
-                         *    同綴り異義語は lc/rc/wcost が同じことがあり、
-                         *    コストでは決着しない。実際 白熊(シロクマ/ハグマ) や
-                         *    漁り(アサリ/スナドリ) が read/pron/acc だけ違って同点になる。
-                         *    連結リストは生成と逆順なので、ここで明示的に決める。 */
-                        if (c < best || (c == best && (bp < 0 || pk < bp))) {
-                            best = c; bp = pk;
-                        }
-                    }
-                    if (bp != -2) { v->cost = best + w; v->prev = bp; }
-                }
-                if (v->prev != -2) {
-                    next_at_end[n] = ends_head[v->end];
-                    ends_head[v->end] = (int32_t)n;
-                }
+                /* ⚠️ 前任は位置ごとではなく **ノードごと**に持つ（link_node） */
+                link_node(nodes, ends_head, next_at_end, n, i, w, use_cost, d);
                 n++;
             }
         }

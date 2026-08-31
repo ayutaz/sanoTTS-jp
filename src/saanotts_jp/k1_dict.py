@@ -518,7 +518,9 @@ class DictBlob:
     def __init__(self, *, keys: KeyCodec, moras: MoraCodec, louds: Louds,
                  classes: list[tuple], chains: list[str], counts: list[int],
                  records: bytes, pool: bytes, surfaces: list[str],
-                 matrix: "ConnMatrix | None" = None) -> None:
+                 matrix: "ConnMatrix | None" = None,
+                 char_prop: "CharProperty | None" = None,
+                 unk: "UnkDict | None" = None) -> None:
         self.keys = keys
         self.moras = moras
         self.louds = louds
@@ -528,6 +530,8 @@ class DictBlob:
         self.records = records
         self.pool = pool
         self.matrix = matrix
+        self.char_prop = char_prop
+        self.unk = unk
         if surfaces is None:
             surfaces = [self.keys.decode(k) for k in louds.terminal_keys()]
         self.surfaces = surfaces
@@ -538,7 +542,9 @@ class DictBlob:
     # --- 構築 ---------------------------------------------------------------
     @classmethod
     def build(cls, entries: list[Entry],
-              matrix: "ConnMatrix | None" = None) -> "DictBlob":
+              matrix: "ConnMatrix | None" = None,
+              char_prop: "CharProperty | None" = None,
+              unk: "UnkDict | None" = None) -> "DictBlob":
         keys = KeyCodec.from_surfaces(e.surface for e in entries)
         moras = MoraCodec.from_prons(
             [e.pron for e in entries] + [e.read for e in entries])
@@ -601,7 +607,8 @@ class DictBlob:
             inv_ch[v] = k
         return cls(keys=keys, moras=moras, louds=louds, classes=inv_c,
                    chains=inv_ch, counts=counts, records=bytes(records),
-                   pool=bytes(pool), surfaces=order, matrix=matrix)
+                   pool=bytes(pool), surfaces=order, matrix=matrix,
+                   char_prop=char_prop, unk=unk)
 
     # --- オフセット ---------------------------------------------------------
     RECORD_SIZE = 9
@@ -733,7 +740,8 @@ class DictBlob:
     # ⚠️ 見出し語の文字列表は持たない。trie の鍵がそれ自身なので冗長
     #    （370,863 entries では 3,881,011 B = blob の 33%）。
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
-                  "classes", "chains", "records", "pool", "matrix", "surfck")
+                  "classes", "chains", "records", "pool", "matrix", "surfck",
+                  "char", "unk")
 
     @staticmethod
     def _pack_strtab(items) -> bytes:
@@ -771,6 +779,8 @@ class DictBlob:
             "pool": self.pool,
             **({"matrix": self.matrix.to_section()} if self.matrix else {}),
             "surfck": self.surface_checkpoints(),
+            **({"char": self.char_prop.to_section()} if self.char_prop else {}),
+            **({"unk": self.unk.to_section()} if self.unk else {}),
         }
 
     def to_bytes(self) -> bytes:
@@ -842,6 +852,9 @@ class DictBlob:
             surfaces=None,            # trie から復元する
             matrix=(ConnMatrix.from_section(sec("matrix"))
                     if "matrix" in secs else None),
+            char_prop=(CharProperty.from_section(sec("char"))
+                       if "char" in secs else None),
+            unk=UnkDict.from_section(sec("unk")) if "unk" in secs else None,
         )
 
 

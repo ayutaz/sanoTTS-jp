@@ -46,9 +46,21 @@ typedef struct {
     uint32_t       keytab_len;
     const uint8_t *keyesc;       /* 同・副表 */
     uint32_t       keyesc_len;
+
+    /* K-3: 未知語 */
+    const uint8_t *char_names;   /* 32 B ずつのカテゴリ名 */
+    uint32_t       n_char_cats;
+    const uint8_t *char_info;    /* 65,535 件の CharInfo (u32) */
+    uint32_t       n_codepoints;
+    const uint8_t *unk;          /* 未知語エントリ（可変長） */
+    uint32_t       unk_len;
+    uint32_t       n_unk;
 } k1_dict_t;
 
 typedef struct { uint32_t len; uint32_t rank; } k1_hit_t;
+/* entry の最上位ビットが立っていたら **未知語**で、下位は unk エントリの番号。 */
+#define K1_UNKNOWN_FLAG 0x80000000u
+
 typedef struct { uint32_t begin, end, entry; } k1_token_t;
 
 /* blob を開く。0 で成功、負でエラー。 */

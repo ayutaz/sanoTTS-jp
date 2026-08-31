@@ -33,7 +33,8 @@ sys.path.insert(0, str(HERE.parent.parent / "src"))
 
 from dump_entries_lib import load_entries                       # noqa: E402
 from k1_paths import HELDOUT, TRAIN                             # noqa: E402
-from saanotts_jp.k1_dict import ConnMatrix, DictBlob, Entry     # noqa: E402
+from saanotts_jp.k1_dict import (CharProperty, ConnMatrix, DictBlob,  # noqa: E402
+                                 Entry, UnkDict)
 
 
 def main() -> int:
@@ -81,7 +82,9 @@ def main() -> int:
                for r in sub]
     matrix = ConnMatrix.from_matrix_bin(
         (pathlib.Path(dic) / "matrix.bin").read_bytes())
-    blob = DictBlob.build(entries, matrix=matrix)
+    char_prop = CharProperty.from_char_bin((pathlib.Path(dic) / "char.bin").read_bytes())
+    unkd = UnkDict.from_unk_dic((pathlib.Path(dic) / "unk.dic").read_bytes())
+    blob = DictBlob.build(entries, matrix=matrix, char_prop=char_prop, unk=unkd)
     body = blob.to_bytes()
     print(f"blob {len(body):,d} B / {len(entries):,d} entries / "
           f"matrix {matrix.lsize}x{matrix.rsize}")
@@ -104,8 +107,7 @@ def main() -> int:
     skipped_unk = skipped_oov = 0
     for t in texts:
         feats, morphs = pyopenjtalk.run_mecab_detailed(t)
-        if not morphs or any(m["is_unknown"] or len(m["features"]) < 12
-                             for m in morphs):
+        if not morphs:
             skipped_unk += 1
             continue
         # ⚠️ **元テキストではなく「MeCab が実際に見た列」を使う。**
@@ -119,11 +121,21 @@ def main() -> int:
         pos = 0
         for m in morphs:
             f = m["features"]
-            key = (m["surface"], m["left_id"], m["right_id"], m["word_cost"], f[9])
-            cand = idx_of.get(key)
-            if not cand:
-                ok = False       # 枝刈りで落ちた語
-                break
+            if m["is_unknown"] or len(f) < 12:
+                # K-3: 未知語。unk.dic の何番かで表す（最上位ビットを立てる）
+                ui = [i for i, e in enumerate(unkd.entries)
+                      if e.lc == m["left_id"] and e.rc == m["right_id"]
+                      and e.wcost == m["word_cost"]]
+                if not ui:
+                    ok = False
+                    break
+                cand = [0x80000000 | ui[0]]
+            else:
+                key = (m["surface"], m["left_id"], m["right_id"], m["word_cost"], f[9])
+                cand = idx_of.get(key)
+                if not cand:
+                    ok = False       # 枝刈りで落ちた語
+                    break
             # ⚠️ 位置は **鍵バイト**で表す（UTF-8 バイトではない）。
             #    C 側は鍵バイト列の上で解析するので、座標を揃えないと
             #    「解析は完全に正しいのに全件不一致」に見える（実際に踏んだ）。
@@ -136,7 +148,9 @@ def main() -> int:
             continue
         cases.append((norm, toks))
 
-    print(f"ケース {len(cases)} / 除外: 未知語 {skipped_unk} / 枝刈りで欠け {skipped_oov}")
+    n_unk_cases = sum(1 for _t, tk in cases if any(i & 0x80000000 for _b, _e, i in tk))
+    print(f"ケース {len(cases)}（うち未知語を含む {n_unk_cases}）"
+          f" / 除外: 解析不能 {skipped_unk} / 枝刈りで欠け {skipped_oov}")
     if not cases:
         print("NG! ケースが 0 件")
         return 1
