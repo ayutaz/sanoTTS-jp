@@ -53,6 +53,20 @@ static char *rdstr(char *out, size_t cap) {
     return out;
 }
 
+/* feature 文字列の idx 番目のフィールド。0 で成功、無ければ非 0。 */
+static int field_of(const char *feat, int idx, char *out, size_t out_n) {
+    int k = 0; size_t o = 0;
+    for (const char *q = feat; ; q++) {
+        if (*q == ',' || *q == 0) {
+            if (k == idx) { if (o >= out_n) return -1; out[o] = 0; return 0; }
+            k++; o = 0;
+            if (*q == 0) return -1;
+            continue;
+        }
+        if (k == idx) { if (o + 1 >= out_n) return -1; out[o++] = *q; }
+    }
+}
+
 /* NJD ↔ k4_node_t の橋渡し。K-4 は NJD を知らない構造体で書いてある。 */
 static int njd_to_k4(NJD *njd, k4_node_t *out, int max_out) {
     int n = 0;
@@ -121,23 +135,39 @@ int main(int argc, char **argv) {
 
     int ok_dev = 0, ng_dev = 0, ok_full = 0, err = 0;
     int n_len_diff = 0, n_tok_fail = 0, n_unk_sent = 0;
-    int shown = 0, shown_feat = 0;
+    int shown = 0, shown_feat = 0, shown_unk = 0;
+    int n_host_knew = 0, n_guess_right = 0, n_unk_both = 0;
+    int n_host_tok = 0, n_host_unk = 0, n_dev_tok = 0;
 
     static char labf[MAX_LABEL][512], labd[MAX_LABEL][512];
     static char hfeat[MAX_TOK][512];
     int n_feat_same = 0, n_feat_diff = 0, n_lab_diff_feat_same = 0;
 
-    /* pass 0 = 本番 / pass 1 = 陰性対照（K-4 の 4 段を抜く） */
+    /* pass 0 = 本番（フォールバック有）
+     * pass 1 = 陰性対照（K-4 の 4 段を抜く）
+     * pass 2 = 対照（未知語のフォールバックを抜く = 無音で消える） */
     const uint8_t *body = g;
     int ctrl_diff = 0;
-    for (int pass = 0; pass < 2; pass++) {
+    int n_unk_tok[3] = {0, 0, 0}, n_guessed[3] = {0, 0, 0};
+    int ok_nofb = 0;
+    for (int pass = 0; pass < 3; pass++) {
     int no_k4 = (pass == 1);
+    int fallback = (pass != 2);
+    int n_unk_tok_pass = 0, n_guessed_pass = 0;
     g = body;
     for (uint32_t c = 0; c < n_cases; c++) {
         rdstr(text, sizeof text);
         uint32_t nhf = rd32();
-        for (uint32_t i = 0; i < nhf; i++)
+        for (uint32_t i = 0; i < nhf; i++) {
             rdstr(hfeat[i < MAX_TOK ? i : MAX_TOK - 1], sizeof hfeat[0]);
+            if (pass == 0) {
+                char tmp[64];
+                n_host_tok++;
+                /* 10 列目（発音）が無い = ホストにとっても未知語 */
+                if (field_of(hfeat[i < MAX_TOK ? i : MAX_TOK - 1], 9,
+                             tmp, sizeof tmp) != 0) n_host_unk++;
+            }
+        }
         uint32_t nfull = rd32();
         for (uint32_t i = 0; i < nfull; i++)
             rdstr(labf[i < MAX_LABEL ? i : MAX_LABEL - 1], sizeof labf[0]);
@@ -148,10 +178,10 @@ int main(int argc, char **argv) {
         /* --- 端末側を走らせる ------------------------------------------- */
         size_t key_n = sizeof key;
         if (k1_encode_key(&d, (const uint8_t *)text, strlen(text),
-                          (uint8_t *)key, &key_n) != 0) { err++; continue; }
+                          (uint8_t *)key, &key_n) != 0) { if (pass == 0) err++; continue; }
         int nt = k1_analyze(&d, (const uint8_t *)key, key_n,
                             arena, ARENA_N, tok, MAX_TOK);
-        if (nt <= 0) { n_tok_fail++; ng_dev++; continue; }
+        if (nt <= 0) { if (pass == 0) { n_tok_fail++; ng_dev++; } continue; }
 
         int nf = 0, has_unk = 0, bad = 0;
         for (int i = 0; i < nt && nf < MAX_TOK; i++) {
@@ -161,8 +191,41 @@ int main(int argc, char **argv) {
             int r;
             if (tok[i].entry & K1_UNKNOWN_FLAG) {
                 has_unk = 1;
-                r = k1_unk_feature(&d, tok[i].entry, surf,
-                                   feat_buf[nf], sizeof feat_buf[0]);
+                n_unk_tok_pass++;
+                r = -1;
+                if (fallback) {
+                    r = k1_unk_guess(&d, tok[i].entry, surf,
+                                     feat_buf[nf], sizeof feat_buf[0]);
+                    if (r >= 0) {
+                        n_guessed_pass++;
+                        /* ⚠️ **推測が当たったかを直接見る。**
+                         * ホストの feature 列に同じ表層があり、12 列（=
+                         * ホストは知っている語）なら、発音を突き合わせる。 */
+                        if (pass == 0) {
+                            char hs[256], hp[256], gp[256];
+                            for (uint32_t k = 0; k < nhf; k++) {
+                                if (field_of(hfeat[k], 0, hs, sizeof hs) != 0) continue;
+                                if (strcmp(hs, surf)) continue;
+                                if (field_of(hfeat[k], 9, hp, sizeof hp) != 0) {
+                                    n_unk_both++;      /* ホストも知らない */
+                                    break;
+                                }
+                                n_host_knew++;
+                                if (field_of(feat_buf[nf], 9, gp, sizeof gp) == 0
+                                    && strcmp(gp, hp) == 0) n_guess_right++;
+                                break;
+                            }
+                        }
+                    }
+                }
+                if (r < 0) {    /* 推測できない → 8 列のまま = **無音で消える** */
+                    if (pass == 0 && shown_unk < 8) {
+                        printf("  推測できず（%d）: %s\n", r, surf);
+                        shown_unk++;
+                    }
+                    r = k1_unk_feature(&d, tok[i].entry, surf,
+                                       feat_buf[nf], sizeof feat_buf[0]);
+                }
             } else {
                 r = k1_entry_feature(&d, tok[i].entry, surf,
                                      feat_buf[nf], sizeof feat_buf[0]);
@@ -171,8 +234,9 @@ int main(int argc, char **argv) {
             feat[nf] = feat_buf[nf];
             nf++;
         }
-        if (bad || nf <= 0) { err++; ng_dev++; continue; }
-        if (has_unk) n_unk_sent++;
+        if (bad || nf <= 0) { if (pass == 0) { err++; ng_dev++; } continue; }
+        if (pass == 0) n_dev_tok += nf;
+        if (has_unk && pass == 0) n_unk_sent++;
 
         /* ⚠️ **素性の一致を先に見る。** ここが違えば原因は辞書の枝刈り側で、
          *    NJD / K-4 の移植の話ではない。 */
@@ -180,9 +244,9 @@ int main(int argc, char **argv) {
         if (feat_same)
             for (int i = 0; i < nf; i++)
                 if (strcmp(feat[i], hfeat[i])) { feat_same = 0; break; }
-        if (feat_same) { if (!no_k4) n_feat_same++; }
+        if (feat_same) { if (pass == 0) n_feat_same++; }
         else {
-            if (!no_k4) n_feat_diff++;
+            if (pass == 0) n_feat_diff++;
             if (no_k4) { /* 対照では素性差の表示はしない */ }
             else
             if (shown_feat < 4) {
@@ -227,8 +291,13 @@ int main(int argc, char **argv) {
             for (int i = 0; i < nl; i++)
                 if (strcmp(ls[i], labf[i])) { same_full = 0; break; }
 
-        if (no_k4) {
+        if (pass == 1) {
             if (feat_same && !same_dev) ctrl_diff++;
+            JPCommon_clear(&jp); NJD_clear(&njd);
+            continue;
+        }
+        if (pass == 2) {
+            if (same_dev) ok_nofb++;
             JPCommon_clear(&jp); NJD_clear(&njd);
             continue;
         }
@@ -236,7 +305,7 @@ int main(int argc, char **argv) {
         if (!same_dev && feat_same) n_lab_diff_feat_same++;
         if (same_full) ok_full++;
         if (!same_dev) {
-            if ((uint32_t)nl != ndev) n_len_diff++;
+            if ((uint32_t)nl != ndev && pass == 0) n_len_diff++;
             if (shown < 3) {
                 printf("  食い違い: %.40s\n", text);
                 printf("    ホスト %u 本 / 端末 %d 本%s\n", ndev, nl,
@@ -246,6 +315,8 @@ int main(int argc, char **argv) {
         }
         JPCommon_clear(&jp); NJD_clear(&njd);
     }
+    n_unk_tok[pass] = n_unk_tok_pass;
+    n_guessed[pass] = n_guessed_pass;
     }
 
     double pct = 100.0 * ng_dev / (double)n_cases;
@@ -267,6 +338,29 @@ int main(int argc, char **argv) {
            n_len_diff, n_tok_fail, n_unk_sent);
     printf("  ⚠️ **D-043 の「0.60%%」はここには使えない。** あれは同形異音語\n");
     printf("     （Sudachi）の 14 文から出た数で、**枝刈りの代償ではない**（C-050）\n");
+
+    printf("\n=== G17d: 未知語のフォールバック ===\n");
+    printf("  トークン: ホスト %d / 端末 %d\n", n_host_tok, n_dev_tok);
+    printf("  **ホストにとっても未知語** %d 件（%.2f%%）\n", n_host_unk,
+           n_host_tok ? 100.0 * n_host_unk / n_host_tok : 0.0);
+    printf("  端末の未知語トークン %d 件（%.2f%%）\n", n_unk_tok[0],
+           n_dev_tok ? 100.0 * n_unk_tok[0] / n_dev_tok : 0.0);
+    printf("  ⚠️ **枝刈りで落ちた語は未知語にならない。** より短い既知語に\n");
+    printf("     切り直される（例: 上毛 → 上 + 毛）。壊れ方は"
+           "**無音消滅ではなく誤読**\n");
+    printf("  うち読みを推測できた %d 件（%.1f%%）"
+           " ← **残りは無音で消える**\n", n_guessed[0],
+           n_unk_tok[0] ? 100.0 * n_guessed[0] / n_unk_tok[0] : 0.0);
+    printf("  うちホストは知っていた語 %d 件 → **発音が当たった %d 件（%.1f%%）**\n",
+           n_host_knew, n_guess_right,
+           n_host_knew ? 100.0 * n_guess_right / n_host_knew : 0.0);
+    printf("  ホストも知らない語        %d 件"
+           "（ホストは無音で消す。合わせに行く意味は無い）\n", n_unk_both);
+    printf("  対照（フォールバック無し）でのラベル一致 %d / %u\n",
+           ok_nofb, n_cases);
+    printf("  フォールバック有りでのラベル一致       %d / %u\n", ok_dev, n_cases);
+    printf("  ⚠️ **一致率で測れるのは「たまたま当たった」分だけ。**\n");
+    printf("     無音消滅を避けた分は**音でしか判断できない**（聴取は未実施）\n");
 
     printf("\n=== G17c: 参考 — ホスト既定（Sudachi / ONNX 込み）との一致 ===\n");
     printf("  一致 %d / %u 文（%.2f%%）\n", ok_full, n_cases,

@@ -60,6 +60,9 @@ def main() -> int:
     ap.add_argument("--cases", type=int, default=2000)
     ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/k6_vectors.bin"))
     ap.add_argument("--skip-verify-dict", action="store_true")
+    ap.add_argument("--keep-single-char", action="store_true",
+                    help="1 文字の見出し語を**必ず残す**（未知語フォールバックの土台。"
+                         "M-73: 落ちる語の 97.9%% は単漢字で文字を覆える）")
     a = ap.parse_args()
 
     if not a.skip_verify_dict:
@@ -92,6 +95,14 @@ def main() -> int:
     seen = set(ranked)
     ranked += sorted((s for s in bysurf if s not in seen),
                      key=lambda s: (min(e[3] for e in bysurf[s]), len(s)))
+    if a.keep_single_char:
+        # ⚠️ **順位の先頭に持ってくるのではなく、別枠で確保する。**
+        #    頻度順を壊すと他の測定と比べられなくなる。
+        single = [s for s in bysurf if len(s) == 1]
+        n_single = sum(len(bysurf[s]) for s in single)
+        rest = [s for s in ranked if len(s) != 1]
+        ranked = single + rest
+        print(f"1 文字の見出し語を確保: {len(single):,d} 語 / {n_single:,d} entries")
 
     sub, n = [], 0
     for s in ranked:

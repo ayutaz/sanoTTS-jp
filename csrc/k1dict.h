@@ -119,6 +119,24 @@ int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
 int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
                    const char *surface, char *out, size_t out_n);
 
+/* 未知語の読みを**推測して** 12 列の feature を作る。
+ * 0 以上で成功（バイト数）、負なら推測できない（呼び出し側が
+ * `k1_unk_feature` に落ちる）。
+ *
+ * ⚠️ **これは正しさではなく「無音で消えない」ための措置。**
+ *    未知語は読み/発音を持たないので `njd_set_pronunciation` が読点に
+ *    置換し、**語が丸ごと音から消える**（B-0 / M-73）。
+ *    推測が当たる保証はない — 落ちる漢字語はほぼ地名で、
+ *    単漢字の組み合わせでは当たらない。
+ *
+ * 規則は 2 つだけ:
+ *   - 表層が全部かなら、**それ自身が読み**（カタカナに寄せる）
+ *   - そうでなければ、**1 文字ずつ辞書を引いて読みを繋ぐ**
+ *     （同じ字に複数あれば単語コスト最小）
+ * アクセントは **平板（0）**に逃げる。 */
+int k1_unk_guess(const k1_dict_t *d, uint32_t entry,
+                 const char *surface, char *out, size_t out_n);
+
 /* Viterbi。arena は作業領域。返り値はトークン数、負でエラー。 */
 int k1_analyze(const k1_dict_t *d, const uint8_t *key, size_t key_n,
                void *arena, size_t arena_n, k1_token_t *out, int max_out);

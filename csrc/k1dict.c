@@ -787,6 +787,133 @@ int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
     return -4;
 }
 
+/* ------------------------------------------- K-6b: 未知語の読みの推測 */
+
+/* UTF-8 1 文字を読み、コードポイントとバイト長を返す。 */
+static uint32_t next_cp(const char *s, int *len) {
+    unsigned char c = (unsigned char)s[0];
+    if (c < 0x80)            { *len = 1; return c; }
+    if ((c & 0xE0) == 0xC0)  { *len = 2; return ((uint32_t)(c & 0x1F) << 6)
+                                              | (uint32_t)(s[1] & 0x3F); }
+    if ((c & 0xF0) == 0xE0)  { *len = 3; return ((uint32_t)(c & 0x0F) << 12)
+                                              | ((uint32_t)(s[1] & 0x3F) << 6)
+                                              | (uint32_t)(s[2] & 0x3F); }
+    *len = 4;
+    return ((uint32_t)(c & 0x07) << 18) | ((uint32_t)(s[1] & 0x3F) << 12)
+         | ((uint32_t)(s[2] & 0x3F) << 6) | (uint32_t)(s[3] & 0x3F);
+}
+
+static int is_kana_cp(uint32_t cp) {
+    return (cp >= 0x3041 && cp <= 0x3096)      /* ひらがな */
+        || (cp >= 0x30A1 && cp <= 0x30FA)      /* カタカナ */
+        || cp == 0x30FC                        /* ー */
+        || cp == 0x30FB;                       /* ・ */
+}
+
+/* 小書きのかな（モーラを増やさない）。 */
+static int is_small_kana(uint32_t cp) {
+    switch (cp) {
+    case 0x30A1: case 0x30A3: case 0x30A5: case 0x30A7: case 0x30A9:
+    case 0x30E3: case 0x30E5: case 0x30E7: case 0x30EE:
+    case 0x30F5: case 0x30F6: return 1;
+    default: return 0;
+    }
+}
+
+/* カタカナ列のモーラ数。 */
+static int mora_count(const char *s) {
+    int n = 0, l;
+    for (const char *p = s; *p; p += l) {
+        uint32_t cp = next_cp(p, &l);
+        if (!is_small_kana(cp)) n++;
+    }
+    return n;
+}
+
+/* feature 文字列の idx 番目のフィールドを out に取り出す。0 で成功。 */
+static int field_at(const char *feat, int idx, char *out, size_t out_n) {
+    int k = 0; size_t o = 0;
+    for (const char *p = feat; ; p++) {
+        if (*p == ',' || *p == 0) {
+            if (k == idx) { if (o >= out_n) return -1; out[o] = 0; return 0; }
+            k++; o = 0;
+            if (*p == 0) return -1;
+            continue;
+        }
+        if (k == idx) { if (o + 1 >= out_n) return -1; out[o++] = *p; }
+    }
+}
+
+int k1_unk_guess(const k1_dict_t *d, uint32_t entry,
+                 const char *surface, char *out, size_t out_n) {
+    char base[512];
+    if (k1_unk_feature(d, entry, surface, base, sizeof base) < 0) return -1;
+
+    char read[512];
+    size_t ro = 0;
+    int all_kana = 1, l;
+    for (const char *p = surface; *p; p += l) {
+        uint32_t cp = next_cp(p, &l);
+        if (!is_kana_cp(cp)) { all_kana = 0; break; }
+    }
+
+    if (all_kana) {
+        /* 表層そのものが読み。ひらがなはカタカナへ寄せる */
+        for (const char *p = surface; *p; p += l) {
+            uint32_t cp = next_cp(p, &l);
+            if (cp >= 0x3041 && cp <= 0x3096) cp += 0x60;
+            if (ro + 4 >= sizeof read) return -2;
+            ro += cp_to_utf8(cp, read + ro);
+        }
+        read[ro] = 0;
+    } else {
+        /* 1 文字ずつ辞書を引く。1 文字でも引けなければ諦める */
+        for (const char *p = surface; *p; p += l) {
+            (void)next_cp(p, &l);
+            char ch[8];
+            memcpy(ch, p, (size_t)l); ch[l] = 0;
+            uint8_t key[32]; size_t kn = sizeof key;
+            if (k1_encode_key(d, (const uint8_t *)ch, (size_t)l, key, &kn) != 0)
+                return -3;
+            k1_hit_t hit[8];
+            int nh = k1_common_prefix_search(d, key, kn, 0, hit, 8);
+            int best = -1; int16_t bw = 0;
+            for (int i = 0; i < nh; i++) {
+                if (hit[i].len != kn) continue;
+                uint32_t first, cnt;
+                k1_entry_range(d, hit[i].rank, &first, &cnt);
+                for (uint32_t e = 0; e < cnt; e++) {
+                    uint16_t lc, rc; int16_t w;
+                    k1_entry_conn(d, first + e, &lc, &rc, &w);
+                    if (best < 0 || w < bw) { best = (int)(first + e); bw = w; }
+                }
+            }
+            if (best < 0) return -4;
+            char f[512], pron[256];
+            if (k1_entry_feature(d, (uint32_t)best, ch, f, sizeof f) < 0) return -5;
+            if (field_at(f, 9, pron, sizeof pron) != 0) return -6;
+            size_t pn = strlen(pron);
+            if (ro + pn >= sizeof read) return -7;
+            memcpy(read + ro, pron, pn); ro += pn;
+        }
+        read[ro] = 0;
+    }
+    if (ro == 0) return -8;
+
+    /* base の 8 列のうち先頭 7 列（表層 + 品詞 6 つ）を使い、
+     * orig を表層に、読み/発音を推測値に、アクセントを **平板** にする。 */
+    char fld[7][64];
+    for (int i = 0; i < 7; i++)
+        if (field_at(base, i, fld[i], sizeof fld[0]) != 0) return -9;
+
+    int m = mora_count(read);
+    int n = snprintf(out, out_n, "%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,0/%d,*",
+                     fld[0], fld[1], fld[2], fld[3], fld[4], fld[5], fld[6],
+                     surface, read, read, m);
+    if (n < 0 || (size_t)n >= out_n) return -10;
+    return n;
+}
+
 int k1_analyze(const k1_dict_t *d, const uint8_t *key, size_t key_n,
                void *arena, size_t arena_n, k1_token_t *out, int max_out) {
     return analyze_impl(d, key, key_n, arena, arena_n, out, max_out, 1);
