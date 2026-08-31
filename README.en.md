@@ -2,6 +2,8 @@
 
 *[日本語](README.md) · **English***
 
+[![CI](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml/badge.svg)](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml)
+
 **A 559 K-parameter Japanese TTS, aimed at a $3 microcontroller (ESP32-S3).**
 
 This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/abs/2608.21378)
@@ -71,27 +73,35 @@ hardware**, and **confirming the kanji path boots** — all three need a board.
 
 | | Goal | What you need | Time |
 |---|---|---|---|
-| **A** | **Hear it** | `saanotts-jp-v3-samples.zip` from [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 1 min |
+| **A** | **Hear it** | `saanotts-jp-v3-samples.zip` from [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | 1 min |
 | **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
 | **C** | **Make an ESP32-S3 speak** | a board (DAC optional). **ESP-IDF is not needed to just flash** | 15–30 min |
 | **D** | **Run the code gates** | minimal setup only | 5 min |
 
-### ⚠️ Which release holds what
+### Which release holds what
 
-**`releases/latest` is v0.2.0 (the kanji firmware) and does not contain the model
-weights.** The weights and samples are in v0.1.1. **Every link on this page points at an
-explicit tag.**
+**Everything is in the latest release, [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0)** (15 assets), so
+`releases/latest` is enough.
 
 | Asset | Where | What it is |
 |---|---|---|
-| `saanotts-jp-v3-samples.zip` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | Synthesized WAVs |
-| `saanotts-jp-v3-stage4.pt` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | PyTorch weights (2.7 MB) |
-| `saanotts-jp-v3-int8.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | int8 blob for the C99 core (643,936 B) |
-| `esp32s3-firmware-w8a8-pie.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | **Kana** firmware (8 MB+, flash and go) |
+| `saanotts-jp-v3-samples.zip` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Synthesized WAVs |
+| `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch weights (2,744,874 B) |
+| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | int8 blob for the C99 core (643,936 B) |
+| `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | fp32 blob, for reference and debugging |
+| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Reference output for `make -C csrc golden` |
+| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The same, fp32 |
+| `esp32s3-firmware-w8a8-pie.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kana** firmware (8 MB+, flash and go) |
+| `esp32s3-firmware-w8a32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The same without optimization (**the PIE baseline**) |
 | `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kanji** image (**16 MB required**, flash and go) |
 | `k1-dict-438750.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The dictionary blob alone (13,702,320 B) |
 
-⚠️ **v0.2.0 does not redistribute the model** — it is bit-identical to v0.1.1's.
+⚠️ **The weights are bit-identical across v0.1.0 / v0.1.1 / v0.2.0** — no retraining.
+
+> **v0.2.0 originally shipped without the weights.** The moment it became
+> `releases/latest`, **all five download links in this table broke** (C-052).
+> `scripts/check_release_assets.py` now **reads this table** and checks in CI that every
+> asset named here actually exists under that tag.
 
 ### Minimal setup (B / D) — no piper-plus, no teacher
 
@@ -108,7 +118,7 @@ uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 ### B. Synthesize your own text
 
 Download `saanotts-jp-v3-stage4.pt` (2.7 MB) from
-[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) and pass the
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) and pass the
 **kana intermediate form**:
 
 ```bash
@@ -150,8 +160,8 @@ Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over seria
 
 | | Flash this | Accepted input | Flash size |
 |---|---|---|---|
-| Kana | `esp32s3-firmware-w8a8-pie.bin` (v0.1.1) | The kana intermediate form only | 8 MB+ |
-| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` (v0.2.0) | **Prefix a line with `!`** for kanji text | **16 MB required** |
+| Kana | `esp32s3-firmware-w8a8-pie.bin` | The kana intermediate form only | 8 MB+ |
+| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` | **Prefix a line with `!`** for kanji text | **16 MB required** |
 
 ⚠️ **Nobody has measured the speed of either.** ⚠️ **The kanji one has never run on hardware.**
 
@@ -272,7 +282,7 @@ The documentation is in Japanese.
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
 | [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-79. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-044 and the **correction log C-001–C-052** |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-045 and the **correction log C-001–C-052** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
@@ -281,6 +291,7 @@ The documentation is in Japanese.
 | [`MODEL_CARD.md`](MODEL_CARD.md) | What the model is, how it was evaluated, known limits |
 | [`CLAUDE.md`](CLAUDE.md) | Implementation notes; also the operating rules for AI agents |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | **How to contribute.** What helps most: hardware speed, and **what it sounds like to you** |
+| [`.github/workflows/README.md`](.github/workflows/README.md) | **What CI does and does not check** (⚠️ nothing about quality, speed, or audio) |
 
 ## How this repository is run
 

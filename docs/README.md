@@ -13,7 +13,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-044 と**訂正履歴 C-001〜C-052** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-045 と**訂正履歴 C-001〜C-052** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-79。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画（かなトラック）**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2**。⚠️ **K トラックは 4.6 の別計画** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
@@ -201,7 +201,15 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 
 **v0.2.0 で焼くだけの 16 MB イメージを配布した**（`esp32s3-firmware-kanji-16mb.bin`）。
 ⚠️ **配布したことは検証したことではない。** 中身は QEMU でしか動かしていない。
-⚠️ **モデルは再配布していない**（v0.1.1 と bit 同一。`docs/release-notes/v0.2.0.md`）。
+
+**2026-09-01、v0.2.0 の資産を 8 本 → 15 本にした**（D-045）。
+当初「モデルは v0.1.1 と bit 同一だから再配布しない」としたが、
+**`releases/latest` が v0.2.0 に移った瞬間に README のダウンロード 5 本が壊れた**（C-052）。
+`scripts/check_release_assets.py` が**README の表を読んで**在るかを CI で検査する。
+
+**CI を入れた**（[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)、4 job）。
+⚠️ **新規 clone だけで通るゲートに限ってある** — 品質・速度・音は 1 つも見ていない。
+範囲と「入れていない理由」は [`.github/workflows/README.md`](../.github/workflows/README.md)。
 
 ⚠️ **K トラックは実機で一度も動かしていない。速度も音も未測定。**
 QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字**。
@@ -294,7 +302,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-044 + 訂正履歴 C-001〜C-052
+│   ├── decisions.md                       決定記録 D-001〜D-045 + 訂正履歴 C-001〜C-052
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-79
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
@@ -431,6 +439,7 @@ uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（94 ケース
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
+uv run python scripts/check_release_assets.py    # 表の資産がリリースに在るか（要ネットワーク）
 uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
 uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か
 

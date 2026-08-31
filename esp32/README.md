@@ -187,10 +187,8 @@ idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
 | `csrc/student.bin` (fp32) | 2,249,792 B | 参照・デバッグ用。`-DSAAN_MODEL_BLOB=$PWD/../csrc/student.bin` |
 
 ⚠️ **blob は git 管理外。** クローンしただけでは存在しない。
-[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) の
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
 `saanotts-jp-v3-int8.bin` を落とすか、自分で書き出すこと（上記）。
-⚠️ **`releases/latest` は v0.2.0 で、重みが入っていない**（v0.1.1 と bit 同一のため
-再配布していない）。
 
 ⚠️ **かつて fp32 を既定にしていたが、それは int8 経路が確定していない時期の
 保守的な選択だった。** flash と D-cache では int8 のほうが 3.5 倍有利で、

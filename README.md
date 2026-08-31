@@ -2,6 +2,8 @@
 
 ***日本語** · [English](README.en.md)*
 
+[![CI](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml/badge.svg)](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml)
+
 **559 K パラメータの日本語 TTS を、$3 のマイコン（ESP32-S3）で動かす試み。**
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
@@ -67,26 +69,36 @@ SCOREQ 2.50 / UTMOS 2.30** しか出ないので、**絶対値を英語の論文
 
 | | やりたいこと | 要るもの | 所要 |
 |---|---|---|---|
-| **A** | **音を聴く** | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) の `saanotts-jp-v3-samples.zip` だけ | 1 分 |
+| **A** | **音を聴く** | [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` だけ | 1 分 |
 | **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v3-stage4.pt` | 10 分 |
 | **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
 | **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
 
-### ⚠️ どのリリースに何が入っているか
+### どのリリースに何が入っているか
 
-**`releases/latest` は v0.2.0（漢字ファーム）で、モデルの重みは入っていない。**
-重みとサンプルは v0.1.1 にある。**このページのリンクは全部タグを直に指してある。**
+**最新の [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) に全部入っている**（15 本）。
+`releases/latest` で足りる。
 
 | 資産 | どこ | 中身 |
 |---|---|---|
-| `saanotts-jp-v3-samples.zip` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 合成音の WAV |
-| `saanotts-jp-v3-stage4.pt` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | PyTorch の重み（2.7 MB） |
-| `saanotts-jp-v3-int8.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | C99 コア用の int8 blob（643,936 B） |
-| `esp32s3-firmware-w8a8-pie.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | **かな入力**のファーム（8 MB 以上・焼くだけ） |
+| `saanotts-jp-v3-samples.zip` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 合成音の WAV |
+| `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch の重み（2,744,874 B） |
+| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | C99 コア用の int8 blob（643,936 B） |
+| `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 参照・デバッグ用の fp32 blob |
+| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc golden` 用の参照出力 |
+| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 同（fp32） |
+| `esp32s3-firmware-w8a8-pie.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **かな入力**のファーム（8 MB 以上・焼くだけ） |
+| `esp32s3-firmware-w8a32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 同・最適化なし（**PIE の比較対照**） |
 | `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **漢字入力**のイメージ（**16 MB 必須**・焼くだけ） |
 | `k1-dict-438750.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 辞書 blob 単体（13,702,320 B） |
 
-⚠️ **v0.2.0 はモデルを再配布していない**（v0.1.1 と bit 同一のため）。
+⚠️ **モデルの重みは v0.1.0 / v0.1.1 / v0.2.0 で bit 同一**（再学習していない）。
+どのタグから落としても同じ。
+
+> **かつて v0.2.0 は重みを載せていなかった。** その結果 `releases/latest` が
+> v0.2.0 になった瞬間に**この表のリンク 5 本が全部壊れた**（C-052）。
+> いまは `scripts/check_release_assets.py` が**この表を読んで**、
+> 名前が挙がっている資産が実際にそのタグに在るかを CI で検査している。
 
 ### 最小セットアップ（B / D）— piper-plus も教師も要らない
 
@@ -103,7 +115,7 @@ uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 
 ### B. 好きな文を合成する
 
-[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) から
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) から
 `saanotts-jp-v3-stage4.pt`（2.7 MB）を落として、**かな中間表現**を渡す。
 
 ```bash
@@ -144,8 +156,8 @@ OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一
 
 | | 焼くもの | 受け付ける入力 | flash |
 |---|---|---|---|
-| かな | `esp32s3-firmware-w8a8-pie.bin`（v0.1.1） | かな中間表現のみ | 8 MB 以上 |
-| **漢字** | `esp32s3-firmware-kanji-16mb.bin`（v0.2.0） | **`!` を付ければ漢字かな交じり文**も | **16 MB 必須** |
+| かな | `esp32s3-firmware-w8a8-pie.bin` | かな中間表現のみ | 8 MB 以上 |
+| **漢字** | `esp32s3-firmware-kanji-16mb.bin` | **`!` を付ければ漢字かな交じり文**も | **16 MB 必須** |
 
 ⚠️ **どちらも速度を誰も測っていない。** ⚠️ **漢字の方は実機で一度も動かしていない。**
 
@@ -258,7 +270,7 @@ uv sync
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 | [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-79。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-044 と**訂正履歴 C-001〜C-052** |
+| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-045 と**訂正履歴 C-001〜C-052** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
 | [`docs/release-notes/`](docs/release-notes/) | 各リリースで何が変わったか（**訂正も残してある**） |
@@ -267,6 +279,7 @@ uv sync
 | [`MODEL_CARD.md`](MODEL_CARD.md) | モデルの中身・評価・既知の制約 |
 | [`CLAUDE.md`](CLAUDE.md) | 実装時の要点。AI エージェント向けの運用ルールでもある |
 | [`CONTRIBUTING.md`](CONTRIBUTING.md) | **貢献のしかた**。一番ありがたいのは実機の速度と**聴いた感想** |
+| [`.github/workflows/README.md`](.github/workflows/README.md) | **CI に入れているもの/入れていないもの**（⚠️ 品質・速度・音は 1 つも見ていない） |
 
 ## このリポジトリの進め方
 

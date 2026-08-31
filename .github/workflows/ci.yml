@@ -1,0 +1,103 @@
+# ⚠️ **ここに入れてよいのは「新規 clone だけで通るゲート」だけ。**
+#    重み・ラベルパック・辞書・pyopenjtalk が要るものは入らない（下の「入れていないもの」）。
+#    どれが通るかは推測ではなく、**素の clone + 依存ゼロの venv で実測して決めた**。
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------------ 依存ゼロ
+  # 索引の番号・引用アンカー・相対リンク・hook の回帰・本文検出。約 30 秒。
+  docs:
+    name: docs（依存ゼロ）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+
+      - name: 索引の M/D/C 番号・引用アンカー・件数
+        run: uv run --no-project --python 3.12 python scripts/check_doc_counters.py
+
+      - name: md の相対リンクが実在するか
+        run: uv run --no-project --python 3.12 python scripts/check_doc_links.py
+
+      - name: hook の回帰
+        run: uv run --no-project --python 3.12 python .claude/hooks/test_guard_bash.py
+
+      - name: レポートの本文検出ゲート
+        run: uv run --no-project --python 3.12 python scripts/test_sanitize_reports.py
+
+  # ------------------------------------------------------------------- C99 コア
+  # ⚠️ **重みが要るもの（golden / stream / int8 / arena）は入れられない。**
+  #    `csrc/*.bin` は git 管理外で、リリースから落とさないと存在しない。
+  csrc:
+    name: csrc（重み不要のゲート）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+
+      - name: 端末の行編集（G9/G10・陽性対照つき）
+        run: make -C csrc line
+
+      - name: 逆 FFT（naive DFT との突き合わせ）
+        run: make -C csrc fft
+
+      - name: PAD 規則（陽性対照つき）
+        run: make -C csrc pad
+
+      - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
+        run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
+
+  # -------------------------------------------------------------------- Python
+  # ⚠️ torch は **CPU ビルドを明示する**。既定だと Linux で CUDA 版（数 GB）を引く。
+  python:
+    name: python（torch / numpy）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+
+      - name: 依存を入れる（torch は CPU ビルド）
+        run: |
+          uv venv --python 3.12 .venv-ci
+          uv pip install --python .venv-ci/bin/python --torch-backend cpu \
+              "torch>=2.6" "numpy<2.5"
+
+      - name: 損失の性質（26 項目）
+        run: .venv-ci/bin/python scripts/test_losses.py
+
+      - name: ラベルパックの往復とゲート発火
+        run: .venv-ci/bin/python scripts/test_labelpack.py
+
+  # ----------------------------------------------------------- リリースの資産
+  # ⚠️ **C-052 の再発防止。** ドキュメントが名前を挙げた資産が実際に在るか。
+  #    `check_doc_links.py` は相対リンクしか見ないので、これが無いと
+  #    「latest に重みが無い」形の破損は誰も気づかない。
+  release-assets:
+    name: リリース資産（ドキュメントの表 vs 実物）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+
+      # ⚠️ **--offline-ok は付けない。** 届かなかったら落とす（黙って通さない）
+      - name: ドキュメントの表に在る資産がリリースに在るか
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: uv run --no-project --python 3.12 python scripts/check_release_assets.py

@@ -265,10 +265,10 @@ k5_mem_test: k5_mem_test.c k5_alloc.c k5_alloc.h k4b_njd.c k4b_njd.h $(OJT_SRC)
 	 done
 	$(CC) -o $@ k5_mem_test.o k5_alloc.o k4b_njd.o $(OJT_SRC:.c=.o) $(LDLIBS)
 
-.PHONY: k5
-k5: k5_mem_test k4b_vectors.bin
-	@./k5_mem_test k4b_vectors.bin k5_labels.txt 2>k5_stderr.log || \
-	  { echo "--- stderr ---"; cat k5_stderr.log; exit 1; }
+# ⚠️ **ここに古い `k5:` があったが消した。** 下の 293 行目あたりの定義に
+#    黙って上書きされていて（`make` が overriding commands の warning を出す）、
+#    残っていたのは**陽性対照 `k5_mem_ctrl` も G22/G24 も無い弱い版**だった。
+#    ⚠️ 二重定義は「直したつもりで死んだ recipe を直す」事故になる。
 # ホストのラベル（basis）。**経路は k5_mem_test と同じ** = make_label(run_njd_from_mecab)
 k5_labels_host.txt: k4b_vectors.bin
 	cd .. && $(PYTHON) scripts/k1/k5_gen_labels.py \

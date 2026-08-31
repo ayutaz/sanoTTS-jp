@@ -11,7 +11,7 @@ ESP32-S3 の実機が 1 枚あれば全部決着します。手元では QEMU �
 | **3** | **漢字版が実機で起動して同じ checksum を出すか**（16 MB ボードのみ） |
 
 ⚠️ **「音が良いか」は実機とは別の話**で、**ボードが無くても答えられます**
-（[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) の
+（[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
 `saanotts-jp-v3-samples.zip` を聴いた感想が、実は同じくらい貴重です）。
 
 **所要 15〜30 分。**⚠️ 最初に [ライセンス](../LICENSE-MODEL.md)を読んでください
@@ -46,16 +46,18 @@ DAC が無い方は下の**「音を出さない場合」**へ。
 
 ## A. 焼くだけ（ESP-IDF 不要・推奨）
 
-**焼けるイメージは 3 種類あります。** ⚠️ **リリースが 2 つに分かれています。**
+**焼けるイメージは 3 種類あります。**
 
-| イメージ | どこ | flash | 入力 | 何のため |
-|---|---|---|---|---|
-| **`esp32s3-firmware-w8a8-pie.bin`** | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 8 MB 以上 | かな | **速度の本命**（W8A8 + PIE） |
-| `esp32s3-firmware-w8a32.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 8 MB 以上 | かな | 比較用（最適化なし） |
-| `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **16 MB 必須** | **漢字も** | 漢字経路（⚠️ QEMU のみ） |
+**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) に入っています。**
 
-**16 MB のボードなら 3 つ目を焼くのが一番情報量が多い**（かな入力もそのまま通ります）。
-8 MB なら 1 つ目です。
+| イメージ | flash | 入力 | 何のため |
+|---|---|---|---|
+| **`esp32s3-firmware-w8a8-pie.bin`** | 8 MB 以上 | かな | **速度の本命**（W8A8 + PIE） |
+| `esp32s3-firmware-w8a32.bin` | 8 MB 以上 | かな | 比較用（最適化なし） |
+| `esp32s3-firmware-kanji-16mb.bin` | **16 MB 必須** | **漢字も** | 漢字経路（⚠️ QEMU のみ） |
+
+**16 MB のボードなら 3 つとも焼いて比べられます**（漢字版でもかな入力は通ります）。
+8 MB なら上の 2 つです。
 
 ```bash
 pip install esptool
@@ -98,9 +100,8 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-
 ### 1. モデルを取る
 
 **リポジトリをクローンしただけでは重みは入っていません**（git 管理外）。
-[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1)から
+[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)から
 **`saanotts-jp-v3-int8.bin`**（643,936 B）を落としてください。
-⚠️ **`releases/latest` は v0.2.0 で、重みが入っていません。**
 
 ⚠️ `saanotts-jp-v3-stage4.pt` は **PyTorch 用**です。ESP32 では読めません。
 
@@ -317,7 +318,7 @@ idf.py -B build_b -DSDKCONFIG=build_b/sdkconfig -p <ポート> flash monitor
 
 ⚠️ **N16R8（16 MB flash）が要ります。** 8 MB のボードでは辞書 13.7 MB が入りません。
 
-ℹ️ **焼くだけで良いなら [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) の
+ℹ️ **焼くだけで良いなら [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
 `esp32s3-firmware-kanji-16mb.bin` があります**（下のビルドは不要）。
 ソースから作るのは、辞書のエントリ数を変える / I2S の GPIO を直すときだけです。
 

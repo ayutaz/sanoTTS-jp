@@ -10,7 +10,7 @@
 | # | 何 | ボードが要るか |
 |---|---|---|
 | **1** | **ESP32-S3 実機での速度実測**（`定常 xRT`） | ✅ 要る |
-| **2** | **音を聴いた感想** — [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) の `saanotts-jp-v3-samples.zip` | ❌ 不要 |
+| **2** | **音を聴いた感想** — [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` | ❌ 不要 |
 | **3** | 手順書をなぞって**詰まった場所**の報告 | ❌ 不要 |
 
 **1 の手順は [`esp32/TESTING.md`](esp32/TESTING.md)。所要 15〜30 分・DAC は不要です。**
@@ -82,6 +82,11 @@ make -C csrc line && make -C csrc fft               # C コアの軽いゲート
 **ドキュメントだけ直す PR でも上の 2 本は通してください。**
 番号と件数は書いた瞬間から古くなります（C-042 / C-052）。
 
+ℹ️ **これらは CI でも回ります**（[`.github/workflows/ci.yml`](.github/workflows/ci.yml)）。
+CI に入れてあるもの・入れていないものと**その理由**は
+[`.github/workflows/README.md`](.github/workflows/README.md)。
+⚠️ **「CI が緑」は「正しい」ではありません** — 品質・速度・音は 1 つも見ていません。
+
 ⚠️ **コーパス本文をコミットしないでください。** 素材のライセンス上、
 本文は再配布しません。staged なコーパス本文を含む `git commit` は hook が止めます。
 
@@ -104,7 +109,7 @@ Japanese, but issues and PRs in English are fine.
 | # | What | Board needed? |
 |---|---|---|
 | **1** | **Measured speed on real ESP32-S3 hardware** (steady-state xRT) | ✅ Yes |
-| **2** | **What it sounds like to you** — `saanotts-jp-v3-samples.zip` in [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | ❌ No |
+| **2** | **What it sounds like to you** — `saanotts-jp-v3-samples.zip` in [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | ❌ No |
 | **3** | Where the instructions broke for you | ❌ No |
 
 Instructions for 1: [`esp32/TESTING.md`](esp32/TESTING.md) — 15–30 minutes, no DAC required.
@@ -135,6 +140,7 @@ than an n=24 score.**
 ```bash
 uv run python scripts/check_doc_counters.py         # index numbers, counts, citation anchors
 uv run python scripts/check_doc_links.py            # relative links in markdown resolve
+uv run python scripts/check_release_assets.py       # assets named in the docs exist in the release
 uv run python .claude/hooks/test_guard_bash.py      # hook regression (94 cases)
 uv run python scripts/test_sanitize_reports.py      # no corpus text in reports
 make -C csrc line && make -C csrc fft               # cheap C-core gates
