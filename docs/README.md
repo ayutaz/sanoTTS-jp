@@ -14,7 +14,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-042 と**訂正履歴 C-001〜C-046** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-67。全数値に再現コマンド付き | 実測のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-68。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -98,7 +98,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             ⚠️ **音では気づけない欠陥を 2 件出した**（CRLF で空行 / 行頭が
                             エコーされない）。どちらも呼び出し側の読み違い。G9 / G10 で固定
                             ⚠️ 起動時の 1 発話はやめた（既定 SAAN_BOOT_SPEAK=0。C-039）
-[完了] 外の人が動かせる状態に  **piper-plus も教師も無しで合成できる**（M-64 / M-65 / D-042）。
+[完了] 外の人が動かせる状態に  **piper-plus も教師も無しで合成できる**（M-64 / M-65 / D-041）。
                             mora テーブルを csrc/g2p_table.json に凍結（SHA-256 検証つき）
                             ⚠️ **リリース v0.1.0 の手順は動かなかった**（C-040）
                             ⚠️ 「piper-plus 無しで通った」と**誤って観測**した（C-041）
@@ -108,8 +108,44 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [未]   Phase D-3d           実機測定（**ESP32-S3 ボード待ち**。これは本物の待ち）
 ```
 
-**残りは (1) 実機でのサイクル実測 / (2) 出荷ファームで W8A8+PIE を既定にするかの判断 /
-(3) アクセントの過剰強調（`magnitude_ratio` 1.193）の聴取確認**。
+**(1) の残りは (a) 実機でのサイクル実測 / (b) 出荷ファームで W8A8+PIE を既定にするかの判断 /
+(c) アクセントの過剰強調（`magnitude_ratio` 1.193）の聴取確認**。
+
+---
+
+## 現在地 (2) — K トラック（端末で漢字を扱う）
+
+B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの根拠が崩れた**。
+結論は [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md)、
+計画は [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md)。
+
+```
+[完了] K-1 調査              辞書は **mmap**（98.4 MB マップ / 常駐 1,040 KB）。
+                            TTS 専用バイナリで 1 エントリ **130 B → 28.29 B**。
+                            アクセントの天井 76.22% は語彙資源ではなく**外部資源ゼロの 126 行**
+                            （SudachiDict 217 MB と nani ONNX の寄与は合計 0.13pt）
+[完了] K-0 前提の凍結        **D-042**: N16R8 / OTA 無し / 370,863 entries /
+                            辞書 SHA-256 を凍結（`scripts/k1/dict_manifest.json`）
+                            ESP-IDF 5.5.0 のヘッダで MMU 窓 32 MiB を PSRAM と共有と確認。
+                            **フル辞書は現行の調達可能なボードに載らない**
+[完了] K-1 エンコーダ        blob **7,967,364 B = 7.60 MiB**。G1〜G5 通過
+                            （11 フィールド往復 370,863/370,863、陰性対照つき）
+                            ⚠️ **D-042 のエントリ数は保守的だった**（C-046）。
+                            本番エンコーダでは **630,000 entries** が同じ予算に入る。**未決**
+[完了] K-2 C リーダ+Viterbi  **MeCab と 1,918/1,918 文一致**（token 31,412 件）。G6〜G8 通過
+                            ⚠️ ゲートが実バグを捕まえた（白熊 シロクマ/ハグマ の同点。
+                            lc/rc/wcost が同一で read/pron/acc だけ違う）
+                            ⚠️ 半角→全角正規化は K-2 の対象外。端末側の前処理として別途要る
+[未]   K-3 未知語ノード生成   経路なしを 0 件にする。**ここで動作点の精度を実測する**
+[未]   K-4 アクセント規則移植 126 行を C へ。**新規性の中核**
+[未]   K-5〜K-8             メモリ / ホストとの一致 / QEMU / 実機
+```
+
+⚠️ **K トラックは実機で一度も動かしていない。** 一致はすべて「OpenJTalk と同じ出力か」
+であって正しさではなく、**聴取はゼロ**。
+
+ゲート: `uv run python scripts/test_k1_dict.py` / `uv run python scripts/k1/k0_verify_dict.py`
+／ `make -C csrc k2`（⚠️ 辞書が要るので `all-test` には入れていない）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
@@ -181,23 +217,28 @@ sanoTTS-jp/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
 │   ├── decisions.md                       決定記録 D-001〜D-042 + 訂正履歴 C-001〜C-046
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-67
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-68
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/phase-a-decisions.md          Phase A の決定
-│   ├── plan/k1-kanji-implementation-plan.md  K-1 の実装計画（K-0〜K-8）
+│   ├── plan/k1-kanji-implementation-plan.md  K トラックの実装計画（K-0〜K-8）
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
 │       ├── k1-kanji-katakana-ondevice.md  K-1 の結論（B-0 を測り直した）
 │       └── sanotts-jp-feasibility.md     初期調査
+├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
+│   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）
+│   ├── k1_build_dict.py                   本番の辞書 blob を組んで G1〜G5 を通す
+│   └── k2_gen_vectors.py                  C 側ゲートの参照ベクタ（参照は MeCab）
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
 │   ├── discriminator.py                   一次差分判別器（学習専用）
 │   ├── vocab.py                           ⚠️ デプロイ語彙 57 と教師IDの写像（重みと一緒に凍結）
 │   ├── labelpack.py                       ラベルパックの読み書き + 13 ゲート
+│   ├── k1_dict.py                         **K-1: TTS 専用の辞書バイナリ形式**（TDD で実装）
 │   ├── durations.py                       全行 duration の読み込み
 │   ├── flatness.py                        音素クラス別 SFM（設定と教師ベースラインを凍結）
 │   ├── accent.py                          アクセント型ミニマルペア評価（設定を凍結・D-030）
@@ -210,6 +251,8 @@ sanoTTS-jp/
 │   ├── fft.h / fft.c                      radix-2 逆実 FFT（naive の 1,435 倍）
 │   ├── saanotts_int8.h / .c               int8 カーネル + **PIE（ESP32-S3 の整数 SIMD）**
 │   ├── g2p.h / g2p.c / g2p_table.h        端末側 G2P（中間表現 → 生徒インデックス。表 877 B）
+│   ├── k1dict.h / k1dict.c                **K-2: 辞書 blob リーダ + LOUDS + Viterbi**
+│   ├── k2_test.c                          K-2 の受け入れ（MeCab と一致。陰性対照つき）
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
@@ -289,6 +332,8 @@ uv run python scripts/test_discriminator.py      # 判別器（23 チェック�
 uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（83 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号が実体と一致するか
+uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
+uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か
 
 # C99 推論コア（Phase D）
 uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt

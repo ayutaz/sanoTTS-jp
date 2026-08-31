@@ -39,20 +39,47 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-08-30）**: Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
+**現状（2026-08-31）**: 2 つのトラックが走っている。
+
+**(1) かな中間表現の生徒モデル（本線・ほぼ完了）**
+Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 検証タスク **B-0 〜 B-12** と **D-4 / E-1 / E-2 / E-2b** も全部完了。
 **PIE カーネルも実装・QEMU 検証まで完了**（M-57 / M-58）。
 **端末でかなの自由入力もできる**（M-63 / D-040）。
 **v0.1.1 で焼くだけの firmware も配布している**（M-67）。
-設計値は D-016 〜 D-041 として凍結。実行はすべて手元の M4 Max（D-027）。
+**残りは実機での速度実測だけ。**
+
+**(2) 端末で漢字を扱う（K トラック・進行中）**
+B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つの根拠が崩れた**（K-1 調査）。
+**K-0 / K-1 / K-2 完了**、次は K-3。
+→ [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md)（結論）
+／ [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md)（計画）
+
+設計値は D-016 〜 D-042 として凍結。実行はすべて手元の M4 Max（D-027）。
 
 ⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
 `runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
 
-**残りは実機での速度実測だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
+**(1) の残りは実機での速度実測だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
 **P-1 の実装は完了**（M-57）/ **P-2** β の聴取（人が要る）。
 **E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
 **E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。
+
+**(2) K トラックの現在地**（`docs/plan/k1-kanji-implementation-plan.md`）:
+
+| | 状態 |
+|---|---|
+| K-0 前提の凍結 | ✅ **D-042**（N16R8 / OTA 無し / 370,863 entries / 辞書 SHA-256 を凍結） |
+| K-1 ホスト側エンコーダ | ✅ blob **7,967,364 B**。G1〜G5 通過（往復 370,863/370,863） |
+| K-2 C リーダ + Viterbi | ✅ **MeCab と 1,918/1,918 文一致**。G6〜G8 通過 |
+| K-3 未知語ノード生成 | ← **次**。ここで動作点の精度を実測する |
+| K-4 アクセント規則 126 行の C 移植 | 新規性の中核 |
+| K-5〜K-8 | メモリ / 一致 / QEMU / 実機 |
+
+⚠️ **K トラックは実機で一度も動かしていない。** 一致はすべて「OpenJTalk と同じ出力か」
+であって正しさではなく、**聴取はゼロ**。
+⚠️ **D-042 のエントリ数は保守的だった**（C-046）。本番エンコーダでは
+**630,000 entries** が同じ予算に入る。**採用するかは未決。**
 
 ⚠️ **P-1 の前提が 2 つとも間違っていた**（2026-08-28）:
 1. **「toolchain 待ち」ではなかった**（C-033）。入れていなかっただけで、

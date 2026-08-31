@@ -45,6 +45,22 @@ uv run python scripts/k1/heldout_source_check.py # held-out のソース順の�
 `run_all.sh` / `build_probe.sh` / `build_pages2.sh` は `oj/` とクロスコンパイラに依存するので、
 **そのままでは動かない**。RAM 測定を再現するには OpenJTalk のソース展開が要る。
 
+## K-1 / K-2 のビルドとゲート
+
+```bash
+uv run python scripts/k1/k1_build_dict.py        # 本番の辞書 blob を組んで G1〜G5
+uv run python scripts/k1/k1_fit_point.py         # 予算に入るエントリ数（本番エンコーダで実測）
+uv run python scripts/k1/k2_gen_vectors.py       # C 側ゲートの参照ベクタ（参照は MeCab）
+make -C csrc k2                                  # C リーダ + Viterbi の受け入れ（G6〜G8）
+```
+
+⚠️ `make -C csrc k2` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
+数 MB の生成ベクタが要るので、`g2p-corpus` と同じ扱い。
+
+エンコーダ本体は `src/saanotts_jp/k1_dict.py`、その単体テストは
+`scripts/test_k1_dict.py`（**TDD で書いた**。実装より先にテストを書き、
+落ちることを確認してから実装している）。
+
 ## K-0 の凍結物
 
 | ファイル | 役割 |

@@ -4652,3 +4652,52 @@ I (82) saanotts: ==================== 対話モード ====================
 ⚠️ **実機では一度も動かしていない。速度も未測定。**
 ⚠️ **I2S の GPIO は BCLK=5 / WS=6 / DOUT=7 の仮置き**（根拠なし）。
 DAC を鳴らすならソースから作り直す必要がある。
+
+---
+
+## M-68. K トラック（端末で漢字）の主要な実測値（自己実測 + レーン報告）
+
+**⚠️ 全項目の詳細と再現は [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md)。**
+ここには判断に使う数字だけを置く。スクリプトは `scripts/k1/`。
+
+再現:
+
+```bash
+uv run python scripts/k1/k0_verify_dict.py       # 辞書が D-042 の凍結物か（陰性対照 2 種）
+uv run python scripts/k1/k0_mmu_window.py        # ESP-IDF から MMU 窓を確定
+uv run python scripts/k1/k1_build_dict.py        # 本番 blob を組んで G1〜G5
+uv run python scripts/k1/k1_fit_point.py         # 予算に入るエントリ数（二分探索）
+uv run python scripts/test_k1_dict.py            # エンコーダの単体（TDD）
+make -C csrc k2                                  # C リーダ + Viterbi（G6〜G8）
+```
+
+### 調査（K-1）
+
+| 項目 | 値 |
+|---|---:|
+| 辞書は mmap されるか | **される**（vmmap で 98.4 MB マップ / **常駐 1,040 KB** / dirty 0） |
+| TTS 専用バイナリの 1 エントリ | **28.29 B**（MeCab 形式は約 130 B） |
+| 形式が解析器を駆動できるか | **held-out 全 2,333 文で 2,151/2,151 = 100.00%** |
+| ラティス最大ノード数 | **681**（`mecab_node_t` は ESP32-S3 で **72 B**、クロスコンパイル実測） |
+| 1 文あたりヒープ ピーク | **約 251,504 B**（86% が `jpcommon_label.c:668` の `calloc(1024)`） |
+| アクセント天井の内訳 | 語彙 2 段 off で **100.00% 一致**。SudachiDict 217 MB + nani ONNX の寄与は**合計 0.13pt** |
+| カタカナのコスト | **端末テーブル 0 B**（凍結表 195 キーが 195/195 往復） |
+
+### 実装（K-0 / K-1 / K-2）
+
+| 項目 | 値 |
+|---|---:|
+| MMU 窓（ESP-IDF 5.5.0 のヘッダ） | DBUS 32 MiB を **PSRAM と共有**（`SOC_EXTRAM_DATA_*` == `SOC_DRAM0_CACHE_*`） |
+| 動作点（D-042） | N16R8 / OTA 無し / **370,863 entries** / 303,483 見出し語 |
+| blob（370,863 entries） | **7,967,364 B = 7.60 MiB**（予算 13,828,096 B） |
+| blob（全 789,388 entries） | 16,727,469 B = 15.95 MiB（**予算に入らない**） |
+| 予算に入る最大（本番エンコーダ） | **630,000 entries**（13,617,519 B / 余り 210,577 B）⚠️ **C-046** |
+| G1 往復（11 フィールド） | **370,863 / 370,863** |
+| G6 MeCab と一致（C 実装） | **1,918 / 1,918 文**（token 31,412 件） |
+| G8 | `cc -Wall -Wextra` 警告 0 / コアに alloc 系シンボルなし |
+
+⚠️ **実機で一度も動かしていない。速度は誰も測っていない。**
+⚠️ **一致は「OpenJTalk と同じ出力か」であって正しさではない。聴取はゼロ。**
+⚠️ ラティスと構造体サイズは **ram-lane の報告**（私は独立に 659 / 6.52 nodes-per-char を再現）。
+Viterbi の貪欲比較と行列圧縮は **viterbi-lane**、trie / プールの圧縮は **compress-lane** の報告で、
+**私は再検証していない**。

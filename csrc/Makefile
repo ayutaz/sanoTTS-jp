@@ -11,7 +11,11 @@
 #   make line      端末の行編集ステートマシン（**陽性対照つき**）
 #   make k2        K-2 辞書リーダ + Viterbi（MeCab との一致。陰性対照つき）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
-#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + line + k2
+#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line
+#
+# ⚠️ **k2 は all-test に入れていない。** 辞書（pyopenjtalk / piper-plus）と
+#    数 MB の生成ベクタが要るので、g2p-corpus と同じ扱いにしてある。
+#    辞書がある環境でだけ `make -C csrc k2` を回すこと。
 #
 # ⚠️ **naive DFT は消していない。** `make CFLAGS_EXTRA=-DSAAN_USE_NAIVE_DFT test` で
 #    切り替わる。FFT の検証基準として残してある（D-3a）。
@@ -182,7 +186,7 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line
 
 clean:
-	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress \
+	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress k2_test \
 	      g2p_test line_test
 
 
