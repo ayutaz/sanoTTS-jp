@@ -358,6 +358,118 @@ def test_no_redundant_surface_table() -> None:
           == sorted(entries, key=lambda e: (e.surface, e.wcost)))
 
 
+def test_connection_matrix() -> None:
+    """K-2 の Viterbi に要る接続行列を blob が運ぶ。
+
+    ⚠️ **索引は `flat[rc_prev + lsize * lc_cur]`。** MeCab 本家のソースの式
+    (`matrix_[lcAttr + lsize_*rcAttr]`) ではこの辞書に合わない
+    （K-1 §9-3: 一致 0.91% 対 100.00%）。**推測で書くと必ず外す。**
+    """
+    from saanotts_jp.k1_dict import ConnMatrix, DictBlob
+
+    print("\n=== 接続行列 ===")
+
+    # 3x3 の小さい行列。値は位置が分かるように仕込む
+    lsize = rsize = 3
+    flat = [0] * (lsize * rsize)
+    for rc in range(rsize):
+        for lc in range(lsize):
+            flat[rc + lsize * lc] = 100 * rc + lc
+    raw = (lsize.to_bytes(2, "little") + rsize.to_bytes(2, "little")
+           + b"".join(int(v).to_bytes(2, "little", signed=True) for v in flat))
+    m = ConnMatrix.from_matrix_bin(raw)
+
+    check("lsize / rsize", (m.lsize, m.rsize) == (3, 3), f"{m.lsize}x{m.rsize}")
+    ok = all(m.trans(rc, lc) == 100 * rc + lc
+             for rc in range(rsize) for lc in range(lsize))
+    check("trans(rc_prev, lc_cur) が自己整合", ok,
+          f"trans(1,2)={m.trans(1,2)}（102 が正）")
+    # ⚠️ **上は循環している** — 自分で決めた配置を読み戻しているだけ。
+    #    実際の matrix.bin と合っているかは MeCab の申告値でしか確かめられない。
+    #    それは scripts/k1/k2_gate.py の G-MATRIX で実データを使って検証する。
+    check("転置と区別できる", m.trans(1, 2) != m.trans(2, 1),
+          f"{m.trans(1,2)} vs {m.trans(2,1)}")
+
+    # blob に載って往復する
+    entries = _sample_entries()
+    blob = DictBlob.build(entries, matrix=m)
+    back = DictBlob.from_bytes(blob.to_bytes())
+    check("blob に matrix セクションがある",
+          "matrix" in DictBlob.sections(blob.to_bytes()))
+    check("往復しても同じ値", back.matrix is not None
+          and all(back.matrix.trans(rc, lc) == m.trans(rc, lc)
+                  for rc in range(rsize) for lc in range(lsize)))
+    check("行列なしでも組める（K-1 と後方互換）",
+          DictBlob.from_bytes(DictBlob.build(entries).to_bytes()).matrix is None)
+
+
+def test_louds_rank_index() -> None:
+    """LOUDS が rank/select 索引を blob に持つ。
+
+    端末は flash から mmap して読む。索引を起動時に作ると RAM を食うので、
+    **blob に入れておく**（K-1 §2-2 のサイズ計上にも含まれている）。
+
+    ⚠️ superblock は **256 bit**。512 bit にすると先行 1 の数が最大 448 になり
+    **u8 に入らない**（compress-lane が発見。K-1 §6-1）。
+    """
+    from saanotts_jp.k1_dict import Louds
+
+    print("\n=== LOUDS の rank/select 索引 ===")
+    keys = [bytes([i % 251, (i * 7) % 251, (i * 13) % 251]) for i in range(500)]
+    trie = Louds.build(keys)
+    blob = trie.to_bytes()
+    back = Louds.from_bytes(blob)
+
+    check("索引つきでも直列化して読み戻せる",
+          all(back.common_prefix_search(k, 0) == trie.common_prefix_search(k, 0)
+              for k in keys[:50]))
+
+    # 索引が実際に blob に入っている
+    check("索引ぶん大きくなっている",
+          back.has_rank_index, f"{len(blob):,d} B")
+
+    # 索引だけで rank1 / select0 が正しい（線形走査と一致）
+    bad_r = [i for i in range(0, back.bitlen, 97)
+             if back.rank1_indexed(i) != sum(back._bit(j) for j in range(i))]
+    check("rank1 が線形走査と一致", not bad_r, f"不一致 {len(bad_r)} 箇所")
+
+    zeros = [i for i in range(back.bitlen) if not back._bit(i)]
+    bad_s = [k for k in range(0, len(zeros), 31)
+             if back.select0_indexed(k) != zeros[k]]
+    check("select0 が線形走査と一致", not bad_s, f"不一致 {len(bad_s)} 箇所")
+
+    # superblock 内の先行 1 の数が u8 に収まる
+    check("block 内カウントが u8 に収まる", back.max_block_count <= 255,
+          f"最大 {back.max_block_count}")
+
+
+def test_surface_count_checkpoint() -> None:
+    """見出し語 rank → エントリ開始位置を O(1) 近くで引ける。
+
+    C 側は counts を毎回先頭から足せない（見出し語 30 万件）。
+    値プールと同じく **32 見出し語おきのチェックポイント**を blob に持つ。
+    """
+    from saanotts_jp.k1_dict import DictBlob
+
+    print("\n=== 見出し語ごとのエントリ開始位置 ===")
+    entries = _sample_entries() * 30
+    b = DictBlob.build(entries)
+    raw = b.to_bytes()
+    check("surfck セクションがある", "surfck" in DictBlob.sections(raw),
+          str(sorted(DictBlob.sections(raw))))
+
+    back = DictBlob.from_bytes(raw)
+    mat = back._start
+    ck = [back.entry_start_from_checkpoint(r) for r in range(len(back.surfaces))]
+    check("チェックポイント復元が一致", mat[:len(ck)] == ck,
+          f"{sum(1 for a, c in zip(mat, ck) if a != c)} 件ずれ / {len(ck)} 件")
+
+    bad = back.with_broken_surfck(0)
+    ck2 = [bad.entry_start_from_checkpoint(r) for r in range(len(back.surfaces))]
+    check("陰性対照: ずらすと落ちる", ck2 != ck,
+          f"{sum(1 for a, c in zip(ck, ck2) if a != c)} 件ずれ")
+
+
 # ---------------------------------------------------------------- 実行
 
 def main() -> int:
@@ -365,7 +477,8 @@ def main() -> int:
              test_louds_negative_control, test_louds_serialize,
              test_blob_roundtrip, test_blob_negative_control,
              test_pool_offset_checkpoint, test_blob_layout,
-             test_no_redundant_surface_table]
+             test_no_redundant_surface_table, test_connection_matrix,
+             test_louds_rank_index, test_surface_count_checkpoint]
     for t in tests:
         try:
             t()

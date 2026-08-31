@@ -112,3 +112,7 @@ reports/e1_dnsmos/scratch/
 
 # K-1 の中間生成物（entries.tsv 90 MB / trie キャッシュ 54 MB）
 .k1work/
+
+# K-2 の検証ベクタ（blob 込みで数 MB。make -C csrc k2 が生成する）
+csrc/k2_vectors.bin
+csrc/k2_test

@@ -9,8 +9,9 @@
 #   make bench     レイテンシ測定（段別の内訳）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
 #   make line      端末の行編集ステートマシン（**陽性対照つき**）
+#   make k2        K-2 辞書リーダ + Viterbi（MeCab との一致。陰性対照つき）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
-#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + line
+#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + line + k2
 #
 # ⚠️ **naive DFT は消していない。** `make CFLAGS_EXTRA=-DSAAN_USE_NAIVE_DFT test` で
 #    切り替わる。FFT の検証基準として残してある（D-3a）。
@@ -183,3 +184,17 @@ all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line
 clean:
 	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress \
 	      g2p_test line_test
+
+
+# ---------------------------------------------------------------- K-2
+# 辞書リーダ + Viterbi。参照は MeCab そのもの（未知語を含む文は除く = K-3）。
+# ベクタは大きい（blob 込みで数 MB）ので **生成物**。リポジトリには入れない。
+k2_vectors.bin:
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --out $@
+
+k2_test: k2_test.c k1dict.c k1dict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ k2_test.c k1dict.c $(LDLIBS)
+
+.PHONY: k2
+k2: k2_test k2_vectors.bin
+	./k2_test k2_vectors.bin

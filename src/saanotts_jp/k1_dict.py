@@ -187,6 +187,9 @@ class Louds:
         self.labels = labels
         self.term = term
         self._keys = keys
+        self.has_rank_index = False
+        self.max_block_count = 0
+        self._sup = self._blk = self._sel = b""
         self._reindex()
 
     # --- 索引（rank/select）------------------------------------------------
@@ -343,22 +346,129 @@ class Louds:
         return Louds(bytearray(self.bits), self.bitlen, lab,
                      bytearray(self.term), self._keys)
 
+    # --- rank / select 索引 -------------------------------------------------
+    #
+    # 端末は blob を flash から mmap して読む。索引を起動時に作ると RAM を食うので
+    # **blob に入れて持ち歩く**（K-1 §2-2 のサイズ計上にも入っている）。
+    #
+    # ⚠️ superblock は **256 bit**。512 bit にすると superblock 内の先行 1 の数が
+    #    最大 448 になり **u8 に入らない**（K-1 §6-1 の訂正）。
+    #
+    SUPER_BITS = 256
+    BLOCK_BITS = 64
+    SELECT_STEP = 512
+
+    def build_rank_index(self) -> tuple[bytes, bytes, bytes]:
+        sup = bytearray()
+        blk = bytearray()
+        sel = bytearray()
+        total = 0
+        zeros = 0
+        self.max_block_count = 0
+        for i in range(0, self.bitlen, self.BLOCK_BITS):
+            if i % self.SUPER_BITS == 0:
+                sup += total.to_bytes(4, "little")
+                base = total
+            c = total - base
+            if c > self.max_block_count:
+                self.max_block_count = c
+            blk.append(c)
+            for j in range(i, min(i + self.BLOCK_BITS, self.bitlen)):
+                if self._bit(j):
+                    total += 1
+                else:
+                    if zeros % self.SELECT_STEP == 0:
+                        sel += j.to_bytes(4, "little")
+                    zeros += 1
+        return bytes(sup), bytes(blk), bytes(sel)
+
+    def rank1_indexed(self, i: int) -> int:
+        """索引だけを使った rank1（C が同じ手順でやる）。"""
+        s = int.from_bytes(self._sup[4 * (i // self.SUPER_BITS):
+                                     4 * (i // self.SUPER_BITS) + 4], "little")
+        s += self._blk[i // self.BLOCK_BITS]
+        for j in range(i - i % self.BLOCK_BITS, i):
+            s += self._bit(j)
+        return s
+
+    def select0_indexed(self, k: int) -> int:
+        """索引だけを使った select0。"""
+        base = k // self.SELECT_STEP
+        pos = int.from_bytes(self._sel[4 * base:4 * base + 4], "little")
+        need = k - base * self.SELECT_STEP
+        while need:
+            if not self._bit(pos):
+                need -= 1
+            pos += 1
+        while self._bit(pos):
+            pos += 1
+        return pos
+
     # --- 直列化 -------------------------------------------------------------
     def to_bytes(self) -> bytes:
-        head = self.bitlen.to_bytes(4, "little") + len(self.labels).to_bytes(4, "little")
-        return head + bytes(self.bits) + bytes(self.labels) + bytes(self.term)
+        sup, blk, sel = self.build_rank_index()
+        head = struct.pack("<IIIII", self.bitlen, len(self.labels),
+                           len(sup), len(blk), len(sel))
+        return (head + bytes(self.bits) + bytes(self.labels) + bytes(self.term)
+                + sup + blk + sel)
 
     @classmethod
     def from_bytes(cls, blob: bytes) -> "Louds":
-        bitlen = int.from_bytes(blob[0:4], "little")
-        n_nodes = int.from_bytes(blob[4:8], "little")
-        o = 8
+        bitlen, n_nodes, n_sup, n_blk, n_sel = struct.unpack("<IIIII", blob[:20])
+        o = 20
         nb = (bitlen + 7) // 8
         bits = bytearray(blob[o:o + nb]); o += nb
         labels = bytearray(blob[o:o + n_nodes]); o += n_nodes
         nt = (n_nodes + 7) // 8
-        term = bytearray(blob[o:o + nt])
-        return cls(bits, bitlen, labels, term, None)
+        term = bytearray(blob[o:o + nt]); o += nt
+        d = cls(bits, bitlen, labels, term, None)
+        d._sup = blob[o:o + n_sup]; o += n_sup
+        d._blk = blob[o:o + n_blk]; o += n_blk
+        d._sel = blob[o:o + n_sel]
+        d.has_rank_index = True
+        d.max_block_count = max(d._blk) if d._blk else 0
+        return d
+
+
+class ConnMatrix:
+    """MeCab の接続コスト行列。
+
+    ⚠️ **索引は `flat[rc_prev + lsize * lc_cur]`。**
+    MeCab 本家のソースは `matrix_[lcAttr + lsize_*rcAttr]` と書いてあるが、
+    **この辞書では合わない**。MeCab 自身が申告する link_cost から逆算して
+    1,537/1,537 = 100.00% で確定した式がこちら（K-1 §9-3）。
+    他の 3 通りの索引式はいずれも一致 1% 未満だった。
+
+    ⚠️ `link_cost` は `word_cost` を含む（`link_cost = trans + word_cost`）。
+    生の遷移コストと比べると**陰性対照が壊れる**（実際に踏んだ）。
+    """
+
+    def __init__(self, lsize: int, rsize: int, data: bytes) -> None:
+        self.lsize = lsize
+        self.rsize = rsize
+        self.data = data
+        if len(data) != 2 * lsize * rsize:
+            raise ValueError(f"行列の大きさが合わない: {len(data)} != "
+                             f"2*{lsize}*{rsize}")
+
+    @classmethod
+    def from_matrix_bin(cls, raw: bytes) -> "ConnMatrix":
+        """`matrix.bin` をそのまま受ける（先頭 4 B が lsize/rsize）。"""
+        lsize = int.from_bytes(raw[0:2], "little")
+        rsize = int.from_bytes(raw[2:4], "little")
+        return cls(lsize, rsize, raw[4:4 + 2 * lsize * rsize])
+
+    def trans(self, rc_prev: int, lc_cur: int) -> int:
+        i = 2 * (rc_prev + self.lsize * lc_cur)
+        return int.from_bytes(self.data[i:i + 2], "little", signed=True)
+
+    def to_section(self) -> bytes:
+        return (self.lsize.to_bytes(2, "little") + self.rsize.to_bytes(2, "little")
+                + self.data)
+
+    @classmethod
+    def from_section(cls, blob: bytes) -> "ConnMatrix":
+        return cls.from_matrix_bin(blob)
 
 
 class Entry(NamedTuple):
@@ -407,7 +517,8 @@ class DictBlob:
 
     def __init__(self, *, keys: KeyCodec, moras: MoraCodec, louds: Louds,
                  classes: list[tuple], chains: list[str], counts: list[int],
-                 records: bytes, pool: bytes, surfaces: list[str]) -> None:
+                 records: bytes, pool: bytes, surfaces: list[str],
+                 matrix: "ConnMatrix | None" = None) -> None:
         self.keys = keys
         self.moras = moras
         self.louds = louds
@@ -416,6 +527,7 @@ class DictBlob:
         self.counts = counts
         self.records = records
         self.pool = pool
+        self.matrix = matrix
         if surfaces is None:
             surfaces = [self.keys.decode(k) for k in louds.terminal_keys()]
         self.surfaces = surfaces
@@ -425,7 +537,8 @@ class DictBlob:
 
     # --- 構築 ---------------------------------------------------------------
     @classmethod
-    def build(cls, entries: list[Entry]) -> "DictBlob":
+    def build(cls, entries: list[Entry],
+              matrix: "ConnMatrix | None" = None) -> "DictBlob":
         keys = KeyCodec.from_surfaces(e.surface for e in entries)
         moras = MoraCodec.from_prons(
             [e.pron for e in entries] + [e.read for e in entries])
@@ -488,7 +601,7 @@ class DictBlob:
             inv_ch[v] = k
         return cls(keys=keys, moras=moras, louds=louds, classes=inv_c,
                    chains=inv_ch, counts=counts, records=bytes(records),
-                   pool=bytes(pool), surfaces=order)
+                   pool=bytes(pool), surfaces=order, matrix=matrix)
 
     # --- オフセット ---------------------------------------------------------
     RECORD_SIZE = 9
@@ -519,6 +632,35 @@ class DictBlob:
             pl, el = self._lens(j)
             off += pl + el
         return off
+
+    def surface_checkpoints(self) -> bytes:
+        """32 見出し語おきの累積エントリ数。C が entry_range を O(1) 近くで引くため。"""
+        out = bytearray()
+        tot = 0
+        for i, c in enumerate(self.counts):
+            if i % self.CHECKPOINT == 0:
+                out += struct.pack("<I", tot)
+            tot += c
+        return bytes(out)
+
+    def entry_start_from_checkpoint(self, rank: int) -> int:
+        ck = getattr(self, "_surfck", None)
+        if ck is None:
+            ck = self._surfck = self.surface_checkpoints()
+        base = rank // self.CHECKPOINT
+        off = struct.unpack("<I", ck[4 * base:4 * base + 4])[0]
+        for j in range(base * self.CHECKPOINT, rank):
+            off += self.counts[j]
+        return off
+
+    def with_broken_surfck(self, idx: int) -> "DictBlob":
+        import copy
+        d = copy.copy(self)
+        ck = bytearray(self.surface_checkpoints())
+        v = struct.unpack("<I", ck[4 * idx:4 * idx + 4])[0]
+        ck[4 * idx:4 * idx + 4] = struct.pack("<I", v + 1)
+        d._surfck = bytes(ck)
+        return d
 
     def with_broken_checkpoint(self, idx: int) -> "DictBlob":
         import copy
@@ -591,7 +733,7 @@ class DictBlob:
     # ⚠️ 見出し語の文字列表は持たない。trie の鍵がそれ自身なので冗長
     #    （370,863 entries では 3,881,011 B = blob の 33%）。
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
-                  "classes", "chains", "records", "pool")
+                  "classes", "chains", "records", "pool", "matrix", "surfck")
 
     @staticmethod
     def _pack_strtab(items) -> bytes:
@@ -627,6 +769,8 @@ class DictBlob:
             "chains": self._pack_strtab(self.chains),
             "records": self.records,
             "pool": self.pool,
+            **({"matrix": self.matrix.to_section()} if self.matrix else {}),
+            "surfck": self.surface_checkpoints(),
         }
 
     def to_bytes(self) -> bytes:
@@ -696,4 +840,6 @@ class DictBlob:
             records=sec("records"),
             pool=sec("pool"),
             surfaces=None,            # trie から復元する
+            matrix=(ConnMatrix.from_section(sec("matrix"))
+                    if "matrix" in secs else None),
         )
