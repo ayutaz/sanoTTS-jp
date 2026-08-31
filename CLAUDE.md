@@ -35,7 +35,7 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **実機を持っている人への依頼**（焼く・喋らせる・報告） |
 | [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
 | [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md) | **K-1**。端末で漢字を扱えるかの実測。B-0 の否定的結論のうち 4 つが崩れた |
-| [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md) | K-1 の実装計画。K-0〜K-8 に目的・ゴール・受け入れ条件 |
+| [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md) | K トラックの実装計画。**冒頭の「残っているもの」を先に読む**（実機 / 聴取 / 判断 2 件） |
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 

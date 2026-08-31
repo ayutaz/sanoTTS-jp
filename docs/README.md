@@ -21,7 +21,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 3.7 | [`vastai-runbook.md`](vastai-runbook.md) | vast.ai 実行手順。⚠️ **通常は不要**（D-027 で手元完結に変更）。λ の並列探索などで使う | 実行時 |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
 | 4.5 | [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) | **K-1 の結論レポート**。B-0 の否定的結論のうち 4 つが崩れた。辞書は mmap / TTS 専用バイナリで 1 エントリ 28.29 B / アクセント天井は 126 行。**§0 に「その後どうなったか」**（実装で分かったずれ 3 件） | 固定（§0 だけ追記） |
-| 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K-1 の実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件 G1〜G27。**K-7 まで完了** | 進行中（残り K-8） |
+| 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K トラックの実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件（G1〜G32。⚠️ G15/G16 は欠番）。**K-7 まで完了。冒頭に「残っているもの」の 4 行表** | 進行中（残り K-8 と判断 2 件） |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
