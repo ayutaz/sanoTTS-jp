@@ -46,7 +46,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 検証タスク **B-0 〜 B-12** と **D-4 / E-1 / E-2 / E-2b** も全部完了。
 **PIE カーネルも実装・QEMU 検証まで完了**（M-57 / M-58）。
 **端末でかなの自由入力もできる**（M-63 / D-040）。
-**v0.1.1 で焼くだけの firmware も配布している**（M-67）。
+**v0.1.1 で焼くだけの firmware も配布している**（M-67。漢字版は v0.2.0）。
 **残りは実機での速度実測だけ。**
 
 **(2) 端末で漢字を扱う（K トラック・QEMU まで完走）**
@@ -220,9 +220,11 @@ uv run python scripts/kana_g2p.py                  # 変換器 10 ケース + **
 uv run python scripts/test_losses.py               # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（83 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（94 ケース + commit ガード）
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
-uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号（陽性対照つき。C-042）
+uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **引用アンカー**
+                                                   #   （陽性対照つき。C-042 / C-052）
+uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
 uv run python scripts/k1/k0_verify_dict.py         # 使う辞書が D-042 の凍結物か（陰性対照 2 種。C-045）
 uv run python scripts/test_k1_dict.py              # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
 make -C csrc k2                                    # K-2/K-3 辞書リーダ + Viterbi + 未知語
@@ -475,9 +477,10 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc k4b` / `k5` / `k6` / `k7` | **K トラックの受け入れゲート**。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
-| テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号が実体とずれていないか**。⚠️ 番号は書いた瞬間から古くなる（C-042） |
+| テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
+| テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない** — リリース資産が消えても気づかない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**83 ケース + commit ガード 6 件**の回帰テスト付き） |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**94 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
 hook を変えたら必ず回帰テストを通すこと（誤検知があると全 Bash が止まる）:

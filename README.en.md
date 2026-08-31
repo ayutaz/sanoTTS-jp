@@ -19,7 +19,7 @@ Porting the English recipe as-is breaks. These three walls are specific to Japan
 
 | Wall | How it was solved |
 |---|---|
-| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host. ⚠️ **Re-measuring later broke this premise and the implementation went through** — a TTS-only format is 130 B → **28 B** per entry, so 438,750 entries fit a 16 MB board, and QEMU synthesizes from kanji end to end (K-7 / M-79). ⚠️ **Untested on hardware; not in the release** |
+| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host. ⚠️ **Re-measuring later broke this premise and the implementation went through** — a TTS-only format is 130 B → **28 B** per entry, so 438,750 entries fit a 16 MB board, and QEMU synthesizes from kanji end to end (K-7 / M-76). ⚠️ **Untested on hardware**, but a **flash-and-go 16 MB image ships in v0.2.0** |
 | **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **37/37 sign agreement** with the teacher |
 | **Devoiced vowels** — the `i` and `u` in です / した are acoustically close to frication | Separability was confirmed with per-phoneme-class spectral flatness (AUC 0.847) before adding them to the noise-injection set |
 
@@ -33,27 +33,36 @@ a counterpart.
 |---|---|
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
-| **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 629 KB in int8 (flash) |
+| **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 643,936 B in int8 (flash) |
 | **Speed** | ⚠️ **Not met.** Ported as fp32 it runs at **2.47× real-time** (too slow) |
+| **Kanji on the device** | Synthesizes end to end under QEMU (13.7 MB dictionary / 438,750 entries). ⚠️ **Untested on hardware** |
 
-⚠️ **Everything above is a predictor score at n = 24–200. Nobody has listened to the audio.**
-"Teacher ratio 0.644" does not mean "64 % as good as the teacher" — it is a ratio of
-scores from predictors that are **not calibrated for Japanese**. Real human Japanese
-speech scores only **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute
-numbers against English papers**.
+⚠️ **Everything above is a predictor score at n = 24–200, and exactly one person has
+listened, once** (the β decision, M-60 / D-038). "Teacher ratio 0.644" does not mean
+"64 % as good as the teacher" — it is a ratio of scores from predictors that are **not
+calibrated for Japanese**. Real human Japanese speech scores only
+**SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute numbers against
+English papers**.
 
-**Measuring speed on real hardware is the only thing left.** The int8 kernel using the
-ESP32-S3's PIE (SIMD) **is written and verified bit-identical under QEMU** (99.4% of MACs).
-The official implementation reports **0.22× real-time measured** on the same chip, which
-supports the direction.
-
-**The PIE kernel is written** — the dot product now uses `ee.vmulas.s8.accx` (a 16-lane
+**Measuring on real hardware is the only thing left.** The int8 kernel using the
+ESP32-S3's PIE (SIMD) **is written** — the dot product uses `ee.vmulas.s8.accx` (a 16-lane
 int8 multiply-accumulate), verified **bit-identical to the scalar path under QEMU**
-(covering **99.4%** of the MACs).
+(covering **99.4%** of the MACs). The official implementation reports **0.22× real-time
+measured** on the same chip, which supports the direction.
 
 ⚠️ **That still does not mean it got faster.** QEMU is not cycle-accurate, so **speed has
 never been measured**. Whether it reaches 0.22× real-time can only be settled on real
 ESP32-S3 hardware.
+
+**What QEMU has verified:**
+
+| When | What |
+|---|---|
+| 2026-08-30 | The shipping firmware **boots → mmaps the weights → runs G2P → synthesizes → converts to int16**. **PIE is bit-identical to the scalar path across all 27,136 samples** (with a negative control, M-62) |
+| 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.2.0 ships a flash-and-go 16 MB image for it** |
+
+⚠️ **Neither has ever run on real hardware.** What is left is **speed**, **I2S on real
+hardware**, and **confirming the kanji path boots** — all three need a board.
 
 ## Getting started
 
@@ -62,10 +71,27 @@ ESP32-S3 hardware.
 
 | | Goal | What you need | Time |
 |---|---|---|---|
-| **A** | **Hear it** | `saanotts-jp-v3-samples.zip` from [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | 1 min |
+| **A** | **Hear it** | `saanotts-jp-v3-samples.zip` from [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 1 min |
 | **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
-| **C** | **Make an ESP32-S3 speak** | + ESP-IDF v5.5 + a board (DAC optional) | 15–30 min |
+| **C** | **Make an ESP32-S3 speak** | a board (DAC optional). **ESP-IDF is not needed to just flash** | 15–30 min |
 | **D** | **Run the code gates** | minimal setup only | 5 min |
+
+### ⚠️ Which release holds what
+
+**`releases/latest` is v0.2.0 (the kanji firmware) and does not contain the model
+weights.** The weights and samples are in v0.1.1. **Every link on this page points at an
+explicit tag.**
+
+| Asset | Where | What it is |
+|---|---|---|
+| `saanotts-jp-v3-samples.zip` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | Synthesized WAVs |
+| `saanotts-jp-v3-stage4.pt` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | PyTorch weights (2.7 MB) |
+| `saanotts-jp-v3-int8.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | int8 blob for the C99 core (643,936 B) |
+| `esp32s3-firmware-w8a8-pie.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | **Kana** firmware (8 MB+, flash and go) |
+| `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kanji** image (**16 MB required**, flash and go) |
+| `k1-dict-438750.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The dictionary blob alone (13,702,320 B) |
+
+⚠️ **v0.2.0 does not redistribute the model** — it is bit-identical to v0.1.1's.
 
 ### Minimal setup (B / D) — no piper-plus, no teacher
 
@@ -82,7 +108,7 @@ uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 ### B. Synthesize your own text
 
 Download `saanotts-jp-v3-stage4.pt` (2.7 MB) from
-[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) and pass the
+[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) and pass the
 **kana intermediate form**:
 
 ```bash
@@ -116,16 +142,24 @@ checkpoint** (it builds phoneme IDs through the teacher's `phoneme_id_map`).
 Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over serial:
 
 ```
-かな> きょ][おわよ][いて][んきです°ね
+かな> きょ][おわよ][いて][んきです°ね        ← works on either firmware
+かな> !今日は良い天気ですね。                ← `!` only on the kanji firmware
 ```
 
-⚠️ **The shipped firmware does not accept kanji.** ⚠️ **Nobody has measured the speed yet.**
+**There are two firmwares.**
 
-> The stated reason used to be "the dictionary does not fit". Re-measuring broke that
+| | Flash this | Accepted input | Flash size |
+|---|---|---|---|
+| Kana | `esp32s3-firmware-w8a8-pie.bin` (v0.1.1) | The kana intermediate form only | 8 MB+ |
+| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` (v0.2.0) | **Prefix a line with `!`** for kanji text | **16 MB required** |
+
+⚠️ **Nobody has measured the speed of either.** ⚠️ **The kanji one has never run on hardware.**
+
+> The reason kanji used to be rejected was "the dictionary does not fit". Re-measuring broke that
 > premise, and the implementation now runs: with a TTS-only dictionary format a 16 MB
 > board holds 438,750 entries, and typing `!今日は良い天気ですね。` into the QEMU UART
 > makes the device tokenize the sentence itself and synthesize to completion
-> ([M-79](docs/measurements.md)). The audio came out **bit-identical** to the frozen
+> ([M-76](docs/measurements.md)). The audio came out **bit-identical** to the frozen
 > kana intermediate (`0x78c209af06affc01`).
 >
 > - Matches MeCab on **1,977/1,977** sentences (unknown words included)
@@ -133,9 +167,10 @@ Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over seria
 > - The NJD chain matches the host **635/635**; labels → phoneme ids **298/298**
 > - Peak RAM per sentence **104,589 B**; dictionary 13,702,320 B (438,750 entries)
 >
-> ⚠️ **0.32% of phonemes differ from the host** (n=298, M-79) — the on-device
+> ⚠️ **0.32% of phonemes differ from the host** (n=298, M-77) — the on-device
 > dictionary is pruned, so some readings change.
-> ⚠️ **Never run on real hardware; speed and audio are unmeasured; not in the release.**
+> ⚠️ **Never run on real hardware; speed and audio are unmeasured.**
+> **v0.2.0 ships a flash-and-go image, but only QEMU has verified it.**
 > (See [`esp32/README.md`](esp32/README.md), section 漢字対応ビルド.)
 
 ### D. Run the code gates
@@ -173,6 +208,7 @@ regenerate labels or retrain; kanji→kana conversion works with the piper-plus 
 |---|---|
 | **Regenerate labels / retrain** | The teacher checkpoint lives in a private repository |
 | **Measure real-hardware speed** | ⚠️ **No ESP32-S3 board here.** See [`esp32/TESTING.md`](esp32/TESTING.md) |
+| **Say whether it sounds good** | ⚠️ **One listener, one session.** Zero for the kanji path |
 
 ## Architecture
 
@@ -236,7 +272,7 @@ The documentation is in Japanese.
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
 | [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-79. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-044 and the **correction log C-001–C-051** |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-044 and the **correction log C-001–C-052** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
@@ -244,6 +280,7 @@ The documentation is in Japanese.
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **How to run it on real hardware** (flashing, speaking, the 4 lines to report) |
 | [`MODEL_CARD.md`](MODEL_CARD.md) | What the model is, how it was evaluated, known limits |
 | [`CLAUDE.md`](CLAUDE.md) | Implementation notes; also the operating rules for AI agents |
+| [`CONTRIBUTING.md`](CONTRIBUTING.md) | **How to contribute.** What helps most: hardware speed, and **what it sounds like to you** |
 
 ## How this repository is run
 
@@ -251,18 +288,18 @@ The documentation is in Japanese.
 that is written into the repository itself.
 
 - **Never write a guess as a number.** If it was not measured, it says "not measured"
-- **Never delete the correction log.** **51 entries** record errors of the form
+- **Never delete the correction log.** **52 entries** record errors of the form
   "something one command would have answered, inferred instead of measured." They exist so
   the same mistake is not repeated
 - **Never delete a risk just because it was settled.** Deleting it makes the question resurface
 - **Always report n and a CI when n is small** (a difference at n = 3 was once turned into a
   conclusion, then refuted)
-- **Do not write a gate you cannot break on purpose.** Six defects hid behind green tests;
+- **Do not write a gate you cannot break on purpose.** Eleven defects hid behind green tests;
   they are collected in `.claude/skills/writing-gates/`
 
 `.claude/hooks/guard_bash.py` mechanically blocks writes to the teacher repository,
 `pip install`, destroying the production label pack, fetching GPL sources, and committing
-corpus text (83 regression cases).
+corpus text (94 regression cases).
 
 ## License
 

@@ -1,8 +1,18 @@
 # ESP32-S3 実機テストのお願い
 
-**このプロジェクトに残っている未検証項目は「速度」だけです。**
-ESP32-S3 の実機が 1 枚あれば決着します。手元では QEMU までしか行けません
-（QEMU はサイクル精度ではないので、速度を測れない）。
+**実機でしか分からないことが 3 つ残っています。**
+ESP32-S3 の実機が 1 枚あれば全部決着します。手元では QEMU までしか行けません
+（QEMU はサイクル精度ではなく、I2S の DMA も捌かない）。
+
+| | 何が知りたいか |
+|---|---|
+| **1** | **速度**（`定常 xRT`）。外挿では fp32 で 2.47×、int8 + PIE なら間に合う見込み |
+| **2** | **I2S で実際に音が出るか**（QEMU では通せなかった） |
+| **3** | **漢字版が実機で起動して同じ checksum を出すか**（16 MB ボードのみ） |
+
+⚠️ **「音が良いか」は実機とは別の話**で、**ボードが無くても答えられます**
+（[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) の
+`saanotts-jp-v3-samples.zip` を聴いた感想が、実は同じくらい貴重です）。
 
 **所要 15〜30 分。**⚠️ 最初に [ライセンス](../LICENSE-MODEL.md)を読んでください
 （重みは MIT ではありません）。
@@ -18,7 +28,7 @@ ESP32-S3 の実機が 1 枚あれば決着します。手元では QEMU まで�
 
 | | |
 |---|---|
-| **ESP32-S3 ボード** | 内部 SRAM 512 KB / flash **8 MB 以上**。PSRAM は不要 |
+| **ESP32-S3 ボード** | 内部 SRAM 512 KB / flash **8 MB 以上**。PSRAM は不要。⚠️ **漢字版も試すなら 16 MB（N16R8）** |
 | **I2S DAC**（任意） | MAX98357A / PCM5102 など。⚠️ **無くても速度は測れます** |
 | ESP-IDF | **v5.5 で動作確認済み**。⚠️ **焼くだけなら不要**（下記「A. 焼くだけ」）|
 
@@ -36,14 +46,29 @@ DAC が無い方は下の**「音を出さない場合」**へ。
 
 ## A. 焼くだけ（ESP-IDF 不要・推奨）
 
-[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
-**`esp32s3-firmware-w8a8-pie.bin`**（2.8 MB）を落として焼くだけです。
-bootloader + パーティション表 + アプリ + **重み blob** が全部入っています。
+**焼けるイメージは 3 種類あります。** ⚠️ **リリースが 2 つに分かれています。**
+
+| イメージ | どこ | flash | 入力 | 何のため |
+|---|---|---|---|---|
+| **`esp32s3-firmware-w8a8-pie.bin`** | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 8 MB 以上 | かな | **速度の本命**（W8A8 + PIE） |
+| `esp32s3-firmware-w8a32.bin` | [v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) | 8 MB 以上 | かな | 比較用（最適化なし） |
+| `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **16 MB 必須** | **漢字も** | 漢字経路（⚠️ QEMU のみ） |
+
+**16 MB のボードなら 3 つ目を焼くのが一番情報量が多い**（かな入力もそのまま通ります）。
+8 MB なら 1 つ目です。
 
 ```bash
 pip install esptool
+
+# 8 MB ボード（かな入力）
 esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-w8a8-pie.bin
+
+# 16 MB ボード（漢字も読める）
+esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-16mb.bin
 ```
+
+いずれも bootloader + パーティション表 + アプリ + **重み blob**（漢字版はさらに**辞書**）が
+全部入っています。
 
 そのあと **115200 baud** のシリアル端末で開きます（`screen /dev/tty.usbmodemXXXX 115200`
 / `minicom` / PuTTY など。ESP-IDF があるなら `idf.py monitor` でも可）。
@@ -55,9 +80,14 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-w8a8-p
 **DAC を鳴らしたいならソースから作り直してください**（B へ）。
 **速度の測定だけなら DAC は不要**なので、この firmware のままで足ります。
 
-**比較用**に `esp32s3-firmware-w8a32.bin`（最適化なし）も置いてあります。
-両方焼いて `定常 xRT` を比べると、**PIE がどれだけ効いたかが直接わかります**
-（手元では原理的に測れません）。
+**`w8a8-pie` と `w8a32` を両方焼いて `定常 xRT` を比べる**と、
+**PIE がどれだけ効いたかが直接わかります**（手元では原理的に測れません）。
+**これが一番知りたい数字です。**
+
+⚠️ **漢字版（v0.2.0）は PIE 無効でビルドしてあります**
+（`build_rel_kanji` の compile_commands に `SAAN_PIE` が無いことで確認）。
+**PIE の比較には使えません。** 漢字版で見たいのは
+「**G2P に何 ms かかるか**」の方です。
 
 そのまま [「喋らせる」](#喋らせる対話入力)へ進んでください。
 
@@ -68,8 +98,9 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-w8a8-p
 ### 1. モデルを取る
 
 **リポジトリをクローンしただけでは重みは入っていません**（git 管理外）。
-[リリース](https://github.com/ayutaz/sanoTTS-jp/releases/latest)から
+[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1)から
 **`saanotts-jp-v3-int8.bin`**（643,936 B）を落としてください。
+⚠️ **`releases/latest` は v0.2.0 で、重みが入っていません。**
 
 ⚠️ `saanotts-jp-v3-stage4.pt` は **PyTorch 用**です。ESP32 では読めません。
 
@@ -159,13 +190,14 @@ idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_QEMU=1 \
 | `°` | 無声化（直前が平母音のときだけ効く） |
 | `?` `?!` `?.` `?~` | 疑問の終端 |
 
-⚠️ **配布しているファームは漢字・カタカナ・句読点を受け付けません**（`。`も不可）。
+⚠️ **かな版のファームは漢字・カタカナ・句読点を受け付けません**（`。`も不可）。
 端末に辞書が無いためで、受け付けない文字は**位置と文字を出して拒否**します
 （黙って無音にはしません）。
 
-ℹ️ **漢字対応ビルドもあります**（K-7 / M-76）が、**配布物には入っていません**。
-16 MB flash と 12 MB の辞書パーティションが要るためです。試したい方は
-[`README.md`](README.md) の「漢字対応ビルド」を見てください。
+ℹ️ **漢字版のファームなら受け付けます**（`esp32s3-firmware-kanji-16mb.bin` / v0.2.0）。
+行頭に `!` を付けると漢字かな交じり文として扱います（K-7 / M-76）。
+**16 MB flash が必須**で、ソースから作るなら [`README.md`](README.md) の
+「漢字対応ビルド」を見てください。
 ⚠️ **こちらは QEMU で通しただけで、実機では誰も動かしていません。**
 
 ⚠️ **アクセント記号を省いても喋りますが、抑揚は平板になります。**
@@ -285,6 +317,10 @@ idf.py -B build_b -DSDKCONFIG=build_b/sdkconfig -p <ポート> flash monitor
 
 ⚠️ **N16R8（16 MB flash）が要ります。** 8 MB のボードでは辞書 13.7 MB が入りません。
 
+ℹ️ **焼くだけで良いなら [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) の
+`esp32s3-firmware-kanji-16mb.bin` があります**（下のビルドは不要）。
+ソースから作るのは、辞書のエントリ数を変える / I2S の GPIO を直すときだけです。
+
 ```bash
 # リポジトリのルートで辞書を作る（13,702,320 B。数分かかります）
 uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
@@ -330,7 +366,7 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 | | |
 |---|---|
 | **起動しても勝手には喋りません** | `かな> ` にかな中間表現を 1 行打つと喋ります（下記）。起動時に 1 回喋らせたいなら `-DSAAN_BOOT_SPEAK=1` |
-| **配布ファームでは漢字を扱えません** | 漢字→かなはホスト側（OpenJTalk）。端末が受け取るのは「ひらがな + アクセント記号」です。⚠️ **辞書を積んだ別ビルドは QEMU で動いています**（K-7 / M-76）が、16 MB flash が要るので配布物には入れていません |
+| **かな版のファームでは漢字を扱えません** | 漢字→かなはホスト側（OpenJTalk）。端末が受け取るのは「ひらがな + アクセント記号」です。⚠️ **辞書を積んだ漢字版は v0.2.0 で配布していますが、QEMU で動かしただけ**（K-7 / M-76）で、**16 MB flash が要ります** |
 | **これは PoC です** | 製品品質ではありません。既知の制約は [`MODEL_CARD.md`](../MODEL_CARD.md) |
 | **音質は「教師の 64%」** | ⚠️ 較正されていない予測器のスコアの比です。人が聴いた評価は 1 名しかしていません |
 | **サンプルレート誤差は未測定** | ESP32-S3 に APLL が無く、22,050 Hz は分数分周の近似です。ずれるとピッチがずれます |

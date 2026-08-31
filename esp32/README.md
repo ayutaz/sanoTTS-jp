@@ -20,6 +20,7 @@ ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 284,912 B
 `!今日は良い天気ですね。` を UART に打ち込むと、端末が自分で形態素解析して
 ids 53 個を作り、**凍結してあるかな中間表現と同じ PCM**（`0x78c209af06affc01`）が出た。
 有効化は `idf.py -DSAAN_KANJI=1`（**既定は無効**。16 MB flash と 12 MB の辞書が要る）。
+**v0.2.0 からは焼くだけの 16 MB イメージも配布している**（`esp32s3-firmware-kanji-16mb.bin`）。
 
 ⚠️ **しかし実機（ESP32-S3 ボード）が無いので、実機では動かしたことが無い。**
 ⚠️ **QEMU はサイクル精度ではないので、速度は一切測れていない。**
@@ -186,8 +187,10 @@ idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
 | `csrc/student.bin` (fp32) | 2,249,792 B | 参照・デバッグ用。`-DSAAN_MODEL_BLOB=$PWD/../csrc/student.bin` |
 
 ⚠️ **blob は git 管理外。** クローンしただけでは存在しない。
-[リリース](https://github.com/ayutaz/sanoTTS-jp/releases/latest)の
+[v0.1.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.1.1) の
 `saanotts-jp-v3-int8.bin` を落とすか、自分で書き出すこと（上記）。
+⚠️ **`releases/latest` は v0.2.0 で、重みが入っていない**（v0.1.1 と bit 同一のため
+再配布していない）。
 
 ⚠️ **かつて fp32 を既定にしていたが、それは int8 経路が確定していない時期の
 保守的な選択だった。** flash と D-cache では int8 のほうが 3.5 倍有利で、

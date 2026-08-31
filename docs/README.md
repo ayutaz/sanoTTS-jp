@@ -13,7 +13,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-044 と**訂正履歴 C-001〜C-051** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-044 と**訂正履歴 C-001〜C-052** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-79。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画（かなトラック）**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2**。⚠️ **K トラックは 4.6 の別計画** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
@@ -29,7 +29,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 
 ⚠️ 例外は [`upstream-sanotts.md`](upstream-sanotts.md)。**あれは上流の申告値であって、うちの実測ではない。** M-番号と混ぜないこと。
 
-## 現在地（2026-08-31 時点）
+## 現在地（2026-09-01 時点）
 
 ```
 [完了] 論文の仕様抽出        論文 PDF から全数値を抽出
@@ -102,7 +102,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             mora テーブルを csrc/g2p_table.json に凍結（SHA-256 検証つき）
                             ⚠️ **リリース v0.1.0 の手順は動かなかった**（C-040）
                             ⚠️ 「piper-plus 無しで通った」と**誤って観測**した（C-041）
-[完了] **v0.2.0 リリース**      **端末で漢字かな交じり文を扱う firmware**を追加（M-79）。
+[完了] **v0.2.0 リリース**      **端末で漢字かな交じり文を扱う firmware**を追加（M-76 / M-79）。
                             ⚠️ **モデルは v0.1.1 と bit 同一**（再学習していない）。
                             ⚠️ **実機未検証。** QEMU で起動・辞書・錨の照合まで。
                             ⚠️ 出荷構成では DRAM が 19,304 B 溢れた
@@ -127,7 +127,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | **3** | 起動から合成まで落ちない / checksum が QEMU と一致 | K | G30 / G31 | ✅ 要る |
 | **4** | 出荷ファームで **W8A8 + PIE** を有効にするかの判断 | かな | — | ✅ 実質要る（動機が速度） |
 
-✅ **「音の測定」は済んだ**（M-79）。実機は要らなかった — 端末の ids はホストの
+✅ **「音の測定」は済んだ**（M-78）。実機は要らなかった — 端末の ids はホストの
 生徒モデルにそのまま入るので、**端末の音とホストの音を直接比べられる**。
 **SCOREQ の差は −0.0019（全体）/ −0.0127（違う 44 文だけ）で、どちらも CI が 0 を跨ぐ。**
 ⚠️ **枝刈りは音を汚していない。変えるのは読みだけ。**
@@ -190,7 +190,7 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
                             食い違いは**全部が辞書の枝刈り**で、移植の誤りではない
                             ⚠️ **G17 の「0.60% 以下」は取り下げた**（C-050）。あれは
                             同形異音語 14 文の数で、枝刈りの代償ではなかった（実測 12〜18%）
-[完了] K-7 ESP32 / QEMU     **漢字文から合成まで完走**（M-79）。app 359,584 B / 2 MB、
+[完了] K-7 ESP32 / QEMU     **漢字文から合成まで完走**（M-76）。app 359,584 B / 2 MB、
                             dict **13,702,320 B** / 13,828,096 B（**枠は D-042 の予算と一致**）
                             **3 経路が bit 一致** `0x78c209af06affc01`
                             ⚠️ DRAM が 2 回溢れた（.bss で 419 KB / heap の空き 20,964 B）。
@@ -199,11 +199,15 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 [未]   K-8 実機             **ボード待ち。速度も音も未測定**
 ```
 
+**v0.2.0 で焼くだけの 16 MB イメージを配布した**（`esp32s3-firmware-kanji-16mb.bin`）。
+⚠️ **配布したことは検証したことではない。** 中身は QEMU でしか動かしていない。
+⚠️ **モデルは再配布していない**（v0.1.1 と bit 同一。`docs/release-notes/v0.2.0.md`）。
+
 ⚠️ **K トラックは実機で一度も動かしていない。速度も音も未測定。**
 QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字**。
 一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
 
-✅ **動作点は決まった**（D-044 / M-79）: **438,750 entries / 接続行列は int16 のまま。**
+✅ **動作点は決まった**（D-044 / M-77）: **438,750 entries / 接続行列は int16 のまま。**
 
 | entries | 行列 | blob | 枠の余り | **音素の誤り** |
 |---:|---|---:|---:|---:|
@@ -211,7 +215,7 @@ QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字
 | **438,750 ← これ** | **int16** | **13,702,320** | **125,776** | **0.32%** |
 | 528,750 | uint8 | 13,781,959 | 46,137 | 0.22% |
 
-**決め手は「文が一致するか」から「どれだけ違うか」へ測り直したこと**（M-79）。
+**決め手は「文が一致するか」から「どれだけ違うか」へ測り直したこと**（M-77）。
 ⚠️ **音としては測っていない。** 0.32% は「ホストと違う音素の割合」。
 
 ゲート: `uv run python scripts/test_k1_dict.py` / `uv run python scripts/k1/k0_verify_dict.py`
@@ -290,7 +294,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-044 + 訂正履歴 C-001〜C-051
+│   ├── decisions.md                       決定記録 D-001〜D-044 + 訂正履歴 C-001〜C-052
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-79
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
@@ -366,7 +370,7 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（83 ケース + commit ガードのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（94 ケース + commit ガードのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                           student-training / evaluating-quality /
 │                                           verifying-reports / writing-gates
@@ -423,9 +427,10 @@ uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   #
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（83 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（94 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
-uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号が実体と一致するか
+uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
+uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
 uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
 uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か
 
