@@ -2844,3 +2844,58 @@ C-046 は「外挿を避けて実測したが、**測った対象が本番と違
 **K-4b（NJD チェーンの統合）が次の関門になる。** 計画に無かった段で、
 `mecab2njd` / `njd_set_*` / `jpcommon` を統合しないと K-6 以降に進めない。
 ⚠️ **作業量は未測定。** まず数えるところから始める。
+
+---
+
+## C-048: 第三者コードを**間違ったフォークから**取り込んだ（`pyopenjtalk` と `pyopenjtalk-plus`）
+
+K-4b で Open JTalk の NJD 系 34 ファイルを `csrc/openjtalk/` に取り込んだとき、
+**素の `pyopenjtalk 0.4.1` の sdist**から取った。
+
+ホストで実際に動いているのは **`pyopenjtalk-plus 0.4.1.post9`**（フォーク）で、
+**34 ファイル中 22 が食い違っていた**。`njd_set_accent_phrase.c` には
+フォークが足した Rule 13 などが入っており、素の方では**規則そのものが違う**。
+
+| 取り込み元 | G14a |
+|---|---:|
+| `pyopenjtalk 0.4.1`（誤） | **75 / 600** |
+| `pyopenjtalk-plus 0.4.1.post9`（正） | 302 / 600 → 最終 **635 / 635** |
+
+**入口の間違い**: パッケージ名（`import pyopenjtalk`）を見て上流を決めた。
+`.dist-info` を見れば `pyopenjtalk_plus-0.4.1.post9` と書いてある。
+
+```bash
+ls .venv/lib/python3.14/site-packages/ | grep -i openjtalk
+# → pyopenjtalk / pyopenjtalk_plus-0.4.1.post9.dist-info
+```
+
+**打つ手**: `scripts/k1/k4b_vendor.py --sdist <tgz> --check` が上流との
+バイト一致を検査する。`PROVENANCE.md` は生成物にした。
+⚠️ **PROVENANCE.md はこのスクリプトを参照していたのに、スクリプトは存在しなかった。**
+「更新のしかた」に書いたコマンドは、**書いた時点で一度も実行していなかった**（C-040 と同じ形）。
+
+**教訓**: `import` 名は配布名ではない。**取り込む前に `.dist-info` を見る。**
+
+---
+
+## C-049: 「K-4 の 4 段」は後処理の**全部ではなかった** — 端末に載らない段が 3 つある
+
+K-1 の調査で「`apply_postprocessing` は 7 段、うち 2 段がフラグ制御」と書き、
+K-4 では**純関数の 4 段だけ**を移植した。ここまでは正しい。
+
+⚠️ **しかし計画にも docs にも「4 段を移植すればホストと一致する」と読める書き方が残っていた。**
+実際には端末に載らない段が 3 つある:
+
+| 載らない段 | 何が要るか | 影響（中間表現・n=600） |
+|---|---|---:|
+| `predict_nani_reading` | **ONNX モデル** | 0 / 600 |
+| `modify_kanji_yomi` | **Sudachi**（別の解析器 + 辞書） | **12 / 600 = 2.00%** |
+| `process_odori_features` | jtalk インスタンス | 0 / 600 |
+
+さらに、**素の Open JTalk に無い段が chaining の前にもう 1 つあった**
+（`apply_original_rule_before_chaining`、12 規則）。これは純関数なので移植した
+（`csrc/k4b_njd.c`）。**移植前は G14a が 302 / 600 で止まっていた。**
+
+**打つ手**: 端末はホスト既定と **2.00%** [1.15, 3.45] の文で食い違う。
+症状は無声化マーク `°` の有無（M-70）。⚠️ **音への影響は未測定。**
+

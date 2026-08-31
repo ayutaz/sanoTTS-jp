@@ -39,6 +39,8 @@ from saanotts_jp.k1_dict import (CharProperty, ConnMatrix, DictBlob,  # noqa: E4
 
 def main() -> int:
     ap = argparse.ArgumentParser()
+    ap.add_argument("--matrix-int8", choices=["sym", "affine"], default=None,
+                    help="接続行列を 1 B に丸める（K-5 の精度影響を測る）。\n                          sym=行ごと対称 int8 / affine=行ごとアフィン uint8")
     ap.add_argument("--entries", type=int, default=120_000,
                     help="ベクタ用は小さめで良い（C の正しさを見るのが目的）")
     ap.add_argument("--cases", type=int, default=300)
@@ -82,6 +84,28 @@ def main() -> int:
                for r in sub]
     matrix = ConnMatrix.from_matrix_bin(
         (pathlib.Path(dic) / "matrix.bin").read_bytes())
+    if a.matrix_int8:
+        # K-5: 行ごとスケールの int8 に丸めた「値」を、**int16 のまま**入れる。
+        # ⚠️ ここで測るのは**精度への影響だけ**。サイズの削減は別の話
+        #    （形式を int8 にして初めて縮む）。混ぜて報告しないこと。
+        import numpy as np
+        M = np.frombuffer(matrix.data, dtype="<i2").reshape(
+            matrix.rsize, matrix.lsize).astype(np.int32)
+        if a.matrix_int8 == "sym":
+            amax = np.abs(M).max(axis=1)
+            scale = np.where(amax == 0, 1.0, amax / 127.0)
+            q = np.rint(M / scale[:, None]).clip(-127, 127)
+            M2 = np.rint(q * scale[:, None]).astype("<i2")
+        else:                                    # 行ごとアフィン uint8
+            lo = M.min(axis=1); hi = M.max(axis=1)
+            sc = np.where(hi == lo, 1.0, (hi - lo) / 255.0)
+            q = np.rint((M - lo[:, None]) / sc[:, None]).clip(0, 255)
+            M2 = np.rint(q * sc[:, None] + lo[:, None]).astype("<i2")
+        n_diff = int((M2 != M).sum())
+        print(f"⚠️ 行列を行ごと int8 に丸めた: {n_diff:,d} / {M.size:,d} 要素が変化"
+              f"（{100*n_diff/M.size:.2f}%）/ 最大誤差 "
+              f"{int(np.abs(M2.astype(np.int32)-M).max())}")
+        matrix = ConnMatrix(matrix.lsize, matrix.rsize, M2.tobytes())
     char_prop = CharProperty.from_char_bin((pathlib.Path(dic) / "char.bin").read_bytes())
     unkd = UnkDict.from_unk_dic((pathlib.Path(dic) / "unk.dic").read_bytes())
     blob = DictBlob.build(entries, matrix=matrix, char_prop=char_prop, unk=unkd)

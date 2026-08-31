@@ -219,8 +219,8 @@ The documentation is in Japanese.
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
-| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-68. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-043 and the **correction log C-001–C-047** |
+| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-72. Every entry has a reproduction command |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-043 and the **correction log C-001–C-049** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
@@ -235,7 +235,7 @@ The documentation is in Japanese.
 that is written into the repository itself.
 
 - **Never write a guess as a number.** If it was not measured, it says "not measured"
-- **Never delete the correction log.** **47 entries** record errors of the form
+- **Never delete the correction log.** **49 entries** record errors of the form
   "something one command would have answered, inferred instead of measured." They exist so
   the same mistake is not repeated
 - **Never delete a risk just because it was settled.** Deleting it makes the question resurface

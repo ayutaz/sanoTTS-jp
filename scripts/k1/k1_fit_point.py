@@ -69,11 +69,18 @@ def size_of(target: int) -> tuple[int, int, int]:
     return len(b), len(es), len(set(e.surface for e in es))
 
 
+# K-5: 接続行列を**行ごとアフィン uint8** にすると 1,885,113 B 浮く。
+# ⚠️ **ただの値引きではない。** MeCab との一致が 1,696 文中 3 文（0.18%）落ちる
+#    実測がある（M-72）。予算を増やす代わりに解析が変わる、という取引。
+MATRIX_SAVING = 1_885_113
+
 BUDGETS = [("16 MB / A（OTA 無し）← D-042", 13_828_096),
            ("16 MB / B（OTA2）", 11_730_944)]
 print(f"\n{'予算':30s} {'B':>12s} {'入る entries':>13s} {'見出し語':>10s} "
       f"{'実サイズ':>12s} {'余り':>10s}")
-for name, budget in BUDGETS:
+rows = []
+for name, budget in [(n, b) for n, b in BUDGETS] + \
+                    [(n + " + 行列 uint8", b + MATRIX_SAVING) for n, b in BUDGETS]:
     lo, hi, best = 100_000, 800_000, None
     while lo <= hi:
         mid = (lo + hi) // 2
@@ -89,4 +96,7 @@ for name, budget in BUDGETS:
 print("""
 ⚠️ 精度は未測定。B-0 の実測点で挟むこと（400,000 → 音素 95.53% / アクセント 89.29%）。
 ⚠️ **接続行列 (3.79 MB) と char.bin (262 KB) と unk.dic を含めた値**。
-   辞書本体だけで測ると 1.6 倍ほど多く入るように見える（C-047 で踏んだ）。""")
+   辞書本体だけで測ると 1.6 倍ほど多く入るように見える（C-047 で踏んだ）。
+⚠️ **「+ 行列 uint8」の行はタダではない。** 行ごとアフィン uint8 に落とすと
+   MeCab との一致が 1,696 文中 3 文（0.18%）落ちる（M-72）。
+   **エントリを増やして得る分と、行列を粗くして失う分は別の話。**""")
