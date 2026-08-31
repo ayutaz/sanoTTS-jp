@@ -3142,3 +3142,32 @@ README / `esp32/TESTING.md` が案内していた**ダウンロード 5 本が�
 - **C-052** — この破損の記録
 - **D-041 / M-64 / M-65** — 「外の人が動かせる状態にする」の一連
 - **C-040 / C-041** — 手順書が動かなかった前例。**リリースを 1 本足すと手順書が壊れる**
+
+### ⚠️ CI が初回で移植性バグを 1 件見つけた
+
+`csrc` の job が Linux で落ちた。**CI の設定ではなくコードの欠陥**だった。
+
+```
+fft_test.c:27: error: 'M_PI' undeclared
+fft_test.c:56: error: 'CLOCK_MONOTONIC' undeclared
+```
+
+`M_PI` は **C99 の `<math.h>` に無い**（POSIX の拡張）。macOS では既定で見えるが、
+**Linux + glibc の厳密 `-std=c99` では見えない**。`clock_gettime` も同様に隠れる。
+
+**C-033 と同じ形**（あのときは ESP32 向けで踏んだ）。今回の犯人は 4 ファイル:
+
+| ファイル | 何が足りなかったか |
+|---|---|
+| `fft_test.c` | `M_PI` と `_POSIX_C_SOURCE` の両方 |
+| `saanotts.c` / `saanotts_stream.c` | `M_PI`。**出荷するコア 2 本** |
+| `arena_stress.c` | Makefile の **`-D_DARWIN_C_SOURCE` に依存**していた（macOS 専用） |
+
+`bench.c` は最初から正しく書けていたので、**その形に揃えた**。
+
+⚠️ **コア 2 本の数値は変わらない。** `#ifndef M_PI` なので macOS では使われず、
+`make -C csrc pad` の checksum は `151185e2f116a007` のまま。
+
+**教訓**: **1 つの OS でしか通していないビルドは「通る」と言えない。**
+手元は macOS だけで、`-D_DARWIN_C_SOURCE` という macOS 専用フラグまで
+Makefile に入っていた。CI を入れた初回に出たのは偶然ではない。

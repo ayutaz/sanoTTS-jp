@@ -85,7 +85,9 @@ dump_pcm_a8: dump_pcm.c $(CORE) $(HDRS)
 
 # arena ストレス（c'-4）。fork で SEGV を観測するので POSIX が要る = **ホスト専用**
 arena_stress: arena_stress.c $(CORE) $(HDRS)
-	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -D_DARWIN_C_SOURCE -o $@ arena_stress.c $(CORE) $(LDLIBS)
+	# ⚠️ かつて `-D_DARWIN_C_SOURCE` を付けていたが **macOS 専用**で Linux では効かない。
+	#    `arena_stress.c` が自前で `_POSIX_C_SOURCE` を立てるようにした。
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ arena_stress.c $(CORE) $(LDLIBS)
 
 bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)

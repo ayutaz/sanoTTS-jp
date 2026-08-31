@@ -10,6 +10,10 @@
  *
  *   make -C csrc arena
  */
+/* ⚠️ **移植性。** `clock_gettime` / `CLOCK_MONOTONIC` は POSIX で、
+ * 厳密 `-std=c99` だと glibc が隠す。**どのヘッダより先に**立てる。
+ * ⚠️ これを立てると macOS 側で `M_PI` が隠れるので、下でガードしている。 */
+#define _POSIX_C_SOURCE 199309L
 #include "saanotts.h"
 #include "saanotts_stream.h"
 

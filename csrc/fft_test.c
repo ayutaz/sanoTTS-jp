@@ -9,9 +9,21 @@
  *
  *   cc -std=c99 -O2 -Wall -Wextra -o fft_test fft_test.c fft.c -lm
  */
+/* ⚠️ **移植性。** `clock_gettime` / `CLOCK_MONOTONIC` は POSIX で、
+ * 厳密 `-std=c99` だと glibc が隠す。**どのヘッダより先に**立てる。
+ * ⚠️ これを立てると macOS 側で `M_PI` が隠れるので、下でガードしている。 */
+#define _POSIX_C_SOURCE 199309L
 #include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
+
+/* ⚠️ **移植性。** `M_PI` は C99 の <math.h> に無い（POSIX の拡張）。
+ * macOS では既定で見えるが、**Linux + glibc の厳密 `-std=c99` では見えない**。
+ * `bench.c` と同じ形で自前に持つ（C-033 / CI が Linux で見つけた）。 */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #include <string.h>
 #include <time.h>
 #include "fft.h"

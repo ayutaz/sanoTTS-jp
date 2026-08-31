@@ -10,6 +10,13 @@
 #include <stdio.h>
 #include <string.h>
 
+/* ⚠️ **移植性。** `M_PI` は C99 の <math.h> に無い（POSIX の拡張）。
+ * macOS では既定で見えるが、**Linux + glibc の厳密 `-std=c99` では見えない**。
+ * `bench.c` と同じ形で自前に持つ（C-033 / CI が Linux で見つけた）。 */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define NAME_LEN 64
 #define HDR_ENT  (NAME_LEN + 4 + 4 + 16 + 8 + 8)
 #define ALIGN16(x) (((x) + 15u) & ~(size_t)15u)

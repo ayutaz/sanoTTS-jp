@@ -24,6 +24,13 @@
 #include <math.h>
 #include <string.h>
 
+/* ⚠️ **移植性。** `M_PI` は C99 の <math.h> に無い（POSIX の拡張）。
+ * macOS では既定で見えるが、**Linux + glibc の厳密 `-std=c99` では見えない**。
+ * `bench.c` と同じ形で自前に持つ（C-033 / CI が Linux で見つけた）。 */
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 #define AC_W  SAAN_AC_W
 #define DEC_W SAAN_DEC_W
 #define CD    SAAN_CDIM
