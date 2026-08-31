@@ -156,6 +156,26 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
 第三者素材の義務を完全にゼロにしたい場合は、JSUT だけでなく
 **つくよみちゃん（＝教師）も外す必要がある**。
 
+## ⚠️ リポジトリに**含まれている**第三者コード
+
+| 対象 | ライセンス | 場所 |
+|---|---|---|
+| **Open JTalk**（NJD / JPCommon 系 34 ファイル） | **修正 BSD**（Copyright (c) 2008-2016 Nagoya Institute of Technology / HTS Working Group） | [`csrc/openjtalk/`](csrc/openjtalk/) |
+
+**端末で漢字を扱う経路（K-7）で使う。** かな入力だけの既定ビルドには入らない
+（`idf.py -DSAAN_KANJI=1` を付けたときだけコンパイル対象になる）。
+
+- ライセンス全文は [`csrc/openjtalk/COPYING`](csrc/openjtalk/COPYING)
+- 出所・バージョン・改変の一覧は [`csrc/openjtalk/PROVENANCE.md`](csrc/openjtalk/PROVENANCE.md)
+- 取得元は **pyopenjtalk-plus** の sdist 同梱（`lib/open_jtalk/src`）
+- 全ファイル連結の SHA-256: `572fc2b7341530ff56d9c415fdb7df41886ad9ed57e6975579cb3a4b644a5f43`
+- **改変は 1 件だけ**（`jpcommon_label.c` の `MAXBUFLEN` 1024 → 256。K-5）。
+  `scripts/k1/k4b_vendor.py --check` が「上流 + 改変表」と突き合わせるので、
+  **表に無い改変は落ちる**
+
+⚠️ **修正 BSD は MIT と同居できる**（コピーレフトではない）。
+⚠️ **GPL-3.0 の `Ampixa/sanoTTS` とは別物**（D-032 の凍結対象ではない）。
+
 ## 主な依存（すべて寛容型ライセンス）
 
 | パッケージ | ライセンス |

@@ -19,7 +19,7 @@ Porting the English recipe as-is breaks. These three walls are specific to Japan
 
 | Wall | How it was solved |
 |---|---|
-| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host |
+| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host. ⚠️ **Re-measuring later broke this premise and the implementation went through** — a TTS-only format is 130 B → **28 B** per entry, so 370,863 entries fit a 16 MB board, and QEMU synthesizes from kanji end to end (K-7 / M-76). ⚠️ **Untested on hardware; not in the release** |
 | **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **37/37 sign agreement** with the teacher |
 | **Devoiced vowels** — the `i` and `u` in です / した are acoustically close to frication | Separability was confirmed with per-phoneme-class spectral flatness (AUC 0.847) before adding them to the noise-injection set |
 
@@ -119,8 +119,24 @@ Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over seria
 かな> きょ][おわよ][いて][んきです°ね
 ```
 
-⚠️ **The device does not accept kanji** (the dictionary does not fit).
-⚠️ **Nobody has measured the speed yet.**
+⚠️ **The shipped firmware does not accept kanji.** ⚠️ **Nobody has measured the speed yet.**
+
+> The stated reason used to be "the dictionary does not fit". Re-measuring broke that
+> premise, and the implementation now runs: with a TTS-only dictionary format a 16 MB
+> board holds 370,863 entries, and typing `!今日は良い天気ですね。` into the QEMU UART
+> makes the device tokenize the sentence itself and synthesize to completion
+> ([M-76](docs/measurements.md)). The audio came out **bit-identical** to the frozen
+> kana intermediate (`0x78c209af06affc01`).
+>
+> - Matches MeCab on **1,977/1,977** sentences (unknown words included)
+> - The 126-line accent rules match the Python version **2,333/2,333**
+> - The NJD chain matches the host **635/635**; labels → phoneme ids **298/298**
+> - Peak RAM per sentence **104,589 B**; dictionary 12,153,280 B
+>
+> ⚠️ **The device produces the same phoneme-id sequence as the host for 82.21% of
+> sentences** (n=298) — the on-device dictionary is pruned, so some readings change.
+> ⚠️ **Never run on real hardware; speed and audio are unmeasured; not in the release.**
+> (See [`esp32/README.md`](esp32/README.md), section 漢字対応ビルド.)
 
 ### D. Run the code gates
 

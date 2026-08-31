@@ -49,9 +49,10 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 **v0.1.1 で焼くだけの firmware も配布している**（M-67）。
 **残りは実機での速度実測だけ。**
 
-**(2) 端末で漢字を扱う（K トラック・進行中）**
+**(2) 端末で漢字を扱う（K トラック・QEMU まで完走）**
 B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つの根拠が崩れた**（K-1 調査）。
-**K-0 / K-1 / K-2 完了**、次は K-3。
+**K-0 〜 K-7 完了。QEMU の UART に漢字文を打ち込んで合成まで通った**（M-76）。
+残りは**実機**（K-8）と、エントリ数・接続行列の判断。
 → [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md)（結論）
 ／ [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md)（計画）
 
@@ -70,18 +71,48 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 | | 状態 |
 |---|---|
 | K-0 前提の凍結 | ✅ **D-042**（N16R8 / OTA 無し / 370,863 entries / 辞書 SHA-256 を凍結） |
-| K-1 ホスト側エンコーダ | ✅ blob **7,967,364 B**。G1〜G5 通過（往復 370,863/370,863） |
-| K-2 C リーダ + Viterbi | ✅ **MeCab と 1,918/1,918 文一致**。G6〜G8 通過 |
-| K-3 未知語ノード生成 | ✅ **経路なし 0 件**。MeCab と **1,977/1,977 一致**（未知語文 59/59） |
-| K-4 アクセント規則 126 行の C 移植 | ✅ **Python 版と 2,333/2,333 一致**。外部資源はかな表 76 件だけ |
-| **K-4b NJD チェーン統合** | ← **次**。OpenJTalk の **34 ファイル / 8,070 行**を vendoring（修正 BSD）。⚠️ 計画に無かった段 |
-| K-5〜K-8 | メモリ / ホストとの一致 / QEMU / 実機 |
+| K-1 ホスト側エンコーダ | ✅ blob **12,153,280 B**（行列 / char / unk 込み）。G1〜G5 |
+| K-2 C リーダ + Viterbi | ✅ **MeCab と 1,918/1,918 文一致**。G6〜G8 |
+| K-3 未知語ノード生成 | ✅ **経路なし 0 件**。MeCab と **1,977/1,977 一致** |
+| K-4 アクセント規則 126 行の C 移植 | ✅ **Python 版と 2,333/2,333 一致** |
+| K-4b NJD チェーン統合 | ✅ ホストと **635/635**（NJD ノード 10,206 件）。M-69 |
+| K-5 メモリの詰め | ✅ 1 文ピーク **268,941 → 104,589 B**（−61.1%）。M-71 |
+| K-6 ホストとの一致 | ✅ **素性が一致した 244 文でラベル差 0 件**（陰性対照 44 件）。M-74 |
+| **K-7 ESP32 / QEMU** | ✅ **漢字文から合成まで完走**。3 経路が bit 一致。M-76 |
+| K-8 実機 | ⚠️ **次**。ボード待ち |
 
-⚠️ **K トラックは実機で一度も動かしていない。** 一致はすべて「OpenJTalk と同じ出力か」
-であって正しさではなく、**聴取はゼロ**。
-⚠️ **動作点の上限は 438,750 entries**（C-047）。⚠️ **C-046 で「630,000 入る」と
-報告したのは誤り** — 接続行列 3.79 MB を数えていなかった。
-**上げるかは K-5 の後に精度と一緒に決める**（D-043）。
+**端末で漢字が喋れる**（QEMU 上）。有効化は `idf.py -DSAAN_KANJI=1`（既定は無効）。
+
+⚠️ **K トラックは実機で一度も動かしていない。速度も音も未測定。**
+QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字**。
+一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
+
+⚠️ **ホストと同じ音素ID列になるのは 82.21% の文**（n=298。M-74 の追記）。
+⚠️ **一致率は 3 通りある**（feature 79.19% / ラベル 79.87% / **ids 82.21%**）。
+**製品として意味があるのは ids** — それが生徒に入る列だから。**混ぜないこと。**
+**食い違いは全部が辞書の枝刈り**で、
+移植の誤りではない（「素性が同じなのにラベルが違う」は 3 つの動作点すべてで **0 件**）。
+⚠️ **計画にあった「0.60% 以下」は取り下げた**（C-050）。あれは同形異音語
+（Sudachi）の 14 文から取った数で、**枝刈りの代償ではなかった**。
+
+⚠️ **端末に載らない後処理が 3 段ある**（C-049 / M-70）。ホスト既定は 7 段だが、
+`predict_nani_reading`（ONNX）/ `modify_kanji_yomi`（Sudachi）/
+`process_odori_features` は載らない。**中間表現で 2.00%** [1.15, 3.45] の文が食い違う。
+
+⚠️ **枝刈りで落ちた語は無音で消えるのではなく、切り直されて誤読される**（C-051）:
+`上毛`（コーゲ）→ `上`（ジョー）+ `毛`。未知語になるのは**辞書にも無い語**だけ
+（端末 37 / 5,015 token = 0.74%、ホストでも 10 件 = 0.20%）。
+未知語のフォールバック `k1_unk_guess` は入れてあり、**37 件中 13 件**を読める形にした。
+
+**判断待ちが 2 つ**（どちらも未決）:
+
+| | 370,863 | 438,750 | 528,750 |
+|---|---:|---:|---:|
+| ホストとの一致（**ラベル列** の一致（n=300・フォールバック前）） | 81.67% | 85.00% | **87.33%** |
+| 接続行列 | 生 int16 | 生 int16 | **uint8 が前提** |
+
+⚠️ **接続行列を uint8 にすると 1.89 MB 浮くが、MeCab 一致が 0.18% 落ちる**（M-72）。
+⚠️ **動作点の上限は 438,750 entries**（生の行列のとき。C-047）。
 
 ⚠️ **P-1 の前提が 2 つとも間違っていた**（2026-08-28）:
 1. **「toolchain 待ち」ではなかった**（C-033）。入れていなかっただけで、
@@ -191,12 +222,17 @@ uv run python scripts/test_k1_dict.py              # K-1 辞書エンコーダ�
 make -C csrc k2                                    # K-2/K-3 辞書リーダ + Viterbi + 未知語
                                                    #   （G6〜G11。⚠️ 辞書が要る）
 make -C csrc k4                                    # K-4 アクセント規則 4 段（G12/G13）
+make -C csrc k4b                                   # K-4b NJD チェーン（G14a/G14b/G14c。
+                                                   #   段ごと・規則ごとの陰性対照つき）
+make -C csrc k5                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
+make -C csrc k6                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
+make -C csrc k7                                    # K-7 ラベル → 生徒インデックス（G25〜G27）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
                                                    #   g2p / pad / **line**）
 ```
 
-**ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56）:
+**ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56 / M-76）:
 
 ```bash
 export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"   # ⚠️ 3.14 では venv が壊れる
@@ -204,7 +240,21 @@ export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"   # ⚠️ 3.14 �
 export PATH="$HOME/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin:$PATH"
 cd esp32 && idf.py set-target esp32s3 && idf.py build     # 雛形（PIE は無効）
 cd esp32/pie_probe && idf.py qemu                         # PIE の bit 一致検証
+
+# 漢字対応（K-7）。⚠️ **16 MB flash と辞書パーティションが要る**
+uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
+cd esp32 && idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 build
+cd build_kanji && esptool.py --chip esp32s3 merge_bin \
+    --fill-flash-size 16MB -o /tmp/flash16.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/flash16.bin,if=mtd,format=raw
+# → `かな>` に `!今日は良い天気ですね。` と打つ（`!` が漢字経路の印）
 ```
+
+⚠️ **PSRAM は QEMU では使えない**（octal PSRAM を持っていない）。
+漢字経路の作業領域は**合成用 arena から切り出して**いるので無くても動く。
 
 ## アーキテクチャ（固定仕様）
 
@@ -416,6 +466,9 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
+| テスト | `make -C csrc k4b` / `k5` / `k6` / `k7` | **K トラックの受け入れゲート**。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
+| テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
+| テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号が実体とずれていないか**。⚠️ 番号は書いた瞬間から古くなる（C-042） |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**83 ケース + commit ガード 6 件**の回帰テスト付き） |
@@ -680,7 +733,17 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 ## 未解決のブロッカー（優先順）
 
 **Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
-設計値は D-016 〜 D-034 として凍結。現在地は [`docs/README.md`](docs/README.md)。
+**K トラックも K-0 〜 K-7 まで決着した**（QEMU で漢字文から合成まで完走。M-76）。
+設計値は D-016 〜 D-043 として凍結。現在地は [`docs/README.md`](docs/README.md)。
+
+**両トラックとも、残っているのは実機だけ:**
+
+| | 残り |
+|---|---|
+| (1) かな中間表現 | 実機でのサイクル実測 / β の聴取（P-2 は D-038 で決着） |
+| (2) 漢字（K） | **実機**（K-8）/ エントリ数の判断 / 接続行列 uint8 の判断 |
+
+⚠️ **どちらも「ボードが無い」が本物の待ち。** QEMU はサイクル精度ではない。
 
 1. ~~**【次】PIE カーネル。**~~ ✅ **実装完了**（M-57）。
    `saan_conv1d_i8a` の内積を `ee.vmulas.s8.accx` で書き直し、
@@ -771,6 +834,18 @@ xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（�
 `unk.dic` の未知語エントリは**読み・アクセントを一切持たない**（feature が 7 列しかなく
 `read` / `pron` / `acc` / `chain` が無い）ため、未知語は `njd_set_pronunciation.c` の規則で
 `、`（読点）に置換される。**例外も警告も出ず、語が丸ごと音声から消える。**
+
+⚠️ **「辞書に無い語」と「未知語ノードになる語」は別物**（C-051）。
+**枝刈りで落ちた語は未知語にならず、より短い既知語に切り直されて誤読される**:
+`上毛`（コーゲ）→ `上`（ジョー）+ `毛`。無音で消えるのは**辞書にも無い語**だけで、
+端末で 37 / 5,015 token = **0.74%**（ホストでも 10 件 = 0.20%。M-75）。
+**枝刈りの代償（文の 18%）はフォールバックでは 1 mm も減らない。**
+
+✅ 端末側にはフォールバックを入れてある（`k1_unk_guess`。M-75）。
+表層が全部かなら**それ自身が読み**、そうでなければ**1 文字ずつ辞書を引いて繋ぐ**、
+アクセントは**平板に逃げる**。37 件中 **13 件**が読める形になった。
+⚠️ 残り 24 件は ASCII と、**辞書に単独の見出しが無い漢字**（`勃` `筑`）。
+1 文字の見出し語を全部確保しても改善しない。
 
 ⚠️ **かつてここに 齟齬 / 蜃気楼 / 氷点下 を実例として挙げていたが、
 フル辞書では 3 語とも正しく読まれる**（C-044。`齟齬` → `s o g o`、

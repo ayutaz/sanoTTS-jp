@@ -1,9 +1,28 @@
-# scripts/k1 — K-1 調査（端末で漢字・カタカナ）の測定コード
+# scripts/k1 — K トラック（端末で漢字・カタカナ）の測定コードと生成器
 
 結論は [`../../docs/research/k1-kanji-katakana-ondevice.md`](../../docs/research/k1-kanji-katakana-ondevice.md)、
 実装計画は [`../../docs/plan/k1-kanji-implementation-plan.md`](../../docs/plan/k1-kanji-implementation-plan.md)。
 
-## 使い方
+**K-0 〜 K-7 は完了**（QEMU で漢字文から合成まで完走。M-76）。残りは実機（K-8）。
+
+## 本番で使うもの（実装が依存している）
+
+```bash
+uv run python scripts/k1/k0_verify_dict.py                    # 辞書の同一性（**最初にこれ**）
+uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin   # 端末に焼く辞書 blob
+uv run python scripts/k1/k1_fit_point.py                      # 予算に入るエントリ数
+uv run python scripts/k1/k4b_vendor.py --sdist <tgz> [--check]  # Open JTalk の取り込み / 検査
+uv run python scripts/k1/k2_gen_vectors.py                    # K-2/K-3 のベクタ
+uv run python scripts/k1/k4_gen_vectors.py                    # K-4 のベクタ
+uv run python scripts/k1/k4b_gen_vectors.py                   # K-4b のベクタ
+uv run python scripts/k1/k5_gen_labels.py --vectors ... --out ...  # K-5 の basis
+uv run python scripts/k1/k6_gen_vectors.py                    # K-6/K-7 のベクタ
+```
+
+⚠️ **`k1_build_dict.py` は行列 / char / unk も入れる。** 入れないと blob が
+8.1 MB になり（12.2 MB のはず）、**端末で Viterbi も未知語も動かない**。
+
+## 調査時の測定コード（結論は出ている）
 
 ```bash
 uv run python scripts/k1/k0_verify_dict.py       # **最初にこれ**。使う辞書が D-042 の凍結物か
