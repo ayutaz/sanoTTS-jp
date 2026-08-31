@@ -18,6 +18,22 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "src"))
 FAILED: list[str] = []
 
 
+def _dict_dir() -> str:
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent / "k1"))
+    import k0_freeze_dict
+    return k0_freeze_dict.resolve_dict_dir()
+
+
+def _char_bin() -> bytes:
+    import os
+    return pathlib.Path(os.path.join(_dict_dir(), "char.bin")).read_bytes()
+
+
+def _unk_dic() -> bytes:
+    import os
+    return pathlib.Path(os.path.join(_dict_dir(), "unk.dic")).read_bytes()
+
+
 def check(name: str, cond: bool, detail: str = "") -> None:
     mark = "OK " if cond else "NG "
     print(f"  {mark} {name}" + (f"    {detail}" if detail else ""))
@@ -470,6 +486,66 @@ def test_surface_count_checkpoint() -> None:
           f"{sum(1 for a, c in zip(ck, ck2) if a != c)} 件ずれ")
 
 
+# ---------------------------------------------------------------- 未知語（K-3）
+
+def test_char_property() -> None:
+    """char.bin の文字カテゴリを読む。
+
+    形式は実データで確認した: u32 カテゴリ数 / 32 B ずつのカテゴリ名 /
+    **65,535 件**の CharInfo（u32 のビットフィールド）。
+    ⚠️ 65,536 ではない。**U+FFFF 以上は表に無い** — サロゲートペア漢字
+    （𡈽 / 𩸽）が未知語になるのはこれが理由（C-044）。
+
+    CharInfo は type:18 / default_type:8 / length:4 / group:1 / invoke:1。
+    """
+    from saanotts_jp.k1_dict import CharProperty
+
+    print("\n=== 文字カテゴリ（char.bin）===")
+    cp = CharProperty.from_char_bin(_char_bin())
+
+    check("カテゴリ数", len(cp.names) == 11, str(cp.names))
+    check("先頭は DEFAULT", cp.names[0] == "DEFAULT")
+    check("表は 65,535 件", cp.n_codepoints == 65535, f"{cp.n_codepoints}")
+
+    # ⚠️ 自分の符号化を読み戻すのではなく、**日本語として正しい分類**を確かめる
+    for ch, want in [("あ", "HIRAGANA"), ("ア", "KATAKANA"), ("ｱ", "KATAKANA"),
+                     ("漢", "KANJI"), ("1", "NUMERIC"), ("Ａ", "ALPHA"),
+                     ("、", "SYMBOL"), (" ", "SPACE")]:
+        got = cp.names[cp.default_type(ord(ch))]
+        check(f"{ch} は {want}", got == want, got)
+
+    check("KANJI は invoke しない", cp.invoke(ord("漢")) == 0)
+    check("SYMBOL は invoke する", cp.invoke(ord("、")) == 1)
+    check("ひらがなは group する", cp.group(ord("あ")) == 1)
+
+    # 表の外
+    check("U+FFFF 以上は DEFAULT に落ちる",
+          cp.names[cp.default_type(0x21F3D)] == "DEFAULT",
+          cp.names[cp.default_type(0x21F3D)])
+
+
+def test_unk_dict() -> None:
+    """unk.dic を読む。
+
+    ⚠️ **未知語の feature は 7 列しかなく `read` / `pron` / `acc` / `chain` を持たない。**
+    これが「未知語は誤読ではなく無音で消える」の正体（C-044）。
+    """
+    from saanotts_jp.k1_dict import UnkDict
+
+    print("\n=== 未知語辞書（unk.dic）===")
+    u = UnkDict.from_unk_dic(_unk_dic())
+
+    check("カテゴリ名で引ける", len(u.by_category("KANJI")) > 0,
+          f"KANJI に {len(u.by_category('KANJI'))} 件")
+    check("DEFAULT がある", len(u.by_category("DEFAULT")) > 0)
+    check("全件で 40 件前後", 30 <= u.n_entries <= 60, f"{u.n_entries} 件")
+
+    e = u.by_category("KANJI")[0]
+    check("lc / rc / wcost を持つ", e.lc > 0 and e.rc > 0, f"lc={e.lc} rc={e.rc} wcost={e.wcost}")
+    check("feature が 7 列（読みを持たない）", e.n_feature_fields == 7,
+          f"{e.n_feature_fields} 列: {e.feature}")
+
+
 # ---------------------------------------------------------------- 実行
 
 def main() -> int:
@@ -478,7 +554,8 @@ def main() -> int:
              test_blob_roundtrip, test_blob_negative_control,
              test_pool_offset_checkpoint, test_blob_layout,
              test_no_redundant_surface_table, test_connection_matrix,
-             test_louds_rank_index, test_surface_count_checkpoint]
+             test_louds_rank_index, test_surface_count_checkpoint,
+             test_char_property, test_unk_dict]
     for t in tests:
         try:
             t()

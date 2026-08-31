@@ -843,3 +843,162 @@ class DictBlob:
             matrix=(ConnMatrix.from_section(sec("matrix"))
                     if "matrix" in secs else None),
         )
+
+
+class CharProperty:
+    """`char.bin` の文字カテゴリ。
+
+    形式（実データで確認した。推測ではない）:
+
+        u32  カテゴリ数 N
+        N × 32 B  カテゴリ名（NUL 終端）
+        **65,535** × u32  CharInfo
+
+    ⚠️ **65,536 ではない。U+FFFF 以上は表に無い。**
+    サロゲートペア漢字（𡈽 / 𩸽）が未知語になるのはこれが理由（C-044）。
+
+    CharInfo のビット割り当て（LSB から）:
+        type:18（カテゴリの bitmask） / default_type:8 / length:4 / group:1 / invoke:1
+    """
+
+    N_CODEPOINTS = 65535
+
+    def __init__(self, names: list[str], info: bytes) -> None:
+        self.names = names
+        self.info = info
+        self.n_codepoints = len(info) // 4
+
+    @classmethod
+    def from_char_bin(cls, raw: bytes) -> "CharProperty":
+        n = struct.unpack("<I", raw[:4])[0]
+        names = [raw[4 + 32 * i: 4 + 32 * i + 32].split(b"\0")[0].decode()
+                 for i in range(n)]
+        base = 4 + 32 * n
+        return cls(names, raw[base:base + 4 * cls.N_CODEPOINTS])
+
+    def _raw(self, cp: int) -> int:
+        if cp >= self.n_codepoints:
+            return 0                      # 表の外は DEFAULT / group=0 / invoke=0
+        return struct.unpack("<I", self.info[4 * cp:4 * cp + 4])[0]
+
+    def type_mask(self, cp: int) -> int:
+        return self._raw(cp) & 0x3FFFF
+
+    def default_type(self, cp: int) -> int:
+        return (self._raw(cp) >> 18) & 0xFF
+
+    def length(self, cp: int) -> int:
+        return (self._raw(cp) >> 26) & 0xF
+
+    def group(self, cp: int) -> int:
+        return (self._raw(cp) >> 30) & 1
+
+    def invoke(self, cp: int) -> int:
+        return (self._raw(cp) >> 31) & 1
+
+    def to_section(self) -> bytes:
+        head = struct.pack("<I", len(self.names))
+        names = b"".join(n.encode("utf-8").ljust(32, b"\0") for n in self.names)
+        return head + names + self.info
+
+    @classmethod
+    def from_section(cls, blob: bytes) -> "CharProperty":
+        return cls.from_char_bin(blob)
+
+
+class UnkEntry(NamedTuple):
+    category: str
+    lc: int
+    rc: int
+    wcost: int
+    feature: str
+
+    @property
+    def n_feature_fields(self) -> int:
+        return len(self.feature.split(","))
+
+
+class UnkDict:
+    """`unk.dic`。見出し語が**カテゴリ名**になっている MeCab 辞書。
+
+    ⚠️ **feature が 7 列しかなく `read` / `pron` / `acc` / `chain` を持たない。**
+    そのため `njd_set_pronunciation` が `、` に置換し、
+    **未知語は誤読ではなく無音で消える**（C-044）。
+    """
+
+    def __init__(self, entries: list[UnkEntry]) -> None:
+        self.entries = entries
+        self._by: dict[str, list[UnkEntry]] = {}
+        for e in entries:
+            self._by.setdefault(e.category, []).append(e)
+
+    @property
+    def n_entries(self) -> int:
+        return len(self.entries)
+
+    def by_category(self, name: str) -> list[UnkEntry]:
+        return self._by.get(name, [])
+
+    @classmethod
+    def from_unk_dic(cls, raw: bytes) -> "UnkDict":
+        (magic, version, dtype, lexsize, lsize, rsize,
+         dsize, tsize, fsize, _d) = struct.unpack("<10I", raw[:40])
+        charset = raw[40:72].split(b"\0")[0].decode()
+        off = 72
+        darts = raw[off:off + dsize]; off += dsize
+        tok = raw[off:off + tsize]; off += tsize
+        feat = raw[off:off + fsize]
+
+        # unk.dic は小さいので darts を素朴に総当りで辿る
+        import numpy as np
+        u = np.frombuffer(darts, dtype=np.uint32)
+        base = u[0::2].view(np.int32)
+        check = u[1::2]
+
+        out: list[UnkEntry] = []
+
+        def walk(node: int, prefix: bytes) -> None:
+            b = int(base[node])
+            p = b
+            if 0 <= p < base.size and int(check[p]) == (b & 0xFFFFFFFF) and int(base[p]) < 0:
+                val = -int(base[p]) - 1
+                size, idx = val & 0xFF, val >> 8
+                name = prefix.decode("utf-8", "replace")
+                for j in range(size):
+                    i = idx + j
+                    lc, rc, _pid, cost, fo, _c = struct.unpack(
+                        "<HHHhII", tok[i * 16:(i + 1) * 16])
+                    e = feat.index(b"\0", fo)
+                    out.append(UnkEntry(name, lc, rc, cost,
+                                        feat[fo:e].decode(charset, "replace")))
+            # ⚠️ darts はバイト b の子を **base + b + 1** に置く。
+            #    オフセットをそのままバイトにすると全部 +1 ずれる（実際に踏んだ:
+            #    ALPHA が BMQIB になった）。
+            for off in range(1, 257):
+                q = b + off
+                if 0 <= q < base.size and int(check[q]) == (b & 0xFFFFFFFF):
+                    walk(q, prefix + bytes([off - 1]))
+
+        walk(0, b"")
+        assert len(out) == lexsize, (len(out), lexsize)
+        return cls(out)
+
+    def to_section(self) -> bytes:
+        out = bytearray(struct.pack("<I", len(self.entries)))
+        for e in self.entries:
+            out += struct.pack("<HHh", e.lc, e.rc, e.wcost)
+            out += e.category.encode("utf-8") + b"\0"
+            out += e.feature.encode("utf-8") + b"\0"
+        return bytes(out)
+
+    @classmethod
+    def from_section(cls, blob: bytes) -> "UnkDict":
+        n = struct.unpack("<I", blob[:4])[0]
+        o = 4
+        es = []
+        for _ in range(n):
+            lc, rc, w = struct.unpack("<HHh", blob[o:o + 6]); o += 6
+            j = blob.index(b"\0", o); cat = blob[o:j].decode("utf-8"); o = j + 1
+            j = blob.index(b"\0", o); ft = blob[o:j].decode("utf-8"); o = j + 1
+            es.append(UnkEntry(cat, lc, rc, w, ft))
+        return cls(es)
