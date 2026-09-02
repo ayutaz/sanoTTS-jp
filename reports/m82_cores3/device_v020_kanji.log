@@ -1,0 +1,84 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x2a (SPI_FAST_FLASH_BOOT)
+Saved PC:0x42006e44
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x159c
+load:0x403c8700,len:0xd24
+load:0x403cb700,len:0x2f48
+entry 0x403c8924
+I (24) boot: ESP-IDF v5.5 2nd stage bootloader
+I (24) boot: compile time Sep  1 2026 00:12:40
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (27) boot: efuse block revision: v1.3
+I (31) boot.esp32s3: Boot SPI Speed : 80MHz
+I (35) boot.esp32s3: SPI Mode       : DIO
+I (39) boot.esp32s3: SPI Flash Size : 16MB
+I (42) boot: Enabling RNG early entropy source...
+I (47) boot: Partition Table:
+I (50) boot: ## Label            Usage          Type ST Offset   Length
+I (56) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (62) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (69) boot:  2 factory          factory app      00 00 00010000 00200000
+I (75) boot:  3 model            Unknown data     01 40 00210000 000c0000
+I (82) boot:  4 dict             Unknown data     01 41 002d0000 00d30000
+I (88) boot: End of partition table
+I (92) esp_image: segment 0: paddr=00010020 vaddr=3c030020 size=1847ch ( 99452) map
+I (117) esp_image: segment 1: paddr=000284a4 vaddr=3fc96f00 size=034d0h ( 13520) load
+I (120) esp_image: segment 2: paddr=0002b97c vaddr=40378000 size=0469ch ( 18076) load
+I (125) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=2db88h (187272) map
+I (161) esp_image: segment 4: paddr=0005dbb0 vaddr=4037c69c size=0a7ach ( 42924) load
+I (171) esp_image: segment 5: paddr=00068364 vaddr=600fe000 size=00020h (    32) load
+I (177) boot: Loaded app from partition at offset 0x10000
+I (177) boot: Disabling RNG early entropy source...
+I (190) cpu_start: Multicore app
+I (199) cpu_start: Pro cpu start user code
+I (199) cpu_start: cpu freq: 240000000 Hz
+I (199) app_init: Application information:
+I (199) app_init: Project name:     saanotts_jp
+I (203) app_init: App version:      v0.1.1-41-g0ef8904-dirty
+I (208) app_init: Compile time:     Sep  1 2026 00:12:28
+I (213) app_init: ELF file SHA256:  bdca5ac0e...
+I (218) app_init: ESP-IDF:          v5.5
+I (221) efuse_init: Min chip rev:     v0.0
+I (225) efuse_init: Max chip rev:     v0.99 
+I (229) efuse_init: Chip rev:         v0.2
+I (233) heap_init: Initializing. RAM available for dynamic allocation:
+I (239) heap_init: At 3FCDAA68 len 0000ECA8 (59 KiB): RAM
+I (244) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (249) heap_init: At 600FE020 len 00001FC8 (7 KiB): RTCRAM
+I (256) spi_flash: detected chip: generic
+I (259) spi_flash: flash io: dio
+I (262) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (268) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (275) main_task: Started on CPU0
+I (278) main_task: Calling app_main()
+I (281) saanotts: sanoTTS-jp ESP32-S3（**実機未検証** — esp32/README.md を読むこと）
+I (290) saanotts: 起動直後: 内部 DRAM free 54232 B / 最大ブロック 40960 B
+I (298) saanotts: arena 208896 B を .bss に静的確保 (0x3fc9db00) / G2P の ids 4108 B
+I (306) saan_model: model パーティション: offset 0x00210000 size 786432 B
+I (313) saan_model: 重み OK: 183 tensors / base 0x3c050000
+I (318) saan_dict: dict パーティション: offset 0x002d0000 size 13828096 B
+I (326) saan_dict: 辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377
+I (333) saanotts: 漢字経路の作業領域 130176 B
+I (338) saanotts: 辞書 mmap 後: 内部 DRAM free 53520 B / 最大ブロック 40960 B
+I (347) saan_i2s: I2S 設定 22050 Hz / 16bit / mono / DMA 6 x 512 frames / preroll 8192 sample
+W (354) saan_i2s: S3 に APLL は無い。実サンプルレートの誤差は**未測定**
+I (363) saanotts: G2P セルフテスト: "きょ][おわよ][いて][んきです°ね" (44 B) -> 53 ids / 0.206 ms
+I (373) saanotts:      OK  53 ids が demo_ids.h の錨と完全一致
+I (379) saanotts: 起動時は喋らない。突き合わせ用の 1 文を出すには -DSAAN_BOOT_SPEAK=1（同じ中間表現を打っても同じ列になる）
+I (393) saan_con: 入力: UART0 @ 115200 baud（DevKit の「UART」ポート）
+I (400) saanotts: ==================== 対話モード ====================
+I (407) saanotts: かな中間表現を 1 行入力して Enter で喋る。
+I (414) saanotts:   例:  きょ][おわよ][いて][んきです°ね     （今日は良い天気ですね。）
+I (424) saanotts:   例:  こんにちわ
+I (428) saanotts: 記号:  [ 上昇 / ] 下降核 / # 句境界 / ° 無声化 / ? ?! ?. ?~ 疑問
+I (436) saanotts: **漢字対応ビルド**: `!` で始めると漢字かな交じり文として扱う。
+I (446) saanotts:   例:  !今日は良い天気ですね。
+I (451) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 17.79% の文で読みが変わる**（M-74）。⚠️ 音は誰も聞いていない。
+I (467) saanotts: ⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**
+I (478) saanotts: 編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 350 ids
+I (485) saanotts: ====================================================
+I (492) main_task: Returned from app_main()

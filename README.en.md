@@ -20,7 +20,9 @@ so neither generates in real time. The CoreS3 avoided gaps with 60% preroll
 ⚠️ **It does not keep up with real time yet.** A per-stage breakdown showed the MACs were not
 the bottleneck — activation quantization, GELU's `erff`, per-step tensor lookups and weight
 copies were (M-80). Those were removed (**S1–S5a**) and M5Stack support was added (2026-09-02).
-**QEMU instruction counts dropped 49 %; the effect on hardware is unmeasured** (see [Status](#status)).
+**Re-measured on our own CoreS3: steady-state xRT 0.926** (down from the 1.554 reported on the same board;
+checksum bit-identical to QEMU; M-82). ⚠️ Barely under 1.0 and short of the 0.5 requirement; on hardware
+**~64 % of the step is MACs, suspected flash-bound, and GELU is 14 %** (see [Status](#status)).
 
 ## What makes Japanese hard
 
@@ -43,9 +45,9 @@ a counterpart.
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 654,032 B in int8 (flash; blob v2 with pre-aligned rows, +10,096 B over v1's 643,936 B) |
-| **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)). **S1–S5a** remove the non-MAC work; QEMU instruction counts per step **−49 %** (**unmeasured on hardware**; M-80 / M-81) |
+| **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)). **S1–S5a** remove the non-MAC work; **0.926 on our own CoreS3** (n=3, M-82. ⚠️ the 0.5 requirement is not met; breakdown: MAC 63.9 % / GELU 14.0 % / TOKEN 11.3 %) |
 | **Hardware audio output** | Works through M5Unified on CoreS3. With 60% preroll: **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)). The same setup is now in this repo as [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) (builds; not yet run here) |
-| **Kanji on the device** | Synthesizes end to end under QEMU (13.7 MB dictionary / 438,750 entries). ⚠️ **Untested on hardware** |
+| **Kanji on the device** | ✅ **Confirmed on a CoreS3** (M-83): `!今日は良い天気ですね。` → 53 ids → checksum identical to QEMU. Kanji G2P 27.85–66.30 ms (33–84 B). ⚠️ Not listened to; xRT 4.3–4.6 with W8A32 (PIE not enabled in that build) |
 
 ⚠️ **Everything above is a predictor score at n = 24–200, and exactly one person has
 listened, once** (the β decision, M-60 / D-038). "Teacher ratio 0.644" does not mean
@@ -74,10 +76,11 @@ the **0.22× real-time** reported by the official implementation on the same chi
 
 **Why it is slow was measured.** A per-step breakdown showed **MACs at ~30 %**, with
 activation quantization (software division), GELU's `erff`, 102 tensor lookups per step and
-489 KB/step of weight copies taking the rest (M-80). **S1–S5a** remove them; QEMU instruction
-counts per step went **811,001 → 412,619 (−49 %)** (M-81 / D-046). ⚠️ **QEMU is not
-cycle-accurate, so it cannot yet be said to be faster on hardware.** The next step is the
-on-device profile (`-DSAAN_PROFILE=1`); see
+489 KB/step of weight copies taking the rest (M-80). **S1–S5a** remove them (M-81 / D-046).
+**Measured on our own CoreS3: steady-state xRT 0.926, checksum identical to QEMU on all 27,136
+samples** (M-82; three utterances, same value). The on-device profile looks nothing like QEMU's:
+**MAC 63.9 % (1.61 cycles/MAC — suspected flash-bound) / GELU 14.0 % (118 cycles/element) /
+TOKEN 11.3 %**. Next steps:
 [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) and
 [`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md).
 
@@ -91,8 +94,10 @@ on-device profile (`-DSAAN_PROFILE=1`); see
 ✅ **The kana path has run inference and generated PCM on AtomS3, and played through the
 built-in speaker on CoreS3.** The CoreS3 audio path is a derivative implementation using
 M5Unified; generation without preroll is still not real-time. **This repository's
-`saan_i2s` path and the kanji path remain untested on hardware, and nobody has measured
-speed after S1–S5a yet.**
+`saan_i2s` path (DevKit direct I2S) remains untested on hardware.** The kanji path is confirmed on a
+CoreS3 (M-83). After S1–S5a the M5Unified path runs at **0.926 on CoreS3** (M-82, `esp32/boards/m5unified/`).
+⚠️ The shipped v0.1.1 / v0.2.0 images take console input on UART0, so native-USB-only boards (CoreS3 / AtomS3)
+boot but cannot be driven; build from source there.
 
 ## Getting started
 
@@ -315,8 +320,8 @@ The documentation is in Japanese.
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
-| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-81. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-046 and the **correction log C-001–C-053** |
+| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-83. Every entry has a reproduction command |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-047 and the **correction log C-001–C-053** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |

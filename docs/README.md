@@ -13,8 +13,8 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-046 と**訂正履歴 C-001〜C-053** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-81。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-047 と**訂正履歴 C-001〜C-053** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-83。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画（かなトラック）**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2**。⚠️ **K トラックは 4.6 の別計画** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -90,7 +90,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [完了] PIE を全層へ拡張        活性化ストライドを align16(cin) にパディング。**69.0% → 99.40%**（M-58）
                             出力は 24/24 で bit 一致、arena 増加 0 B。⚠️ 0.60%（depthwise）は原理的に不可
                             ⚠️ **出荷ファームでは未有効**（W8A8 を採る決定が要る）
-                            ⚠️ 速度は自分では未測定（第三者報告 1.554× RT。下の 2026-09-02 の行を見ること）
+                            ✅ 速度は自分で測った: CoreS3 で W8A8+PIE **0.926× RT**（M-82。下の 2026-09-02 の行を見ること）
 [完了] P-2 β の聴取決定      **β=0 で確定。式7 は不要**（M-60 / D-038）。⚠️ 上流（英語）は 6.0
                             ⚠️ **聴取者 1 名**。v2↔v3 も 7 試行で聴き分けられず（C-037）
 [完了] QEMU で出荷ファーム完走 起動 → 重み mmap(183 tensors) → G2P → 合成 → int16 まで通り、
@@ -106,13 +106,15 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             ⚠️ 「piper-plus 無しで通った」と**誤って観測**した（C-041）
 [完了] **v0.2.0 リリース**      **端末で漢字かな交じり文を扱う firmware**を追加（M-76 / M-79）。
                             ⚠️ **モデルは v0.1.1 と bit 同一**（再学習していない）。
-                            ⚠️ **実機未検証。** QEMU で起動・辞書・錨の照合まで。
+                            ✅ **CoreS3 で実機確認**（M-83。v0.2.0 コードで checksum が QEMU と一致）。
+                            ⚠️ **配布イメージは UART0 入力**で native USB だけの板では操作できない
                             ⚠️ 出荷構成では DRAM が 19,304 B 溢れた
                             （`K7_MAX_TOKENS` 2048 → 640 で解決。M-79）
 [完了] v0.1.1 リリース        手順書を新規 clone でなぞって欠陥 2 件を修正（M-66）。
                             **焼くだけの ESP32 firmware 2 種**を追加（M-67）。
                             ⚠️ モデルは v0.1.0 と bit 同一（再学習していない）
-[未]   Phase D-3d           実機測定（**ESP32-S3 ボード待ち**。これは本物の待ち）
+[完了] Phase D-3d           **実機測定**。ユーザーの CoreS3（D-047）で W8A8+PIE **0.926× RT**（M-82）、
+                            漢字経路 G28〜G31（M-83）。⚠️ 目標 RTF ≤ 0.5 は未達、G32 聴取は未
 [報告] 実機の速度（第三者 2 件） CoreS3 で **W8A8+PIE 1.554× RT / W8A32 4.834× RT**、AtomS3 で **1.718× RT**（2026-09-02、
                             **私は未再現**）。checksum は M-62 と一致。実時間に**間に合っていない**
 [完了] 段別プロファイラ        `csrc/saan_prof.h`。QEMU + ホストで **QUANT/GELU/LOOKUP/WCOPY ≥ MAC**（M-80）。
@@ -214,7 +216,10 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
                             ⚠️ DRAM が 2 回溢れた（.bss で 419 KB / heap の空き 20,964 B）。
                             大きい 2 配列を**合成用 arena から切り出して**解決
                             ⚠️ **PSRAM は QEMU が持っていない**ので使えなかった
-[未]   K-8 実機             **ボード待ち。速度も音も未測定**
+[完了] K-8 実機（G28〜G31）  **CoreS3 で実機確認**（M-83）。v0.2.0 コード `0x78c209af06affc01` / 現行 `0xe4b645c30835d42d`、
+                            漢字 G2P 27.85〜66.30 ms（音声長の 1.7〜2.3%。⚠️ 目安 1% 未達）、xRT 4.28〜4.62（W8A32）
+                            ⚠️ **G32 聴取は未**。⚠️ 配布イメージは UART0 入力で native USB の板では操作不能
+[未]   K-8 G32 聴取           人が 1 回聴く（WAV は `reports/k8_listen/` に用意済み）
 ```
 
 **v0.2.0 で焼くだけの 16 MB イメージを配布した**（`esp32s3-firmware-kanji-16mb.bin`）。
@@ -229,8 +234,8 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 ⚠️ **新規 clone だけで通るゲートに限ってある** — 品質・速度・音は 1 つも見ていない。
 範囲と「入れていない理由」は [`.github/workflows/README.md`](../.github/workflows/README.md)。
 
-⚠️ **K トラックは実機で一度も動かしていない。速度も音も未測定。**
-QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字**。
+✅ **K トラックは CoreS3 で実機確認した**（M-83。G28〜G31）。⚠️ **音は聴いていない（G32）。**
+QEMU の `xRT 0.661` は**使えない数字**で、実機（W8A32・PIE 無し）は 4.28〜4.62。
 一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
 
 ✅ **動作点は決まった**（D-044 / M-77）: **438,750 entries / 接続行列は int16 のまま。**
@@ -320,8 +325,8 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-046 + 訂正履歴 C-001〜C-053
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-81
+│   ├── decisions.md                       決定記録 D-001〜D-047 + 訂正履歴 C-001〜C-053
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-83
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）
@@ -379,7 +384,7 @@ sanoTTS-jp/
 │   ├── g2p_test.c / line_test.c           G2P と行編集（**どちらも陽性対照つき**）
 │   ├── bench.c                            レイテンシ測定（段別の内訳）
 │   └── Makefile                           `make all-test` / `make run-bench`
-├── esp32/                                 **ESP-IDF アプリ**（QEMU で完走。⚠️ 実機未検証）
+├── esp32/                                 **ESP-IDF アプリ**（CoreS3 で実機確認 M-82 / M-83。⚠️ DevKit の I2S 直叩きは未検証）
 │   ├── main/main.c                        arena / 合成ループ / 計測ログ / 対話ループ
 │   ├── main/saan_console.{h,c}            シリアルからの 1 行入力（UART0 / USB Serial/JTAG）
 │   ├── main/saan_dict.{h,c}               **K-7: dict パーティションの mmap**

@@ -88,7 +88,7 @@ scripts/export_c_weights.py   S4: blob v2（conv int8 を [cout][k][align16(cin)
 - Modify: `docs/decisions.md`（D-047 を追記。D-046 は S1〜S5a の出力基準に使った）
 - Modify: `docs/plan/s1-speed-implementation-plan.md`（この表の「板」列を確定値に）
 
-- [ ] **Step 1: チップを読む**（ユーザーがスタックチャンを USB で繋いだら）
+- [x] **Step 1: チップを読む**（ユーザーがスタックチャンを USB で繋いだら）
 
 ```bash
 . ~/esp/esp-idf/export.sh && ls /dev/tty.usb* /dev/cu.usb* 2>/dev/null
@@ -96,7 +96,7 @@ esptool.py --port /dev/cu.usbmodem* chip_id      # 出力の "Chip is ESP32-S3 .
 esptool.py --port /dev/cu.usbmodem* flash_id     # "Detected flash size: 16MB" を記録
 ```
 
-- [ ] **Step 2: D-047 を書く**（chip / flash / PSRAM の種類と容量 / スピーカーの有無 / 板の名前。`esptool` の出力をそのまま貼る）
+- [x] **Step 2: D-047 を書く**（chip / flash / PSRAM の種類と容量 / スピーカーの有無 / 板の名前。`esptool` の出力をそのまま貼る）
 - [ ] **Step 3: commit** `decide(D-047): 実機の前提を凍結（<板名> / <chip> / <flash> / <psram>）`
 
 ⚠️ 板が繋がるまで A-1〜A-3 を先に進める（板に依存しない）。
@@ -275,18 +275,18 @@ Expected: 両方 `Project build complete`。`.dram0.bss` と app サイズをロ
 **Files:**
 - Modify: `docs/measurements.md`（M-81）, `docs/research/s1-m5-cores3-speed.md`（§7 の「実機の内訳は無い」を更新）
 
-- [ ] **Step 1: 焼く**（A-0 の板に合わせる）
+- [x] **Step 1: 焼く**（A-0 の板に合わせる）
 
 ```bash
 cd esp32/boards/m5unified
 idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
     -p /dev/cu.usbmodem* flash monitor        # 起動時に 1 文喋る。ログの「出力 PCM」を控える
 ```
-- [ ] **Step 2: 突き合わせ**（S3 以降のコア）: ESP32-S3 なら `0xa69a7ebbb5ccb05f / 9627 / 74,264,237,672`（W8A8+PIE）。ESP32 なら `-DSAAN_ENABLE_PIE=0` で `0xe4b645c30835d42d / 9529 / 74,155,591,505`。**一致しなければ速度は測らない**（移植が壊れている）。
-- [ ] **Step 3: 速度**（`SAAN_PROFILE=0` のビルド）: 定常 xRT / 初回 pull / アンダーラン。S3 なら報告値 1.554 と比べる。
-- [ ] **Step 4: 内訳**（`-DSAAN_PROFILE=1` で焼き直す）: 表を丸ごと控える。**これが S1〜S5 の基準線**。
-- [ ] **Step 5: M-82 を書く**（再現コマンド・ログ原文・表。M-81 は S1〜S3 のホスト / QEMU 記録に使った）。`docs/README.md` の索引を M-82 に。
-- [ ] **Step 6: commit** `feat(M-82): 実機で初めて自己実測した（<板> / xRT / 内訳）`
+- [x] **Step 2: 突き合わせ**（S3 以降のコア）: ESP32-S3 なら `0xa69a7ebbb5ccb05f / 9627 / 74,264,237,672`（W8A8+PIE）。ESP32 なら `-DSAAN_ENABLE_PIE=0` で `0xe4b645c30835d42d / 9529 / 74,155,591,505`。**一致しなければ速度は測らない**（移植が壊れている）。
+- [x] **Step 3: 速度**（`SAAN_PROFILE=0` のビルド）: 定常 xRT / 初回 pull / アンダーラン。S3 なら報告値 1.554 と比べる。
+- [x] **Step 4: 内訳**（`-DSAAN_PROFILE=1` で焼き直す）: 表を丸ごと控える。**これが S1〜S5 の基準線**。
+- [x] **Step 5: M-82 を書く**（再現コマンド・ログ原文・表。M-81 は S1〜S3 のホスト / QEMU 記録に使った）。`docs/README.md` の索引を M-82 に。
+- [x] **Step 6: commit** `feat(M-82): 実機で初めて自己実測した（<板> / xRT / 内訳）`
 
 ### Task A-5: 手順書
 
@@ -432,14 +432,15 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 | A-2 .rodata 経路 | ✅ `74a88a3` | QEMU 両経路 `0x04de91103a0e49f9` / app 285,440 → 928,832 B |
 | A-3 boards/m5unified | ✅ `78a55af` | cores3（PIE）1,344,432 B・.bss 235,600 / core2 1,331,808 B・.bss 22,752（arena は PSRAM） |
 | A-5 手順書 | ✅ `12ea114` | |
-| **A-0 / A-4 実機** | ⏳ **板待ち**（ユーザーのスタックチャン。種類は未同定） | |
+| **A-0 板の同定** | ✅ D-047 | **ESP32-S3（QFN56 rev v0.2）/ 16 MB / USB-Serial-JTAG** = CoreS3 系。PSRAM は起動ログで確認 |
+| **A-4 実機** | ✅ **M-82** | **checksum `0xa69a7ebbb5ccb05f` が QEMU と完全一致 / 定常 xRT 0.926（n=3、決定的）/ アンダーラン 1/14 / 内訳: MAC 63.9%（1.61 cyc/MAC）・GELU 14.0%（118 cyc/要素）・TOKEN 11.3%** |
 | **S1 検索を init で 1 回に** | ✅ | pull 中の LOOKUP **42,280 → 0 回**（20 発話）/ all-test bit 一致 / QEMU checksum 不変・PIE 5 命令 / QEMU icount の 1 step **811,001 → 741,973**（−8.5%。⚠️ サイクルではない） |
 | **S2 量子化の除算と rintf を消す** | ✅ | 要素ごとの `__divsf3` + `rintf` 呼び出し → `mul.s` + `round.s`（フレームごとの除算 2 回だけ残る）/ W8A8 e2e 平均 24.24 → **24.21 dB**・最小 21.94 不変 / QEMU checksum **`0x04de91103a0e49f9` のまま**（この 1 文では量子化値が 1 つも変わらなかった。丸め水準の宣言どおり、他の文では変わりうる）/ pie_probe C 節: round.s == rintf（22 値、陽性対照つき） |
 | **S3 GELU の erff を Hermite 表に** | ✅ | erff との max\|Δ\| 1.19e-7（陽性対照 1.18e-4 は落ちる）/ golden fp32 SNR 118.97 dB / W8A32・W8A8 の e2e SNR 不変 / **QEMU 基準 checksum が変わった**: W8A8+PIE `0xa69a7ebbb5ccb05f`（\|max\| 9627）/ W8A32 `0xe4b645c30835d42d`（\|max\| 9529 同一・Σx² 8.7e-9）/ QEMU icount 1 step **557,152**（S1 前 811,001、−31%）。記録は M-81 |
 | **S4 blob v2（事前整列）** | ✅ | **bit 同一**（S3 と 24 文 cmp 0/24、QEMU 両構成の checksum 不変）/ blob 643,936 → 654,032 B / WCOPY 0 / v1 int8 blob は SAAN_ERR_VERSION で拒否 / QEMU icount 1 step 557,152 → **454,548**（S1 前から −44%）。⚠️ リリース資産の v2 化はマージ時 |
 | **S5a PIE ループ（ロード併合 + loopnez）** | ✅ | **bit 同一**（pie_probe 7 形状 / QEMU checksum 不変）/ 16 MAC あたり 5 → 2 命令 / QEMU icount 1 step 454,548 → **412,619**（S1 前から −49%） |
 | S5b 重み行をレジスタに保持 | ⏳ 実機の表を見てから | |
-| **次にやること** | **A-0 / A-4（板の同定 → 焼く → checksum → xRT → `SAAN_PROFILE=1` の表）** | 期待 checksum: W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d` |
+| **次にやること（M-82 §4 の順）** | (1) flash vs SRAM の切り分けマイクロベンチ（`saan_dot_i8_pie` を同じ重みで） (2) GELU 118 cyc/要素の切り分け（表を DRAM に） (3) S7 = `SAAN_CHUNK` 16 (4) S5b (5) S6 (6) D-048 | 目標 RTF ≤ 0.5 = 76.6 → 46 ms/step。**全部実機で測れる**（板が手元にある） |
 
 ## 実行の順序と依存
 

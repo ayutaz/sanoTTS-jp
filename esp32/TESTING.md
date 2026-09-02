@@ -81,6 +81,12 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-
 ⚠️ **8 MB 以上の flash が要ります**（`model` パーティションに 3 MB 確保しているため）。
 4 MB のボードでは焼けません。
 
+⚠️ **配布イメージ（v0.1.1 / v0.2.0）はコンソール入力が UART0 です。** USB-UART ブリッジの無い板
+（M5Stack CoreS3 / AtomS3 など native USB だけの板）では、**ログは USB に出るのに `かな>` に打った文が
+届きません**（2026-09-02 に CoreS3 で実測。起動と重み・辞書の mmap までは通る。M-83）。その板では
+「M. M5Stack で試す」か、`sdkconfig.usb_serial_jtag` を重ねてソースからビルドしてください。
+次のリリースでは USB Serial/JTAG 入力のイメージも配る予定です。
+
 ⚠️ **I2S の GPIO は BCLK=5 / WS=6 / DOUT=7 の仮置き**です。
 **DAC を鳴らしたいならソースから作り直してください**（B へ）。
 **速度の測定だけなら DAC は不要**なので、この firmware のままで足ります。

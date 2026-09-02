@@ -58,8 +58,11 @@ checksum は M-62 と bit 一致。**独立した 2 件目**（AtomS3、PSRAM �
 → [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md)（§5 に直す順序 S1〜S8、
 §6 に M5 対応の取り込み案）。内訳は `make -C csrc prof`（ホスト）/ `idf.py -DSAAN_PROFILE=1`（実機・QEMU）。
 **S1〜S5a と M5Unified 対応（`esp32/boards/m5unified/`。A-1〜A-3 / A-5）を入れた**（M-81 / D-046。ブランチ
-`feat/s1-speed-m5`。QEMU の命令数比で 1 step **−49%**、⚠️ サイクルではない）。**残りは A-0 / A-4（ユーザーの
-スタックチャンで焼く。板は未同定）→ S5b → D-048**（[`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md)）。
+`feat/s1-speed-m5`。QEMU の命令数比で 1 step −49%）。**2026-09-02 夜、ユーザーの CoreS3（D-047）で自分で測った（M-82）:
+定常 xRT 1.554（報告値）→ 0.926、checksum は QEMU と完全一致。ぎりぎりでアンダーラン 1/14。**
+**実機の内訳は QEMU と別物**: MAC 63.9%（**1.61 cyc/MAC** = flash 律速の疑い）/ GELU 14.0%（**118 cyc/要素**、異常）/ TOKEN 11.3%。
+**次は M-82 §4 の順**（flash vs SRAM の切り分け → GELU の表を DRAM に → S7 CHUNK 16 → S5b → S6 → D-048）。
+計画は [`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md)。
 ⚠️ **S3（GELU の erf 近似）で QEMU の基準
 checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**（|max| 9744 → 9627）、
 W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
@@ -99,12 +102,13 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 | K-5 メモリの詰め | ✅ 1 文ピーク **268,941 → 104,589 B**（−61.1%）。M-71 |
 | K-6 ホストとの一致 | ✅ **素性が一致した 244 文でラベル差 0 件**（陰性対照 44 件）。M-74 |
 | **K-7 ESP32 / QEMU** | ✅ **漢字文から合成まで完走**。3 経路が bit 一致。M-76 |
-| K-8 実機 | ⚠️ **次**。ボード待ち |
+| K-8 実機 | ✅ **G28〜G31 実測**（CoreS3、M-83）: 漢字 G2P 27.85〜66.30 ms（音声長の 1.7〜2.3%。目安 1% 未達）/ xRT 4.28〜4.62（W8A32）/ checksum QEMU と一致。**G32 聴取だけ未**。⚠️ 配布イメージは UART0 入力で native USB の板では操作不能 |
 
 **端末で漢字が喋れる**（QEMU 上）。有効化は `idf.py -DSAAN_KANJI=1`（既定は無効）。
 
-⚠️ **K トラックは実機で一度も動かしていない。速度も音も未測定。**
-QEMU はサイクル精度ではないので `xRT 0.661` は**使えない数字**。
+✅ **K トラックは 2026-09-02 に CoreS3 で実機確認した**（M-83。v0.2.0 コードで `0x78c209af06affc01`、現行コードで
+`0xe4b645c30835d42d`。どちらも QEMU と一致）。漢字 G2P は 27.85〜66.30 ms（33〜84 B）。⚠️ **音は聴いていない**。
+QEMU の `xRT 0.661` は**使えない数字**で、実機（W8A32）は 4.28〜4.62。
 一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
 
 ⚠️ **ホストと違う音素は 0.32%**（n=298・438,750 entries。M-77）。
@@ -224,8 +228,9 @@ G9 / G10 で固定した。
 `|max|` 一致 + `Σx²` 相対差 1.6e-7 で丸め差と切り分ける。
 **bit 一致を主張してよいのは同じターゲット上の 2 構成を比べたときだけ。**
 
-⚠️ **速度は自分ではまだ測っていない**（第三者の報告 1 件: CoreS3 で W8A8+PIE 1.554× RT）。QEMU の命令数比は
-S1〜S5a で −49% だが**サイクルではない**。実機の表（`-DSAAN_PROFILE=1`）が唯一の答え。
+✅ **速度は実機で測った**（M-82。CoreS3 / W8A8+PIE / S1〜S5a 後: **定常 xRT 0.926**、n=3 で決定的）。
+⚠️ 要件 RTF ≤ 0.5 には未達。**QEMU の割合は実機と別物だった**（実機は MAC 63.9%・GELU 14.0%）。速度の判断は
+必ず実機の `-DSAAN_PROFILE=1` の表で行う。
 
 ⚠️ **`uv sync` は piper-plus のクローンを要求する**（`[tool.uv.sources]` が絶対パス）。
 外の人が**重みだけで音を出す / ゲートを回す**経路は別にある（D-041 / M-65。README の
@@ -785,7 +790,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 | | 残り |
 |---|---|
 | (1) かな中間表現 | **実機**（A-0 / A-4。ユーザーのスタックチャン）→ **S5b** → **D-048**。⚠️ 第三者報告 W8A8+PIE **1.554× RT**（間に合っていない。S-1）。S1〜S5a は入れた（M-81） |
-| (2) 漢字（K） | **実機**（K-8）/ エントリ数の判断 / 接続行列 uint8 の判断。⚠️ PSRAM 有効な板でパーティション mmap が落ちる報告（未再現） |
+| (2) 漢字（K） | ~~実機（K-8）~~ ✅ G28〜G31（M-83）/ **G32 聴取** / PIE 有効の漢字ビルド / M5 構成への辞書搭載（PSRAM 有効時の mmap 報告の切り分け）/ エントリ数・接続行列の判断 |
 
 ⚠️ **板はある（ユーザーのスタックチャン）。種類の同定（ESP32-S3 か ESP32 か）が最初の一歩（A-0）。** QEMU はサイクル精度ではない。
 
@@ -796,7 +801,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
    ⚠️ **残る 0.60% は depthwise で原理的に載らない**（チャネル方向のギャザー）。
    ⚠️ **出荷ファームではまだ無効** — `esp32/components/saanotts_core/CMakeLists.txt`
    が `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない。**W8A8 を採る決定が要る**。
-   ⚠️ **速度は自分では未測定**（第三者報告: CoreS3 で W8A8+PIE 1.554× RT。S-1）。QEMU はサイクル精度ではない。
+   ✅ **速度は自分で測った**（M-82: CoreS3 で W8A8+PIE **0.926× RT**。第三者報告 1.554 → S1〜S5a で −40%）。⚠️ 目標 RTF ≤ 0.5 は未達。
    ✅ **toolchain も QEMU も導入済み**
    （ESP-IDF v5.5 / GCC 14.2.0 / qemu-xtensa 9.0.0）。
    **QEMU が PIE を実装しているので、実機なしで正しさを検証できる**（M-56）。

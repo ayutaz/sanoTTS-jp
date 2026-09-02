@@ -399,8 +399,8 @@ done:
                  (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)),
                  (int)SAAN_TASK_STACK);
         if (underruns > 0)
-            ESP_LOGW(TAG, "アンダーランは**想定どおり**。M-43 の外挿では "
-                          "移植可能 C / fp32 は 2.47 x RT。int8 + PIE が要る");
+            ESP_LOGW(TAG, "アンダーラン %d 回。実機の内訳は -DSAAN_PROFILE=1 で（M-82: CoreS3 / W8A8+PIE は "
+                          "xRT 0.926 で 1 回残る）。途切れない再生が要るなら -DSAAN_BUFFERED=1", underruns);
 #if SAAN_PROFILE
         prof_report();
 #endif
@@ -425,15 +425,19 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
     }
     int32_t n_ids = 0;
     int n_tok = 0;
+    /* G28（K-8）: 漢字文 1 行の G2P レイテンシを実測で出す（Viterbi + NJD 4 段 + ラベル → ids） */
+    const int64_t t_kg2p = esp_timer_get_time();
     saan_kanji_status ks = saan_kanji_to_ids(&g_dict, text, nbytes,
                                             g_arena, SAAN_ARENA_BYTES,
                                             g_ids, SAAN_G2P_IDS_CAP,
                                             &n_ids, &n_tok);
+    const double kg2p_ms = (double)(esp_timer_get_time() - t_kg2p) / 1000.0;
     if (ks != SAAN_KANJI_OK) {
         ESP_LOGE(TAG, "漢字 G2P 失敗: %s", saan_kanji_strerror(ks));
         return false;
     }
-    ESP_LOGI(TAG, "形態素 %d 個 / ids %d 個", n_tok, (int)n_ids);
+    ESP_LOGI(TAG, "漢字 G2P: %u B -> 形態素 %d 個 / ids %d 個 / %.2f ms", (unsigned)nbytes, n_tok,
+             (int)n_ids, kg2p_ms);
     if (n_ids > SAAN_MAX_IDS) {
         ESP_LOGE(TAG, "ids が %d 個で上限 %d を超えた。**喋らない**（短く区切ること）",
                  (int)n_ids, (int)SAAN_MAX_IDS);

@@ -1,0 +1,135 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x2a (SPI_FAST_FLASH_BOOT)
+Saved PC:0x42018c90
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x159c
+load:0x403c8700,len:0xc80
+load:0x403cb700,len:0x2f54
+entry 0x403c8910
+I (24) boot: ESP-IDF v5.5 2nd stage bootloader
+I (24) boot: compile time Sep  2 2026 23:48:26
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (25) boot: efuse block revision: v1.3
+I (25) boot.esp32s3: Boot SPI Speed : 80MHz
+I (25) boot.esp32s3: SPI Mode       : DIO
+I (26) boot.esp32s3: SPI Flash Size : 16MB
+I (26) boot: Enabling RNG early entropy source...
+I (26) boot: Partition Table:
+I (26) boot: ## Label            Usage          Type ST Offset   Length
+I (26) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (27) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (27) boot:  2 factory          factory app      00 00 00010000 00200000
+I (28) boot:  3 model            Unknown data     01 40 00210000 000c0000
+I (28) boot:  4 dict             Unknown data     01 41 002d0000 00d30000
+I (29) boot: End of partition table
+I (29) esp_image: segment 0: paddr=00010020 vaddr=3c030020 size=17a64h ( 96868) map
+I (46) esp_image: segment 1: paddr=00027a8c vaddr=3fc96c00 size=033a0h ( 13216) load
+I (49) esp_image: segment 2: paddr=0002ae34 vaddr=40378000 size=051e4h ( 20964) load
+I (54) esp_image: segment 3: paddr=00030020 vaddr=42000020 size=2ab44h (174916) map
+I (86) esp_image: segment 4: paddr=0005ab6c vaddr=4037d1e4 size=09988h ( 39304) load
+I (95) esp_image: segment 5: paddr=000644fc vaddr=600fe000 size=00020h (    32) load
+I (101) boot: Loaded app from partition at offset 0x10000
+I (101) boot: Disabling RNG early entropy source...
+I (103) cpu_start: Multicore app
+I (112) cpu_start: Pro cpu start user code
+I (112) cpu_start: cpu freq: 240000000 Hz
+I (112) app_init: Application information:
+I (112) app_init: Project name:     saanotts_jp
+I (112) app_init: App version:      v0.2.0
+I (112) app_init: Compile time:     Sep  2 2026 23:48:13
+I (112) app_init: ELF file SHA256:  5fa09f072...
+I (113) app_init: ESP-IDF:          v5.5
+I (113) efuse_init: Min chip rev:     v0.0
+I (113) efuse_init: Max chip rev:     v0.99 
+I (113) efuse_init: Chip rev:         v0.2
+I (113) heap_init: Initializing. RAM available for dynamic allocation:
+I (113) heap_init: At 3FCD5610 len 00014100 (80 KiB): RAM
+I (114) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (114) heap_init: At 600FE020 len 00001FC8 (7 KiB): RTCRAM
+I (115) spi_flash: detected chip: generic
+I (115) spi_flash: flash io: dio
+I (115) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (115) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (116) main_task: Started on CPU0
+I (117) main_task: Calling app_main()
+I (117) saanotts: sanoTTS-jp ESP32-S3（**実機未検証** — esp32/README.md を読むこと）
+I (117) saanotts: 起動直後: 内部 DRAM free 75880 B / 最大ブロック 61440 B
+I (118) saanotts: arena 208896 B を .bss に静的確保 (0x3fc9d6b0) / G2P の ids 4108 B
+I (118) saan_model: model パーティション: offset 0x00210000 size 786432 B
+I (118) saan_model: 重み OK: 183 tensors / base 0x3c050000
+I (119) saan_dict: dict パーティション: offset 0x002d0000 size 13828096 B
+I (119) saan_dict: 辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377
+I (119) saanotts: 漢字経路の作業領域 130176 B
+I (119) saanotts: 辞書 mmap 後: 内部 DRAM free 75168 B / 最大ブロック 61440 B
+I (120) saan_i2s: I2S 設定 22050 Hz / 16bit / mono / DMA 6 x 512 frames / preroll 8192 sample
+W (121) saan_i2s: S3 に APLL は無い。実サンプルレートの誤差は**未測定**
+I (121) saanotts: G2P セルフテスト: "きょ][おわよ][いて][んきです°ね" (44 B) -> 53 ids / 0.201 ms
+I (122) saanotts:      OK  53 ids が demo_ids.h の錨と完全一致
+I (122) saanotts: 起動時の 1 発話: "今日は良い天気ですね。"
+I (192) saanotts: init 69.39 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (192) saanotts: arena used 194848 B / peak 194848 B / 確保 208896 B
+I (4076) saanotts: プリロール 4 チャンク完了（初回 pull 2569.51 ms）
+W (4076) saan_i2s: SAAN_SKIP_I2S: I2S を鳴らさない（QEMU 用。音は出ない）
+I (8667) saanotts: ----- 結果 -----
+I (8667) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (8667) saanotts: 初回 pull 2569.51 ms / 2 回目以降 mean 453.00 ms (満チャンク 1 個 = 92.88 ms の音声)
+I (8668) saanotts: 定常 xRT = 4.877  ← **1.0 を超えたら実時間に間に合っていない**
+I (8668) saanotts: アンダーラン 10 / 14 チャンク
+I (8668) saanotts: int16 クリップ 0 sample
+I (8668) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x78c209af06affc01
+I (8668) saanotts:         |max| 9529 / Σx² 74155592149
+I (8668) saanotts: タスクスタック残り 11116 B（16384 B 中）
+W (8669) saanotts: アンダーランは**想定どおり**。M-43 の外挿では 移植可能 C / fp32 は 2.47 x RT。int8 + PIE が要る
+I (8669) saanotts: 1 発話後: 内部 DRAM free 67820 B / 最大ブロック 59392 B
+I (8670) saan_con: 入力: USB Serial/JTAG（DevKit の「USB」ポート）
+I (8670) saanotts: ==================== 対話モード ====================
+I (8670) saanotts: かな中間表現を 1 行入力して Enter で喋る。
+I (8670) saanotts:   例:  きょ][おわよ][いて][んきです°ね     （今日は良い天気ですね。）
+I (8671) saanotts:   例:  こんにちわ
+I (8671) saanotts: 記号:  [ 上昇 / ] 下降核 / # 句境界 / ° 無声化 / ? ?! ?. ?~ 疑問
+I (8671) saanotts: **漢字対応ビルド**: `!` で始めると漢字かな交じり文として扱う。
+I (8671) saanotts:   例:  !今日は良い天気ですね。
+I (8671) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 17.79% の文で読みが変わる**（M-74）。⚠️ 音は誰も聞いていない。
+I (8672) saanotts: ⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**
+I (8672) saanotts: 編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 350 ids
+I (8672) saanotts: ====================================================
+
+かな> I (8672) main_task: Returned from app_main()
+!今日は良い天気ですね。
+I (12260) saanotts: 形態素 7 個 / ids 53 個
+I (12330) saanotts: init 69.30 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (12331) saanotts: arena used 194848 B / peak 194848 B / 確保 208896 B
+I (16215) saanotts: プリロール 4 チャンク完了（初回 pull 2569.57 ms）
+W (16215) saan_i2s: SAAN_SKIP_I2S: I2S を鳴らさない（QEMU 用。音は出ない）
+I (20806) saanotts: ----- 結果 -----
+I (20806) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (20806) saanotts: 初回 pull 2569.57 ms / 2 回目以降 mean 453.00 ms (満チャンク 1 個 = 92.88 ms の音声)
+I (20806) saanotts: 定常 xRT = 4.877  ← **1.0 を超えたら実時間に間に合っていない**
+I (20807) saanotts: アンダーラン 10 / 14 チャンク
+I (20807) saanotts: int16 クリップ 0 sample
+I (20807) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x78c209af06affc01
+I (20807) saanotts:         |max| 9529 / Σx² 74155592149
+I (20807) saanotts: タスクスタック残り 8940 B（16384 B 中）
+W (20808) saanotts: アンダーランは**想定どおり**。M-43 の外挿では 移植可能 C / fp32 は 2.47 x RT。int8 + PIE が要る
+
+かな> きょ][おわよ][いて][んきです°ね
+I (23274) saanotts: G2P: 44 B -> 53 ids / 0.202 ms（音素 25 個・うち PAD 0）
+I (23344) saanotts: init 69.06 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (23344) saanotts: arena used 194848 B / peak 194848 B / 確保 208896 B
+I (27228) saanotts: プリロール 4 チャンク完了（初回 pull 2569.29 ms）
+W (27228) saan_i2s: SAAN_SKIP_I2S: I2S を鳴らさない（QEMU 用。音は出ない）
+I (31819) saanotts: ----- 結果 -----
+I (31819) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (31819) saanotts: 初回 pull 2569.29 ms / 2 回目以降 mean 452.99 ms (満チャンク 1 個 = 92.88 ms の音声)
+I (31819) saanotts: 定常 xRT = 4.877  ← **1.0 を超えたら実時間に間に合っていない**
+I (31820) saanotts: アンダーラン 10 / 14 チャンク
+I (31820) saanotts: int16 クリップ 0 sample
+I (31820) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x78c209af06affc01
+I (31820) saanotts:         |max| 9529 / Σx² 74155592149
+I (31820) saanotts: タスクスタック残り 8940 B（16384 B 中）
+W (31821) saanotts: アンダーランは**想定どおり**。M-43 の外挿では 移植可能 C / fp32 は 2.47 x RT。int8 + PIE が要る
+
+かな> 

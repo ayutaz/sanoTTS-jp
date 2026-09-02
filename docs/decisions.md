@@ -1987,7 +1987,7 @@ C-032 の**有効な部分**（逆アセンブルの実測）は残る:
 
 1. **W8A8 を本番経路に接続する**（現在 `int8_test.c` からしか呼ばれていない）
 2. **PIE intrinsic / アセンブリを書く**
-3. 実機で測る（**ボード待ち**）
+3. 実機で測る（**ボード待ち**）→ ✅ 2026-09-02 に測った（M-82: CoreS3 で 0.926× RT）
 
 ⚠️ **W8A8 は精度を約 2.3 dB 落とす**（`decoder.inp` 単層で 47.14 → 44.82 dB）。
 end-to-end では未測定。接続するなら測り直しが要る。
@@ -3237,3 +3237,46 @@ S4 で確保の順番（`qp` を 1 つ足した）が変わって `sx` や `y` �
 - **M-80**（内訳）/ **M-81**（S1〜S5a の記録と新基準値）/ **C-053**（表面化したテストの潜在バグ）
 - **D-041 / D-045**（外の人が動かせる状態 / リリースは latest で完結）
 - **M-55**（W8A8 は知覚的に無料）/ **M-62**（旧基準 checksum）
+
+---
+
+## D-047: 実機の前提を凍結 — ユーザーのスタックチャンは **ESP32-S3 / 16 MB flash / native USB**（CoreS3 系）
+
+**2026-09-02。** `docs/plan/s1-speed-implementation-plan.md` の A-0。USB で繋いで `esptool.py` で読んだ。
+
+```
+$ esptool.py --port /dev/cu.usbmodem2101 chip_id
+Detecting chip type... ESP32-S3
+Chip is ESP32-S3 (QFN56) (revision v0.2)
+Features: WiFi, BLE
+Crystal is 40MHz
+USB mode: USB-Serial/JTAG
+$ esptool.py --port /dev/cu.usbmodem2101 flash_id
+Manufacturer: 46
+Device: 4018
+Detected flash size: 16MB
+```
+
+USB は `Espressif / USB JTAG_serial debug unit`（ioreg）。**USB-UART ブリッジ無し = CoreS3 系**
+（Core2 / Basic なら CP2104 で `/dev/cu.usbserial…` になる）。
+
+| 項目 | 値 | 根拠 |
+|---|---|---|
+| チップ | **ESP32-S3**（PIE あり） | esptool |
+| flash | **16 MB** | esptool。漢字辞書 13.7 MB も入る |
+| コンソール | **USB Serial/JTAG**（`sdkconfig.cores3` の既定） | esptool / ioreg |
+| PSRAM | Quad 8 MB **のはず**（CoreS3 / CoreS3 SE の仕様） | ⚠️ esptool では読めない。**起動ログの `psram:` 行で確認する** |
+| 板の名前 | CoreS3 か CoreS3 SE（裏面ラベル未確認） | どちらも同じコア・同じアンプ（AW88298）で、ビルドは同じ `sdkconfig.cores3` |
+
+### 決めたこと
+
+1. **A-4 は `esp32/boards/m5unified/` の `sdkconfig.cores3` + `-DSAAN_ENABLE_PIE=1` で焼く。**
+   期待 checksum は W8A8+PIE `0xa69a7ebbb5ccb05f`（S3 以降のコア。D-046）
+2. **焼く前に flash 16 MB を丸ごと読み出して保存する**（`~/stackchan_backup_2026-09-02_16MB.bin`）。
+   元のスタックチャンのファームに戻すのは `esptool.py write_flash 0 <そのファイル>`
+3. 漢字トラック（K-8）もこの板で測れる（16 MB）。ただし **PSRAM 有効でパーティション mmap が落ちる報告**の
+   切り分けが先（`esp32/boards/m5unified/` は辞書未対応）
+
+### 関連
+
+- **D-046**（出力基準と新 checksum）/ **S-1**（`research/s1-m5-cores3-speed.md`）/ 計画 A-0 / A-4
