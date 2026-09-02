@@ -14,7 +14,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-045 と**訂正履歴 C-001〜C-052** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-79。全数値に再現コマンド付き | 実測のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-80。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | **作業計画（かなトラック）**。B-0〜B-12 の検証タスクと Phase 0〜D の状態、**§10 に残りのタスク P-1/P-2/E-1/E-2**。⚠️ **K トラックは 4.6 の別計画** | フェーズ移行時 |
 | 3.5 | [`plan/phase-a-decisions.md`](plan/phase-a-decisions.md) | Phase A の決定（入力経路 / prosody / パック形式）と根拠 | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -22,6 +22,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
 | 4.5 | [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) | **K-1 の結論レポート**。B-0 の否定的結論のうち 4 つが崩れた。辞書は mmap / TTS 専用バイナリで 1 エントリ 28.29 B / アクセント天井は 126 行。**§0 に「その後どうなったか」**（実装で分かったずれ 3 件） | 固定（§0 だけ追記） |
 | 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K トラックの実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件（G1〜G32。⚠️ G15/G16 は欠番）。**K-7 まで完了。冒頭に「残っているもの」の 4 行表** | 進行中（残り K-8 と判断 2 件） |
+| 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。§5 に直す順序、§6 に M5 対応の取り込み案 | 進行中 |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -111,6 +112,10 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             **焼くだけの ESP32 firmware 2 種**を追加（M-67）。
                             ⚠️ モデルは v0.1.0 と bit 同一（再学習していない）
 [未]   Phase D-3d           実機測定（**ESP32-S3 ボード待ち**。これは本物の待ち）
+[報告] 実機の速度（第三者）    M5Stack CoreS3 で **W8A8+PIE 1.554× RT / W8A32 4.834× RT**（2026-09-02、
+                            **私は未再現**）。checksum は M-62 と一致。実時間に**間に合っていない**
+[完了] 段別プロファイラ        `csrc/saan_prof.h`。QEMU + ホストで **QUANT/GELU/LOOKUP/WCOPY ≥ MAC**（M-80）。
+                            実機の内訳は `idf.py -DSAAN_PROFILE=1` で取れる。**S1〜S8 の順で直す**（S-1 §5）
 ```
 
 **(1) の残りは (a) 実機でのサイクル実測 / (b) 出荷ファームで W8A8+PIE を既定にするかの判断 /
@@ -303,7 +308,7 @@ sanoTTS-jp/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
 │   ├── decisions.md                       決定記録 D-001〜D-045 + 訂正履歴 C-001〜C-052
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-79
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-80
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── vastai-runbook.md                  vast.ai の実行手順（⚠️ **通常は不要**。D-027）

@@ -301,7 +301,7 @@ The documentation is in Japanese.
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
-| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-79. Every entry has a reproduction command |
+| [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-80. Every entry has a reproduction command |
 | [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-045 and the **correction log C-001–C-052** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |

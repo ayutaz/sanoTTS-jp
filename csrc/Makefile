@@ -45,7 +45,7 @@ LDLIBS       := -lm
 #    ESP-IDF の component もこの 4 ファイル **+ g2p.c** を SRCS に並べること
 #    （g2p.c はコアを参照しない独立の翻訳単位だが main.c が saan_g2p() を呼ぶ）。
 CORE         := saanotts.c saanotts_stream.c fft.c saanotts_int8.c
-HDRS         := saanotts.h saanotts_stream.h saanotts_internal.h fft.h saanotts_int8.h
+HDRS         := saanotts.h saanotts_stream.h saanotts_internal.h fft.h saanotts_int8.h saan_prof.h
 
 # int8 ブロブと **fake-quant golden** は必ず一緒に作る。
 # ⚠️ `--golden-from-quantized` が無いと golden は fp32 参照のままで、
@@ -91,6 +91,11 @@ arena_stress: arena_stress.c $(CORE) $(HDRS)
 
 bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)
+
+# 段別プロファイラ（saan_prof.h）。**ゲートではない**。W8A8 で回す（実機の構成に合わせる）。
+# ⚠️ ホストの時間の内訳は実機の内訳ではない。回数と要素数だけが共通（prof_test.c の冒頭）
+prof_test: prof_test.c $(CORE) $(HDRS) ../esp32/main/demo_ids.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -DSAAN_PROFILE=1 -o $@ prof_test.c $(CORE) $(LDLIBS)
 
 # --- 端末側 G2P（かな中間表現 → 生徒インデックス列）------------------------
 # ⚠️ **推論コアに依存しない独立の翻訳単位。** libm も要らないので $(LDLIBS) 無し。
@@ -170,6 +175,9 @@ lanes: dump_pcm_a32 dump_pcm_a8 student_i8.bin ids_heldout.bin
 	./dump_pcm_a32 --ref student.bin student_i8.bin ids_heldout.bin ../reports/lanes/w8a32
 	./dump_pcm_a8  --ref student.bin student_i8.bin ids_heldout.bin ../reports/lanes/w8a8
 	cd .. && uv run --extra eval python scripts/d3_lane_scoreq.py --dir reports/lanes
+
+prof: prof_test student_i8.bin
+	./prof_test student_i8.bin --reps 20
 
 run-bench: bench
 	./bench --weights student.bin --json ../reports/d3b_latency_fft.json --label fft

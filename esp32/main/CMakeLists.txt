@@ -37,6 +37,11 @@ if(SAAN_ENABLE_PIE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
 endif()
 
+# ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の表の出力がこれを見る。
+if(SAAN_PROFILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PROFILE=1)
+endif()
+
 if(SAAN_QEMU)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_SKIP_I2S=1)
     message(STATUS "sanoTTS: SAAN_SKIP_I2S=1（QEMU 用。**音は出ない**）")

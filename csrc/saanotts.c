@@ -2,6 +2,7 @@
 #include "saanotts.h"
 
 #include "saanotts_internal.h"
+#include "saan_prof.h"
 
 #include "fft.h"
 
@@ -47,6 +48,8 @@ const void *saan_tensor(const saan_weights *w, const char *name,
     for (uint32_t i = 0; i < w->n_tensors; ++i) {
         const uint8_t *e = w->base + 16 + (size_t)i * HDR_ENT;
         if (strncmp((const char *)e, name, NAME_LEN) != 0) continue;
+        /* 走査したヘッダのエントリ数（× HDR_ENT B が flash から読む量）。プロファイラ用 */
+        SAAN_PROF_ADD(SAAN_PROF_LOOKUP, i + 1);
         const uint8_t *p = e + NAME_LEN;
         if (dtype) *dtype = rd_u32(p);
         if (dims) for (int k = 0; k < 4; ++k) dims[k] = rd_u32(p + 8 + 4 * k);
@@ -55,6 +58,7 @@ const void *saan_tensor(const saan_weights *w, const char *name,
         if (nbytes) *nbytes = nb;
         return w->base + off;
     }
+    SAAN_PROF_ADD(SAAN_PROF_LOOKUP, w->n_tensors);
     return NULL;
 }
 
@@ -62,12 +66,17 @@ const void *saan_tensor(const saan_weights *w, const char *name,
 const float *saan_tf(const saan_weights *w, const char *fmt, ...) {
     char buf[NAME_LEN];
     va_list ap;
+    SAAN_PROF_BEGIN(SAAN_PROF_LOOKUP);
     va_start(ap, fmt);
     vsnprintf(buf, sizeof buf, fmt, ap);
     va_end(ap);
-    uint32_t dt;
-    const void *p = saan_tensor(w, buf, &dt, NULL, NULL);
-    return (p && dt == 0) ? (const float *)p : NULL;
+    {
+        uint32_t dt;
+        const void *p = saan_tensor(w, buf, &dt, NULL, NULL);
+        const float *r = (p && dt == 0) ? (const float *)p : NULL;
+        SAAN_PROF_END(SAAN_PROF_LOOKUP);
+        return r;
+    }
 }
 
 /* --- arena --------------------------------------------------------------- */
@@ -123,6 +132,7 @@ size_t saan_arena_needed(int32_t n_ids) {
 void saan_conv1d(float *y, const float *x, const float *W, const float *b,
                    int cin, int cout, int ksz, int T) {
     const int pad = ksz / 2;
+    SAAN_PROF_BEGIN(SAAN_PROF_CONV32);
     for (int o = 0; o < cout; ++o) {
         float *yo = y + (size_t)o * T;
         const float bias = b ? b[o] : 0.0f;
@@ -140,12 +150,15 @@ void saan_conv1d(float *y, const float *x, const float *W, const float *b,
             }
         }
     }
+    SAAN_PROF_END(SAAN_PROF_CONV32);
+    SAAN_PROF_ADD(SAAN_PROF_CONV32, (size_t)cout * cin * ksz * T);
 }
 
 /* depthwise: 出力チャネル o は入力チャネル o だけを見る */
 void saan_dwconv1d(float *y, const float *x, const float *W,
                      int ch, int ksz, int T) {
     const int pad = ksz / 2;
+    SAAN_PROF_BEGIN(SAAN_PROF_CONV32);
     for (int o = 0; o < ch; ++o) {
         float *yo = y + (size_t)o * T;
         const float *xi = x + (size_t)o * T;
@@ -159,6 +172,8 @@ void saan_dwconv1d(float *y, const float *x, const float *W,
             for (int t = t0; t < t1; ++t) yo[t] += wv * xi[t + sh];
         }
     }
+    SAAN_PROF_END(SAAN_PROF_CONV32);
+    SAAN_PROF_ADD(SAAN_PROF_CONV32, (size_t)ch * ksz * T);
 }
 
 /* PyTorch の LayerNorm は **チャネル方向**に正規化する（[B,T,C] の C）。
@@ -166,6 +181,7 @@ void saan_dwconv1d(float *y, const float *x, const float *W,
  * 数値は出るが別物になる**（参照実装は h.transpose(1,2) して LayerNorm） */
 void saan_layernorm_c(float *x, const float *g, const float *b, int C, int T) {
     const float eps = 1e-5f;
+    SAAN_PROF_BEGIN(SAAN_PROF_LN);
     for (int t = 0; t < T; ++t) {
         float mean = 0.0f;
         for (int c = 0; c < C; ++c) mean += x[(size_t)c * T + t];
@@ -182,16 +198,24 @@ void saan_layernorm_c(float *x, const float *g, const float *b, int C, int T) {
             *p = (*p - mean) * inv * g[c] + b[c];
         }
     }
+    SAAN_PROF_END(SAAN_PROF_LN);
+    SAAN_PROF_ADD(SAAN_PROF_LN, (size_t)C * T);
 }
 
 void saan_relu(float *x, size_t n) {
+    SAAN_PROF_BEGIN(SAAN_PROF_RELU);
     for (size_t i = 0; i < n; ++i) if (x[i] < 0.0f) x[i] = 0.0f;
+    SAAN_PROF_END(SAAN_PROF_RELU);
+    SAAN_PROF_ADD(SAAN_PROF_RELU, n);
 }
 
 /* PyTorch の既定は tanh 近似ではなく erf 版 */
 void saan_gelu(float *x, size_t n) {
+    SAAN_PROF_BEGIN(SAAN_PROF_GELU);
     for (size_t i = 0; i < n; ++i)
         x[i] = 0.5f * x[i] * (1.0f + erff(x[i] * 0.70710678f));
+    SAAN_PROF_END(SAAN_PROF_GELU);
+    SAAN_PROF_ADD(SAAN_PROF_GELU, n);
 }
 
 /* --- Duration Dα --------------------------------------------------------- */
@@ -603,3 +627,26 @@ void saan_dwconv1d_ctx(float *y, const float *x, const float *left,
         }
     }
 }
+
+/* --- 段別プロファイラの実体（saan_prof.h。SAAN_PROFILE=1 のときだけ） ------- */
+#if SAAN_PROFILE
+uint64_t saan_prof_acc[SAAN_PROF_N];
+uint32_t saan_prof_cnt[SAAN_PROF_N];
+uint64_t saan_prof_n[SAAN_PROF_N];
+
+const char *saan_prof_name(int id) {
+    /* ⚠️ saan_prof.h の enum と同じ順序。ずれると表の行名が入れ替わる */
+    static const char *const names[SAAN_PROF_N] = {
+        "STEP", "HF", "TOKEN", "AC", "DINP", "DEC", "HEAD", "ISTFT",
+        "LOOKUP", "QUANT", "WCOPY", "MAC", "DW", "CONV32", "GELU", "LN", "RELU",
+        "PIPE", "INIT",
+    };
+    return (id >= 0 && id < SAAN_PROF_N) ? names[id] : "?";
+}
+
+void saan_prof_reset(void) {
+    memset(saan_prof_acc, 0, sizeof saan_prof_acc);
+    memset(saan_prof_cnt, 0, sizeof saan_prof_cnt);
+    memset(saan_prof_n, 0, sizeof saan_prof_n);
+}
+#endif

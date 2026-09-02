@@ -133,6 +133,8 @@ MISS=0
 while read -r sym; do
     case "$sym" in
         saan_model_*|saan_i2s_*|saan_f32_to_i16|saan_stub_*|saan_console_*) continue ;;  # 雛形自身の関数
+        # K トラックの端末側（esp32/main/saan_dict.c / saan_kanji.c）。csrc ではなく main の関数
+        saan_dict_*|saan_kanji_*) continue ;;
     esac
     if grep -qE "\b$sym\b" csrc/*.h; then
         printf '  OK  %-28s csrc のヘッダにある\n' "$sym"

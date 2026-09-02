@@ -18,6 +18,7 @@
  */
 #include "saanotts_stream.h"
 #include "saanotts_internal.h"
+#include "saan_prof.h"
 
 #include "fft.h"
 
@@ -60,6 +61,7 @@ static int pipe_init(pipe_t *p, saan_arena *a, int C, int pad) {
 /* CH フレームを末尾に押し込む（左へ CH シフト）。`src` は [C][CH]。
  * NULL なら**ゼロ**を押し込む = 発話末尾の右パディング（一括版と同じ挙動） */
 static void pipe_push(pipe_t *p, const float *src) {
+    SAAN_PROF_BEGIN(SAAN_PROF_PIPE);
     for (int c = 0; c < p->C; ++c) {
         float *row = p->buf + (size_t)c * p->W;
         memmove(row, row + CH, sizeof(float) * (size_t)(p->W - CH));
@@ -67,13 +69,16 @@ static void pipe_push(pipe_t *p, const float *src) {
         if (src) memcpy(tail, src + (size_t)c * CH, sizeof(float) * CH);
         else memset(tail, 0, sizeof(float) * CH);
     }
+    SAAN_PROF_END(SAAN_PROF_PIPE);
 }
 
 /* 中央 CH フレームを [C][CH] として dst に取り出す */
 static void pipe_center(const pipe_t *p, const float *full, float *dst) {
+    SAAN_PROF_BEGIN(SAAN_PROF_PIPE);
     for (int c = 0; c < p->C; ++c)
         memcpy(dst + (size_t)c * CH, full + (size_t)c * p->W + p->pad,
                sizeof(float) * CH);
+    SAAN_PROF_END(SAAN_PROF_PIPE);
 }
 
 /* --- 内部状態 ------------------------------------------------------------- */
@@ -168,8 +173,8 @@ static void zero_outside(float *x, int C, int32_t t0, int32_t n_frames) {
 
 /* AcBlock 1 段。buf 全体に conv を掛け、中央 CH を out へ。
  * 参照実装 `AcBlock.forward`: `x + LN(c2(relu(c1(x))))` */
-static saan_status ac_step(saan_stream *st, int bi, const float *in,
-                           float *out, int32_t t_out) {
+static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
+                                float *out, int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->ac[bi];
     const saan_weights *w = st->w;
@@ -201,9 +206,17 @@ static saan_status ac_step(saan_stream *st, int bi, const float *in,
     return SAAN_OK;
 }
 
+static saan_status ac_step(saan_stream *st, int bi, const float *in,
+                           float *out, int32_t t_out) {
+    SAAN_PROF_BEGIN(SAAN_PROF_AC);
+    const saan_status s = ac_step_body(st, bi, in, out, t_out);
+    SAAN_PROF_END(SAAN_PROF_AC);
+    return s;
+}
+
 /* decoder の inp（k=3）。参照実装 `Decoder.forward` の 1 行目 */
-static saan_status dec_inp_step(saan_stream *st, const float *c_in, float *h_out,
-                                float *c_out, int32_t t_out) {
+static saan_status dec_inp_step_body(saan_stream *st, const float *c_in,
+                                     float *h_out, float *c_out, int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->dinp, *pc = &im->cdel[0];
     const saan_wref iw = saan_w(st->w, "decoder.inp.weight");
@@ -227,12 +240,20 @@ static saan_status dec_inp_step(saan_stream *st, const float *c_in, float *h_out
     return SAAN_OK;
 }
 
+static saan_status dec_inp_step(saan_stream *st, const float *c_in, float *h_out,
+                                float *c_out, int32_t t_out) {
+    SAAN_PROF_BEGIN(SAAN_PROF_DINP);
+    const saan_status s = dec_inp_step_body(st, c_in, h_out, c_out, t_out);
+    SAAN_PROF_END(SAAN_PROF_DINP);
+    return s;
+}
+
 /* dw ブロック 1 段。参照実装:
  *   g = cup(cdown(c));  h = h + gamma * pw2(gelu(pw1(dw(h) + g)))
  * ⚠️ **c は毎段とも元の入力**（h ではない）。時刻を h と揃えるため遅延させる */
-static saan_status dec_step(saan_stream *st, int i, const float *h_in,
-                            const float *c_in, float *h_out, float *c_out,
-                            int32_t t_out) {
+static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
+                                 const float *c_in, float *h_out, float *c_out,
+                                 int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->dblk[i], *pc = &im->cdel[i + 1];
     const saan_weights *w = st->w;
@@ -271,6 +292,15 @@ static saan_status dec_step(saan_stream *st, int i, const float *h_in,
     return SAAN_OK;
 }
 
+static saan_status dec_step(saan_stream *st, int i, const float *h_in,
+                            const float *c_in, float *h_out, float *c_out,
+                            int32_t t_out) {
+    SAAN_PROF_BEGIN(SAAN_PROF_DEC);
+    const saan_status s = dec_step_body(st, i, h_in, c_in, h_out, c_out, t_out);
+    SAAN_PROF_END(SAAN_PROF_DEC);
+    return s;
+}
+
 /* --- iSTFT のリングバッファ -----------------------------------------------
  *
  * 一括版は全フレームを overlap-add してから `[N/2, N/2 + T*hop)` を切り出す。
@@ -282,6 +312,7 @@ static void istft_push(struct saan_stream_impl *im, const float *mag,
                        const float *cosv, const float *sinv, int t,
                        int32_t abs_frame) {
     const int N = SAAN_NFFT;
+    SAAN_PROF_BEGIN(SAAN_PROF_ISTFT);
     for (int k = 0; k < NB; ++k) {
         const float m = mag[(size_t)k * CH + t];
         im->re[k] = m * cosv[(size_t)k * CH + t];
@@ -313,6 +344,7 @@ static void istft_push(struct saan_stream_impl *im, const float *mag,
         im->olw[j] += im->win[i] * im->win[i];
     }
     if (abs_frame + 1 > im->fpush) im->fpush = abs_frame + 1;
+    SAAN_PROF_END(SAAN_PROF_ISTFT);
 }
 
 /* リングから HOP サンプル取り出して先へ進める。
@@ -321,6 +353,7 @@ static void istft_push(struct saan_stream_impl *im, const float *mag,
  * （= フレーム 2）まで push してからでないと値が違う。`istft_ready()` で判定する */
 static void istft_pop(struct saan_stream_impl *im, float *out) {
     const int L = im->ola_len;
+    SAAN_PROF_BEGIN(SAAN_PROF_ISTFT);
     for (int i = 0; i < SAAN_HOP; ++i) {
         const int j = (int)((im->out_pos + i) % L);
         out[i] = im->olw[j] > 1e-11f ? im->ola[j] / im->olw[j] : 0.0f;
@@ -328,6 +361,7 @@ static void istft_pop(struct saan_stream_impl *im, float *out) {
         im->olw[j] = 0.0f;
     }
     im->out_pos += SAAN_HOP;
+    SAAN_PROF_END(SAAN_PROF_ISTFT);
 }
 
 /* 次の HOP サンプルを出せるか。`out_pos + HOP - 1` に寄与する最大フレームが
@@ -341,9 +375,9 @@ static int istft_ready(const struct saan_stream_impl *im, int32_t n_frames) {
 
 /* --- 公開 API ------------------------------------------------------------- */
 
-saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
-                             saan_arena *a, const int32_t *ids, int32_t n_ids,
-                             float s_v) {
+static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
+                                    saan_arena *a, const int32_t *ids,
+                                    int32_t n_ids, float s_v) {
     memset(st, 0, sizeof *st);
     st->w = w; st->a = a; st->ids = ids; st->n_ids = n_ids; st->s_v = s_v;
     if (n_ids <= 0) return SAAN_ERR_SHAPE;
@@ -439,6 +473,15 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
     return SAAN_OK;
 }
 
+saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
+                             saan_arena *a, const int32_t *ids, int32_t n_ids,
+                             float s_v) {
+    SAAN_PROF_BEGIN(SAAN_PROF_INIT);
+    const saan_status s = stream_init_body(st, w, a, ids, n_ids, s_v);
+    SAAN_PROF_END(SAAN_PROF_INIT);
+    return s;
+}
+
 /* --- token レートのチャンク化 --------------------------------------------
  *
  * ⚠️ **`tok_h` を発話全体で持つと ids に比例して RAM が増える**（実測 192 B/id、
@@ -448,8 +491,8 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
  * `[i0-12, i1+12]` を入力すれば `[i0, i1)` が一括版と一致する。
  * 再計算は入るが token レートは frame レートの 1/2.3 なので軽い。
  */
-static saan_status compute_tokens(saan_stream *st, int32_t i0, int32_t i1,
-                                  float *out) {
+static saan_status compute_tokens_body(saan_stream *st, int32_t i0, int32_t i1,
+                                       float *out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     const saan_weights *w = st->w;
     const float *emb = saan_tf(w, "acoustic.emb.weight");
@@ -495,10 +538,19 @@ static saan_status compute_tokens(saan_stream *st, int32_t i0, int32_t i1,
     return SAAN_OK;
 }
 
+static saan_status compute_tokens(saan_stream *st, int32_t i0, int32_t i1,
+                                  float *out) {
+    SAAN_PROF_BEGIN(SAAN_PROF_TOKEN);
+    const saan_status s = compute_tokens_body(st, i0, i1, out);
+    SAAN_PROF_END(SAAN_PROF_TOKEN);
+    SAAN_PROF_ADD(SAAN_PROF_TOKEN, (size_t)(i1 - i0 + 2 * TOK_HALO));
+    return s;
+}
+
 /* CH フレームぶんの `hf`（length regulator の出力）を作る。
  * 参照実装の `repeat_interleave` + 位置埋め込みと同じ。
  * `f0` は絶対フレーム番号。範囲外（発話末尾より後ろ）は**ゼロ**にする */
-static saan_status make_hf(saan_stream *st, int32_t f0, float *out) {
+static saan_status make_hf_body(saan_stream *st, int32_t f0, float *out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     const float *pos = saan_tf(st->w, "acoustic.pos.weight");
     if (!pos) return SAAN_ERR_MISSING;
@@ -539,8 +591,15 @@ static saan_status make_hf(saan_stream *st, int32_t f0, float *out) {
     return SAAN_OK;
 }
 
+static saan_status make_hf(saan_stream *st, int32_t f0, float *out) {
+    SAAN_PROF_BEGIN(SAAN_PROF_HF);
+    const saan_status s = make_hf_body(st, f0, out);
+    SAAN_PROF_END(SAAN_PROF_HF);
+    return s;
+}
+
 /* パイプラインを CH フレーム進める。出力は `pcm`（CH * HOP サンプル） */
-static saan_status step_chunk(saan_stream *st, float *pcm) {
+static saan_status step_chunk_body(saan_stream *st, float *pcm) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     const saan_wref ow = saan_w(st->w, "acoustic.out.weight");
     const saan_wref hdw = saan_w(st->w, "decoder.hdown.weight");
@@ -593,6 +652,7 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
         memcpy(c_sync, c_tmp, sizeof c_tmp);
     }
 
+    SAAN_PROF_BEGIN(SAAN_PROF_HEAD);
     SAAN_TRY(saan_conv1d_w(im->hr, h, hdw, hdb, DEC_W, SAAN_DEC_HEAD, 1, CH, st->a));
     saan_gelu(im->hr, (size_t)SAAN_DEC_HEAD * CH);
 
@@ -602,6 +662,7 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
      * ESP32 では速度が律速（移植可能 C で 0.93 × RT）なので**速度を取る**。
      * メモリは他の作業領域を正確に詰めて G1 を満たす。 */
     SAAN_TRY(saan_conv1d_w(im->o1539, im->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH, st->a));
+    SAAN_PROF_END(SAAN_PROF_HEAD);
 
     const float *mag = im->o1539;
     const float *cosv = im->o1539 + (size_t)513 * CH;
@@ -622,6 +683,13 @@ static saan_status step_chunk(saan_stream *st, float *pcm) {
     }
     (void)pcm;
     return SAAN_OK;
+}
+
+static saan_status step_chunk(saan_stream *st, float *pcm) {
+    SAAN_PROF_BEGIN(SAAN_PROF_STEP);
+    const saan_status s = step_chunk_body(st, pcm);
+    SAAN_PROF_END(SAAN_PROF_STEP);
+    return s;
 }
 
 saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {

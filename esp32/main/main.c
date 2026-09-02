@@ -35,6 +35,7 @@
 
 #include "saanotts.h"
 #include "saanotts_stream.h"
+#include "saan_prof.h"
 
 #include "g2p.h"
 
@@ -168,6 +169,40 @@ typedef char saan_max_ids_check[(SAAN_MAX_IDS <= SAAN_G2P_IDS_CAP) ? 1 : -1];
 /* プリロールするチャンク数。1 チャンク = 2,048 sample = 92.88 ms */
 #define SAAN_PREROLL_CHUNKS (SAAN_I2S_PREROLL_SAMPLES / (SAAN_CHUNK * SAAN_HOP))
 
+/* --- 段別プロファイラ（-DSAAN_PROFILE=1 のときだけ。csrc/saan_prof.h）------------
+ *
+ * 時計は CCOUNT（CPU サイクル。240 MHz なら 1 サイクル = 4.17 ns）。
+ * ⚠️ **QEMU ではサイクルではない**（仮想時間ベース。`-icount` なら命令数に比例）。
+ *    実機の表と QEMU の表を混ぜて読まないこと。
+ * ⚠️ **計測自体のコスト**: 区間の出入りで CCOUNT を読む関数を呼ぶ。`hout` は
+ *    出力チャネル 1,539 本なので WCOPY / MAC の区間は 1 チャンクに約 3,000 回入る。
+ *    細かい区間ほど過大に出る。速度の報告には SAAN_PROFILE=0 のビルドを使うこと。 */
+#if SAAN_PROFILE
+#include "esp_cpu.h"
+uint32_t saan_prof_now(void) { return esp_cpu_get_cycle_count(); }
+
+static void prof_report(void) {
+    const uint32_t steps = saan_prof_cnt[SAAN_PROF_STEP];
+    if (steps == 0) return;
+    const double step = (double)saan_prof_acc[SAAN_PROF_STEP] / (double)steps;
+    ESP_LOGI(TAG, "----- 段別プロファイル（step_chunk %u 回の平均。単位 = CCOUNT）-----", (unsigned)steps);
+    ESP_LOGI(TAG, "%-8s %10s %12s %7s %12s %10s", "区間", "回数/step", "cyc/step", "%%STEP", "要素/step", "cyc/要素");
+    for (int id = 0; id < SAAN_PROF_N; ++id) {
+        if (id == SAAN_PROF_INIT) continue;
+        const double cnt = (double)saan_prof_cnt[id] / steps;
+        const double acc = (double)saan_prof_acc[id] / steps;
+        const double n   = (double)saan_prof_n[id] / steps;
+        ESP_LOGI(TAG, "%-8s %10.2f %12.0f %6.1f%% %12.0f %10.2f", saan_prof_name(id), cnt, acc,
+                 step > 0 ? 100.0 * acc / step : 0.0, n,
+                 saan_prof_n[id] ? (double)saan_prof_acc[id] / (double)saan_prof_n[id] : 0.0);
+    }
+    ESP_LOGI(TAG, "INIT: %.0f cyc / 回", saan_prof_cnt[SAAN_PROF_INIT]
+             ? (double)saan_prof_acc[SAAN_PROF_INIT] / saan_prof_cnt[SAAN_PROF_INIT] : 0.0);
+    ESP_LOGI(TAG, "1 step = %.0f cyc（240 MHz なら %.2f ms）。⚠️ QEMU ではサイクルではない",
+             step, step / 240000.0);
+}
+#endif
+
 static void log_heap(const char *when) {
     ESP_LOGI(TAG, "%s: 内部 DRAM free %u B / 最大ブロック %u B", when,
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
@@ -180,6 +215,9 @@ static void log_heap(const char *when) {
  *    checksum が「1 + 2 発話目」になり、しかも値は出るので気づけない。 */
 static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids) {
     saan_i2s_pcm_reset();
+#if SAAN_PROFILE
+    saan_prof_reset();
+#endif
 
     saan_arena a;
     saan_arena_init(&a, g_arena, sizeof g_arena);
@@ -297,6 +335,9 @@ done:
         if (underruns > 0)
             ESP_LOGW(TAG, "アンダーランは**想定どおり**。M-43 の外挿では "
                           "移植可能 C / fp32 は 2.47 x RT。int8 + PIE が要る");
+#if SAAN_PROFILE
+        prof_report();
+#endif
     }
     return ok;
 }

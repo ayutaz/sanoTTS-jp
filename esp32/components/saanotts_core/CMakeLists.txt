@@ -74,6 +74,21 @@ endif()
 #    出ないことを手元で確認済み）。定義するとソフト浮動小数に落ちる。
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra)
 
+# --- 段別プロファイラ（csrc/saan_prof.h）-------------------------------------
+#
+#     idf.py -DSAAN_PROFILE=1 build
+#
+# 実機で「1 チャンクの時間がどこに行っているか」を CCOUNT（サイクル）で段・カーネル
+# ごとに出す。main.c が発話のあとに表を ESP_LOGI する。**既定は無効**で、
+# 無効ならコアは 1 バイトも変わらない（マクロが `((void)0)` に展開される）。
+# ⚠️ **計測自体にコストがある**（出力チャネルごとに CCOUNT を 2 回読む）。
+#    速度を報告するときは SAAN_PROFILE=0 で測ること。内訳を見るときだけ 1。
+# ⚠️ **QEMU で取った値はサイクルではない**（`-icount` なら命令数に比例した仮想時間）。
+if(SAAN_PROFILE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PROFILE=1)
+    message(STATUS "sanoTTS: 段別プロファイラ **有効**（速度の報告には使わない）")
+endif()
+
 # --- PIE（ESP32-S3 の整数 SIMD）-------------------------------------------
 #
 # ⚠️ **現在このファームは PIE を使っていない。** 有効にするには次の 2 つを

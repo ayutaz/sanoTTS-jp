@@ -2,6 +2,7 @@
 #include "saanotts_int8.h"
 
 #include "saanotts_internal.h"
+#include "saan_prof.h"
 
 #include <math.h>
 #include <stdarg.h>
@@ -124,6 +125,7 @@ void saan_quantize_w_i8(int8_t *q, float *scale, const float *W,
 
 void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
                            int P) {
+    SAAN_PROF_BEGIN(SAAN_PROF_QUANT);
     for (int t = 0; t < T; ++t) {
         float amax = 0.0f;
         for (int c = 0; c < C; ++c) {
@@ -154,6 +156,8 @@ void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
             qt[c] = (int8_t)v;
         }
     }
+    SAAN_PROF_END(SAAN_PROF_QUANT);
+    SAAN_PROF_ADD(SAAN_PROF_QUANT, (size_t)C * T);
 }
 
 void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T) {
@@ -246,10 +250,15 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
         const float s = scale[o];
         const float bias = b ? b[o] : 0.0f;
         const int8_t *wo = W + (size_t)o * cin * ksz;
-        if (transposable)
+        if (transposable) {
+            SAAN_PROF_BEGIN(SAAN_PROF_WCOPY);
             for (int k = 0; k < ksz; ++k)
                 for (int i = 0; i < cin; ++i)
                     wt[(size_t)k * cinp + i] = wo[(size_t)i * ksz + k];
+            SAAN_PROF_END(SAAN_PROF_WCOPY);
+            SAAN_PROF_ADD(SAAN_PROF_WCOPY, (size_t)cin * ksz);
+        }
+        SAAN_PROF_BEGIN(SAAN_PROF_MAC);
         for (int t = 0; t < T; ++t) {
             float acc = 0.0f;
             for (int k = 0; k < ksz; ++k) {
@@ -278,12 +287,15 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
             }
             yo[t] = acc * s + bias;
         }
+        SAAN_PROF_END(SAAN_PROF_MAC);
+        SAAN_PROF_ADD(SAAN_PROF_MAC, (size_t)cin * ksz * T);
     }
 }
 
 void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
                        int ch, int ksz, int T, int8_t *qx, float *sx) {
     const int pad = ksz / 2;
+    SAAN_PROF_BEGIN(SAAN_PROF_DW);
     /* ⚠️ **depthwise は PIE に載らない**（チャネル方向のギャザーで、
      * `ee.vmulas.s8.accx` の内積では表現できない。C-035）。
      * それでも `saan_quantize_act_i8p` を共有するので**ストライドは追従する**。
@@ -305,6 +317,8 @@ void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *s
             yo[t] = acc * s;
         }
     }
+    SAAN_PROF_END(SAAN_PROF_DW);
+    SAAN_PROF_ADD(SAAN_PROF_DW, (size_t)ch * ksz * T);
 }
 
 /* --- ブロブ -------------------------------------------------------------- */
@@ -339,14 +353,9 @@ const int8_t *saan_ti8(const saan_weights *w, const float **scale,
  * どちらの経路を通るかは読み込んだブロブの dtype が決める。
  */
 
-saan_wref saan_w(const saan_weights *w, const char *fmt, ...) {
-    char buf[I8_NAME_LEN];
+static saan_wref saan_w_named(const saan_weights *w, const char *buf) {
     char sbuf[I8_NAME_LEN + 8];
     saan_wref r = {NULL, NULL, NULL};
-    va_list ap;
-    va_start(ap, fmt);
-    vsnprintf(buf, sizeof buf, fmt, ap);
-    va_end(ap);
 
     uint32_t dt = 0;
     const void *p = saan_tensor(w, buf, &dt, NULL, NULL);
@@ -361,6 +370,20 @@ saan_wref saan_w(const saan_weights *w, const char *fmt, ...) {
     r.q = (const int8_t *)p;
     r.scale = (const float *)sp;
     return r;
+}
+
+saan_wref saan_w(const saan_weights *w, const char *fmt, ...) {
+    char buf[I8_NAME_LEN];
+    va_list ap;
+    SAAN_PROF_BEGIN(SAAN_PROF_LOOKUP);
+    va_start(ap, fmt);
+    vsnprintf(buf, sizeof buf, fmt, ap);
+    va_end(ap);
+    {
+        const saan_wref r = saan_w_named(w, buf);
+        SAAN_PROF_END(SAAN_PROF_LOOKUP);
+        return r;
+    }
 }
 
 size_t saan_act_scratch_needed(int cin, int T) {

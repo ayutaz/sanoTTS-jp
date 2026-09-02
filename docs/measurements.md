@@ -5494,3 +5494,209 @@ I (88) saanotts:      OK  53 ids が demo_ids.h の錨と完全一致
 ⚠️ **合成は QEMU では走らせられない**（I2S を有効にすると `i2s_channel_write`
 が返らない）。**起動・辞書・錨の照合までは確認した。**
 
+---
+
+## M-80. 段別プロファイラを入れ、1 step の内訳をホストと QEMU で取った（自己実測 / ⚠️ 実機ではない）
+
+**なぜ**: 第三者が M5Stack CoreS3 で本リポジトリの firmware を動かし、**W8A8 + PIE で定常 1.554× RT**
+（1 チャンク 144 ms）と報告した（[`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md)。
+⚠️ **報告値。私は再検証していない**）。1 step の MAC 数 7,279,646 に対し 34.6 M cycles は
+**4.75 cycles/MAC** で、PIE の理論値 1/16 とは 76 倍離れている。**積和以外が支配的**なのは
+算術で分かるが、**どれかは測らないと分からない**。
+
+**入れたもの**: `csrc/saan_prof.h`（区間マクロ。`SAAN_PROFILE=0` では `((void)0)` に展開され
+コードは変わらない）。区間は段（STEP / HF / TOKEN / AC / DINP / DEC / HEAD / ISTFT）と
+カーネル（LOOKUP / QUANT / WCOPY / MAC / DW / CONV32 / GELU / LN / RELU / PIPE）。
+時計はプラットフォームが定義する（ESP32 = CCOUNT / ホスト = ns）。
+
+### 1. 静的事実: ホット関数が要素ごとに何を呼んでいるか（Xtensa GCC 14.2 / -O2 / W8A8+PIE）
+
+再現:
+
+```bash
+export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
+for f in saanotts_int8 saanotts saanotts_stream; do
+  xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=gnu17 -DSAAN_INT8_ACT=1 -DSAAN_PIE=1 -c csrc/$f.c -o /tmp/$f.o
+  echo "--- $f"; xtensa-esp32s3-elf-nm -u /tmp/$f.o | tr -s ' ' | sort -u | tr '\n' ' '; echo
+done
+```
+
+出力:
+
+```
+--- saanotts_int8
+ U __divsf3 U memset U rintf U saan_alloc U saan_conv1d U saan_dwconv1d U saan_tensor U snprintf U vsnprintf
+--- saanotts
+ U __divsf3 U cosf U erff U expf U memcpy U memset U roundf U saan_act_scratch_needed U saan_conv1d_w U saan_dwconv1d_w U saan_irfft_1024 U saan_w U sqrtf U strncmp U vsnprintf
+--- saanotts_stream
+ U __divsf3 U cosf U expf U memcpy U memmove U memset U roundf U saan_act_scratch_needed U saan_alloc U saan_conv1d_w U saan_dwconv1d_w U saan_gelu U saan_irfft_1024 U saan_layernorm_c U saan_relu U saan_run_duration U saan_tf U saan_w
+```
+
+| 関数 | 要素ごとに呼ぶもの | 確認方法 |
+|---|---|---|
+| `saan_quantize_act_i8p` | **`__divsf3`**（ソフト除算。S3 の FPU に除算は無い）+ **`rintf`** | `objdump -d` で関数内の `callx8` 6 本 |
+| `saan_gelu` | **`erff`** | 同 1 本 |
+| `saan_layernorm_c` | `__divsf3` ×2 + `sqrtf`（フレームごと） | 同 6 本 |
+| `saan_tensor` | **`strncmp`**（ヘッダ 104 B × 最大 183 エントリを線形走査） | ソース |
+
+### 2. 1 step で参照する重みの量（blob ヘッダから数えた）
+
+再現: `uv run --no-project python -` で `csrc/student_i8.bin` のヘッダ（`SAAN` v1 / 183 tensors）を
+読み、`duration.*` を除く全テンソルの nbytes を足す（ストリーミングは毎 step 全層を通す）。
+
+| | int8 | fp32 | scale | 計 |
+|---|---:|---:|---:|---:|
+| acoustic frame/out/pos | 117,120 | 20,736 | 2,080 | |
+| token（emb 込み） | 69,120 | 13,248 | 1,152 | |
+| decoder（inp / dw / pw1 / pw2 / cdown / cup / gamma） | 249,780 | 9,684 | 11,184 | |
+| head（hdown / hout） | 77,520 | 6,348 | 6,348 | |
+| **1 step で参照する重み** | | | | **584,320 B** |
+| ヘッダ（16 + 183 × 104） | | | | 19,048 B |
+
+⚠️ `ksz=1` の層でも `W + o*cin` は **cin が 16 の倍数でない層（pw1 76 / cdown 40 / cup 12 / hdown 76）
+では 16 B 境界に乗らない**（行の `cin*k % 16` = 12 / 8 / 12 / 12）。だから現行カーネルは
+全層で `wt` に写してから `ee.vld.128.ip` に渡している（= WCOPY）。
+
+### 3. ホスト（M4 Max / clang -O2 / W8A8 / PIE 無し）: 回数と要素数
+
+再現: `make -C csrc prof`（`csrc/prof_test.c`。入力は `esp32/main/demo_ids.h` の 53 ids =
+実機の報告と同じ 1 文。20 発話の平均）。
+
+出力:
+
+```
+入力: demo_ids.h の 53 ids / 106 frames / pull 14 回 / step_chunk 420 回（20 発話の合計）
+時計: ホストの ns（⚠️ 実機のサイクルではない。回数と要素数だけが実機と共通）
+
+区間    回数/step        ns/step    %STEP    要素/step    ns/要素
+STEP             1.00         751060   100.0%              0         0.00
+HF               1.00         116507    15.5%              0         0.00
+TOKEN            0.67         116083    15.5%             19      6171.52
+AC               5.00         189579    25.2%              0         0.00
+DINP             1.00          12736     1.7%              0         0.00
+DEC              5.00         336471    44.8%              0         0.00
+HEAD             1.00          75895    10.1%              0         0.00
+ISTFT           10.19          12683     1.7%              0         0.00
+LOOKUP         101.81          50626     6.7%          15997         3.16
+QUANT           43.33          72519     9.7%          50998         1.42
+WCOPY          757.14          46450     6.2%         171863         0.27
+MAC           4724.19         365319    48.6%        7279646         0.05
+DW               5.00          22860     3.0%          37240         0.61
+CONV32           0.00              0     0.0%              0         0.00
+GELU             6.00          61714     8.2%          21664         2.85
+LN               7.14           8921     1.2%           6791         1.31
+RELU             7.14           7914     1.1%           6791         1.17
+PIPE            33.00           2855     0.4%              0         0.00
+
+INIT（発話ごと）: 137750 ns / 回 (20 回)
+1 発話の step_chunk 合計: 15.772 ms（21 step × 751060 ns）
+```
+
+⚠️ **ホストの ns の内訳は実機の内訳ではない**（M4 Max には FPU の除算も速い erff もある）。
+**プラットフォームに依らないのは「回数」と「要素」の列だけ**:
+
+| 区間 | 回数 / step | 要素 / step | 意味 |
+|---|---:|---:|---|
+| LOOKUP | 101.81 | **15,997** | 走査したヘッダのエントリ数。× 104 B = **1,663,688 B / step** |
+| QUANT | 43.33 | **50,998** | `__divsf3` + `rintf` を通る要素 |
+| GELU | 6.00 | **21,664** | `erff` の呼び出し |
+| MAC | 4,724 | **7,279,646** | 積和 |
+| WCOPY | 757（ホスト）| 171,863 B（ホスト） | ⚠️ ホストは PIE 無しなので **ksz>1 の層しか写さない**。実機構成（PIE）は全 conv 層 → QEMU の表で **489,304 B / step** |
+| DW | 5 | 37,240 | PIE に載らない depthwise |
+| TOKEN | 0.67 | 19 | token block の窓幅（毎チャンク再計算） |
+
+### 4. QEMU（ESP32-S3 / W8A8 + PIE / `-icount shift=0`）: 時間の内訳
+
+再現:
+
+```bash
+cd esp32 && idf.py -B build_prof -DSDKCONFIG=build_prof/sdkconfig \
+    -DSAAN_QEMU=1 -DSAAN_ENABLE_PIE=1 -DSAAN_BOOT_SPEAK=1 -DSAAN_PROFILE=1 build
+cd build_prof && esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB -o /tmp/flash_prof.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 8M \
+    -drive file=/tmp/flash_prof.bin,if=mtd,format=raw -icount shift=0
+# ⚠️ `-icount shift=0,sleep=off` はこの QEMU（esp_develop_9.0.0）では invalid option
+```
+
+出力（checksum は `0x04de91103a0e49f9` のまま = プロファイラは値を変えない）:
+
+```
+----- 段別プロファイル（step_chunk 21 回の平均。単位 = CCOUNT）-----
+区間   回数/step     cyc/step  %%STEP  要素/step cyc/要素
+STEP           1.00       811001  100.0%            0       0.00
+HF             1.00        82366   10.2%            0       0.00
+TOKEN          0.67        81965   10.1%           19    4357.61
+AC             5.00       137500   17.0%            0       0.00
+DINP           1.00         8715    1.1%            0       0.00
+DEC            5.00       485274   59.8%            0       0.00
+HEAD           1.00        62563    7.7%            0       0.00
+ISTFT         10.19        26032    3.2%            0       0.00
+LOOKUP       101.81        69237    8.5%            0       0.00
+QUANT         43.33       171110   21.1%        50998       3.36
+WCOPY       4724.19        84767   10.5%       489304       0.17
+MAC         4724.19       279153   34.4%      7279646       0.04
+DW             5.00        44228    5.5%        37240       1.19
+CONV32         0.00            0    0.0%            0       0.00
+GELU           6.00       115651   14.3%        21664       5.34
+LN             7.14         6266    0.8%         6791       0.92
+RELU           7.14         1247    0.2%         6791       0.18
+PIPE          33.00        10276    1.3%            0       0.00
+INIT: 155423 cyc / 回
+1 step = 811001 cyc（240 MHz なら 3.38 ms）。⚠️ QEMU ではサイクルではない
+```
+
+同じビルドを **`-icount` 無し**で走らせた場合（ホストの実時間ベース。ばらつく）:
+
+```
+----- 段別プロファイル（step_chunk 21 回の平均。単位 = CCOUNT）-----
+区間   回数/step     cyc/step  %%STEP  要素/step cyc/要素
+STEP           1.00      1054093  100.0%            0       0.00
+HF             1.00        86171    8.2%            0       0.00
+TOKEN          0.67        85457    8.1%           19    4543.29
+AC             5.00       129429   12.3%            0       0.00
+DINP           1.00        10619    1.0%            0       0.00
+DEC            5.00       723619   68.6%            0       0.00
+HEAD           1.00        67583    6.4%            0       0.00
+ISTFT         10.19        25964    2.5%            0       0.00
+LOOKUP       101.81        79343    7.5%            0       0.00
+QUANT         43.33       316396   30.0%        50998       6.20
+WCOPY       4724.19        55659    5.3%       489304       0.11
+MAC         4724.19       229613   21.8%      7279646       0.03
+DW             5.00        41950    4.0%        37240       1.13
+CONV32         0.00            0    0.0%            0       0.00
+GELU           6.00       266947   25.3%        21664      12.32
+LN             7.14         7509    0.7%         6791       1.11
+RELU           7.14         1131    0.1%         6791       0.17
+PIPE          33.00        14318    1.4%            0       0.00
+INIT: 311840 cyc / 回
+1 step = 1054093 cyc（240 MHz なら 4.39 ms）。⚠️ QEMU ではサイクルではない
+```
+
+⚠️ **QEMU の CCOUNT はサイクルではない。** `-icount shift=0` では命令数に比例する仮想時間、
+無しではホストの実時間。**割合だけを読む**こと。絶対値（1 step = 811,001 / 1,054,093）は使わない。
+⚠️ **区間の出入り自体にコスト**がある。`hout` は cout=1,539 なので WCOPY / MAC は 1 step に
+4,724 回入る。細かい区間ほど過大に出る。
+
+### 5. 読み取り
+
+| | icount | icount 無し | ホスト |
+|---|---:|---:|---:|
+| MAC | 34.4% | 21.8% | 50.6% |
+| QUANT + GELU + LOOKUP + WCOPY | **54.4%** | **68.1%** | 28.8% |
+
+3 通りで順序は揺れるが、**QUANT / GELU / LOOKUP / WCOPY の 4 つが MAC と同じかそれ以上**なのは共通。
+4 つとも **PIE では消えない**（積和ではない）。実機ではさらに flash の読み出し
+（重み 584 KB + ヘッダ走査 0.25〜1.66 MB / step）が上乗せされる。
+直し方の順序と受け入れ条件は [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) §5。
+
+### ⚠️ 測っていないこと
+
+- **実機の内訳**（板が無い）。同じ表は `idf.py -DSAAN_PROFILE=1` で焼けば CCOUNT で出る
+- 実機の 1.554× RT の再現
+- flash のストールと FPU の遅延（QEMU には無い）
+
+### ついでに直したもの
+
+`scripts/check_esp32_template.sh` のゲート 7 が K トラックの `saan_dict_*` / `saan_kanji_*`
+（`esp32/main` の関数）を csrc のヘッダに探して **NG 6 件を出し続けていた**（`2c61a8d` 以降）。
+除外リストに足して 0 件にした。⚠️ 変更前後で NG 数が同じ 6 であることを `git stash -u` で確かめた。
