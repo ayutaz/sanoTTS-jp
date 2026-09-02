@@ -54,24 +54,36 @@
 #endif
 
 /* `a` と `b` の内積。**`n` は 16 の倍数、両ポインタは 16 バイト境界**であること。
- * 呼び出し側が保証する（`saan_pie_ok()` で判定）。 */
+ * 呼び出し側が保証する（`saan_pie_ok()` で判定）。
+ *
+ * S5a（2026-09-02）: 16 MAC あたり **5 命令 → 2 命令**。
+ *   - `ee.vmulas.s8.accx.ld.ip qu, as, 16, qx, qy` は「qx·qy を accx に足す」と
+ *     「qu ← [as], as += 16」を 1 命令でやる。qu == qx にしても積和は**ロード前の** qx を使う
+ *   - `loopnez` は Xtensa のゼロオーバーヘッドループ（`__XCHAL_HAVE_LOOPS`）。addi + bnez が消える
+ *   - 最後の 1 組だけ併合しない `ee.vmulas.s8.accx` で締める。**併合形で回し切ると
+ *     配列の 16 B 先を 1 回読む**（arena や blob の端では未マップ領域に触りうる）
+ *   - k == 1（cinp = 16。cup 12→16）は `loopnez` の回数が 0 で本体を飛ばし、締めの 1 命令だけ走る
+ * 整数演算なので旧ループと **bit 同一**（esp32/pie_probe の B 節 7 形状 + QEMU の checksum で確認）。
+ * ⚠️ QEMU が併合形の意味論を実機と同じに実装しているかは、実機の checksum が一致するかで分かる。 */
 #if SAAN_HAVE_PIE
 static int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
     int32_t out = 0;
     const int8_t *pa = a, *pb = b;
-    int k = n >> 4;
-    if (k <= 0) return 0;      /* ⚠️ 無いとループが 2^32 回ぶん回る */
+    const int k = n >> 4;
+    if (k <= 0) return 0;      /* ⚠️ 無いと締めの 1 組が未初期化の q0/q1 を掛ける */
+    const int km1 = k - 1;
     __asm__ volatile(
-        "ee.zero.accx                 \n"
-        "1:                           \n"
-        "  ee.vld.128.ip q0, %[pa], 16\n"
-        "  ee.vld.128.ip q1, %[pb], 16\n"
-        "  ee.vmulas.s8.accx q0, q1   \n"
-        "  addi %[k], %[k], -1        \n"
-        "  bnez %[k], 1b              \n"
-        "ee.srs.accx %[out], %[sh], 0 \n"
-        : [out] "=&a"(out), [pa] "+&a"(pa), [pb] "+&a"(pb), [k] "+&a"(k)
-        : [sh] "a"(0)
+        "ee.zero.accx                                   \n"
+        "ee.vld.128.ip q0, %[pa], 16                    \n"
+        "ee.vld.128.ip q1, %[pb], 16                    \n"
+        "loopnez %[km1], 1f                             \n"
+        "  ee.vmulas.s8.accx.ld.ip q0, %[pa], 16, q0, q1\n"
+        "  ee.vld.128.ip q1, %[pb], 16                  \n"
+        "1:                                             \n"
+        "ee.vmulas.s8.accx q0, q1                       \n"
+        "ee.srs.accx %[out], %[sh], 0                   \n"
+        : [out] "=&a"(out), [pa] "+&a"(pa), [pb] "+&a"(pb)
+        : [km1] "a"(km1), [sh] "a"(0)
         : "memory");
     return out;
 }

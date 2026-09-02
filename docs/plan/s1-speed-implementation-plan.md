@@ -408,11 +408,11 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 **Files:**
 - Modify: `csrc/saanotts_int8.c`（`saan_dot_i8_pie` と `saan_conv1d_i8a` の t ループ）, `esp32/pie_probe/main/probe.c`
 
-- [ ] **Step 1: pie_probe に形状を足す**（cin=48 ksz=1 T=8 の hout 形状 / cin=304 / cin=76→80 k=1 / cin=48 k=5 / cin=12→16）。現状 PASS を確認。
-- [ ] **Step 2: ロード併合**: 内積ループを `ee.vld.128.ip q1` → `ee.vmulas.s8.accx.ld.ip q0, pa, 16, q0, q1` の形に（2 命令/16 MAC）。`k` の端数（cinp/16 が奇数）を扱う。pie_probe PASS。
-- [ ] **Step 3: 重みをレジスタに保持**: `cinp <= 128`（q0..q7 に収まる）の層は出力チャネル o の重み行を 1 回ロードし、t を回して活性化だけロード。**pie_probe の bit 一致** + `objdump` で `ee.` 命令数を記録。
-- [ ] **Step 4: QEMU checksum 不変 / 実機の MAC cyc/要素。**
-- [ ] **Step 5: commit** `perf(S5): PIE の内積をロード併合にし、重み行をレジスタに保持（bit 同一）`
+- [x] **Step 1: pie_probe に形状を足す**（既存の 7 形状で cin=16 〜 304 を覆っている。追加不要）（cin=48 ksz=1 T=8 の hout 形状 / cin=304 / cin=76→80 k=1 / cin=48 k=5 / cin=12→16）。現状 PASS を確認。
+- [x] **Step 2: ロード併合**: 内積ループを `ee.vld.128.ip q1` → `ee.vmulas.s8.accx.ld.ip q0, pa, 16, q0, q1` の形に（2 命令/16 MAC）。`k` の端数（cinp/16 が奇数）を扱う。pie_probe PASS。
+- [ ] **Step 3: 重みをレジスタに保持**（**S5b。実機の MAC cyc/要素を見てから**）: `cinp <= 128`（q0..q7 に収まる）の層は出力チャネル o の重み行を 1 回ロードし、t を回して活性化だけロード。**pie_probe の bit 一致** + `objdump` で `ee.` 命令数を記録。
+- [x] **Step 4: QEMU checksum 不変**（`0xa69a7ebbb5ccb05f`）/ - [ ] 実機の MAC cyc/要素（板待ち）
+- [x] **Step 5: commit**（S5a） `perf(S5): PIE の内積をロード併合にし、重み行をレジスタに保持（bit 同一）`
 
 ---
 
@@ -437,7 +437,9 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 | **S2 量子化の除算と rintf を消す** | ✅ | 要素ごとの `__divsf3` + `rintf` 呼び出し → `mul.s` + `round.s`（フレームごとの除算 2 回だけ残る）/ W8A8 e2e 平均 24.24 → **24.21 dB**・最小 21.94 不変 / QEMU checksum **`0x04de91103a0e49f9` のまま**（この 1 文では量子化値が 1 つも変わらなかった。丸め水準の宣言どおり、他の文では変わりうる）/ pie_probe C 節: round.s == rintf（22 値、陽性対照つき） |
 | **S3 GELU の erff を Hermite 表に** | ✅ | erff との max\|Δ\| 1.19e-7（陽性対照 1.18e-4 は落ちる）/ golden fp32 SNR 118.97 dB / W8A32・W8A8 の e2e SNR 不変 / **QEMU 基準 checksum が変わった**: W8A8+PIE `0xa69a7ebbb5ccb05f`（\|max\| 9627）/ W8A32 `0xe4b645c30835d42d`（\|max\| 9529 同一・Σx² 8.7e-9）/ QEMU icount 1 step **557,152**（S1 前 811,001、−31%）。記録は M-81 |
 | **S4 blob v2（事前整列）** | ✅ | **bit 同一**（S3 と 24 文 cmp 0/24、QEMU 両構成の checksum 不変）/ blob 643,936 → 654,032 B / WCOPY 0 / v1 int8 blob は SAAN_ERR_VERSION で拒否 / QEMU icount 1 step 557,152 → **454,548**（S1 前から −44%）。⚠️ リリース資産の v2 化はマージ時 |
-| S5 | 次 | |
+| **S5a PIE ループ（ロード併合 + loopnez）** | ✅ | **bit 同一**（pie_probe 7 形状 / QEMU checksum 不変）/ 16 MAC あたり 5 → 2 命令 / QEMU icount 1 step 454,548 → **412,619**（S1 前から −49%） |
+| S5b 重み行をレジスタに保持 | ⏳ 実機の表を見てから | |
+| **次にやること** | **A-0 / A-4（板の同定 → 焼く → checksum → xRT → `SAAN_PROFILE=1` の表）** | 期待 checksum: W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d` |
 
 ## 実行の順序と依存
 
