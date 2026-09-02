@@ -1,0 +1,14 @@
+# M5Stack Core2 / Core2 AWS（**ESP32**（S3 ではない）/ 16 MB flash / 8 MB PSRAM / NS4168）
+#
+# ⚠️ **ESP32 には PIE が無い。** -DSAAN_ENABLE_PIE=1 は CMake で止まる。W8A32（移植可能 C）で動く。
+#    速度は S3 より遅い（**未測定**）。この板でできるのは「喋る + checksum 一致」の確認まで。
+# ⚠️ **この構成は 2026-09-02 時点でビルドしか確かめていない**（実機は S3 を先に）。
+CONFIG_IDF_TARGET="esp32"
+
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+# ESP32 の PSRAM は 4 MB までしか同時にマップできない（8 MB 品でも上位は bank switch）
+CONFIG_SPIRAM_TYPE_AUTO=y
+
+# コンソールは UART0（Core2 は CP2104 の USB-UART ブリッジ）= IDF の既定なので指定なし

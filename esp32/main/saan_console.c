@@ -34,8 +34,8 @@ static bool port_init(void) {
     return true;
 }
 
-static int port_read1(unsigned char *c) {
-    return usb_serial_jtag_read_bytes(c, 1, portMAX_DELAY) == 1 ? 1 : 0;
+static int port_read1(unsigned char *c, uint32_t timeout_ms) {
+    return usb_serial_jtag_read_bytes(c, 1, pdMS_TO_TICKS(timeout_ms)) == 1 ? 1 : 0;
 }
 
 static void port_write(const char *s, size_t n) {
@@ -63,8 +63,8 @@ static bool port_init(void) {
     return true;
 }
 
-static int port_read1(unsigned char *c) {
-    return uart_read_bytes(CON_UART, c, 1, portMAX_DELAY) == 1 ? 1 : 0;
+static int port_read1(unsigned char *c, uint32_t timeout_ms) {
+    return uart_read_bytes(CON_UART, c, 1, pdMS_TO_TICKS(timeout_ms)) == 1 ? 1 : 0;
 }
 
 static void port_write(const char *s, size_t n) {
@@ -110,13 +110,21 @@ bool saan_console_init(void) {
     return true;
 }
 
-int saan_console_readline(const char **out) {
-    *out = s_buf;
+void saan_console_prompt(void) {
     put("\r\n" PROMPT);
+}
+
+/* ⚠️ **タイムアウトで戻る。** 行の途中でも戻り、状態は s_ln に残る。
+ *    呼び出し側は PENDING のあいだにタッチなど別の入力を見られる。
+ *    プロンプトはここでは出さない（saan_console_prompt() を行ごとに 1 回）。
+ * ⚠️ read が 0 バイトで返るのを「エラー」と区別できない（どちらも戻り値 0）ので、
+ *    タイムアウトは常に PENDING として返す。本物の切断は次の書き込みで分かる。 */
+int saan_console_poll(const char **out, uint32_t timeout_ms) {
+    *out = s_buf;
 
     for (;;) {
         unsigned char c;
-        if (!port_read1(&c)) return SAAN_CONSOLE_ERROR;
+        if (!port_read1(&c, timeout_ms)) return SAAN_CONSOLE_PENDING;
 
         /* ⚠️ **エコーの要否を自分で判定しない。** かつて feed の前後で `len` が
          *    増えたかで判定していたが、DONE の次のバイトでは中身が自動的に消えるので

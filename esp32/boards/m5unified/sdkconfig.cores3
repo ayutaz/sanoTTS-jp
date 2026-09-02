@@ -1,0 +1,19 @@
+# M5Stack CoreS3 / CoreS3 SE（ESP32-S3 / 16 MB flash / 8 MB **Quad** PSRAM / AW88298）
+#
+# 第三者の実機報告と同じ構成（nnn112358/SanoTTS-jp-M5StackCoreS3 の sdkconfig.defaults）。
+CONFIG_IDF_TARGET="esp32s3"
+
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+
+# ⚠️ **Quad。** Octal にすると `octal_psram: PSRAM chip is not connected` → abort でブートループ
+#    （報告）。ESP32-S3-WROOM-1-N16R8（DevKit）が Octal なので間違えやすい。
+CONFIG_SPIRAM_MODE_QUAD=y
+
+# ⚠️ **CoreS3 に USB-UART ブリッジは無い。** native USB でないとログも入力も出ない
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# キャッシュ。D-cache 64 KB は DRAM を減らさない（dram0_0_seg は 341,760 B 固定。報告）
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y

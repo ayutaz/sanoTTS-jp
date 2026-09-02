@@ -10,5 +10,6 @@ static inline size_t heap_caps_get_largest_free_block(unsigned c) { (void)c; ret
 #define MALLOC_CAP_SPIRAM   0x4
 /* stubs.c が malloc/free で実装する。⚠️ PSRAM と内部の区別は無い（どちらも通る） */
 void *heap_caps_malloc(size_t n, unsigned caps);
+void *heap_caps_aligned_alloc(size_t align, size_t n, unsigned caps);
 void  heap_caps_free(void *p);
 #endif

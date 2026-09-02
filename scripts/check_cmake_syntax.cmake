@@ -27,11 +27,15 @@ set(ENV{IDF_PATH} "${FAKE_IDF}")
 # ⚠️ 引数の**綴りは検査していない**。ここで受けているのは「呼べる」ことだけ。
 function(idf_component_register)
     message(STATUS "  idf_component_register(${ARGN})")
+    # 本物は COMPONENT_LIB を定義する。後続の target_* / 自作関数がこれを引数に取るので、
+    # 空のままだと「引数が足りない」で構文検査が落ちる（実際に踏んだ）
+    set(COMPONENT_LIB __saan_stub_component PARENT_SCOPE)
 endfunction()
 function(esptool_py_flash_to_partition)
     message(STATUS "  esptool_py_flash_to_partition(${ARGN})")
 endfunction()
-function(idf_build_get_property)
+function(idf_build_get_property VAR PROP)
+    set(${VAR} "esp32s3" PARENT_SCOPE)   # 構文検査では S3 とみなす
 endfunction()
 function(target_compile_options)
 endfunction()
@@ -55,7 +59,9 @@ endfunction()
 set(FAILED 0)
 foreach(F "${ESP32_DIR}/CMakeLists.txt"
           "${ESP32_DIR}/main/CMakeLists.txt"
-          "${ESP32_DIR}/components/saanotts_core/CMakeLists.txt")
+          "${ESP32_DIR}/components/saanotts_core/CMakeLists.txt"
+          "${ESP32_DIR}/boards/m5unified/CMakeLists.txt"
+          "${ESP32_DIR}/boards/m5unified/main/CMakeLists.txt")
     if(NOT EXISTS "${F}")
         message(SEND_ERROR "無い: ${F}")
         set(FAILED 1)

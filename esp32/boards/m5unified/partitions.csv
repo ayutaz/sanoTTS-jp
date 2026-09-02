@@ -1,0 +1,15 @@
+# sanoTTS-jp / M5Stack のパーティション表（16 MB flash）
+#
+# ⚠️ **`model` パーティションは無い。** 重み blob は app の .rodata に埋める
+#    （scripts/blob_to_header.py。PSRAM 有効だと esp_partition_mmap が落ちる報告のため）。
+#    ⚠️ **代わりに app が大きくなる**（blob 643,936 B ぶん）。factory 3 MB は
+#       M5Unified + M5GFX + blob を積んでも余裕がある。
+#    ⚠️ **モデルだけの差し替えはできない。** アプリごと再ビルド・再フラッシュが要る。
+# ⚠️ 辞書（K トラック）は載せていない。PSRAM 有効な板での mmap は要検証。
+#
+# 検査: uv run python scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x300000,

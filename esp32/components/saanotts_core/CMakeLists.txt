@@ -115,6 +115,14 @@ endif()
 #    PIE カーネルは W8A8 経路（`saan_conv1d_i8a`）の中にしか無いので 1 命令も出ない。
 #    「片方だけ定義して効かない」を構造的に潰す。
 if(SAAN_ENABLE_PIE)
+    # ⚠️ **PIE は ESP32-S3 だけ。** ESP32（M5Stack Core2 / Basic）に渡すと、コアの
+    #    `#if defined(__XTENSA__) && SAAN_PIE` は通るが `ee.*` がアセンブラで落ちる。
+    #    落ち方が分かりにくいので CMake で止める（黙って W8A8 スカラに落ちない）。
+    idf_build_get_property(_saan_target IDF_TARGET)
+    if(NOT _saan_target STREQUAL "esp32s3")
+        message(FATAL_ERROR "SAAN_ENABLE_PIE=1 は ESP32-S3 専用。IDF_TARGET=${_saan_target} では"
+                            " -DSAAN_ENABLE_PIE=0（W8A32 / 移植可能 C）にすること")
+    endif()
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1 SAAN_PIE=1)
     message(STATUS "sanoTTS: W8A8 + PIE **有効**（SNR 低下と arena +4.2 KB を許容する構成）")
 elseif(SAAN_W8A8_NOPIE)

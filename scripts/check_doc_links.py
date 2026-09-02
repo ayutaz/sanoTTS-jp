@@ -22,7 +22,8 @@ import re
 import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-SKIP_PARTS = (".venv", "node_modules", "openjtalk", ".k1work", ".git")
+SKIP_PARTS = (".venv", "node_modules", "openjtalk", ".k1work", ".git",
+              "managed_components")   # ESP-IDF Component Registry の取得物（git 管理外）
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 INLINE_CODE = re.compile(r"`[^`]*`")
 EXTERNAL = ("http://", "https://", "#", "mailto:", "file://")

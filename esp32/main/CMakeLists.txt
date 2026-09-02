@@ -35,27 +35,10 @@ idf_component_register(
 )
 
 if(SAAN_MODEL_RODATA)
-    # ⚠️ **生成物はビルドディレクトリに置く。** 4 MB のテキストをソースに置かない。
-    # ⚠️ **blob を差し替えたら自動で作り直る**（DEPENDS に blob とスクリプト）。手作業に
-    #    すると、古いヘッダのまま焼いて「差し替えたのに変わらない」という気づけない事故になる。
-    # ⚠️ fp32 blob はスクリプトが dtype を見て**ビルド時に拒否する**（W8A8/PIE が効かないため）。
-    set(SAAN_BLOB_HEADER "${CMAKE_CURRENT_BINARY_DIR}/saan_model_blob.h")
-    set(SAAN_BLOB_SCRIPT "${CMAKE_CURRENT_LIST_DIR}/../../scripts/blob_to_header.py")
-    if(NOT DEFINED SAAN_PYTHON)
-        set(SAAN_PYTHON uv run --no-project python)   # stdlib だけなので --no-project
-    endif()
-    add_custom_command(
-        OUTPUT "${SAAN_BLOB_HEADER}"
-        COMMAND ${SAAN_PYTHON} "${SAAN_BLOB_SCRIPT}"
-                --blob "${SAAN_MODEL_BLOB}" --out "${SAAN_BLOB_HEADER}"
-        DEPENDS "${SAAN_MODEL_BLOB}" "${SAAN_BLOB_SCRIPT}"
-        COMMENT "sanoTTS: ${SAAN_MODEL_BLOB} → saan_model_blob.h (.rodata)"
-        VERBATIM)
-    add_custom_target(saan_blob_header DEPENDS "${SAAN_BLOB_HEADER}")
-    add_dependencies(${COMPONENT_LIB} saan_blob_header)
-    target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
-    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_MODEL_RODATA=1)
-    message(STATUS "sanoTTS: 重みは **.rodata 埋め込み**（${SAAN_MODEL_BLOB}）。model パーティションは焼かない")
+    # blob → ヘッダの生成は esp32/cmake/saan_model_rodata.cmake（boards/ の main と共有）
+    include("${CMAKE_CURRENT_LIST_DIR}/../cmake/saan_model_rodata.cmake")
+    saan_model_rodata_header(${COMPONENT_LIB} "${SAAN_MODEL_BLOB}"
+                             "${CMAKE_CURRENT_LIST_DIR}/../../scripts/blob_to_header.py")
 endif()
 
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
@@ -82,6 +65,26 @@ endif()
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の表の出力がこれを見る。
 if(SAAN_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PROFILE=1)
+endif()
+
+# --- arena をヒープ（PSRAM 優先）から取る ---------------------------------------
+#
+#     idf.py -DSAAN_ARENA_HEAP=1 build
+#
+# 既定は .bss に静的確保（208 KB。速度に直結するので内部 DRAM）。**ESP32（S3 でない）は
+# dram0_0_seg が小さく静的 208 KB が入らない**（M5Stack Core2 で 65,368 B 溢れた）ので、
+# その板では 1 にして PSRAM から取る。⚠️ PSRAM の arena は**遅い**（未測定）。速度の測定には使わない。
+if(SAAN_ARENA_HEAP)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_ARENA_HEAP=1)
+    message(STATUS "sanoTTS: arena はヒープ（PSRAM 優先）。**速度の測定には使わない**")
+endif()
+
+# --- 再生方式（既定はストリーミング = xRT 測定用）------------------------------
+#
+#     idf.py -DSAAN_BUFFERED=1 build    1 発話ぶんを貯めてから鳴らす（途切れない。待ちは合成時間）
+if(SAAN_BUFFERED)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_BUFFERED=1)
+    message(STATUS "sanoTTS: 再生 = 貯めてから鳴らす（途切れない。xRT は測れる）")
 endif()
 
 if(SAAN_QEMU)

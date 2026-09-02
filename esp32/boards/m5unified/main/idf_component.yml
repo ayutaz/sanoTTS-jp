@@ -1,0 +1,13 @@
+## M5Stack の内蔵アンプ（CoreS3: AW88298 / Core2: NS4168 / Basic: 内蔵 DAC）を
+## 板を判別せずに鳴らすために M5Unified を使う。M5GFX も引き込まれる（画面）。
+##
+## ⚠️ M5Unified は C++。saan_audio_m5.cpp / saan_ui_m5.cpp から使う。
+##    本家の main.c / saan_console.c / saan_pcm.c は C のまま（API は extern "C"）。
+## ⚠️ 初回ビルドで ESP-IDF Component Registry から取る（ネットワークが要る）。
+##    確認した組み合わせは dependencies.lock（M5Unified 0.2.21 / M5GFX 0.2.28。
+##    第三者の CoreS3 実機報告と同じ）。
+dependencies:
+  idf:
+    version: ">=5.0"
+  m5stack/m5unified:
+    version: "^0.2.0"

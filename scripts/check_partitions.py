@@ -35,6 +35,9 @@ def main(argv=None) -> int:
                     help="検査する csv（既定は esp32/partitions.csv）")
     ap.add_argument("--flash-size", type=int, default=None,
                     help="フラッシュ容量（B）。終端がここを超えたら NG")
+    ap.add_argument("--rodata", action="store_true",
+                    help="重みを app の .rodata に埋める表（esp32/boards/*）。`model` 行は無くてよく、"
+                         "代わりに app が 1.5 MB + int8 blob ぶん以上あることを要求する")
     args = ap.parse_args(argv)   # ⚠️ `a` は下の for で使われている。被せない
     global CSV
     if args.file:
@@ -82,7 +85,14 @@ def main(argv=None) -> int:
     by_name = {r["name"]: r for r in rows}
 
     # --- model パーティション ---
-    if "model" not in by_name:
+    if args.rodata:
+        if "model" in by_name:
+            print("NG! --rodata の表に `model` パーティションがある（app に埋めるので要らない。"
+                  "残すと「どちらを読んでいるか」が分からなくなる）")
+            bad += 1
+        else:
+            print("  OK  model パーティション無し（重みは app の .rodata）")
+    elif "model" not in by_name:
         print("NG! `model` パーティションが無い")
         bad += 1
     else:
@@ -120,10 +130,13 @@ def main(argv=None) -> int:
         print("NG! app パーティションが無い")
         bad += 1
     else:
+        # ⚠️ --rodata では app に blob（int8 643,936 B）が乗る。実測の app 285,440 B +
+        #    blob = 928,832 B（QEMU 構成）で、M5Unified + M5GFX を足すと 1.3 MB（報告値）。
+        need = 1_500_000 + (643_936 if args.rodata else 0)
         for a in apps:
-            ok = a["size"] >= 1_500_000
+            ok = a["size"] >= need
             print(f"  {'OK ' if ok else 'NG!'} app '{a['name']}' {a['size']:,} B "
-                  f"（1.5 MB 以上あるか）")
+                  f"（{need:,} B 以上あるか{'。--rodata は blob ぶん上乗せ' if args.rodata else ''}）")
             if not ok:
                 bad += 1
 

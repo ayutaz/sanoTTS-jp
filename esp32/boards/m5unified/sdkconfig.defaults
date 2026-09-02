@@ -1,0 +1,45 @@
+# sanoTTS-jp on M5Stack — 板に依らない共通設定。
+# 板ごとの差分（チップ / PSRAM の種類 / コンソール）は sdkconfig.cores3 / sdkconfig.core2 に
+# 分けてあり、-DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.<板>" で重ねる。
+
+# --- flash（M5Stack Core 系は 16 MB）---
+CONFIG_ESPTOOLPY_FLASHSIZE_16MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="16MB"
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# --- 速度（esp32/sdkconfig.defaults と同じ）---
+# 公式 performance/speed.rst が -O2 を推奨。IDF の既定は -Og で、**速度を測るならここを変えないと意味が無い**
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# --- スタック / tick ---
+# csrc/fft.c の saan_irfft_1024 は自動変数だけで 4,096 B 使う。合成本体は専用タスク
+# （main.c の SAAN_TASK_STACK = 16 KB）で回すが、app_main 側も余裕を持たせる。
+CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192
+CONFIG_FREERTOS_HZ=1000
+
+# 1 発話の合成は数秒かかる。タスク WDT に噛まれないようにする
+CONFIG_ESP_TASK_WDT_INIT=n
+
+# --- PSRAM（M5Stack Core 系は 8 MB）---
+# 使い道: saan_audio_m5.cpp の音声バッファ（PSRAM 優先で取る）。arena 208 KB は速度のため
+# 内部 DRAM (.bss) のまま。重みは .rodata (flash)。
+# ⚠️ PSRAM 有効時は esp_partition_mmap が ESP_ERR_NO_MEM で落ちる（第三者の実機報告）。
+#    重みをヘッダ埋め込みにしたのはこのため。
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_SPEED_80M=y
+
+# --- 内部 DRAM を空ける -------------------------------------------------------
+# ⚠️ D/IRAM は共有プール。IRAM に置かれたコードはそのぶん DRAM を食う。arena 208 KB +
+#    M5GFX/M5Unified を積むと起動時のタスクスタックが取れなくなる（第三者の実機報告:
+#    残り 18,745 B）。IRAM に置く必要のないコードを flash へ移す。
+# ⚠️ **flash 書き込み中に走る ISR があると壊れる設定。** このファームは実行時に flash へ
+#    書かない（重みは .rodata を読むだけ）ので安全。NVS や OTA を足すなら見直すこと。
+CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH=y
+CONFIG_FREERTOS_PLACE_SNAPSHOT_FUNS_INTO_FLASH=y
+CONFIG_HEAP_PLACE_FUNCTION_INTO_FLASH=y
+CONFIG_RINGBUF_PLACE_FUNCTIONS_INTO_FLASH=y
+CONFIG_RINGBUF_PLACE_ISR_FUNCTIONS_INTO_FLASH=y
+CONFIG_SPI_FLASH_ROM_IMPL=y
+CONFIG_SPI_MASTER_ISR_IN_IRAM=n

@@ -25,6 +25,7 @@
  *    「それを正しく観測してログに出すこと」。
  */
 #include <inttypes.h>
+#include <limits.h>
 #include <stdint.h>
 #include <string.h>
 
@@ -86,6 +87,19 @@ static bool g_dict_ok;
 #  endif
 #endif
 
+/* --- 再生方式 -------------------------------------------------------------
+ *
+ *   0 = **ストリーミング**（既定）。プリロール後に計算しながら鳴らす。xRT が 1.0 を
+ *       切らないと途切れる。**速度（xRT / アンダーラン）を測るのはこちら。**
+ *   1 = 1 発話ぶんを全部計算して貯めてから鳴らす。**途切れない**が、発話開始までの
+ *       待ちが合成時間そのもの（CoreS3 の報告値: 1.2 秒の文に約 2.7 秒）。
+ *       貯め先は saan_audio_begin_utterance() が確保する（PSRAM 優先。取れなければ止まる）。
+ *
+ *     idf.py -DSAAN_BUFFERED=1 build */
+#ifndef SAAN_BUFFERED
+#define SAAN_BUFFERED 0
+#endif
+
 /* --- arena ---------------------------------------------------------------
  *
  * ⚠️ **`saan_stream_arena_needed()` の戻り値を使わないこと。** あれは緩い上限で、
@@ -138,9 +152,21 @@ static bool g_dict_ok;
  *    **入力を拒否するほうが、分布外の音を黙って出すより良い。** */
 #define SAAN_MAX_IDS 350
 
-/* .bss に静的確保する。**malloc しない**（断片化させない・失敗しない）。
- * 16 バイト境界にそろえるのは PIE（SOC_SIMD_PREFERRED_DATA_ALIGNMENT = 16）のため。 */
+/* 既定は .bss に静的確保する。**malloc しない**（断片化させない・失敗しない）。
+ * 16 バイト境界にそろえるのは PIE（SOC_SIMD_PREFERRED_DATA_ALIGNMENT = 16）のため。
+ *
+ * ⚠️ **ESP32（S3 でない）は dram0_0_seg が小さく、静的 208 KB が入らない**
+ *    （M5Stack Core2 で 65,368 B 溢れた）。`-DSAAN_ARENA_HEAP=1` で起動時に
+ *    heap_caps_malloc（PSRAM 優先 → 内部 DRAM）から取る。**PSRAM の arena は遅い**
+ *    （未測定）ので、速度を測る構成では使わない。取れなければ起動時に止まる。 */
+#ifndef SAAN_ARENA_HEAP
+#define SAAN_ARENA_HEAP 0
+#endif
+#if SAAN_ARENA_HEAP
+static uint8_t *g_arena;   /* tts_task の先頭で確保。16 B 境界は heap_caps_aligned_alloc が保証 */
+#else
 static __attribute__((aligned(16))) uint8_t g_arena[SAAN_ARENA_BYTES];
+#endif
 
 /* ⚠️ **スタックに置かない。** 8,192 B ある。
  * `saan_irfft_1024` は自動変数 zr[512]+zi[512] (float) だけで **4,096 B** 使う
@@ -163,6 +189,13 @@ static int32_t g_ids[SAAN_G2P_IDS_CAP];
 typedef char saan_g2p_cap_check[(SAAN_G2P_IDS_CAP >= SAAN_DEMO_N_IDS) ? 1 : -1];
 typedef char saan_max_ids_check[(SAAN_MAX_IDS <= SAAN_G2P_IDS_CAP) ? 1 : -1];
 
+/* タッチで「もう一度」喋るために、最後に合成した列を覚えておく。
+ * g_ids は speak_line のたびに上書きされるので、個数と元の文字列だけ別に持つ。
+ * ⚠️ **G2P が失敗したら 0 にする。** そのとき g_ids は途中まで書かれた壊れた列で、
+ *    前の個数のまま再生すると**それらしい音**が出てしまう（未知語が無音で消えるのと同じ壊れ方）。 */
+static int32_t g_last_n_ids;
+static char    g_last_text[SAAN_CONSOLE_LINE_MAX];
+
 /* 合成タスクのスタック。saan_irfft_1024 の 4 KB + 呼び出し段 + ログで、
  * IDF の小さい既定スタックでは足りない。**16 KB を明示する**。
  * ⚠️ 実機で `uxTaskGetStackHighWaterMark` を見て詰めること（QEMU では 11,180 B 残り）。 */
@@ -171,6 +204,9 @@ typedef char saan_max_ids_check[(SAAN_MAX_IDS <= SAAN_G2P_IDS_CAP) ? 1 : -1];
 
 /* プリロールするチャンク数。1 チャンク = 2,048 sample = 92.88 ms */
 #define SAAN_PREROLL_CHUNKS (SAAN_AUDIO_PREROLL_SAMPLES / (SAAN_CHUNK * SAAN_HOP))
+
+/* シリアル入力を待つ単位。この間隔でタッチも見る（合成中は見ない） */
+#define SAAN_POLL_MS 20
 
 /* --- 段別プロファイラ（-DSAAN_PROFILE=1 のときだけ。csrc/saan_prof.h）------------
  *
@@ -224,7 +260,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     saan_ui_status("合成中…");
 
     saan_arena a;
-    saan_arena_init(&a, g_arena, sizeof g_arena);
+    saan_arena_init(&a, g_arena, SAAN_ARENA_BYTES);
 
     saan_stream st;
     int64_t t_init = esp_timer_get_time();
@@ -251,13 +287,21 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
              (double)t_init / 1000.0, (int)n_ids, (int)st.n_frames,
              (int)st.n_frames * SAAN_HOP, audio_s);
     ESP_LOGI(TAG, "arena used %u B / peak %u B / 確保 %u B",
-             (unsigned)a.used, (unsigned)a.peak, (unsigned)sizeof g_arena);
+             (unsigned)a.used, (unsigned)a.peak, (unsigned)SAAN_ARENA_BYTES);
 
     /* --- プリロール ------------------------------------------------------
      * ⚠️ **鳴らし始める前に数チャンク計算しておく。** 最初の pull だけ
      * 定常の約 6 倍かかる（ホスト実測 12.2 ms vs 2.04 ms）。受容野 38 フレームの
      * warmup で内部の step_chunk が複数回走るため。 */
+#if SAAN_BUFFERED
+    /* 発話の総サンプル数は init の時点で決まる。そのぶん貯めて全部計算してから鳴らす */
+    if (!saan_audio_begin_utterance((size_t)st.n_frames * SAAN_HOP)) return false;
+    const int preroll_chunks = INT_MAX;   /* = 最後まで */
+#else
     if (!saan_audio_begin_utterance(SAAN_AUDIO_PREROLL_SAMPLES)) return false;
+    const int preroll_chunks = SAAN_PREROLL_CHUNKS;
+#endif
+    const int64_t t_begin = esp_timer_get_time();
     int32_t n = 0;
     int chunks = 0;
     int64_t t_first = 0, t_rest = 0;
@@ -266,7 +310,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     bool eos = false;
     bool ok = true;
 
-    for (int i = 0; i < SAAN_PREROLL_CHUNKS && !eos; ++i) {
+    for (int i = 0; i < preroll_chunks && !eos; ++i) {
         int64_t t0 = esp_timer_get_time();
         s = saan_stream_pull(&st, g_chunk, &n);
         int64_t dt = esp_timer_get_time() - t0;
@@ -282,12 +326,18 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         total_frames += n; ++chunks;
         if (n < SAAN_CHUNK) ++short_pulls;
     }
-    ESP_LOGI(TAG, "プリロール %d チャンク完了（初回 pull %.2f ms）",
-             chunks, (double)t_first / 1000.0);
+    const double t_ready_ms = (double)(esp_timer_get_time() - t_begin) / 1000.0;
+#if SAAN_BUFFERED
+    ESP_LOGI(TAG, "全 %d チャンクを貯めた。発話開始まで %.0f ms（音声 %.3f s）",
+             chunks, t_ready_ms, audio_s);
+#else
+    ESP_LOGI(TAG, "プリロール %d チャンク完了（初回 pull %.2f ms / 鳴らし始めまで %.0f ms）",
+             chunks, (double)t_first / 1000.0, t_ready_ms);
+#endif
 
     if (!saan_audio_start()) { ok = false; goto done; }
 
-    /* --- 定常ループ ------------------------------------------------------ */
+    /* --- 定常ループ（ストリーミングのみ。貯める方式では eos 済みで入らない）------ */
     while (!eos) {
         int64_t t0 = esp_timer_get_time();
         s = saan_stream_pull(&st, g_chunk, &n);
@@ -321,9 +371,18 @@ done:
                  (double)t_first / 1000.0, mean_rest, chunk_ms);
         ESP_LOGI(TAG, "定常 xRT = %.3f  ← **1.0 を超えたら実時間に間に合っていない**",
                  chunk_ms > 0 ? mean_rest / chunk_ms : 0.0);
+#if SAAN_BUFFERED
+        ESP_LOGI(TAG, "再生方式: 全部貯めてから再生（途切れ 0）/ 発話開始まで %.0f ms", t_ready_ms);
+        saan_ui_status("合成 %.1f s → 音声 %.1f s (xRT %.2f)",
+                       t_ready_ms / 1000.0, total_audio, chunk_ms > 0 ? mean_rest / chunk_ms : 0.0);
+#else
         ESP_LOGI(TAG, "アンダーラン %d / %d チャンク", underruns, chunks);
         saan_ui_status("xRT %.2f  途切れ %d/%d", chunk_ms > 0 ? mean_rest / chunk_ms : 0.0,
                        underruns, chunks);
+        if (underruns > 0)
+            ESP_LOGW(TAG, "途切れている。途切れない再生が要るなら -DSAAN_BUFFERED=1 "
+                          "（1 発話ぶんを貯めてから鳴らす。待ちは合成時間）");
+#endif
         ESP_LOGI(TAG, "int16 クリップ %u sample", (unsigned)saan_pcm_clip_count());
         /* ⚠️ **移植が正しいことの唯一の機械的な証拠。** 「音が鳴った」ではなく
          *    この 2 つがホスト（esp32/host_stub）と一致するかで判定する。 */
@@ -367,7 +426,7 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
     int32_t n_ids = 0;
     int n_tok = 0;
     saan_kanji_status ks = saan_kanji_to_ids(&g_dict, text, nbytes,
-                                            g_arena, sizeof g_arena,
+                                            g_arena, SAAN_ARENA_BYTES,
                                             g_ids, SAAN_G2P_IDS_CAP,
                                             &n_ids, &n_tok);
     if (ks != SAAN_KANJI_OK) {
@@ -380,6 +439,9 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
                  (int)n_ids, (int)SAAN_MAX_IDS);
         return false;
     }
+    g_last_n_ids = n_ids;
+    snprintf(g_last_text, sizeof g_last_text, "!%.*s", (int)nbytes, text);
+    saan_ui_show(NULL, g_last_text);
     return synth_once(w, g_ids, n_ids);
 }
 #endif
@@ -390,6 +452,7 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
  *    「黙って無音になる」のがこの入力仕様の一番危ない壊れ方なので、
  *    端末側では**必ずエラーにして位置を示す**（`err_byte`）。 */
 static bool speak_line(const saan_weights *w, const char *text, size_t nbytes) {
+    g_last_n_ids = 0;   /* 失敗したら「もう一度」も無効にする（g_last_n_ids の ⚠️） */
     if (nbytes == 0) {
         ESP_LOGW(TAG, "空行。かな中間表現を入力すること（例: きょ][おわよ][いて][んきです°ね）");
         return false;
@@ -447,7 +510,11 @@ static bool speak_line(const saan_weights *w, const char *text, size_t nbytes) {
         return false;
     }
 
-    saan_ui_show(NULL, text);
+    /* ここまで来れば g_ids は完成した列。タッチで再生できるようにしてから喋る */
+    g_last_n_ids = n_ids;
+    memcpy(g_last_text, text, nbytes);
+    g_last_text[nbytes] = '\0';
+    saan_ui_show(NULL, g_last_text);
     return synth_once(w, g_ids, n_ids);
 }
 
@@ -520,6 +587,7 @@ static void print_usage(void) {
     ESP_LOGI(TAG, "⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**");
     ESP_LOGI(TAG, "編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 %d ids",
              (int)SAAN_MAX_IDS);
+    ESP_LOGI(TAG, "画面があればタッチで直前の文をもう一度喋る（saan_ui の実装次第）。");
     ESP_LOGI(TAG, "====================================================");
 }
 #endif
@@ -527,8 +595,25 @@ static void print_usage(void) {
 static void tts_task(void *arg) {
     (void)arg;
     log_heap("起動直後");
+#if SAAN_ARENA_HEAP
+    g_arena = (uint8_t *)heap_caps_aligned_alloc(16, SAAN_ARENA_BYTES,
+                                                 MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+    if (g_arena) {
+        ESP_LOGW(TAG, "arena %d B を **PSRAM** に確保 (%p)。合成は遅くなる（速度の測定には使わない）",
+                 (int)SAAN_ARENA_BYTES, (void *)g_arena);
+    } else {
+        g_arena = (uint8_t *)heap_caps_aligned_alloc(16, SAAN_ARENA_BYTES,
+                                                     MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!g_arena) {
+            ESP_LOGE(TAG, "arena %d B を確保できない（PSRAM も内部 DRAM も）", (int)SAAN_ARENA_BYTES);
+            vTaskDelete(NULL); return;
+        }
+        ESP_LOGI(TAG, "arena %d B を内部 DRAM のヒープに確保 (%p)", (int)SAAN_ARENA_BYTES, (void *)g_arena);
+    }
+#else
     ESP_LOGI(TAG, "arena %d B を .bss に静的確保 (%p) / G2P の ids %d B",
              (int)SAAN_ARENA_BYTES, (void *)g_arena, (int)sizeof g_ids);
+#endif
 
     static saan_weights w;
     if (!saan_model_open(&w)) { vTaskDelete(NULL); return; }
@@ -574,11 +659,15 @@ static void tts_task(void *arg) {
      *    対話入力は毎回違う列なので突き合わせに使えない。ただし**同じ中間表現を
      *    打てば同じ列になる**ことは確認済みなので、既定では喋らない（上の #define）。 */
     ESP_LOGI(TAG, "起動時の 1 発話: \"%s\"", SAAN_DEMO_TEXT);
+    g_last_n_ids = demo_n_ids;
+    strncpy(g_last_text, SAAN_DEMO_INTERMEDIATE, sizeof g_last_text - 1);
     saan_ui_show(SAAN_DEMO_TEXT, SAAN_DEMO_INTERMEDIATE);
     (void)synth_once(&w, g_ids, demo_n_ids);
     log_heap("1 発話後");
 #else
     (void)demo_n_ids;   /* 錨との照合だけして喋らない */
+    saan_ui_show(SAAN_DEMO_TEXT, SAAN_DEMO_INTERMEDIATE);
+    saan_ui_status("シリアルの かな> に 1 行入力");
     ESP_LOGI(TAG, "起動時は喋らない。突き合わせ用の 1 文を出すには "
                   "-DSAAN_BOOT_SPEAK=1（同じ中間表現を打っても同じ列になる）");
 #endif
@@ -589,9 +678,20 @@ static void tts_task(void *arg) {
         vTaskDelete(NULL); return;
     }
     print_usage();
+    saan_console_prompt();
     for (;;) {
         const char *line = NULL;
-        int n = saan_console_readline(&line);
+        int n = saan_console_poll(&line, SAAN_POLL_MS);
+        if (n == SAAN_CONSOLE_PENDING) {
+            /* 行が完成していない間はタッチを見る。**合成中はここに来ない**ので、
+             * 合成中に何度触っても、戻ってきたときの 1 回ぶんにまとまる */
+            if (saan_ui_poll_touch() && g_last_n_ids > 0) {
+                ESP_LOGI(TAG, "タッチ → もう一度: \"%s\" (%d ids)", g_last_text, (int)g_last_n_ids);
+                (void)synth_once(&w, g_ids, g_last_n_ids);
+                saan_console_prompt();
+            }
+            continue;
+        }
         if (n == SAAN_CONSOLE_ERROR) {
             ESP_LOGE(TAG, "コンソールの読み取りに失敗した");
             break;
@@ -600,6 +700,7 @@ static void tts_task(void *arg) {
             /* ⚠️ **切り詰めて喋らない。** 先頭だけ喋ると「端末とホストで同じ列」が崩れる */
             ESP_LOGE(TAG, "入力が %d B を超えた。**行ごと捨てた**（切り詰めていない）。"
                           "短く区切ること", (int)SAAN_CONSOLE_LINE_MAX - 1);
+            saan_console_prompt();
             continue;
         }
 #if SAAN_KANJI
@@ -607,10 +708,12 @@ static void tts_task(void *arg) {
          *    「同じ 1 行が構成で違う音になる」のを避けるため。 */
         if (n > 0 && line[0] == '!') {
             (void)speak_kanji(&w, line + 1, (size_t)n - 1);
+            saan_console_prompt();
             continue;
         }
 #endif
         (void)speak_line(&w, line, (size_t)n);
+        saan_console_prompt();
     }
 #else
     /* ⚠️ **未使用警告よけに捨てるのではなく、コンパイル対象に残すために参照する。**

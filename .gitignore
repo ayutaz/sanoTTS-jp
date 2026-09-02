@@ -147,3 +147,8 @@ csrc/k6_vectors.bin
 # K-8 の聴取セット（コーパス由来の音声。**生成物は配布しない**方針に合わせて追跡しない）
 #   uv run --extra eval python scripts/k1/k8_audio_gap.py --ids ... --wav-dir reports/k8_listen
 /reports/k8_listen/
+
+# M5Stack 向けプロジェクト（esp32/boards/*）のビルド成果物と Component Registry の取得物
+/esp32/boards/*/build*/
+/esp32/boards/*/managed_components/
+/esp32/boards/*/dependencies.lock

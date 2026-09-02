@@ -19,6 +19,7 @@
 
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 /* 対話ループを持つか。**ESP-IDF でビルドしたときだけ 1。**
  * ホスト stub (`scripts/check_esp32_template.sh` のゲート 8) は app_main() を
@@ -42,8 +43,15 @@
 
 bool saan_console_init(void);
 
-/* 1 行読む。**プロンプトの表示とエコーもここでやる。**
- *   戻り値 >= 0 : 行のバイト数。`*out` に NUL 終端の行が入る
+/* プロンプト "かな> " を出す。**行を受けて処理したあとに呼び出し側が 1 回呼ぶ**
+ * （poll の中では出さない。タイムアウトで戻るたびに出ると画面が埋まる）。 */
+void saan_console_prompt(void);
+
+/* バイトを取り込んで行を組み立てる。**エコーもここでやる。**
+ *   戻り値 >= 0 : 行が完成した。バイト数。`*out` に NUL 終端の行が入る
+ *   戻り値 -3   : `timeout_ms` 待っても 1 バイトも来なかった（PENDING）。
+ *                 行の途中でも戻る。状態は持ち越すので、続きを打てば繋がる。
+ *                 呼び出し側はこの間にタッチなど別の入力を見る
  *   戻り値 -2   : 入力が長すぎた（`*out` は使ってはいけない）
  *   戻り値 -1   : 読み取りエラー
  * ⚠️ 空行 (0) は「何も打たずに Enter」。呼び出し側で弾くこと。
@@ -52,11 +60,12 @@ bool saan_console_init(void);
  *    「次の LF を吸う」フラグ）は**行をまたいで持ち越す必要がある**ので、
  *    バッファと状態はこのモジュールが 1 組だけ持つ。呼び出しごとに
  *    `saan_line_reset()` すると、CRLF を送る端末で**発話のたびに空行が 1 回**入る
- *    （QEMU で実際に踏んだ）。`*out` は次に readline を呼ぶまで有効。 */
-int saan_console_readline(const char **out);
+ *    （QEMU で実際に踏んだ）。`*out` は次に行が完成するまで有効。 */
+int saan_console_poll(const char **out, uint32_t timeout_ms);
 
 #define SAAN_CONSOLE_TOO_LONG (-2)
 #define SAAN_CONSOLE_ERROR    (-1)
+#define SAAN_CONSOLE_PENDING  (-3)
 
 #endif /* SAAN_INTERACTIVE */
 #endif /* SAAN_CONSOLE_H */

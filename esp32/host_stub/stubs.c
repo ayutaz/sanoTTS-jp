@@ -12,6 +12,9 @@
 /* --- heap ---------------------------------------------------------------- */
 
 void *heap_caps_malloc(size_t n, unsigned caps) { (void)caps; return malloc(n); }
+void *heap_caps_aligned_alloc(size_t align, size_t n, unsigned caps) {
+    (void)caps; void *p = NULL; return posix_memalign(&p, align, n) == 0 ? p : NULL;
+}
 void  heap_caps_free(void *p) { free(p); }
 
 /* --- partition ---------------------------------------------------------- */
