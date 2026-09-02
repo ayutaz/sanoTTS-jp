@@ -2,6 +2,9 @@
 
 作成 2026-09-02。関連: [M-80](../measurements.md#m-80)（自己実測 / ホスト + QEMU）。
 
+**進捗**: §5 の S1〜S3 と §6 の取り込みは実装済み（[M-81](../measurements.md#m-81) /
+[`../plan/s1-speed-implementation-plan.md`](../plan/s1-speed-implementation-plan.md) の進捗表）。実機は板待ち。
+
 ## 0. 何が起きたか
 
 **2026-09-02、第三者が本リポジトリの firmware を M5Stack CoreS3 に移植して実機で動かし、

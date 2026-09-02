@@ -32,8 +32,8 @@ M5Unified（`M5.Speaker` / `.rodata` 埋め込み）を同じ `main.c` で動か
 
 | 板 | かなトラック | 速度 S1〜S8 の効果 | 記録 |
 |---|---|---|---|
-| ESP32-S3（CoreS3 / CoreS3 SE） | 喋る + checksum `0x04de91103a0e49f9` 一致 | **実機の内訳で測れる** | M-番号 |
-| ESP32（Core2 / Basic / Fire） | 喋る + W8A32 checksum `0x78c209af06affc01` 一致 | 効果は QEMU の割合と nnn112358 さんへの依頼 | M-番号は「喋る」まで |
+| ESP32-S3（CoreS3 / CoreS3 SE） | 喋る + checksum `0xa69a7ebbb5ccb05f` 一致（S3 以降。S2 まで `0x04de91103a0e49f9`） | **実機の内訳で測れる** | M-番号 |
+| ESP32（Core2 / Basic / Fire） | 喋る + W8A32 checksum `0xe4b645c30835d42d` 一致（S3 以降。S2 まで `0x78c209af06affc01`） | 効果は QEMU の割合と nnn112358 さんへの依頼 | M-番号は「喋る」まで |
 
 同定: `esptool.py chip_id`（USB 接続）か外見（カメラ穴 = CoreS3 / タッチの丸 3 つ = Core2 / 物理ボタン 3 つ = Basic）。
 
@@ -282,11 +282,11 @@ cd esp32/boards/m5unified
 idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
     -p /dev/cu.usbmodem* flash monitor        # 起動時に 1 文喋る。ログの「出力 PCM」を控える
 ```
-- [ ] **Step 2: 突き合わせ**: S3 なら `0x04de91103a0e49f9 / 9744 / 74,374,063,946`（W8A8+PIE）。ESP32 なら `-DSAAN_ENABLE_PIE=0` で `0x78c209af06affc01 / 9529 / 74,155,592,149`。**一致しなければ速度は測らない**（移植が壊れている）。
+- [ ] **Step 2: 突き合わせ**（S3 以降のコア）: ESP32-S3 なら `0xa69a7ebbb5ccb05f / 9627 / 74,264,237,672`（W8A8+PIE）。ESP32 なら `-DSAAN_ENABLE_PIE=0` で `0xe4b645c30835d42d / 9529 / 74,155,591,505`。**一致しなければ速度は測らない**（移植が壊れている）。
 - [ ] **Step 3: 速度**（`SAAN_PROFILE=0` のビルド）: 定常 xRT / 初回 pull / アンダーラン。S3 なら報告値 1.554 と比べる。
 - [ ] **Step 4: 内訳**（`-DSAAN_PROFILE=1` で焼き直す）: 表を丸ごと控える。**これが S1〜S5 の基準線**。
-- [ ] **Step 5: M-81 を書く**（再現コマンド・ログ原文・表）。`docs/README.md` の索引を M-81 に。
-- [ ] **Step 6: commit** `feat(M-81): 実機で初めて自己実測した（<板> / xRT / 内訳）`
+- [ ] **Step 5: M-82 を書く**（再現コマンド・ログ原文・表。M-81 は S1〜S3 のホスト / QEMU 記録に使った）。`docs/README.md` の索引を M-82 に。
+- [ ] **Step 6: commit** `feat(M-82): 実機で初めて自己実測した（<板> / xRT / 内訳）`
 
 ### Task A-5: 手順書
 
@@ -370,12 +370,12 @@ float saan_erf_approx(float x);   /* |x| >= 3.90625 で ±1。区間 h=1/32 の 
 ```
 表: `static const float kErfV[126]`, `kErfD[126]`（x = i/32, i=0..125。`erf(x)` と `2/sqrt(pi)*exp(-x^2)`）。理論誤差 h⁴/384·max|erf⁗| ≈ 1.1e-8。
 
-- [ ] **Step 1: `erf_test.c`（失敗するテスト）**: 乱数 1,000,000 点（[-5,5] 一様）+ 境界値で `max|saan_erf_approx - erff| <= 2e-7`、**陽性対照**: `-DSAAN_ERF_TEST_LINEAR`（線形補間に落とす）で `> 2e-7` になって落ちること。`make -C csrc erf` は両方回して「本番 OK / 陽性対照 NG!」で合格。
-- [ ] **Step 2: `gen_erf_table.py`** → `csrc/erf_table.h`（ヘッダに生成コマンドと sha を書く。`gen_fft_tables.py` と同じ流儀）。
-- [ ] **Step 3: `saan_erf_approx` を実装**し `saan_gelu` から呼ぶ。`make -C csrc erf` 通過。
-- [ ] **Step 4: 静的ゲート**: `nm -u saanotts.o` に `erff` が無い。
-- [ ] **Step 5: SNR / checksum**: S2 と同じ（int8-e2e-a8 の平均/最小が下がらない。**W8A32 の `int8-e2e` も**丸め水準で動くので、平均 ≥ 27 / 最小 ≥ 25 を満たすこと）。QEMU の新 checksum を記録。⚠️ **fp32 経路（golden test）も動く** → `make -C csrc test` の SNR が 40 dB 以上のままであることを確認（現状 117 dB）。
-- [ ] **Step 6: commit** `perf(S3): GELU の erff を 3 次 Hermite 表に（max|Δ| <= 2e-7。陽性対照つき）`
+- [x] **Step 1: `erf_test.c`（失敗するテスト）**: 乱数 1,000,000 点（[-5,5] 一様）+ 境界値で `max|saan_erf_approx - erff| <= 2e-7`、**陽性対照**: `-DSAAN_ERF_TEST_LINEAR`（線形補間に落とす）で `> 2e-7` になって落ちること。`make -C csrc erf` は両方回して「本番 OK / 陽性対照 NG!」で合格。
+- [x] **Step 2: `gen_erf_table.py`** → `csrc/erf_table.h`（ヘッダに生成コマンドと sha を書く。`gen_fft_tables.py` と同じ流儀）。
+- [x] **Step 3: `saan_erf_approx` を実装**し `saan_gelu` から呼ぶ。`make -C csrc erf` 通過。
+- [x] **Step 4: 静的ゲート**: `nm -u saanotts.o` に `erff` が無い。
+- [x] **Step 5: SNR / checksum**: S2 と同じ（int8-e2e-a8 の平均/最小が下がらない。**W8A32 の `int8-e2e` も**丸め水準で動くので、平均 ≥ 27 / 最小 ≥ 25 を満たすこと）。QEMU の新 checksum を記録。⚠️ **fp32 経路（golden test）も動く** → `make -C csrc test` の SNR が 40 dB 以上のままであることを確認（現状 117 dB）。
+- [x] **Step 6: commit** `perf(S3): GELU の erff を 3 次 Hermite 表に（max|Δ| <= 2e-7。陽性対照つき）`
 
 ### Task S4: blob v2 — 重みを事前に `[cout][k][align16(cin)]` で書く（bit 同一）
 
@@ -435,7 +435,8 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 | **A-0 / A-4 実機** | ⏳ **板待ち**（ユーザーのスタックチャン。種類は未同定） | |
 | **S1 検索を init で 1 回に** | ✅ | pull 中の LOOKUP **42,280 → 0 回**（20 発話）/ all-test bit 一致 / QEMU checksum 不変・PIE 5 命令 / QEMU icount の 1 step **811,001 → 741,973**（−8.5%。⚠️ サイクルではない） |
 | **S2 量子化の除算と rintf を消す** | ✅ | 要素ごとの `__divsf3` + `rintf` 呼び出し → `mul.s` + `round.s`（フレームごとの除算 2 回だけ残る）/ W8A8 e2e 平均 24.24 → **24.21 dB**・最小 21.94 不変 / QEMU checksum **`0x04de91103a0e49f9` のまま**（この 1 文では量子化値が 1 つも変わらなかった。丸め水準の宣言どおり、他の文では変わりうる）/ pie_probe C 節: round.s == rintf（22 値、陽性対照つき） |
-| S3 / S4 / S5 | 次 | |
+| **S3 GELU の erff を Hermite 表に** | ✅ | erff との max\|Δ\| 1.19e-7（陽性対照 1.18e-4 は落ちる）/ golden fp32 SNR 118.97 dB / W8A32・W8A8 の e2e SNR 不変 / **QEMU 基準 checksum が変わった**: W8A8+PIE `0xa69a7ebbb5ccb05f`（\|max\| 9627）/ W8A32 `0xe4b645c30835d42d`（\|max\| 9529 同一・Σx² 8.7e-9）/ QEMU icount 1 step **557,152**（S1 前 811,001、−31%）。記録は M-81 |
+| S4 / S5 | 次 | |
 
 ## 実行の順序と依存
 

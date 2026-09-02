@@ -209,11 +209,53 @@ void saan_relu(float *x, size_t n) {
     SAAN_PROF_ADD(SAAN_PROF_RELU, n);
 }
 
-/* PyTorch の既定は tanh 近似ではなく erf 版 */
+/* --- erf の近似（S3）-------------------------------------------------------
+ *
+ * なぜ: GELU は要素ごとに `erff()` を呼び、1 step に 21,664 回（M-80）。newlib の erff は
+ * 多項式 + `expf` の関数呼び出しで、QEMU の命令数比で 1 step の 14〜25% を使っていた。
+ *
+ * 方式: x ∈ [0, 4] を h = 1/32 の 128 区間に割り、節点の erf と erf' を表に持ち（erf_table.h）、
+ * 区間内は 3 次 Hermite。奇関数なので |x| で計算して符号を戻す。|x| ≥ 4 は ±1
+ * （erf(4) = 1 − 1.5e-8 は float で 1.0）。理論誤差 h⁴/384 · max|erf⁗| ≈ 1.1e-8 で、
+ * float 演算の丸めの方が大きい。**libm の erff との max|Δ| ≤ 2e-7** を `make -C csrc erf` が守る。
+ *
+ * ⚠️ **陽性対照のためのフック。** `-DSAAN_ERF_TEST_LINEAR=1` は区間内を線形補間にする
+ *    （誤差 ~1e-4）。これが erf ゲートで**落ちること**で、しきい値が効いていると言える。
+ *    本番では定義しない（saanotts_internal.h に無い = 既定 0）。 */
+#include "erf_table.h"
+
+#ifndef SAAN_ERF_TEST_LINEAR
+#define SAAN_ERF_TEST_LINEAR 0
+#endif
+
+float saan_erf_approx(float x) {
+    const float ax = fabsf(x);
+    if (ax >= SAAN_ERF_XMAX) return x < 0.0f ? -1.0f : 1.0f;
+    const float u = ax * (float)SAAN_ERF_H_INV;    /* 区間座標。整数部が区間番号 */
+    int i = (int)u;                                /* 0 .. N-1（ax < XMAX なので N 未満） */
+    if (i >= SAAN_ERF_N) i = SAAN_ERF_N - 1;       /* 丸めで u == N になったときの保険 */
+    const float t = u - (float)i;                  /* [0, 1) */
+    const float f0 = kSaanErfV[i], f1 = kSaanErfV[i + 1];
+#if SAAN_ERF_TEST_LINEAR
+    const float y = f0 + t * (f1 - f0);
+#else
+    const float h = 1.0f / (float)SAAN_ERF_H_INV;
+    const float d0 = kSaanErfD[i] * h, d1 = kSaanErfD[i + 1] * h;   /* 導関数 × h */
+    const float t2 = t * t, t3 = t2 * t;
+    /* Hermite 基底: h00 = 2t³−3t²+1, h10 = t³−2t²+t, h01 = −2t³+3t², h11 = t³−t² */
+    const float y = f0 * (2.0f * t3 - 3.0f * t2 + 1.0f)
+                  + d0 * (t3 - 2.0f * t2 + t)
+                  + f1 * (-2.0f * t3 + 3.0f * t2)
+                  + d1 * (t3 - t2);
+#endif
+    return x < 0.0f ? -y : y;
+}
+
+/* PyTorch の既定は tanh 近似ではなく erf 版。erf は saan_erf_approx（S3。丸め水準で erff と一致） */
 void saan_gelu(float *x, size_t n) {
     SAAN_PROF_BEGIN(SAAN_PROF_GELU);
     for (size_t i = 0; i < n; ++i)
-        x[i] = 0.5f * x[i] * (1.0f + erff(x[i] * 0.70710678f));
+        x[i] = 0.5f * x[i] * (1.0f + saan_erf_approx(x[i] * 0.70710678f));
     SAAN_PROF_END(SAAN_PROF_GELU);
     SAAN_PROF_ADD(SAAN_PROF_GELU, n);
 }

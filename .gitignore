@@ -74,6 +74,8 @@ __pycache__/
 /csrc/dump_pcm_a8
 /csrc/int8_e2e_test_a8
 /csrc/prof_test
+/csrc/erf_test
+/csrc/erf_test_linear
 
 # レーン比較の生成物（`make -C csrc lanes` で再生成できる）。
 # ⚠️ wav は *.wav で既に除外されるが、**ディレクトリごと**明示しておく。

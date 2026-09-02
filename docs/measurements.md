@@ -5700,3 +5700,135 @@ INIT: 311840 cyc / 回
 `scripts/check_esp32_template.sh` のゲート 7 が K トラックの `saan_dict_*` / `saan_kanji_*`
 （`esp32/main` の関数）を csrc のヘッダに探して **NG 6 件を出し続けていた**（`2c61a8d` 以降）。
 除外リストに足して 0 件にした。⚠️ 変更前後で NG 数が同じ 6 であることを `git stash -u` で確かめた。
+
+---
+
+## M-81. S1〜S3 を入れた — ホストと QEMU の記録、**QEMU の基準 checksum の更新**（自己実測 / ⚠️ 実機ではない）
+
+M-80 の内訳を受けて、`docs/plan/s1-speed-implementation-plan.md` の S1〜S3 を入れた
+（ブランチ `feat/s1-speed-m5`。S4 / S5 は未着手）。**実機の数字はまだ無い**（板待ち）。
+ここに書くのは、各ステップが出力に何をしたか（bit 同一 / 丸め水準）と、QEMU の命令数比の変化。
+
+| ステップ | 何 | 出力 | 根拠 |
+|---|---|---|---|
+| **S1** | テンソル検索（`saan_w` / `saan_tf`）を `saan_stream_init` で 1 回に | **bit 同一** | `make -C csrc all-test`（stream G2 = 一括版と 27,136 sample 一致）/ QEMU checksum `0x04de91103a0e49f9` 不変 |
+| **S2** | 活性化の量子化: `rintf(x / s)` → `round.s(x * (127/amax))`（Xtensa は 1 命令。ホストは rintf） | **丸め水準** | W8A8 e2e 平均 24.24 → 24.21 dB・最小 21.94 不変 / QEMU checksum は**この 1 文では不変** / pie_probe C 節: round.s == rintf（22 値、陽性対照つき） |
+| **S3** | GELU の `erff` を 3 次 Hermite 表（h = 1/32、[0, 4]）に | **丸め水準** | `make -C csrc erf`: erff との max\|Δ\| **1.19e-7**（陽性対照の線形補間は 1.18e-4 で落ちる）/ golden fp32 SNR 119.25 → **118.97 dB** / W8A32 e2e 28.11 / 25.72 不変 / W8A8 e2e 24.21 / 21.94 不変 |
+
+### 1. pull の中のテンソル検索（S1）
+
+再現: `make -C csrc prof`（`--expect-no-lookup` がゲート。S1 前は落ちる）
+
+| | S1 前 | S1 後 |
+|---|---:|---:|
+| pull の中の LOOKUP（20 発話の合計） | **42,280 回** | **0 回** |
+| LOOKUP 回数 / step（init の分を含む） | 101.81 | 6.24（= init の 131 回 ÷ 21 step） |
+| 走査したヘッダのエントリ / step | 15,997 | 802 |
+
+### 2. Xtensa の量子化ループ（S2）
+
+再現:
+
+```bash
+export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
+xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=gnu17 -DSAAN_INT8_ACT=1 -DSAAN_PIE=1 -c csrc/saanotts_int8.c -o /tmp/i8.o
+xtensa-esp32s3-elf-objdump -dr /tmp/i8.o | awk '/<saan_quantize_act_i8p>:/{f=1} f&&/^[0-9a-f]+ <.*>:/&&!/saan_quantize_act_i8p/{f=0} f' | grep -E 'callx8|round\.s|R_XTENSA_ASM_EXPAND'
+```
+
+| | S2 前 | S2 後 |
+|---|---|---|
+| 内側ループ（要素ごと） | `__divsf3`（ソフト除算）+ `rintf` の呼び出し | **`mul.s` + `round.s`。呼び出し 0** |
+| フレームごと | — | `__divsf3` ×2（`amax/127` と `127/amax`）+ memset |
+| 1 step の呼び出し回数（概算） | 約 51,000 × 2 | 約 1,400 |
+
+⚠️ `saan_rint_i32` を外部関数にすると `-mlongcalls` で要素ごとに `callx8` が残る（最初そうなった）。
+`static inline` でヘッダに置いて消えた。
+
+### 3. erf 近似（S3）
+
+再現: `make -C csrc erf`
+
+```
+./erf_test
+  saan_erf_approx vs erff: max|Δ| 1.192e-07 (x = -2.919325) / しきい値 2.0e-07  n = 1000000 + 256,001 格子
+  OK  saan_erf_approx は erff と max|Δ| <= 2.0e-07 で一致
+./erf_test_linear --expect-fail
+  saan_erf_approx vs erff: max|Δ| 1.181e-04 (x = 0.7029963) / しきい値 2.0e-07  n = 1000000 + 256,001 格子
+  OK  陽性対照: 線形補間は しきい値を超えて落ちる
+```
+
+Xtensa の core lib から `erff` が消えた（`nm -u libsaanotts_core.a | grep -c erff` → 0）。表は 129 節点 × 2 = 1,032 B（flash）。
+
+### 4. S2 / S3 が出力をどれだけ動かしたか（ホスト、held-out 24 文、d̂ は fp32 に固定）
+
+再現: S2 時点の `saanotts.c`（`git show dd5c7ea:csrc/saanotts.c`）で `dump_pcm` を作り、現行と同じ 24 文を書き出して比べる。
+
+| 経路 | S2 → S3 の SNR（最小 / 中央） | max\|Δ\| | 違うサンプル |
+|---|---:|---:|---:|
+| W8A32 | **96.27 / 97.71 dB** | **1 LSB** | 484 / 1,335,808（0.04%） |
+| W8A8 | **39.37 / 104.63 dB** | 146 LSB | 20,089 / 1,335,808（1.5%） |
+
+**W8A32 は丸め水準**（1 LSB）。**W8A8 はそうならない** — 量子化の境界で 1 値が ±1 変わると
+下流 5 段に伝播する。ただし最悪 39 dB は W8A8 の量子化誤差そのもの（fp32 比 24 dB）より 15 dB 小さく、
+**品質指標（fp32 比 SNR の平均 / 最小）は 0.01 dB も動いていない**。
+⚠️ **W8A8 では「|max| 完全一致 + Σx² 相対差 1e-6」の判定は使えない。** 判定は fp32 比 SNR の分布で行う。
+
+### 5. QEMU の基準 checksum（**S3 以降のコア**）
+
+再現: `esp32/` で `idf.py -B build_x -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 [-DSAAN_ENABLE_PIE=1] build` → merge_bin → QEMU（M-62 と同じ手順）
+
+| 構成 | FNV-1a | \|max\| | Σx² | 旧値（M-62、v0.2.0 まで） |
+|---|---|---:|---:|---|
+| **W8A8 + PIE** | **`0xa69a7ebbb5ccb05f`** | **9627** | **74,264,237,672** | `0x04de91103a0e49f9` / 9744 / 74,374,063,946 |
+| **W8A32** | **`0xe4b645c30835d42d`** | **9529** | **74,155,591,505** | `0x78c209af06affc01` / 9529 / 74,155,592,149 |
+
+W8A32 は \|max\| 同一・Σx² 相対差 **8.7e-9**（丸め水準）。W8A8 は §4 の理由で \|max\| が 1.2% 動く。
+PIE 命令は 5 のまま（`objdump -d libsaanotts_core.a | grep -c 'ee\.'`）。
+⚠️ **配布イメージ（v0.2.0 まで）は旧コアなので旧値が正しい。** 手順書は両方書いた（`esp32/TESTING.md`）。
+
+### 6. QEMU（`-icount shift=0`）の 1 step の命令数比（⚠️ サイクルではない。割合だけ読む）
+
+| | M-80（S1 前） | S1 後 | S3 後 |
+|---|---:|---:|---:|
+| 1 step（CCOUNT。QEMU の仮想値） | 811,001 | 741,973 | **557,152**（**−31%**） |
+| LOOKUP | 8.5% | 0.5% | 0.7% |
+| QUANT | 21.1% | 23.1% | **5.5%** |
+| GELU | 14.3% | 15.6% | 12.5%（cyc/要素 5.34 → 3.21） |
+| WCOPY | 10.5% | 11.4% | 15.2%（S4 の対象） |
+| MAC | 34.4% | 37.6% | **50.1%** |
+| DW | 5.5% | 6.0% | 6.0% |
+
+S3 後の表（丸ごと）:
+
+```
+区間   回数/step     cyc/step  %%STEP  要素/step cyc/要素
+STEP           1.00       557152  100.0%            0       0.00
+HF             1.00        65402   11.7%            0       0.00
+TOKEN          0.67        65264   11.7%           19    3469.71
+AC             5.00       102590   18.4%            0       0.00
+DINP           1.00         7245    1.3%            0       0.00
+DEC            5.00       295262   53.0%            0       0.00
+HEAD           1.00        58484   10.5%            0       0.00
+ISTFT         10.19        26032    4.7%            0       0.00
+LOOKUP         6.24         3724    0.7%          802       4.65
+QUANT         43.33        30767    5.5%        50998       0.60
+WCOPY       4724.19        84788   15.2%       489304       0.17
+MAC         4724.19       279140   50.1%      7279646       0.04
+DW             5.00        33168    6.0%        37240       0.89
+CONV32         0.00            0    0.0%            0       0.00
+GELU           6.00        69483   12.5%        21664       3.21
+LN             7.14         6266    1.1%         6791       0.92
+RELU           7.14         1247    0.2%         6791       0.18
+PIPE          33.00        10274    1.8%            0       0.00
+INIT: 191535 cyc / 回
+1 step = 557152 cyc（240 MHz なら 2.32 ms）。⚠️ QEMU ではサイクルではない
+```
+
+⚠️ QEMU は命令数に比例した仮想時間で、flash のストール・FPU の遅延・ソフト除算の実コストは入っていない。
+**実機では QUANT と GELU の削減幅がこれより大きいはず**（`__divsf3` と `erff` は QEMU では安く見える）が、
+**測るまで書かない。**
+
+### ⚠️ 測っていないこと
+
+- **実機**（板待ち。スタックチャンの板の種類も未同定）
+- S2 / S3 の SCOREQ（`make -C csrc lanes`）。SNR ゲートで判断した（M-55 で W8A8 は SNR 23 dB でも SCOREQ 差なしと分かっているので、0.01 dB の差は聞こえない、が推論）

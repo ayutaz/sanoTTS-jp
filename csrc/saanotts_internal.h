@@ -47,6 +47,12 @@ void saan_layernorm_c(float *x, const float *g, const float *b, int C, int T);
 void saan_relu(float *x, size_t n);
 void saan_gelu(float *x, size_t n);
 
+/* erf の近似（S3）。x ∈ [0, 4] を h = 1/32 の 3 次 Hermite（csrc/erf_table.h）、|x| ≥ 4 は ±1。
+ * libm の erff との max|Δ| は 2e-7 以下（`make -C csrc erf`。線形補間に落とした陽性対照つき）。
+ * ⚠️ **丸め水準の変更。** これを入れた時点で fp32 / W8A32 / W8A8 すべての出力 checksum が
+ *    変わる（GELU が全経路で使われる）。新しい基準値は docs/measurements.md の M-81。 */
+float saan_erf_approx(float x);
+
 const float *saan_tf(const saan_weights *w, const char *fmt, ...);
 
 /* --- fp32 / int8 のディスパッチ（D-3c'-2） --------------------------------

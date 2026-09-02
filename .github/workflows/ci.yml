@@ -62,6 +62,9 @@ jobs:
       - name: PAD 規則（陽性対照つき）
         run: make -C csrc pad
 
+      - name: GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。重み不要）
+        run: make -C csrc erf
+
       - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
         run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
 

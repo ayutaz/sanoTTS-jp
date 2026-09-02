@@ -56,6 +56,11 @@ checksum は M-62 と bit 一致。**1 step の内訳を QEMU + ホストで取�
 重みのコピー（489 KB/step）が MAC と同等以上だった**（M-80）。PIE を磨いても消えない。
 → [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md)（§5 に直す順序 S1〜S8、
 §6 に M5 対応の取り込み案）。内訳は `make -C csrc prof`（ホスト）/ `idf.py -DSAAN_PROFILE=1`（実機・QEMU）。
+**S1〜S3 は入れた**（M-81。ブランチ `feat/s1-speed-m5`）。⚠️ **S3（GELU の erf 近似）で QEMU の基準
+checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**（|max| 9744 → 9627）、
+W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
+W8A8 の |max| が動くのは量子化の境界で 1 値が変わると下流に伝播するためで、品質（fp32 比 SNR 24 文）は不変。
+配布イメージ v0.2.0 までは旧値のまま。
 
 **(2) 端末で漢字を扱う（K トラック・QEMU まで完走）**
 B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つの根拠が崩れた**（K-1 調査）。

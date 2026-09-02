@@ -218,7 +218,7 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 | モデルだけの差し替え | できる（`model` だけ焼き直す） | **できない**（app ごと再ビルド） |
 | いつ使うか | DevKit | **PSRAM を有効にした板**。CoreS3 では `CONFIG_SPIRAM=y` だと mmap が `ESP_ERR_NO_MEM` で落ちた（第三者の実機報告。未再現） |
 
-どちらも QEMU で同じ checksum `0x04de91103a0e49f9` を出す（起動直後の内部 DRAM free も 72.8 KB で同じ）。
+どちらも QEMU で同じ checksum を出す（A-2 時点で `0x04de91103a0e49f9`。S3 以降は `0xa69a7ebbb5ccb05f`。起動直後の内部 DRAM free も 72.8 KB で同じ）。
 fp32 blob は `blob_to_header.py` が**ビルド時に拒否する**（回帰: `scripts/test_blob_to_header.py`）。
 
 ### 2. `EMBED_FILES` を使わない — **アライメントが無保証**

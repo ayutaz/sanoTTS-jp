@@ -45,7 +45,7 @@ LDLIBS       := -lm
 #    ESP-IDF の component もこの 4 ファイル **+ g2p.c** を SRCS に並べること
 #    （g2p.c はコアを参照しない独立の翻訳単位だが main.c が saan_g2p() を呼ぶ）。
 CORE         := saanotts.c saanotts_stream.c fft.c saanotts_int8.c
-HDRS         := saanotts.h saanotts_stream.h saanotts_internal.h fft.h saanotts_int8.h saan_prof.h
+HDRS         := saanotts.h saanotts_stream.h saanotts_internal.h fft.h saanotts_int8.h saan_prof.h erf_table.h
 
 # int8 ブロブと **fake-quant golden** は必ず一緒に作る。
 # ⚠️ `--golden-from-quantized` が無いと golden は fp32 参照のままで、
@@ -176,6 +176,17 @@ lanes: dump_pcm_a32 dump_pcm_a8 student_i8.bin ids_heldout.bin
 	./dump_pcm_a8  --ref student.bin student_i8.bin ids_heldout.bin ../reports/lanes/w8a8
 	cd .. && uv run --extra eval python scripts/d3_lane_scoreq.py --dir reports/lanes
 
+# S3: GELU の erf 近似が libm の erff と一致するか（**陽性対照つき**: 線形補間は落ちる）
+erf_test: erf_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ erf_test.c $(CORE) $(LDLIBS)
+
+erf_test_linear: erf_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_ERF_TEST_LINEAR=1 -o $@ erf_test.c $(CORE) $(LDLIBS)
+
+erf: erf_test erf_test_linear
+	./erf_test
+	./erf_test_linear --expect-fail
+
 prof: prof_test student_i8.bin
 	./prof_test student_i8.bin --reps 20 --expect-no-lookup
 
@@ -199,7 +210,7 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf
 
 clean:
 	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
