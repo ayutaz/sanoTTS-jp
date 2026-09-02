@@ -10,10 +10,11 @@
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
 Duration / Acoustic / iSTFT Decoder の 3 つの小さな生徒に蒸留する。
 
-✅ **第三者が ESP32-S3 実機で推論を確認した。** M5Stack AtomS3（8 MB flash）で
-W8A8 + PIE 経路が QEMU 基準と完全一致する PCM を生成した。
-ただし定常 xRT は **1.718** でリアルタイム未達、I2S 出力は無効にした測定である
-（[第三者の測定記録](https://github.com/magatsux2019/sanotts-atoms3-results) / [現在地](#現在地)）。
+✅ **独立した ESP32-S3 実機報告が 2 件ある。** M5Stack AtomS3 は推論と PCM の
+bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシンクまで動いた。
+定常 xRT はそれぞれ **1.718 / 1.558**でリアルタイム未達だが、CoreS3 は 60% の先読みで
+途切れ 0 回を確認した（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
+[CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。
 
 ## 日本語でやると何が難しいか
 
@@ -35,7 +36,8 @@ W8A8 + PIE 経路が QEMU 基準と完全一致する PCM を生成した。
 | **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
 | **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
 | **メモリ** | **197 KB** — ESP32-S3 の SRAM 512 KB の 38%。重みは int8 で 643,936 B（flash） |
-| **速度** | ⚠️ **未達。** 第三者の M5Stack AtomS3 実測で W8A8 + PIE の定常 xRT は **1.718**（n=2、I2S 無効）。リアルタイム条件 `< 1.0` を満たさない（[測定記録](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)） |
+| **速度** | ⚠️ **未達。** W8A8 + PIE の定常 xRT は AtomS3 **1.718**（n=2、I2S 無効）/ CoreS3 **1.558**（内蔵スピーカー・顔あり）。どちらもリアルタイム条件 `< 1.0` を満たさない（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
+| **実機の音声出力** | CoreS3 の M5Unified 経路で成功。60% を先読みし、発話開始まで **1,781 ms** / 追い越し（途切れ）**0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)） |
 | **漢字を端末で読む** | QEMU で合成まで完走（辞書 13.7 MB / 438,750 entries）。⚠️ **実機未検証** |
 
 ⚠️ **すべて n=24〜200 の予測器スコアで、人が聴いた評価は 1 名 1 回しかない**
@@ -43,15 +45,21 @@ W8A8 + PIE 経路が QEMU 基準と完全一致する PCM を生成した。
 意味ではなく、較正されていない予測器のスコアの比。日本語では**実人間の音声ですら
 SCOREQ 2.50 / UTMOS 2.30** しか出ないので、**絶対値を英語の論文と比べてはいけない**。
 
-**実機測定が 1 件得られた。** ESP32-S3 の PIE（SIMD）を使った int8 カーネルは
+**独立した実機報告が 2 件得られた。** ESP32-S3 の PIE（SIMD）を使った int8 カーネルは
 `ee.vmulas.s8.accx`（16 レーンの int8 積和）で内積を置き換え、MAC の **99.4%** を覆う。
-第三者が M5Stack AtomS3 で W8A8 + PIE 経路を 2 回測定し、**定常 xRT 1.718**を再現した。
-生成した 27,136 sample の PCM checksum と振幅統計は QEMU 基準に完全一致し、
-**推論の正しさは実機でも確認できた**（[測定記録](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)）。
 
-⚠️ **実機で正しく推論できたが、まだリアルタイムではない。** この測定は I2S を無効にしており、
-残るのは**速度の最適化**・**実機の I2S**・**漢字経路の起動確認**である。
-公式実装が同じ ESP32-S3 で申告する **0.22× 実時間**には届いていない。
+- **AtomS3:** W8A8 + PIE を 2 回測定して定常 xRT **1.718**。I2S は無効だが、
+  27,136 sample の PCM checksum と振幅統計が QEMU 基準に完全一致した
+  （[測定記録](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)）
+- **CoreS3:** M5Unified の内蔵スピーカー、m5stack-avatar、リップシンクを含む構成で
+  定常 xRT **1.558**。60% を先読みして発話開始まで **1,781 ms**、途切れ **0 回**を確認した
+  （[実装と測定](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
+  [動画](https://x.com/nnn112358/status/2095071771355725970)）
+
+⚠️ **実機で正しく推論・再生できたが、生成自体はまだリアルタイムではない。**
+CoreS3 は先読みで途切れを避けている。実音声出力が確認されたのは M5Unified 経路であり、
+本リポジトリの `saan_i2s` 経路と漢字経路は未検証。公式実装が同じ ESP32-S3 で申告する
+**0.22× 実時間**には届いていない。
 
 **QEMU で通してあること:**
 
@@ -60,9 +68,9 @@ SCOREQ 2.50 / UTMOS 2.30** しか出ないので、**絶対値を英語の論文
 | 2026-08-30 | 出荷ファームを**起動 → 重み mmap → 端末側 G2P → 合成 → int16 まで完走**。**PIE はスカラ実装と 27,136 sample すべて bit 一致**（陰性対照つき。M-62） |
 | 2026-08-31 | **端末が漢字かな交じり文をそのまま読む経路**も完走（K-7 / M-76）。**v0.2.0 で焼くだけの 16 MB イメージを配布している** |
 
-✅ **かな経路の推論と PCM 生成は AtomS3 実機で確認済み。** ただし I2S は無効で、
-**漢字経路は引き続き QEMU のみ**。残るのは**リアルタイム化**・**実機の I2S**・
-**漢字経路の起動確認**である。
+✅ **かな経路は AtomS3 で推論と PCM 生成、CoreS3 で内蔵スピーカー再生まで確認済み。**
+CoreS3 の音声出力は M5Unified を使う派生実装で、先読みなしのリアルタイム生成には未達。
+**本リポジトリの `saan_i2s` と漢字経路は引き続き実機未検証**である。
 
 > 🙏 **追加の ESP32-S3 実機測定を歓迎します。**
 > 手順は [`esp32/TESTING.md`](esp32/TESTING.md)。**DAC が無くても測れます。**
@@ -163,7 +171,9 @@ OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一
 | かな | `esp32s3-firmware-w8a8-pie.bin` | かな中間表現のみ | 8 MB 以上 |
 | **漢字** | `esp32s3-firmware-kanji-16mb.bin` | **`!` を付ければ漢字かな交じり文**も | **16 MB 必須** |
 
-⚠️ **かな経路は AtomS3 実機で定常 xRT 1.718（n=2、I2S 無効）。**
+✅ **かな経路は実機 2 構成で確認済み。** AtomS3 は定常 xRT **1.718**（n=2、I2S 無効）。
+CoreS3 は M5Unified の内蔵スピーカーで再生し、定常 xRT **1.558**を 60% の先読みで補って
+途切れ **0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)）。
 ⚠️ **漢字の方は実機で一度も動かしていない。**
 
 > 漢字を受け付けない理由をかつて「辞書が載らないため」と書いていたが、**測り直したら崩れ、
@@ -217,7 +227,7 @@ uv sync
 | | 理由 |
 |---|---|
 | **ラベル生成・学習をやり直す** | 教師 checkpoint が private リポジトリにある |
-| **I2S 込みのリアルタイム動作** | ⚠️ AtomS3 実測は定常 xRT **1.718**で未達。I2S は無効（[第三者の測定記録](https://github.com/magatsux2019/sanotts-atoms3-results)） |
+| **先読みなしのリアルタイム生成** | ⚠️ AtomS3 は定常 xRT **1.718**、CoreS3 は **1.558**で未達。CoreS3 は 60% の先読みで途切れを回避（[実機実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)） |
 | **音の良し悪しを人の耳で言う** | ⚠️ **聴取が 1 名 1 回しかない。** 漢字経路は 0 名 |
 
 ## アーキテクチャ
