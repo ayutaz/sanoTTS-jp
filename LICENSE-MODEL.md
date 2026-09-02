@@ -34,7 +34,7 @@ MIT は「無制限に (without restriction)」の利用を認めます。しか
 | ファイル | 内容 |
 |---|---|
 | `saanotts-jp-v3-stage4.pt` | PyTorch checkpoint（fp32、3 つの生徒モデル） |
-| `saanotts-jp-v3-int8.bin` | C99 コア用 int8 重みブロブ（SAAN v1 形式） |
+| `saanotts-jp-v3-int8.bin` | C99 コア用 int8 重みブロブ（SAAN 形式。v0.2.0 の資産は v1、2026-09-02 以降のコアは v2 を読む） |
 | `saanotts-jp-v3-fp32.bin` | 同 fp32 版 |
 | `golden-v3-fp32.bin` / `golden-v3-int8.bin` | 移植検証用のゴールデン中間出力 |
 | `samples/*.wav` | 本モデルが生成した音声サンプル |

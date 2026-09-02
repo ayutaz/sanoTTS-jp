@@ -12,9 +12,12 @@ Duration / Acoustic / iSTFT Decoder の 3 つの小さな生徒に蒸留する�
 
 ✅ **独立した ESP32-S3 実機報告が 2 件ある。** M5Stack AtomS3 は推論と PCM の
 bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシンクまで動いた。
-定常 xRT はそれぞれ **1.718 / 1.558**でリアルタイム未達だが、CoreS3 は 60% の先読みで
+定常 xRT はそれぞれ **1.718 / 1.558** でリアルタイム未達だが、CoreS3 は 60% の先読みで
 途切れ 0 回を確認した（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
 [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。
+⚠️ **実時間にまだ間に合っていない。** 1 step の内訳を取ると積和ではなく量子化・GELU・
+テンソル検索・重みのコピーが支配的で（M-80）、それを削る **S1〜S5a** と M5Stack 対応を入れた
+（2026-09-02。**QEMU の命令数比で −49%。実機の効果は未測定**。[現在地](#現在地)）。
 
 ## 日本語でやると何が難しいか
 
@@ -36,8 +39,8 @@ bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシ
 | **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
 | **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
 | **メモリ** | **197 KB** — ESP32-S3 の SRAM 512 KB の 38%。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
-| **速度** | ⚠️ **未達。** W8A8 + PIE の定常 xRT は AtomS3 **1.718**（n=2、I2S 無効）/ CoreS3 **1.558**（内蔵スピーカー・顔あり）。どちらもリアルタイム条件 `< 1.0` を満たさない（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
-| **実機の音声出力** | CoreS3 の M5Unified 経路で成功。60% を先読みし、発話開始まで **1,781 ms** / 追い越し（途切れ）**0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)） |
+| **速度** | ⚠️ **未達。** W8A8 + PIE の定常 xRT は AtomS3 **1.718**（n=2、I2S 無効）/ CoreS3 **1.558**（内蔵スピーカー・顔あり）。どちらもリアルタイム条件 `< 1.0` を満たさない（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)）。積和以外を削る **S1〜S5a** を入れ、QEMU の命令数比で 1 step **−49%**（**実機は未測定**。M-80 / M-81） |
+| **実機の音声出力** | CoreS3 の M5Unified 経路で成功。60% を先読みし、発話開始まで **1,781 ms** / 追い越し（途切れ）**0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。同じ構成を [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) として取り込んだ（ビルドまで） |
 | **漢字を端末で読む** | QEMU で合成まで完走（辞書 13.7 MB / 438,750 entries）。⚠️ **実機未検証** |
 
 ⚠️ **すべて n=24〜200 の予測器スコアで、人が聴いた評価は 1 名 1 回しかない**
@@ -57,9 +60,15 @@ SCOREQ 2.50 / UTMOS 2.30** しか出ないので、**絶対値を英語の論文
   [動画](https://x.com/nnn112358/status/2095071771355725970)）
 
 ⚠️ **実機で正しく推論・再生できたが、生成自体はまだリアルタイムではない。**
-CoreS3 は先読みで途切れを避けている。実音声出力が確認されたのは M5Unified 経路であり、
-本リポジトリの `saan_i2s` 経路と漢字経路は未検証。公式実装が同じ ESP32-S3 で申告する
-**0.22× 実時間**には届いていない。
+CoreS3 は先読みで途切れを避けている。公式実装が同じ ESP32-S3 で申告する **0.22× 実時間**には届いていない。
+
+**なぜ遅いかは測った。** 1 step の内訳を取ると **MAC は 3 割で、活性化の量子化（ソフト除算）・
+GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489 KB/step が残りを占めていた**（M-80）。
+それらを消す **S1〜S5a** を入れ、QEMU の命令数比で 1 step が **811,001 → 412,619（−49%）**になった
+（M-81 / D-046）。⚠️ **QEMU はサイクル精度ではないので、実機で速くなったとはまだ言えない。**
+実機の表（`-DSAAN_PROFILE=1`）を取るのが次の一歩で、手順は
+[`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) と
+[`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md)。
 
 **QEMU で通してあること:**
 
@@ -67,10 +76,11 @@ CoreS3 は先読みで途切れを避けている。実音声出力が確認さ�
 |---|---|
 | 2026-08-30 | 出荷ファームを**起動 → 重み mmap → 端末側 G2P → 合成 → int16 まで完走**。**PIE はスカラ実装と 27,136 sample すべて bit 一致**（陰性対照つき。M-62） |
 | 2026-08-31 | **端末が漢字かな交じり文をそのまま読む経路**も完走（K-7 / M-76）。**v0.2.0 で焼くだけの 16 MB イメージを配布している** |
+| 2026-09-02 | **M5Stack 対応**（`esp32/boards/m5unified/`。CoreS3 / Core2 でビルド通過）と **速度の作り直し S1〜S5a**（M-81 / D-046）。⚠️ GELU の erf 近似で基準 checksum が変わった（W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d`）。⚠️ blob は v2（リリース資産はまだ v1） |
 
 ✅ **かな経路は AtomS3 で推論と PCM 生成、CoreS3 で内蔵スピーカー再生まで確認済み。**
 CoreS3 の音声出力は M5Unified を使う派生実装で、先読みなしのリアルタイム生成には未達。
-**本リポジトリの `saan_i2s` と漢字経路は引き続き実機未検証**である。
+**本リポジトリの `saan_i2s` と漢字経路は引き続き実機未検証**で、**S1〜S5a 後の速度もまだ誰も測っていない**。
 
 > 🙏 **追加の ESP32-S3 実機測定を歓迎します。**
 > 手順は [`esp32/TESTING.md`](esp32/TESTING.md)。**DAC が無くても測れます。**
@@ -209,6 +219,8 @@ CoreS3 は M5Unified の内蔵スピーカーで再生し、定常 xRT **1.558**
 make -C csrc line                                       # 端末の行編集（**陽性対照つき**）
 make -C csrc fft                                        # 逆 FFT（naive DFT の 1,435 倍）
 make -C csrc g2p PYTHON="uv run --no-project python"    # オンデバイス G2P（2,819 ベクタ）
+make -C csrc erf                                        # GELU の erf 近似 vs libm（陽性対照つき）
+uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
 ```
@@ -295,7 +307,7 @@ uv sync
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 | [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-81。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-045 と**訂正履歴 C-001〜C-052** |
+| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-046 と**訂正履歴 C-001〜C-053** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
 | [`docs/release-notes/`](docs/release-notes/) | 各リリースで何が変わったか（**訂正も残してある**） |
@@ -313,11 +325,11 @@ uv sync
 
 - **推測を数値として書かない。** 測っていないことは「未測定」と書く
 - **訂正履歴を消さない。** 「1 コマンド打てば分かることを、打たずに推論した」種類の誤りが
-  **52 件**記録してある。同じ間違いを繰り返さないための資料
+  **53 件**記録してある。同じ間違いを繰り返さないための資料
 - **決着したリスクも消さない。** 消すと同じ疑問が再燃する
 - **n が小さいときは n と CI を必ず併記する**（n=3 の差を結論にして反証されたことがある）
 - **ゲートは「落ちる壊し方」を言えないと書かない。** テストが緑のまま欠陥が潜んでいた例が
-  11 件あり、`.claude/skills/writing-gates/` にまとめてある
+  12 件あり、`.claude/skills/writing-gates/` にまとめてある
 
 `.claude/hooks/guard_bash.py` が、教師リポジトリへの書き込み・`pip install`・
 本番ラベルパックの破棄・GPL ソースの取得・コーパス本文を含むコミットを機械的に止める

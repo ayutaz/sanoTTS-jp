@@ -85,7 +85,7 @@ scripts/export_c_weights.py   S4: blob v2（conv int8 を [cout][k][align16(cin)
 ### Task A-0: 板の同定と前提の凍結
 
 **Files:**
-- Modify: `docs/decisions.md`（D-046 を追記）
+- Modify: `docs/decisions.md`（D-047 を追記。D-046 は S1〜S5a の出力基準に使った）
 - Modify: `docs/plan/s1-speed-implementation-plan.md`（この表の「板」列を確定値に）
 
 - [ ] **Step 1: チップを読む**（ユーザーがスタックチャンを USB で繋いだら）
@@ -96,8 +96,8 @@ esptool.py --port /dev/cu.usbmodem* chip_id      # 出力の "Chip is ESP32-S3 .
 esptool.py --port /dev/cu.usbmodem* flash_id     # "Detected flash size: 16MB" を記録
 ```
 
-- [ ] **Step 2: D-046 を書く**（chip / flash / PSRAM の種類と容量 / スピーカーの有無 / 板の名前。`esptool` の出力をそのまま貼る）
-- [ ] **Step 3: commit** `decide(D-046): 実機の前提を凍結（<板名> / <chip> / <flash> / <psram>）`
+- [ ] **Step 2: D-047 を書く**（chip / flash / PSRAM の種類と容量 / スピーカーの有無 / 板の名前。`esptool` の出力をそのまま貼る）
+- [ ] **Step 3: commit** `decide(D-047): 実機の前提を凍結（<板名> / <chip> / <flash> / <psram>）`
 
 ⚠️ 板が繋がるまで A-1〜A-3 を先に進める（板に依存しない）。
 
@@ -418,7 +418,7 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 
 ## Phase C — 判断と後続
 
-- [ ] **D-047**: 出荷ファームの既定を W8A8+PIE にするか（M-55 の「知覚的に無料」+ 実機の xRT）。残りタスク #4 の決着
+- [ ] **D-048**: 出荷ファームの既定を W8A8+PIE にするか（M-55 の「知覚的に無料」+ 実機の xRT）。残りタスク #4 の決着
 - [ ] S1〜S5 後の実機の表を M-番号に。1 コアの床を確定
 - [ ] S6（token block の持ち越し）/ S7（`SAAN_CHUNK` 16）/ S8（2 コア）を、床を見てから起票
 - [ ] QACC 外積形（16 出力同時）は 20 bit 溢れの解析を spike として別起票

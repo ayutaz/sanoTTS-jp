@@ -5,10 +5,21 @@
 
 ---
 
-## ⚠️ 実機では一度も動かしていない（**QEMU では完走した**）
+## ⚠️ 実機は第三者が動かした（M5Stack CoreS3、2026-09-02）。私は未再現
 
 **これを最初に読むこと。**
 実機を持っている方への依頼は [`TESTING.md`](TESTING.md) にまとめてある。
+
+**2026-09-02、第三者がこの雛形を M5Stack CoreS3 に移植して動かし、速度を報告した**
+（[`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)）:
+**W8A8+PIE で定常 1.554× RT / W8A32 で 4.834× RT。実時間に間に合っていない。** checksum は QEMU の記録と一致。
+その構成は **[`boards/m5unified/`](boards/m5unified/README.md)** として本リポジトリに取り込んだ
+（`main/` と `csrc/` を相対参照。音声出力は `M5.Speaker`、重みは `.rodata`）。
+同時に、1 step の内訳で MAC と同等以上だった 4 つ（テンソル検索 / 量子化のソフト除算 /
+GELU の `erff` / 重みのコピー）を削る **S1〜S5a** を入れた（M-81。QEMU 命令数比で −49%。**実機は未測定**）。
+⚠️ **S3 で基準 checksum が変わった**: W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d`
+（v0.2.0 までの配布イメージは旧値 `0x04de91103a0e49f9` / `0x78c209af06affc01`）。
+⚠️ **blob は v2**（654,032 B）。リリース資産は v1 のままで、このコアは `SAAN_ERR_VERSION` で拒む。
 
 **2026-08-30 に QEMU で出荷ファームを起動から合成完了まで通した**（M-62）。
 同日、**シリアルから かなを自由入力できるようにし、QEMU の UART に実際に打ち込んだ**（M-63）。
@@ -30,12 +41,12 @@ ids 53 個を作り、**凍結してあるかな中間表現と同じ PCM**（`0
 | ~~1~~ | ~~`idf.py build` が通るか~~ | ✅ **通った**（M-54 / v5.5） |
 | ~~2~~ | ~~起動するか~~ | ✅ **QEMU で起動・合成完了**（M-62） |
 | 3 | 実際の SRAM 消費（IDF + FreeRTOS + **I2S DMA 込み**の free heap） | ⚠️ 配布 firmware（W8A8+PIE）の QEMU 起動直後で 68,460 B（M-67）。**I2S DMA を含まない**ので実機で再確認 |
-| **4** | **実際の xRT とアンダーラン** — M-43 の 2.47 × RT は外挿 | ⚠️ **実機。これが唯一の本命** |
+| **4** | **実際の xRT とアンダーラン** — M-43 の 2.47 × RT は外挿 | ⚠️ **第三者報告: W8A8+PIE 1.554 / W8A32 4.834**（CoreS3。途切れ 10/14 チャンク）。**S1〜S5a 後は未測定** |
 | 5 | I2S の実サンプルレート誤差（**ESP32-S3 に APLL が無い**） | 実機 + オシロか長時間録音 |
 | 6 | flash から mmap した重みが D-cache を thrash しないか | 実機（QEMU にはキャッシュ挙動が無い） |
 | ~~7~~ | ~~`sdkconfig.defaults` のオプション名が実在するか~~ | ✅ ビルドが通った（M-54） |
 | ~~8~~ | ~~`esp32/main` が呼ぶ IDF API の綴り~~ | ✅ ビルドが通り QEMU で実行された（M-62） |
-| **9** | **実機の I2S**（QEMU は DMA を捌かないので通せなかった） | 実機 |
+| **9** | **実機の I2S**（QEMU は DMA を捌かないので通せなかった） | ⚠️ M5.Speaker 経由では鳴った（報告）。**DevKit の `saan_i2s.c`（I2S 直叩き）は未** |
 
 **「たぶん動く」とは書かない。「未検証」と書く。**
 
@@ -492,10 +503,17 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション |
 | `sdkconfig.kanji` | 漢字対応ビルドの上書き（16 MB flash + 表の差し替え） |
 | `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
-| `main/main.c` | arena・プリロール・合成ループ・計測ログ |
-| `main/saan_model.{h,c}` | flash mmap → `saan_weights`（16 バイト境界を検査） |
-| `main/saan_i2s.{h,c}` | I2S 設定 / プリロール / float→int16 / PCM チェックサム |
-| `main/saan_console.{h,c}` | シリアルからの 1 行入力（UART0 / USB Serial/JTAG） |
+| `main/main.c` | arena・プリロール・合成ループ・計測ログ・タッチ再生・`SAAN_BUFFERED`・`SAAN_PROFILE` の表 |
+| `main/saan_model.h` | `saan_model_open()` の宣言。実装は 2 つ（下） |
+| `main/saan_model.c` | 実装 1: flash の `model` パーティションを mmap（16 バイト境界を検査） |
+| `main/saan_model_rodata.c` | 実装 2: `.rodata` に埋めた blob（`-DSAAN_MODEL_RODATA=1`。`cmake/saan_model_rodata.cmake` がヘッダを生成） |
+| `main/saan_audio.h` | 音声出力の抽象 API（7 関数）。実装は `saan_i2s.c`（DevKit）と `boards/m5unified/main/saan_audio_m5.cpp` |
+| `main/saan_i2s.c` | `saan_audio.h` の I2S 直叩き実装 |
+| `main/saan_pcm.{h,c}` | float→int16 と FNV-1a / \|max\| / Σx²（**唯一の実装**） |
+| `main/saan_ui.h` / `saan_ui_null.c` | 画面の抽象 API と「何もしない」実装（M5 実装は `boards/m5unified/main/saan_ui_m5.cpp`） |
+| `main/saan_console.{h,c}` | シリアルからの 1 行入力（UART0 / USB Serial/JTAG）。poll + タッチ |
+| `cmake/saan_model_rodata.cmake` | blob → `const uint8_t[]` ヘッダの生成（DevKit と boards で共有） |
+| **`boards/m5unified/`** | **M5Stack 向けプロジェクト**（CoreS3 / Core2。`README.md` を読む） |
 | `main/saan_dict.{h,c}` | **K-7: `dict` パーティションの mmap**（64 KB 境界を検査） |
 | `main/saan_kanji.{h,c}` | **K-7: 漢字文 → 生徒インデックス**（端末の全段） |
 | `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
@@ -509,6 +527,10 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 | `-DSAAN_QEMU=1` | 無効 | I2S への書き込みだけ外す。⚠️ **音は出ない** |
 | `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ 16 MB flash と 12 MB の辞書が要る |
 | `-DSAAN_BOOT_SPEAK=1` | 無効（非対話ビルドでは有効） | 起動時に錨の 1 文を喋る（突き合わせ用） |
+| `-DSAAN_MODEL_RODATA=1` | 無効 | 重みを app の `.rodata` に埋める（PSRAM 有効な板。`model` パーティションを焼かない） |
+| `-DSAAN_BUFFERED=1` | 無効 | 1 発話ぶんを貯めてから鳴らす（途切れない。待ちは合成時間） |
+| `-DSAAN_PROFILE=1` | 無効 | 段別プロファイル（CCOUNT）を発話後に出す。⚠️ **速度の報告には 0 で**（計測にコストがある） |
+| `-DSAAN_ARENA_HEAP=1` | 無効 | arena をヒープ（PSRAM 優先）から取る。ESP32（Core2）向け。⚠️ 遅い |
 | `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
 | `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
 | [`TESTING.md`](TESTING.md) | **実機を持っている人向けの手順**（配線・焼き方・報告してほしい 4 行） |

@@ -7,6 +7,8 @@
 #   make int8-e2e  int8 経路の end-to-end（fp32 経路との波形 SNR。D-3c'-2）
 #   make arena     arena ストレス（ESP32 の静的 arena を決める・c'-4）
 #   make bench     レイテンシ測定（段別の内訳）
+#   make prof      段別プロファイラ（回数・要素数。--expect-no-lookup がゲート = S1）
+#   make erf       GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
 #   make line      端末の行編集ステートマシン（**陽性対照つき**）
 #   make k2        K-2/K-3 辞書リーダ + Viterbi + 未知語（MeCab との一致）
@@ -16,7 +18,7 @@
 #   make k6        K-6 端末の全段をホストと突き合わせる（移植の正しさ + 枝刈りの代償）
 #   make k7        K-7 ラベル → 生徒インデックス（陰性対照つき）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
-#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line
+#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line + erf
 #
 # ⚠️ **k2 は all-test に入れていない。** 辞書（pyopenjtalk / piper-plus）と
 #    数 MB の生成ベクタが要るので、g2p-corpus と同じ扱いにしてある。

@@ -17,6 +17,10 @@ so neither generates in real time. The CoreS3 avoided gaps with 60% preroll
 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
 [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
 [video](https://x.com/nnn112358/status/2095071771355725970)).
+⚠️ **It does not keep up with real time yet.** A per-stage breakdown showed the MACs were not
+the bottleneck — activation quantization, GELU's `erff`, per-step tensor lookups and weight
+copies were (M-80). Those were removed (**S1–S5a**) and M5Stack support was added (2026-09-02).
+**QEMU instruction counts dropped 49 %; the effect on hardware is unmeasured** (see [Status](#status)).
 
 ## What makes Japanese hard
 
@@ -39,8 +43,8 @@ a counterpart.
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 654,032 B in int8 (flash; blob v2 with pre-aligned rows, +10,096 B over v1's 643,936 B) |
-| **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)) |
-| **Hardware audio output** | Works through M5Unified on CoreS3. With 60% preroll: **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)) |
+| **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)). **S1–S5a** remove the non-MAC work; QEMU instruction counts per step **−49 %** (**unmeasured on hardware**; M-80 / M-81) |
+| **Hardware audio output** | Works through M5Unified on CoreS3. With 60% preroll: **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)). The same setup is now in this repo as [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) (builds; not yet run here) |
 | **Kanji on the device** | Synthesizes end to end under QEMU (13.7 MB dictionary / 438,750 entries). ⚠️ **Untested on hardware** |
 
 ⚠️ **Everything above is a predictor score at n = 24–200, and exactly one person has
@@ -65,10 +69,17 @@ of the MACs.
   [video](https://x.com/nnn112358/status/2095071771355725970))
 
 ⚠️ **Correct inference and hardware playback are confirmed, but generation itself is
-not real-time yet.** The CoreS3 result hides the deficit with preroll. Hardware audio is
-confirmed for its M5Unified path; this repository's `saan_i2s` path and the kanji path
-remain untested. Neither result reaches the **0.22× real-time** reported by the official
-implementation on the same chip.
+not real-time yet.** The CoreS3 result hides the deficit with preroll. Neither result reaches
+the **0.22× real-time** reported by the official implementation on the same chip.
+
+**Why it is slow was measured.** A per-step breakdown showed **MACs at ~30 %**, with
+activation quantization (software division), GELU's `erff`, 102 tensor lookups per step and
+489 KB/step of weight copies taking the rest (M-80). **S1–S5a** remove them; QEMU instruction
+counts per step went **811,001 → 412,619 (−49 %)** (M-81 / D-046). ⚠️ **QEMU is not
+cycle-accurate, so it cannot yet be said to be faster on hardware.** The next step is the
+on-device profile (`-DSAAN_PROFILE=1`); see
+[`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) and
+[`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md).
 
 **What QEMU has verified:**
 
@@ -80,7 +91,8 @@ implementation on the same chip.
 ✅ **The kana path has run inference and generated PCM on AtomS3, and played through the
 built-in speaker on CoreS3.** The CoreS3 audio path is a derivative implementation using
 M5Unified; generation without preroll is still not real-time. **This repository's
-`saan_i2s` path and the kanji path remain untested on hardware.**
+`saan_i2s` path and the kanji path remain untested on hardware, and nobody has measured
+speed after S1–S5a yet.**
 
 ## Getting started
 
@@ -209,6 +221,8 @@ using M5Unified; steady-state xRT **1.558** was covered by 60% preroll with **ze
 make -C csrc line                                       # Line editing (**with a positive control**)
 make -C csrc fft                                        # Inverse FFT (1,435× the naive DFT)
 make -C csrc g2p PYTHON="uv run --no-project python"    # On-device G2P (2,819 vectors)
+make -C csrc erf                                        # GELU erf approximation vs libm (with positive control)
+uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata header (positive control: fp32 rejected)
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
 ```
@@ -302,7 +316,7 @@ The documentation is in Japanese.
 |---|---|
 | [`docs/README.md`](docs/README.md) | Index and current status |
 | [`docs/measurements.md`](docs/measurements.md) | **Primary source for measurements**, M-1–M-81. Every entry has a reproduction command |
-| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-045 and the **correction log C-001–C-052** |
+| [`docs/decisions.md`](docs/decisions.md) | Decisions D-001–D-046 and the **correction log C-001–C-053** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | Facts taken from the official implementation (⚠️ all upstream-reported, none reproduced here) |
 | [`docs/plan/`](docs/plan/) | Work plan and remaining tasks |
 | [`docs/release-notes/`](docs/release-notes/) | What changed in each release (**corrections are kept, not deleted**) |
@@ -319,13 +333,13 @@ The documentation is in Japanese.
 that is written into the repository itself.
 
 - **Never write a guess as a number.** If it was not measured, it says "not measured"
-- **Never delete the correction log.** **52 entries** record errors of the form
+- **Never delete the correction log.** **53 entries** record errors of the form
   "something one command would have answered, inferred instead of measured." They exist so
   the same mistake is not repeated
 - **Never delete a risk just because it was settled.** Deleting it makes the question resurface
 - **Always report n and a CI when n is small** (a difference at n = 3 was once turned into a
   conclusion, then refuted)
-- **Do not write a gate you cannot break on purpose.** Eleven defects hid behind green tests;
+- **Do not write a gate you cannot break on purpose.** Twelve defects hid behind green tests;
   they are collected in `.claude/skills/writing-gates/`
 
 `.claude/hooks/guard_bash.py` mechanically blocks writes to the teacher repository,

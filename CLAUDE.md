@@ -39,7 +39,7 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-08-31）**: 2 つのトラックが走っている。
+**現状（2026-09-02）**: 2 つのトラックが走っている。
 
 **(1) かな中間表現の生徒モデル（本線・ほぼ完了）**
 Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
@@ -47,7 +47,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 **PIE カーネルも実装・QEMU 検証まで完了**（M-57 / M-58）。
 **端末でかなの自由入力もできる**（M-63 / D-040）。
 **v0.1.1 で焼くだけの firmware も配布している**（M-67。漢字版は v0.2.0）。
-**残りは実機での速度実測だけ。**
+**第三者の実機報告で「間に合っていない」と分かり、速度の作り直し S1〜S5a と M5Stack 対応を入れた（下記）。残りは実機。**
 
 ⚠️ **2026-09-02、第三者が M5Stack CoreS3 で実機の速度を報告した**（**私は未再現**）:
 **W8A8+PIE で定常 1.554× RT（1 チャンク 144 ms）、W8A32 で 4.834× RT。実時間に間に合っていない。**
@@ -56,7 +56,10 @@ checksum は M-62 と bit 一致。**1 step の内訳を QEMU + ホストで取�
 重みのコピー（489 KB/step）が MAC と同等以上だった**（M-80）。PIE を磨いても消えない。
 → [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md)（§5 に直す順序 S1〜S8、
 §6 に M5 対応の取り込み案）。内訳は `make -C csrc prof`（ホスト）/ `idf.py -DSAAN_PROFILE=1`（実機・QEMU）。
-**S1〜S3 は入れた**（M-81。ブランチ `feat/s1-speed-m5`）。⚠️ **S3（GELU の erf 近似）で QEMU の基準
+**S1〜S5a と M5Unified 対応（`esp32/boards/m5unified/`。A-1〜A-3 / A-5）を入れた**（M-81 / D-046。ブランチ
+`feat/s1-speed-m5`。QEMU の命令数比で 1 step **−49%**、⚠️ サイクルではない）。**残りは A-0 / A-4（ユーザーの
+スタックチャンで焼く。板は未同定）→ S5b → D-048**（[`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md)）。
+⚠️ **S3（GELU の erf 近似）で QEMU の基準
 checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**（|max| 9744 → 9627）、
 W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
 W8A8 の |max| が動くのは量子化の境界で 1 値が変わると下流に伝播するためで、品質（fp32 比 SNR 24 文）は不変。
@@ -76,7 +79,8 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 ⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
 `runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
 
-**(1) の残りは実機での速度実測だけ**（`docs/plan/phase0-1-implementation-plan.md` §10）:
+**(1) の残りは実機の測定（A-0 / A-4）と、その後の S5b / D-048**（`docs/plan/s1-speed-implementation-plan.md`。
+旧計画 `docs/plan/phase0-1-implementation-plan.md` §10 も参照）:
 **P-1 の実装は完了**（M-57）/ **P-2** β の聴取（人が要る）。
 **E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
 **E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。
@@ -219,7 +223,8 @@ G9 / G10 で固定した。
 `|max|` 一致 + `Σx²` 相対差 1.6e-7 で丸め差と切り分ける。
 **bit 一致を主張してよいのは同じターゲット上の 2 構成を比べたときだけ。**
 
-⚠️ **速度は一度も測っていない** — QEMU はサイクル精度ではない。**実機が唯一の残り。**
+⚠️ **速度は自分ではまだ測っていない**（第三者の報告 1 件: CoreS3 で W8A8+PIE 1.554× RT）。QEMU の命令数比は
+S1〜S5a で −49% だが**サイクルではない**。実機の表（`-DSAAN_PROFILE=1`）が唯一の答え。
 
 ⚠️ **`uv sync` は piper-plus のクローンを要求する**（`[tool.uv.sources]` が絶対パス）。
 外の人が**重みだけで音を出す / ゲートを回す**経路は別にある（D-041 / M-65。README の
@@ -251,9 +256,12 @@ make -C csrc k4b                                   # K-4b NJD チェーン（G14
 make -C csrc k5                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
 make -C csrc k6                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
 make -C csrc k7                                    # K-7 ラベル → 生徒インデックス（G25〜G27）
+make -C csrc prof                                  # 段別プロファイラ（回数・要素数）。**--expect-no-lookup がゲート**（S1）
+make -C csrc erf                                   # GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
+uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / pad / **line**）
+                                                   #   g2p / pad / **line** / **erf**）
 ```
 
 **ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56 / M-76）:
@@ -263,7 +271,11 @@ export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"   # ⚠️ 3.14 �
 . ~/esp/esp-idf/export.sh
 export PATH="$HOME/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin:$PATH"
 cd esp32 && idf.py set-target esp32s3 && idf.py build     # 雛形（PIE は無効）
-cd esp32/pie_probe && idf.py qemu                         # PIE の bit 一致検証
+cd esp32/pie_probe && idf.py qemu                         # PIE の bit 一致検証（A / B / C 節）
+
+# M5Stack（スタックチャン）: ../../main と csrc を相対参照。重みは .rodata、PIE は S3 だけ
+cd esp32/boards/m5unified && idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" -DSAAN_ENABLE_PIE=1 build
 
 # 漢字対応（K-7）。⚠️ **16 MB flash と辞書パーティションが要る**
 uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
@@ -300,7 +312,7 @@ qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
 - z-line 版（1.4 M 級, quality tier）は `Eρ` を省き 192ch の z を直接ターゲットにし、
   hinge adversary を追加する。⚠️ **作っていない** — 567 K が先に目標へ届いたため
 
-**実測（M-39 / M-41 / M-42）**: int8 blob **624,692 B**（論文 679,832 B の −8.1%）。
+**実測（M-39 / M-41 / M-42）**: int8 blob **624,692 B**（payload。論文 679,832 B の −8.1%。⚠️ **blob v2（S4）はファイル 654,032 B**、事前整列の padding +10,096 B。M-81）。
 C99 コアは golden test を Pearson 1.000000 で通過し、**ストリーミング版は
 実行時メモリ 197 KB**（SRAM 512 KB の 38%）で一括版と **bit 完全一致**。
 FFT 化で手元 **0.022× RT**（M-43）。
@@ -496,6 +508,10 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
 | テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない** |
 | テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークが要る**。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
+| テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
+| テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。**`--expect-no-lookup` がゲート**（pull 中のテンソル検索 0 回。S1）。⚠️ ホストの時間は実機の内訳ではない |
+| テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
+| テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で 4 job。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**94 ケース + commit ガード 6 件**の回帰テスト付き） |
@@ -767,10 +783,10 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 
 | | 残り |
 |---|---|
-| (1) かな中間表現 | 実機でのサイクル実測 / β の聴取（P-2 は D-038 で決着） |
-| (2) 漢字（K） | **実機**（K-8）/ エントリ数の判断 / 接続行列 uint8 の判断 |
+| (1) かな中間表現 | **実機**（A-0 / A-4。ユーザーのスタックチャン）→ **S5b** → **D-048**。⚠️ 第三者報告 W8A8+PIE **1.554× RT**（間に合っていない。S-1）。S1〜S5a は入れた（M-81） |
+| (2) 漢字（K） | **実機**（K-8）/ エントリ数の判断 / 接続行列 uint8 の判断。⚠️ PSRAM 有効な板でパーティション mmap が落ちる報告（未再現） |
 
-⚠️ **どちらも「ボードが無い」が本物の待ち。** QEMU はサイクル精度ではない。
+⚠️ **板はある（ユーザーのスタックチャン）。種類の同定（ESP32-S3 か ESP32 か）が最初の一歩（A-0）。** QEMU はサイクル精度ではない。
 
 1. ~~**【次】PIE カーネル。**~~ ✅ **実装完了**（M-57）。
    `saan_conv1d_i8a` の内積を `ee.vmulas.s8.accx` で書き直し、
@@ -779,7 +795,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
    ⚠️ **残る 0.60% は depthwise で原理的に載らない**（チャネル方向のギャザー）。
    ⚠️ **出荷ファームではまだ無効** — `esp32/components/saanotts_core/CMakeLists.txt`
    が `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない。**W8A8 を採る決定が要る**。
-   ⚠️ **速度は一度も測っていない。QEMU はサイクル精度ではない。**
+   ⚠️ **速度は自分では未測定**（第三者報告: CoreS3 で W8A8+PIE 1.554× RT。S-1）。QEMU はサイクル精度ではない。
    ✅ **toolchain も QEMU も導入済み**
    （ESP-IDF v5.5 / GCC 14.2.0 / qemu-xtensa 9.0.0）。
    **QEMU が PIE を実装しているので、実機なしで正しさを検証できる**（M-56）。
@@ -791,13 +807,15 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
    **(a) 出荷ファームでの有効化** — `esp32/components/saanotts_core/CMakeLists.txt` が
    `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない。**W8A8 を採る決定が要る**
    （SNR は落ちるが **SCOREQ では差が無い** = M-55。arena は 200 KB を 1.1 KB 超過）。
-   **(b) 実機でのサイクル実測** — **ボードが無い。これが本物の待ち。**
-   ⚠️ **速度は一度も測っていない。** M-43 の 0.088× RT は未検証の外挿のまま。
+   **(b) 実機** — 第三者の報告が 1 件（CoreS3 / W8A8+PIE **1.554× RT**。間に合っていない。**未再現**）。
+   ⚠️ **M-43 の 0.088× RT は外挿で、実機報告はその 18 倍遅かった。** 差は積和ではなく量子化 / GELU /
+   テンソル検索 / 重みのコピー（M-80）。**S1〜S5a で削った**（M-81。QEMU 命令数比 −49%）が実機は未測定。
+   次は A-0 / A-4（ユーザーのスタックチャン）。
 
 ```bash
 export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
-xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -Wall -c csrc/saanotts_int8.c -o /tmp/i8.o
-xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（いまは 0）
+xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -Wall -DSAAN_INT8_ACT=1 -DSAAN_PIE=1 -c csrc/saanotts_int8.c -o /tmp/i8.o
+xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（S5a 後は 7。フラグ無しなら 0）
 ```
 2. **`β`（式7）の決定。** 候補は β=0 と 2（M-40）。**聴取で決める**（論文も同様）。
    聴取セットは `reports/listening_beta/` に用意済み（40 試行）。
@@ -841,14 +859,15 @@ xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（�
    残るのは (a) **聴取していない** (b) 2 型の下降核が n=13〜16 でしか測れておらず
    `]` 単独の AUC（教師 0.6526 / 生徒 0.5895）だけペアコントラストと食い違う
 
-## 残っているタスク（**両トラック合わせて 4 つ。全部ボードが要る**）
+## 残っているタスク（**2026-09-02 更新。まず実機 1 つ、その後 2 つ**）
 
 | # | 何 | トラック | ゲート | 実機が要るか |
 |---|---|---|---|---|
 | **1** | **サイクル実測**（速度） | 両方 | G28 / G29（K）+ D-3d（かな） | ✅ **要る** |
 | **2** | **聴取** | 両方 | G32 | ❌ 不要（WAV は用意済み） |
 | **3** | 起動から合成まで落ちない / checksum が QEMU と一致 | K | G30 / G31 | ✅ 要る |
-| **4** | 出荷ファームで **W8A8 + PIE** を有効にするかの判断 | かな | — | ✅ 実質要る（動機が速度） |
+| **4** | 出荷ファームで **W8A8 + PIE** を有効にするかの判断（**D-048**） | かな | — | ✅ 実質要る（動機が速度） |
+| **5** | **速度の作り直し**（S-1）。S1〜S5a は入れた。**実機で効果を測る**（A-4）→ **S5b**（重み行をレジスタに保持） | かな | all-test / QEMU checksum / `SAAN_PROFILE=1` の表 | ✅ 効果の確認に要る |
 
 ✅ **「音の測定」は済んだ**（M-78）。実機は要らなかった — 端末の ids はホストの
 生徒モデルにそのまま入るので、**端末の音とホストの音を直接比べられる**。
@@ -865,7 +884,7 @@ xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（�
 16 MB なら**かなトラックの構成もそのまま焼ける**（`partitions.csv` は 5.06 MB）。
 **別々に取りに行くと 2 回焼き直しになる。**
 
-**実装として書くものは残っていない。** 4 つとも「測る」「聴く」「決める」。
+**S5b 以外、実装として書くものは残っていない。** 1〜4 は「測る」「聴く」「決める」。
 
 ⚠️ **聴取が決定を覆す可能性がある**: D-044（動作点 438,750）は
 **「音素の 0.32%」だけで決めた**。⚠️ 未知語フォールバックの

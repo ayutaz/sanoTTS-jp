@@ -35,13 +35,13 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-052 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-053 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
 ### 3. ゲートは「落ちる壊し方」を言えないと書かない
 
-**緑のまま欠陥が潜んでいた例が 11 件あります**（`.claude/skills/writing-gates/`）。
+**緑のまま欠陥が潜んでいた例が 12 件あります**（`.claude/skills/writing-gates/`）。
 新しいテストを足すなら:
 
 - **陽性対照**（必ず落ちるはずの入力）を一緒に入れる
@@ -76,7 +76,8 @@ uv run python scripts/check_doc_counters.py         # 索引の M/D/C 番号・�
 uv run python scripts/check_doc_links.py            # md の相対リンクが実在するか
 uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（94 ケース）
 uv run python scripts/test_sanitize_reports.py      # レポートに本文が混じっていないか
-make -C csrc line && make -C csrc fft               # C コアの軽いゲート
+uv run python scripts/test_blob_to_header.py        # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
+make -C csrc line && make -C csrc fft && make -C csrc erf   # C コアの軽いゲート（erf = GELU の近似）
 ```
 
 **ドキュメントだけ直す PR でも上の 2 本は通してください。**
@@ -124,7 +125,7 @@ than an n=24 score.**
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-052 in
+2. **Never delete the correction log.** C-001–C-053 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
 3. **Do not write a gate you cannot break on purpose.** Eleven defects hid behind green
@@ -143,7 +144,8 @@ uv run python scripts/check_doc_links.py            # relative links in markdown
 uv run python scripts/check_release_assets.py       # assets named in the docs exist in the release
 uv run python .claude/hooks/test_guard_bash.py      # hook regression (94 cases)
 uv run python scripts/test_sanitize_reports.py      # no corpus text in reports
-make -C csrc line && make -C csrc fft               # cheap C-core gates
+uv run python scripts/test_blob_to_header.py        # blob → .rodata header (positive control: fp32 rejected)
+make -C csrc line && make -C csrc fft && make -C csrc erf   # cheap C-core gates (erf = GELU approximation)
 ```
 
 Python must go through `uv` — **never `pip install`**. `~/Documents/piper-plus` (the
