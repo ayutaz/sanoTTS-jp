@@ -113,7 +113,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             **焼くだけの ESP32 firmware 2 種**を追加（M-67）。
                             ⚠️ モデルは v0.1.0 と bit 同一（再学習していない）
 [未]   Phase D-3d           実機測定（**ESP32-S3 ボード待ち**。これは本物の待ち）
-[報告] 実機の速度（第三者）    M5Stack CoreS3 で **W8A8+PIE 1.554× RT / W8A32 4.834× RT**（2026-09-02、
+[報告] 実機の速度（第三者 2 件） CoreS3 で **W8A8+PIE 1.554× RT / W8A32 4.834× RT**、AtomS3 で **1.718× RT**（2026-09-02、
                             **私は未再現**）。checksum は M-62 と一致。実時間に**間に合っていない**
 [完了] 段別プロファイラ        `csrc/saan_prof.h`。QEMU + ホストで **QUANT/GELU/LOOKUP/WCOPY ≥ MAC**（M-80）。
                             実機の内訳は `idf.py -DSAAN_PROFILE=1` で取れる。**S1〜S8 の順で直す**（S-1 §5）

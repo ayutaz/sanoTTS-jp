@@ -51,7 +51,8 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
 
 ⚠️ **2026-09-02、第三者が M5Stack CoreS3 で実機の速度を報告した**（**私は未再現**）:
 **W8A8+PIE で定常 1.554× RT（1 チャンク 144 ms）、W8A32 で 4.834× RT。実時間に間に合っていない。**
-checksum は M-62 と bit 一致。**1 step の内訳を QEMU + ホストで取ったら、活性化の量子化
+checksum は M-62 と bit 一致。**独立した 2 件目**（AtomS3、PSRAM 無し、配布 firmware そのまま）も **xRT 1.718・checksum 一致**
+（README の「独立した ESP32-S3 実機報告が 2 件」。どちらも未再現）。**1 step の内訳を QEMU + ホストで取ったら、活性化の量子化
 （ソフト除算 + `rintf`）/ GELU（`erff`）/ テンソル検索（毎 step 102 回・ヘッダ 1.66 MB 走査）/
 重みのコピー（489 KB/step）が MAC と同等以上だった**（M-80）。PIE を磨いても消えない。
 → [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md)（§5 に直す順序 S1〜S8、

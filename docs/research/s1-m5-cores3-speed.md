@@ -26,6 +26,13 @@ MIT。`components/saanotts_core/` は本リポジトリ `csrc/` の commit `2c61
 | 出力 PCM（FNV-1a / \|max\| / Σx²） | `0x78c209af06affc01` / 9529 / 74,155,592,149 | `0x04de91103a0e49f9` / 9744 / 74,374,063,946 |
 | 静的 DIRAM / 起動直後の内部 DRAM free | — | 290,227 / 341,760 B ・ 102,895 B |
 
+**独立した 2 件目の報告**（AtomS3。magatsux2019 氏、2026-09-01。[測定記録](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)。
+⚠️ 私は未再現）: 本リポジトリの配布 firmware（W8A8+PIE）を M5Stack AtomS3（ESP32-S3、PSRAM 無し）で 2 回走らせ、
+定常 xRT **1.718**、I2S 無効、**27,136 sample の checksum と振幅統計が M-62 と完全一致**。
+CoreS3 とは別の板・別の人で同じ checksum が出た = **M-62 の値は QEMU 固有ではない**。
+CoreS3 の方は m5stack-avatar とリップシンクを載せた構成で **1.558**（上の表の 1.554 は素の構成）、
+60% の先読みで途切れ 0 回・発話開始まで 1,781 ms とも報告している。
+
 報告者は **checksum を本リポジトリの QEMU 記録（M-62）と突き合わせて「27,136 sample すべて bit 一致」**としている。
 値は M-62 の表と一致する（`0x04de91103a0e49f9` / 9744 / 74,374,063,946）。
 **移植が正しいことの根拠として使ってよいのはこの一致だけ**で、速度の数字はまだ誰も再現していない。
