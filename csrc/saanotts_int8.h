@@ -21,6 +21,7 @@
 #ifndef SAANOTTS_INT8_H
 #define SAANOTTS_INT8_H
 
+#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -60,6 +61,26 @@
 #define SAAN_PAD_FILL_A (SAAN_PAD_POISON_A ? 127 : 0)
 
 /* --- 量子化 -------------------------------------------------------------- */
+
+/* float → 最近接整数（ties-to-even）を int32 で返す。
+ *
+ * ⚠️ **S2**: 活性化の量子化は要素ごとにこれを呼ぶ（1 step に約 51,000 回。M-80）。
+ *    `rintf()` は newlib の関数呼び出しで、Xtensa の FPU には `ROUND.S`（丸めモード 0 =
+ *    round-to-nearest-even）が 1 命令である。ホストでは `rintf` のまま（結果は同じ規則）。
+ *    ESP32 / ESP32-S3 の gcc は `__XCHAL_HAVE_FP` を定義する。
+ * ⚠️ **static inline でヘッダに置く。** 外部関数にすると `-mlongcalls` で要素ごとに
+ *    `callx8` が残り、`rintf` の呼び出しを消した意味が無くなる（逆アセンブルで実際に見た）。
+ * ⚠️ **同じ丸め規則であることは QEMU で確認する**（esp32/pie_probe の C 節。
+ *    0.5 / 1.5 / 2.5 / -0.5 … のタイを両方に通して一致を見る）。 */
+static inline int32_t saan_rint_i32(float v) {
+#if defined(__XTENSA__) && defined(__XCHAL_HAVE_FP) && __XCHAL_HAVE_FP
+    int32_t r;
+    __asm__("round.s %0, %1, 0" : "=a"(r) : "f"(v));
+    return r;
+#else
+    return (int32_t)rintf(v);
+#endif
+}
 
 /* symmetric int8 / per-output-channel。`W` は [cout][inner] 行優先
  * （conv なら inner = cin*ksz）。**丸めは rintf = half-to-even**

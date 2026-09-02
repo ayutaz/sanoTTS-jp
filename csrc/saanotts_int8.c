@@ -149,11 +149,18 @@ void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
         }
         const float s = amax / 127.0f;
         sx[t] = s;
+        /* ⚠️ **S2: 除算を逆数の乗算に。** ESP32-S3 の FPU に除算は無く、`x / s` は
+         *    要素ごとに `__divsf3`（ソフト浮動小数）を呼んでいた（M-80。nm -u で確認）。
+         *    `x * (127 / amax)` は `x / (amax / 127)` と**最終ビットが違いうる**ので、
+         *    これは「丸め水準」の変更。出力の checksum は変わる（M-62 の値とは一致しない）。
+         *    `sx[t]` は従来どおり `amax / 127`（逆量子化の意味は変えない）。
+         *    クランプは int で行う（float の 127.0f 比較より安い）。 */
+        const float inv = 127.0f / amax;
         for (int c = 0; c < C; ++c) {
-            float v = rintf(x[(size_t)c * T + t] / s);
-            if (v > 127.0f) v = 127.0f;
-            if (v < -127.0f) v = -127.0f;
-            qt[c] = (int8_t)v;
+            int32_t q = saan_rint_i32(x[(size_t)c * T + t] * inv);
+            if (q > 127) q = 127;
+            if (q < -127) q = -127;
+            qt[c] = (int8_t)q;
         }
     }
     SAAN_PROF_END(SAAN_PROF_QUANT);

@@ -257,6 +257,41 @@ static int part_b(void) {
     return bad;
 }
 
+/* --- C. 丸め（S2）----------------------------------------------------------------
+ * `saan_rint_i32()` は Xtensa では `round.s`（モード 0）、ホストでは `(int32_t)rintf()`。
+ * **同じ規則（ties-to-even）であること**を、タイと境界を含む値で確かめる。
+ * 参照は同じバイナリ内の `rintf`（newlib）。⚠️ 陽性対照: half-away-from-zero の
+ * 実装（`(int)(v + copysign(0.5, v))`）はタイで食い違うことを先に示す。 */
+static int part_c(void) {
+    static const float vals[] = {
+        0.5f, 1.5f, 2.5f, 3.5f, -0.5f, -1.5f, -2.5f, -3.5f,
+        0.49999997f, 0.50000006f, 126.5f, -126.5f, 127.49999f, -127.49999f,
+        1e-8f, -1e-8f, 0.0f, -0.0f, 12345.5f, -12345.5f, 2.9999998f, -2.9999998f,
+    };
+    const int n = (int)(sizeof vals / sizeof vals[0]);
+    int bad = 0, ties_differ_away = 0;
+    for (int i = 0; i < n; ++i) {
+        const int32_t got = saan_rint_i32(vals[i]);
+        const int32_t ref = (int32_t)rintf(vals[i]);
+        const int32_t away = (int32_t)(vals[i] + (vals[i] >= 0.0f ? 0.5f : -0.5f));
+        if (got != ref) {
+            printf("  NG! C  saan_rint_i32(%.9g) = %ld / rintf = %ld\n",
+                   (double)vals[i], (long)got, (long)ref);
+            ++bad;
+        }
+        if (away != ref) ++ties_differ_away;
+    }
+    if (!bad) printf("  OK  C1 saan_rint_i32 == rintf（%d 値。タイと境界を含む）\n", n);
+    /* 陽性対照: half-away-from-zero が ties-to-even と食い違うのは**奇数側に切り上がるタイ**だけ:
+     * ±0.5（0 vs 1）/ ±2.5（2 vs 3）/ ±126.5（126 vs 127）の 6 値。±1.5 / ±3.5 は偶数側で一致する。
+     * ⚠️ 最初 8 と書いて落ちた（±1.5 / ±3.5 を数えていた）。 */
+    const int ok2 = ties_differ_away >= 6;
+    printf("  %s C2 陽性対照: half-away-from-zero は %d 値で rintf と違う（>= 6 なら比較は効いている）\n",
+           ok2 ? "OK " : "NG!", ties_differ_away);
+    if (!ok2) ++bad;
+    return bad;
+}
+
 void app_main(void) {
     printf("\n=== ESP32-S3 PIE probe ===\n");
 #if defined(SAAN_PIE) && SAAN_PIE
@@ -268,9 +303,11 @@ void app_main(void) {
     const int a = part_a();
     printf("\n-- B. saan_conv1d_i8a（本物のカーネル） --\n");
     const int b = part_b();
+    printf("\n-- C. 丸め（round.s vs rintf。S2） --\n");
+    const int c = part_c();
 
-    printf("\n%s  (A %d 件 / B %d 件 の失敗)\n",
-           (a + b) ? "PIE PROBE: FAIL" : "PIE PROBE: PASS", a, b);
+    printf("\n%s  (A %d 件 / B %d 件 / C %d 件 の失敗)\n",
+           (a + b + c) ? "PIE PROBE: FAIL" : "PIE PROBE: PASS", a, b, c);
     printf("=== done ===\n");
     fflush(stdout);
     vTaskDelay(pdMS_TO_TICKS(300));

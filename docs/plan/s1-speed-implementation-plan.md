@@ -349,12 +349,12 @@ static inline int32_t saan_rint_i32(float v);
 ```
 `saan_quantize_act_i8p`: `const float inv = 127.0f / amax; sx[t] = amax / 127.0f;`（`sx` は従来どおり `amax/127`。逆量子化の意味を変えない）→ `int32_t q = saan_rint_i32(x * inv); clamp ±127`。
 
-- [ ] **Step 1: 丸めのテスト（pie_probe に C 節）**: 入力 `{0.5, 1.5, 2.5, -0.5, -1.5, -2.5, 3.4999998, 126.5, -126.5, 127.49, 1e-8, -0.0}` で `saan_rint_i32` と `(int32_t)rintf` が全一致。QEMU で通す。**先にホストで `round.s` の定義を `#if defined(__XTENSA__) && defined(__XTENSA_FP__)` に閉じる**。
-- [ ] **Step 2: 静的ゲート**: `xtensa-esp32s3-elf-objdump -d saanotts_int8.o` で `saan_quantize_act_i8p` の中に `call*` が `memset` 以外に無いこと（`__divsf3` / `rintf` が消えた）。
-- [ ] **Step 3: SNR ゲート**: `make -C csrc int8-e2e-a8` の平均/最小を変更前（v3 W8A8: 平均 24.24 / 最小 21.94 dB）と並べ、**下がっていない**（±0.1 dB）。`make -C csrc all-test` 通過（W8A32 経路は触らないので bit 一致のまま）。
-- [ ] **Step 4: QEMU checksum**: 新しい値を控え、`|max|` が 9744 のまま、Σx² の相対差 ≤ 1e-6 であることを確認。**新値を M-番号で記録**（S2 以降の基準に）。
-- [ ] **Step 5: 実機**の表で QUANT の cyc/要素。
-- [ ] **Step 6: commit** `perf(S2): 活性化の量子化を逆数乗算 + round.s に（丸め水準。QEMU checksum <新値>）`
+- [x] **Step 1: 丸めのテスト（pie_probe に C 節）**: 入力 `{0.5, 1.5, 2.5, -0.5, -1.5, -2.5, 3.4999998, 126.5, -126.5, 127.49, 1e-8, -0.0}` で `saan_rint_i32` と `(int32_t)rintf` が全一致。QEMU で通す。**先にホストで `round.s` の定義を `#if defined(__XTENSA__) && defined(__XTENSA_FP__)` に閉じる**。
+- [x] **Step 2: 静的ゲート**: `xtensa-esp32s3-elf-objdump -d saanotts_int8.o` で `saan_quantize_act_i8p` の中に `call*` が `memset` 以外に無いこと（`__divsf3` / `rintf` が消えた）。
+- [x] **Step 3: SNR ゲート**: `make -C csrc int8-e2e-a8` の平均/最小を変更前（v3 W8A8: 平均 24.24 / 最小 21.94 dB）と並べ、**下がっていない**（±0.1 dB）。`make -C csrc all-test` 通過（W8A32 経路は触らないので bit 一致のまま）。
+- [x] **Step 4: QEMU checksum**: 新しい値を控え、`|max|` が 9744 のまま、Σx² の相対差 ≤ 1e-6 であることを確認。**新値を M-番号で記録**（S2 以降の基準に）。
+- [ ] **Step 5: 実機**の表で QUANT の cyc/要素。⚠️ 板待ち
+- [x] **Step 6: commit** `perf(S2): 活性化の量子化を逆数乗算 + round.s に（丸め水準。QEMU checksum <新値>）`
 
 ### Task S3: GELU の `erff` を Hermite 表に（丸め水準）
 
@@ -434,7 +434,8 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 | A-5 手順書 | ✅ `12ea114` | |
 | **A-0 / A-4 実機** | ⏳ **板待ち**（ユーザーのスタックチャン。種類は未同定） | |
 | **S1 検索を init で 1 回に** | ✅ | pull 中の LOOKUP **42,280 → 0 回**（20 発話）/ all-test bit 一致 / QEMU checksum 不変・PIE 5 命令 / QEMU icount の 1 step **811,001 → 741,973**（−8.5%。⚠️ サイクルではない） |
-| S2 / S3 / S4 / S5 | 次 | |
+| **S2 量子化の除算と rintf を消す** | ✅ | 要素ごとの `__divsf3` + `rintf` 呼び出し → `mul.s` + `round.s`（フレームごとの除算 2 回だけ残る）/ W8A8 e2e 平均 24.24 → **24.21 dB**・最小 21.94 不変 / QEMU checksum **`0x04de91103a0e49f9` のまま**（この 1 文では量子化値が 1 つも変わらなかった。丸め水準の宣言どおり、他の文では変わりうる）/ pie_probe C 節: round.s == rintf（22 値、陽性対照つき） |
+| S3 / S4 / S5 | 次 | |
 
 ## 実行の順序と依存
 
