@@ -23,6 +23,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 4.5 | [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) | **K-1 の結論レポート**。B-0 の否定的結論のうち 4 つが崩れた。辞書は mmap / TTS 専用バイナリで 1 エントリ 28.29 B / アクセント天井は 126 行。**§0 に「その後どうなったか」**（実装で分かったずれ 3 件） | 固定（§0 だけ追記） |
 | 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K トラックの実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件（G1〜G32。⚠️ G15/G16 は欠番）。**K-7 まで完了。冒頭に「残っているもの」の 4 行表** | 進行中（残り K-8 と判断 2 件） |
 | 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。§5 に直す順序、§6 に M5 対応の取り込み案 | 進行中 |
+| 4.8 | [`plan/s1-speed-implementation-plan.md`](plan/s1-speed-implementation-plan.md) | **S-1 の実装計画**。Phase A（M5Unified 対応 A-0〜A-5）/ Phase B（速度 S1〜S5、各ステップに bit 同一か丸め水準かとゲート）/ Phase C（判断）。ブランチ `feat/s1-speed-m5` | 進行中 |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
