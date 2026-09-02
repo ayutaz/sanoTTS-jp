@@ -7,6 +7,12 @@
 #include "driver/i2s_std.h"
 #include "esp_partition.h"
 #include "freertos/task.h"
+#include "esp_heap_caps.h"
+
+/* --- heap ---------------------------------------------------------------- */
+
+void *heap_caps_malloc(size_t n, unsigned caps) { (void)caps; return malloc(n); }
+void  heap_caps_free(void *p) { free(p); }
 
 /* --- partition ---------------------------------------------------------- */
 

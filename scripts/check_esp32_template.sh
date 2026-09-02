@@ -132,7 +132,7 @@ grep -ohE '\bsaan_[a-z0-9_]+\s*\(' esp32/main/*.c \
 MISS=0
 while read -r sym; do
     case "$sym" in
-        saan_model_*|saan_i2s_*|saan_f32_to_i16|saan_stub_*|saan_console_*) continue ;;  # 雛形自身の関数
+        saan_model_*|saan_audio_*|saan_pcm_*|saan_ui_*|saan_f32_to_i16|saan_stub_*|saan_console_*) continue ;;  # 雛形自身の関数
         # K トラックの端末側（esp32/main/saan_dict.c / saan_kanji.c）。csrc ではなく main の関数
         saan_dict_*|saan_kanji_*) continue ;;
     esac
@@ -143,7 +143,7 @@ while read -r sym; do
         MISS=1
     fi
 done < "$TMP/used"
-[ "$MISS" = "0" ] && ok "main.c / saan_model.c / saan_i2s.c が呼ぶコア API はすべて実在"
+[ "$MISS" = "0" ] && ok "esp32/main/*.c が呼ぶコア API はすべて実在"
 
 # ---------------------------------------------------------------- 8
 hdr "8. ホスト stub ビルド + C コアとの突き合わせ"
@@ -151,11 +151,12 @@ if cc -std=gnu17 -O2 -Wall -Wextra -Werror \
      -I esp32/host_stub -I esp32/main -I csrc \
      -o "$TMP/hoststub" \
      esp32/main/main.c esp32/main/saan_model.c esp32/main/saan_i2s.c \
+     esp32/main/saan_pcm.c esp32/main/saan_ui_null.c \
      esp32/host_stub/stubs.c esp32/host_stub/host_main.c \
      csrc/saanotts.c csrc/saanotts_stream.c csrc/fft.c csrc/saanotts_int8.c \
      csrc/g2p.c \
      -lm 2>"$TMP/hw"; then
-    ok "esp32/main の 3 ファイル + stub が 0 warning / 0 error でビルドできる"
+    ok "esp32/main の 5 ファイル + stub が 0 warning / 0 error でビルドできる"
 else
     ng "ホスト stub ビルド"; sed 's/^/      /' "$TMP/hw"
 fi

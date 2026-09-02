@@ -16,7 +16,8 @@
  * 1 発話の中身:
  *   静的 arena で saan_stream_init
  *     → 数チャンク先に計算してプリロール（初回 pull だけ約 6 倍重いため）
- *     → I2S を enable → pull → int16 → i2s_channel_write を繰り返す
+ *     → saan_audio_start → pull → int16 → saan_audio_write_f32 を繰り返す
+ *        （音声出力の実装は saan_audio.h の後ろ。DevKit の I2S か M5.Speaker か）
  *
  * ⚠️ **「喋った = 実時間で喋れた」ではない。** M-43 の外挿では
  *    移植可能 C / fp32 は 2.47 × RT で、音声 92.88 ms を作るのに約 229 ms かかる。
@@ -40,9 +41,11 @@
 #include "g2p.h"
 
 #include "demo_ids.h"
+#include "saan_audio.h"
 #include "saan_console.h"
-#include "saan_i2s.h"
 #include "saan_model.h"
+#include "saan_pcm.h"
+#include "saan_ui.h"
 
 static const char *TAG = "saanotts";
 
@@ -167,7 +170,7 @@ typedef char saan_max_ids_check[(SAAN_MAX_IDS <= SAAN_G2P_IDS_CAP) ? 1 : -1];
 #define SAAN_TASK_PRIO  5
 
 /* プリロールするチャンク数。1 チャンク = 2,048 sample = 92.88 ms */
-#define SAAN_PREROLL_CHUNKS (SAAN_I2S_PREROLL_SAMPLES / (SAAN_CHUNK * SAAN_HOP))
+#define SAAN_PREROLL_CHUNKS (SAAN_AUDIO_PREROLL_SAMPLES / (SAAN_CHUNK * SAAN_HOP))
 
 /* --- 段別プロファイラ（-DSAAN_PROFILE=1 のときだけ。csrc/saan_prof.h）------------
  *
@@ -214,10 +217,11 @@ static void log_heap(const char *when) {
  * ⚠️ **arena も PCM 統計も発話ごとに巻き戻す。** 巻き戻さないと 2 発話目の
  *    checksum が「1 + 2 発話目」になり、しかも値は出るので気づけない。 */
 static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids) {
-    saan_i2s_pcm_reset();
+    saan_pcm_reset();
 #if SAAN_PROFILE
     saan_prof_reset();
 #endif
+    saan_ui_status("合成中…");
 
     saan_arena a;
     saan_arena_init(&a, g_arena, sizeof g_arena);
@@ -250,9 +254,10 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
              (unsigned)a.used, (unsigned)a.peak, (unsigned)sizeof g_arena);
 
     /* --- プリロール ------------------------------------------------------
-     * ⚠️ **I2S を enable する前に数チャンク計算しておく。** 最初の pull だけ
+     * ⚠️ **鳴らし始める前に数チャンク計算しておく。** 最初の pull だけ
      * 定常の約 6 倍かかる（ホスト実測 12.2 ms vs 2.04 ms）。受容野 38 フレームの
      * warmup で内部の step_chunk が複数回走るため。 */
+    if (!saan_audio_begin_utterance(SAAN_AUDIO_PREROLL_SAMPLES)) return false;
     int32_t n = 0;
     int chunks = 0;
     int64_t t_first = 0, t_rest = 0;
@@ -269,9 +274,9 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         if (n <= 0) { eos = true; break; }
         if (chunks == 0) t_first = dt; else t_rest += dt;
         /* ⚠️ `n` は**フレーム数**。サンプル数は n * SAAN_HOP */
-        if (!saan_i2s_preroll_push(g_chunk, (size_t)n * SAAN_HOP)) {
+        if (!saan_audio_preroll_push(g_chunk, (size_t)n * SAAN_HOP)) {
             ESP_LOGE(TAG, "プリロール容量の計算が合っていない。"
-                          "SAAN_I2S_PREROLL_SAMPLES を見直すこと");
+                          "SAAN_AUDIO_PREROLL_SAMPLES を見直すこと");
             ok = false; goto done;
         }
         total_frames += n; ++chunks;
@@ -280,7 +285,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     ESP_LOGI(TAG, "プリロール %d チャンク完了（初回 pull %.2f ms）",
              chunks, (double)t_first / 1000.0);
 
-    if (!saan_i2s_start()) { ok = false; goto done; }
+    if (!saan_audio_start()) { ok = false; goto done; }
 
     /* --- 定常ループ ------------------------------------------------------ */
     while (!eos) {
@@ -299,11 +304,11 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         if (n < SAAN_CHUNK) ++short_pulls;
         total_frames += n; ++chunks;
 
-        if (!saan_i2s_write_f32(g_chunk, (size_t)n * SAAN_HOP)) { ok = false; break; }
+        if (!saan_audio_write_f32(g_chunk, (size_t)n * SAAN_HOP)) { ok = false; break; }
     }
 
 done:
-    saan_i2s_stop();
+    saan_audio_stop();
     {
         double total_audio = (double)total_frames * SAAN_HOP / SAAN_SR;
         double mean_rest = chunks > 1 ? (double)t_rest / (chunks - 1) / 1000.0 : 0.0;
@@ -317,18 +322,20 @@ done:
         ESP_LOGI(TAG, "定常 xRT = %.3f  ← **1.0 を超えたら実時間に間に合っていない**",
                  chunk_ms > 0 ? mean_rest / chunk_ms : 0.0);
         ESP_LOGI(TAG, "アンダーラン %d / %d チャンク", underruns, chunks);
-        ESP_LOGI(TAG, "int16 クリップ %u sample", (unsigned)saan_i2s_clip_count());
+        saan_ui_status("xRT %.2f  途切れ %d/%d", chunk_ms > 0 ? mean_rest / chunk_ms : 0.0,
+                       underruns, chunks);
+        ESP_LOGI(TAG, "int16 クリップ %u sample", (unsigned)saan_pcm_clip_count());
         /* ⚠️ **移植が正しいことの唯一の機械的な証拠。** 「音が鳴った」ではなく
          *    この 2 つがホスト（esp32/host_stub）と一致するかで判定する。 */
         ESP_LOGI(TAG, "出力 PCM: %u sample / FNV-1a 0x%016llx",
-                 (unsigned)saan_i2s_pcm_samples(),
-                 (unsigned long long)saan_i2s_pcm_checksum());
+                 (unsigned)saan_pcm_samples(),
+                 (unsigned long long)saan_pcm_checksum());
         /* ⚠️ **checksum が違っても、ここが合っていれば丸め差。**
          *    ホストとターゲットで bit 一致は**期待できない**（float の丸めが違う）。
          *    bit 一致を主張してよいのは**同じターゲット上の 2 構成**を比べたときだけ。 */
         ESP_LOGI(TAG, "        |max| %d / Σx² %llu",
-                 (int)saan_i2s_pcm_absmax(),
-                 (unsigned long long)saan_i2s_pcm_sqsum());
+                 (int)saan_pcm_absmax(),
+                 (unsigned long long)saan_pcm_sqsum());
         ESP_LOGI(TAG, "タスクスタック残り %u B（%d B 中）",
                  (unsigned)(uxTaskGetStackHighWaterMark(NULL) * sizeof(StackType_t)),
                  (int)SAAN_TASK_STACK);
@@ -440,6 +447,7 @@ static bool speak_line(const saan_weights *w, const char *text, size_t nbytes) {
         return false;
     }
 
+    saan_ui_show(NULL, text);
     return synth_once(w, g_ids, n_ids);
 }
 
@@ -555,7 +563,9 @@ static void tts_task(void *arg) {
     log_heap("辞書 mmap 後");
 #endif
 
-    if (!saan_i2s_setup(SAAN_SR)) { vTaskDelete(NULL); return; }
+    /* ⚠️ この順番。M5 実装では saan_audio_setup() が M5.begin() を呼び、saan_ui_init() はその後 */
+    if (!saan_audio_setup(SAAN_SR)) { vTaskDelete(NULL); return; }
+    if (!saan_ui_init()) { vTaskDelete(NULL); return; }
     int32_t demo_n_ids = 0;
     if (!boot_selftest(&demo_n_ids)) { vTaskDelete(NULL); return; }
 
@@ -564,6 +574,7 @@ static void tts_task(void *arg) {
      *    対話入力は毎回違う列なので突き合わせに使えない。ただし**同じ中間表現を
      *    打てば同じ列になる**ことは確認済みなので、既定では喋らない（上の #define）。 */
     ESP_LOGI(TAG, "起動時の 1 発話: \"%s\"", SAAN_DEMO_TEXT);
+    saan_ui_show(SAAN_DEMO_TEXT, SAAN_DEMO_INTERMEDIATE);
     (void)synth_once(&w, g_ids, demo_n_ids);
     log_heap("1 発話後");
 #else

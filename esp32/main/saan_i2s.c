@@ -1,10 +1,14 @@
-#include "saan_i2s.h"
+/* saan_audio.h の DevKit 実装 — ESP-IDF の driver/i2s_std を直叩き。
+ *
+ * float → int16 と checksum は saan_pcm.c（唯一の実装）。ここは I2S に流すだけ。 */
+#include "saan_audio.h"
+#include "saan_pcm.h"
 
 #include <inttypes.h>
-#include <math.h>
 #include <string.h>
 
 #include "driver/i2s_std.h"
+#include "esp_heap_caps.h"
 #include "esp_log.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -24,17 +28,24 @@ static const char *TAG = "saan_i2s";
 #define SAAN_I2S_GPIO_DOUT 7
 #endif
 
+/* I2S ペリフェラルへの書き込みだけを外す（**変換は通す**）。
+ * ⚠️ **QEMU 専用の逃げ道。既定 0。** 1 にすると音は一切出ない。
+ * QEMU の esp32s3 は I2S DMA を捌かず `i2s_channel_write` が返らないため、
+ * これが無いと合成ループを 1 回も回せない（実測）。 */
+#ifndef SAAN_SKIP_I2S
+#define SAAN_SKIP_I2S 0
+#endif
+
 /* DMA バッファ。16 bit mono なので 1 バッファ = dma_frame_num * 2 B。
  * 6 × 512 = 3,072 フレーム ≒ 139 ms ぶん（1 バッファ 1,024 B は上限 4,092 B 以内）。
  *
- * ⚠️ **これでスループット不足は埋まらない。** M-43 の外挿では移植可能 C /
- *    fp32 は 2.47 × RT で、1 チャンク（音声 92.88 ms）の計算に約 229 ms かかる。
- *    DMA を何段積んでも足りない。int8 + PIE が要る、が M-43 の結論。 */
+ * ⚠️ **これでスループット不足は埋まらない。** 実機（CoreS3 の報告値）は W8A8+PIE でも
+ *    1 チャンク（音声 92.88 ms）に 144 ms かかる。DMA を何段積んでも足りない。
+ *    直す順序は docs/research/s1-m5-cores3-speed.md §5。 */
 #define SAAN_I2S_DMA_DESC  6
 #define SAAN_I2S_DMA_FRAME 512
 
 static i2s_chan_handle_t s_tx;
-static uint32_t s_clips;
 
 /* 変換バッファとプリロール。**static にしてスタックから外す**
  * （FreeRTOS タスクのスタックに置くと saan_irfft_1024 の自動変数 4,128 B と
@@ -42,49 +53,15 @@ static uint32_t s_clips;
  * タスクスタックで繰り返さない） */
 #define SAAN_I2S_MAXBUF 2048
 static int16_t s_i16[SAAN_I2S_MAXBUF];
-static int16_t s_preroll[SAAN_I2S_PREROLL_SAMPLES];
-static size_t  s_preroll_fill;
+static int16_t s_preroll_static[SAAN_AUDIO_PREROLL_SAMPLES];
 
-/* 出力 PCM の FNV-1a（リトルエンディアンの 2 バイトを順に食う）。
- * ⚠️ ホストと**同じ順序・同じ幅**で食うこと。片方だけ変えると比較が無意味になる */
-static uint64_t s_pcm_fnv = 1469598103934665603ull;
-static uint32_t s_pcm_n;
-/* ⚠️ **checksum だけでは「1 LSB 違い」と「全部でたらめ」を区別できない。**
- * ホストとターゲットで float の丸めが違えば checksum は必ず変わるので、
- * **大きさも併せて出す**（これが一致していれば丸め差、外れていればバグ）。 */
-static int32_t  s_pcm_absmax;
-static uint64_t s_pcm_sqsum;
+/* begin_utterance で決まる貯め先。静的バッファか、超えるときだけヒープ。 */
+static int16_t *s_preroll;
+static int16_t *s_preroll_heap;    /* ヒープから取ったときだけ非 NULL（stop で返す） */
+static size_t   s_preroll_cap;
+static size_t   s_preroll_fill;
 
-int16_t saan_f32_to_i16(float x) {
-    long v = lrintf(x * 32767.0f);
-    if (v > 32767) { v = 32767; ++s_clips; }
-    else if (v < -32768) { v = -32768; ++s_clips; }
-    uint16_t u = (uint16_t)(int16_t)v;
-    s_pcm_fnv = (s_pcm_fnv ^ (uint8_t)(u & 0xff)) * 1099511628211ull;
-    s_pcm_fnv = (s_pcm_fnv ^ (uint8_t)(u >> 8)) * 1099511628211ull;
-    { int32_t av = (int32_t)(v < 0 ? -v : v);
-      if (av > s_pcm_absmax) s_pcm_absmax = av;
-      s_pcm_sqsum += (uint64_t)((int64_t)v * (int64_t)v); }
-    ++s_pcm_n;
-    return (int16_t)v;
-}
-
-void saan_i2s_pcm_reset(void) {
-    s_pcm_fnv = 1469598103934665603ull;   /* FNV-1a 64 bit のオフセット基底 */
-    s_pcm_n = 0;
-    s_pcm_absmax = 0;
-    s_pcm_sqsum = 0;
-    s_clips = 0;
-    s_preroll_fill = 0;   /* ⚠️ 前の発話の残りを次に混ぜない */
-}
-
-uint32_t saan_i2s_clip_count(void) { return s_clips; }
-uint64_t saan_i2s_pcm_checksum(void) { return s_pcm_fnv; }
-uint32_t saan_i2s_pcm_samples(void) { return s_pcm_n; }
-int32_t  saan_i2s_pcm_absmax(void) { return s_pcm_absmax; }
-uint64_t saan_i2s_pcm_sqsum(void) { return s_pcm_sqsum; }
-
-bool saan_i2s_setup(uint32_t sample_rate) {
+bool saan_audio_setup(uint32_t sample_rate) {
     i2s_chan_config_t cc = I2S_CHANNEL_DEFAULT_CONFIG(I2S_NUM_AUTO, I2S_ROLE_MASTER);
     cc.dma_desc_num  = SAAN_I2S_DMA_DESC;
     cc.dma_frame_num = SAAN_I2S_DMA_FRAME;
@@ -117,13 +94,52 @@ bool saan_i2s_setup(uint32_t sample_rate) {
     ESP_LOGI(TAG, "I2S 設定 %" PRIu32 " Hz / 16bit / mono / DMA %d x %d frames / "
                   "preroll %d sample",
              sample_rate, SAAN_I2S_DMA_DESC, SAAN_I2S_DMA_FRAME,
-             (int)SAAN_I2S_PREROLL_SAMPLES);
+             (int)SAAN_AUDIO_PREROLL_SAMPLES);
     ESP_LOGW(TAG, "S3 に APLL は無い。実サンプルレートの誤差は**未測定**");
     return true;
 }
 
-bool saan_i2s_preroll_push(const float *pcm, size_t n_samples) {
-    if (s_preroll_fill + n_samples > (size_t)SAAN_I2S_PREROLL_SAMPLES) return false;
+bool saan_audio_begin_utterance(size_t n_samples) {
+    if (n_samples == 0) { ESP_LOGE(TAG, "0 sample の発話"); return false; }
+    if (s_preroll != NULL) {
+        /* stop() を呼ばずに次の発話に来た。前の再生が終わっているとは限らない */
+        ESP_LOGW(TAG, "前の発話のバッファが残っている。stop してから続ける");
+        saan_audio_stop();
+    }
+    if (n_samples <= (size_t)SAAN_AUDIO_PREROLL_SAMPLES) {
+        s_preroll = s_preroll_static;
+    } else {
+        /* 貯めてから鳴らす方式。1 秒 44,100 B。350 ids の上限では数百 KB になるので
+         * 内部 DRAM には入らないことがある。**取れなければ false で止める**（切り詰めない） */
+        const size_t nb = n_samples * sizeof(int16_t);
+        void *p = heap_caps_malloc(nb, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (p) {
+            ESP_LOGI(TAG, "発話バッファ %u B を PSRAM に確保", (unsigned)nb);
+        } else {
+            p = heap_caps_malloc(nb, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+            if (!p) {
+                ESP_LOGE(TAG, "発話バッファ %u B を確保できない（PSRAM も内部 DRAM も）。"
+                              "-DSAAN_BUFFERED=0（ストリーミング）にするか文を短くすること",
+                         (unsigned)nb);
+                return false;
+            }
+            ESP_LOGW(TAG, "発話バッファ %u B を**内部 DRAM**から確保した（PSRAM が無い構成）",
+                     (unsigned)nb);
+        }
+        s_preroll_heap = (int16_t *)p;
+        s_preroll = s_preroll_heap;
+    }
+    s_preroll_cap  = n_samples;
+    s_preroll_fill = 0;
+    return true;
+}
+
+bool saan_audio_preroll_push(const float *pcm, size_t n_samples) {
+    if (s_preroll == NULL) {
+        ESP_LOGE(TAG, "saan_audio_begin_utterance が済んでいない");
+        return false;
+    }
+    if (s_preroll_fill + n_samples > s_preroll_cap) return false;
     for (size_t i = 0; i < n_samples; ++i)
         s_preroll[s_preroll_fill + i] = saan_f32_to_i16(pcm[i]);
     s_preroll_fill += n_samples;
@@ -135,7 +151,7 @@ bool saan_i2s_preroll_push(const float *pcm, size_t n_samples) {
  * QEMU の esp32s3 マシンは I2S の DMA を捌かないので、`i2s_channel_write` が
  * 永久にブロックして合成ループへ入れない（実測: プリロール完了後に停止）。
  * ペリフェラルへの書き込みだけを外し、**float→int16 変換は必ず通す**ので
- * `saan_i2s_pcm_checksum()` はホストと突き合わせられる。 */
+ * `saan_pcm_checksum()` はホストと突き合わせられる。 */
 static bool write_i16(const int16_t *p, size_t n) { (void)p; (void)n; return true; }
 #else
 static bool write_i16(const int16_t *p, size_t n) {
@@ -155,33 +171,56 @@ static bool write_i16(const int16_t *p, size_t n) {
 }
 #endif /* SAAN_SKIP_I2S */
 
-bool saan_i2s_start(void) {
+/* 貯めたぶんを送出する。I2S の 1 回の書き込みは SAAN_I2S_MAXBUF ずつに割る
+ * （貯めてから鳴らす方式では数十万 sample になる） */
+static bool flush_preroll(void) {
+    size_t off = 0;
+    while (off < s_preroll_fill) {
+        size_t n = s_preroll_fill - off;
+        if (n > (size_t)SAAN_I2S_MAXBUF) n = SAAN_I2S_MAXBUF;
+        if (!write_i16(s_preroll + off, n)) return false;
+        off += n;
+    }
+    s_preroll_fill = 0;
+    return true;
+}
+
+bool saan_audio_start(void) {
 #if SAAN_SKIP_I2S
     ESP_LOGW(TAG, "SAAN_SKIP_I2S: I2S を鳴らさない（QEMU 用。音は出ない）");
-    if (s_preroll_fill > 0) { write_i16(s_preroll, s_preroll_fill); s_preroll_fill = 0; }
-    return true;
+    return flush_preroll();
 #else
     esp_err_t err = i2s_channel_enable(s_tx);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "i2s_channel_enable: %s", esp_err_to_name(err));
         return false;
     }
-    if (s_preroll_fill > 0) {
-        ESP_LOGI(TAG, "プリロール %u sample を送出", (unsigned)s_preroll_fill);
-        if (!write_i16(s_preroll, s_preroll_fill)) return false;
-        s_preroll_fill = 0;
-    }
-    return true;
+    if (s_preroll_fill > 0)
+        ESP_LOGI(TAG, "貯めた %u sample (%.3f s) を送出", (unsigned)s_preroll_fill,
+                 (double)s_preroll_fill / 22050.0);
+    return flush_preroll();
 #endif
 }
 
-void saan_i2s_stop(void) {
+void saan_audio_stop(void) {
 #if !SAAN_SKIP_I2S
-    if (s_tx) i2s_channel_disable(s_tx);
+    /* ⚠️ i2s_channel_write は DMA に渡し終えた時点で返る。最後の DMA バッファ
+     *    （139 ms ぶん）が鳴り切るまで待ってから disable する。待たないと語尾が切れる */
+    if (s_tx) {
+        vTaskDelay(pdMS_TO_TICKS(SAAN_I2S_DMA_DESC * SAAN_I2S_DMA_FRAME * 1000 / 22050 + 10));
+        i2s_channel_disable(s_tx);
+    }
 #endif
+    if (s_preroll_heap) {
+        heap_caps_free(s_preroll_heap);
+        s_preroll_heap = NULL;
+    }
+    s_preroll = NULL;
+    s_preroll_cap = 0;
+    s_preroll_fill = 0;
 }
 
-bool saan_i2s_write_f32(const float *pcm, size_t n_samples) {
+bool saan_audio_write_f32(const float *pcm, size_t n_samples) {
     while (n_samples > 0) {
         size_t n = n_samples > SAAN_I2S_MAXBUF ? SAAN_I2S_MAXBUF : n_samples;
         for (size_t i = 0; i < n; ++i) s_i16[i] = saan_f32_to_i16(pcm[i]);

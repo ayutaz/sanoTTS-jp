@@ -323,15 +323,19 @@ arm64 / clang -O2 での実フレームは **4,224 B**（`sub sp,sp,#0x1000` + `
 ⚠️ 16 KB が適切かは**未測定**。実機で `uxTaskGetStackHighWaterMark` を見て詰める
 （`main.c` が終了時にログへ出す）。
 
-### 6. I2S を enable する前にプリロールする
+### 6. 鳴らし始める前にプリロールする
 
 **最初の `saan_stream_pull` だけ定常の約 6 倍かかる**
-（ホスト実測 n_ids=350 で 12.21 ms vs 2.04 ms、比 6.0）。受容野 36 +
-iSTFT 2 = 38 フレームの warmup で内部の `step_chunk` が複数回走るため。
+（ホスト実測 n_ids=350 で 12.21 ms vs 2.04 ms、比 6.0。CoreS3 の報告値も 766 ms vs 144 ms）。
+受容野 36 + iSTFT 2 = 38 フレームの warmup で内部の `step_chunk` が複数回走るため。
 
-`i2s_channel_enable()` の直後から合成を始めると、その 1 回ぶんが確実に
-アンダーランになる。`saan_i2s_preroll_push()` で 4 チャンク（371 ms・16 KB）
-先に計算してから `saan_i2s_start()` を呼ぶ。
+鳴らし始めた直後から合成を始めると、その 1 回ぶんが確実にアンダーランになる。
+`saan_audio_preroll_push()` で 4 チャンク（371 ms・16 KB）先に計算してから
+`saan_audio_start()` を呼ぶ。
+
+音声出力は `main/saan_audio.h` の抽象 API で、実装は 2 つ（`saan_i2s.c` = DevKit の
+I2S 直叩き / `boards/m5unified/main/saan_audio_m5.cpp` = M5.Speaker）。
+float → int16 と checksum は **`saan_pcm.c` が唯一の実装**で、どちらもそれを呼ぶ。
 
 ### 7. `-std=c99` を component に足さない
 

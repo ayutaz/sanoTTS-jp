@@ -11,7 +11,8 @@ if(SAAN_KANJI)
 endif()
 
 idf_component_register(
-    SRCS "main.c" "saan_model.c" "saan_i2s.c" "saan_console.c" ${SAAN_MAIN_K}
+    SRCS "main.c" "saan_model.c" "saan_i2s.c" "saan_pcm.c" "saan_ui_null.c"
+         "saan_console.c" ${SAAN_MAIN_K}
     INCLUDE_DIRS "."
     REQUIRES saanotts_core driver esp_partition esp_timer
 )
@@ -29,7 +30,7 @@ endif()
 # ⚠️ **音は一切出ない。実機ではこれを付けないこと。**
 # QEMU の esp32s3 マシンは I2S DMA を捌かないので `i2s_channel_write` が返らず、
 # **プリロール完了後に停止する**（実測）。float→int16 変換は通したままなので、
-# `saan_i2s_pcm_checksum()` をホスト（esp32/host_stub）と突き合わせられる。
+# `saan_pcm_checksum()` をホスト（esp32/host_stub）と突き合わせられる。
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
 #    「fp32 blob なのに W8A8 有効」ガードがこれを見る。片方だけ定義すると
 #    ガードが黙って消えて、**効いていないのに気づけない**構成に戻る。
