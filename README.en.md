@@ -10,11 +10,13 @@ This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/a
 ("sanoTTS") to Japanese, distilling [piper-plus](https://github.com/ayutaz/piper-plus)
 (MB-iSTFT-VITS2) into three small students: Duration, Acoustic, and an iSTFT Decoder.
 
-✅ **A third party has run inference on real ESP32-S3 hardware.** On an M5Stack AtomS3
-with 8 MB flash, the W8A8 + PIE path produced PCM exactly matching the QEMU baseline.
-However, steady-state xRT was **1.718**, missing real time, and I2S output was disabled
-([independent measurement](https://github.com/magatsux2019/sanotts-atoms3-results);
-see [Status](#status)).
+✅ **Two independent ESP32-S3 hardware results are available.** An M5Stack AtomS3
+confirmed bit-exact inference and PCM generation; a CoreS3 ran its built-in speaker,
+display, and lip sync. Their steady-state xRT values were **1.718 / 1.558**, respectively,
+so neither generates in real time. The CoreS3 avoided gaps with 60% preroll
+([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
+[CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
+[video](https://x.com/nnn112358/status/2095071771355725970)).
 
 ## What makes Japanese hard
 
@@ -37,7 +39,8 @@ a counterpart.
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 643,936 B in int8 (flash) |
-| **Speed** | ⚠️ **Not met.** An independent M5Stack AtomS3 measurement reported steady-state xRT **1.718** with W8A8 + PIE (n=2, I2S disabled), above the real-time threshold of 1.0 ([measurement](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)) |
+| **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)) |
+| **Hardware audio output** | Works through M5Unified on CoreS3. With 60% preroll: **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)) |
 | **Kanji on the device** | Synthesizes end to end under QEMU (13.7 MB dictionary / 438,750 entries). ⚠️ **Untested on hardware** |
 
 ⚠️ **Everything above is a predictor score at n = 24–200, and exactly one person has
@@ -47,17 +50,25 @@ calibrated for Japanese**. Real human Japanese speech scores only
 **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute numbers against
 English papers**.
 
-**One real-hardware measurement is now available.** The int8 kernel uses the ESP32-S3's
-PIE (SIMD): `ee.vmulas.s8.accx` replaces the dot product and covers **99.4%** of the MACs.
-A third party measured the W8A8 + PIE path twice on an M5Stack AtomS3 and reproduced
-**steady-state xRT 1.718**. The checksum and amplitude statistics of all 27,136 generated
-PCM samples exactly matched the QEMU baseline, confirming correctness on hardware
-([measurement](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)).
+**Two independent hardware reports are now available.** The int8 kernel uses the
+ESP32-S3's PIE (SIMD): `ee.vmulas.s8.accx` replaces the dot product and covers **99.4%**
+of the MACs.
 
-⚠️ **Inference is correct on hardware, but it is not real-time yet.** That measurement
-disabled I2S. What remains is **speed optimization**, **I2S on real hardware**, and
-**confirming that the kanji path boots**. It does not reach the **0.22× real-time**
-reported by the official implementation on the same chip.
+- **AtomS3:** two W8A8 + PIE runs reproduced steady-state xRT **1.718**. I2S was disabled,
+  but the checksum and amplitude statistics of all 27,136 PCM samples exactly matched
+  the QEMU baseline
+  ([measurement](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md))
+- **CoreS3:** with the M5Unified built-in-speaker path, m5stack-avatar, and lip sync,
+  steady-state xRT was **1.558**. A 60% preroll gave **1,781 ms** to speech onset and
+  **zero** overtake gaps
+  ([implementation and measurements](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
+  [video](https://x.com/nnn112358/status/2095071771355725970))
+
+⚠️ **Correct inference and hardware playback are confirmed, but generation itself is
+not real-time yet.** The CoreS3 result hides the deficit with preroll. Hardware audio is
+confirmed for its M5Unified path; this repository's `saan_i2s` path and the kanji path
+remain untested. Neither result reaches the **0.22× real-time** reported by the official
+implementation on the same chip.
 
 **What QEMU has verified:**
 
@@ -66,9 +77,10 @@ reported by the official implementation on the same chip.
 | 2026-08-30 | The shipping firmware **boots → mmaps the weights → runs G2P → synthesizes → converts to int16**. **PIE is bit-identical to the scalar path across all 27,136 samples** (with a negative control, M-62) |
 | 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.2.0 ships a flash-and-go 16 MB image for it** |
 
-✅ **Kana-path inference and PCM generation have run on a real AtomS3.** I2S was disabled,
-and **the kanji path is still QEMU-only**. What remains is **real-time performance**,
-**I2S on real hardware**, and **confirming that the kanji path boots**.
+✅ **The kana path has run inference and generated PCM on AtomS3, and played through the
+built-in speaker on CoreS3.** The CoreS3 audio path is a derivative implementation using
+M5Unified; generation without preroll is still not real-time. **This repository's
+`saan_i2s` path and the kanji path remain untested on hardware.**
 
 ## Getting started
 
@@ -167,7 +179,10 @@ Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over seria
 | Kana | `esp32s3-firmware-w8a8-pie.bin` | The kana intermediate form only | 8 MB+ |
 | **Kanji** | `esp32s3-firmware-kanji-16mb.bin` | **Prefix a line with `!`** for kanji text | **16 MB required** |
 
-⚠️ **The kana path measured steady-state xRT 1.718 on an AtomS3 (n=2, I2S disabled).**
+✅ **The kana path is confirmed on two hardware configurations.** AtomS3 measured
+steady-state xRT **1.718** (n=2, I2S disabled). CoreS3 played through its built-in speaker
+using M5Unified; steady-state xRT **1.558** was covered by 60% preroll with **zero** gaps
+([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)).
 ⚠️ **The kanji one has never run on hardware.**
 
 > The reason kanji used to be rejected was "the dictionary does not fit". Re-measuring broke that
@@ -222,7 +237,7 @@ regenerate labels or retrain; kanji→kana conversion works with the piper-plus 
 | | Why |
 |---|---|
 | **Regenerate labels / retrain** | The teacher checkpoint lives in a private repository |
-| **Real-time operation including I2S** | ⚠️ The AtomS3 measurement reported steady-state xRT **1.718**, with I2S disabled ([independent measurement](https://github.com/magatsux2019/sanotts-atoms3-results)) |
+| **Real-time generation without preroll** | ⚠️ AtomS3 measured steady-state xRT **1.718** and CoreS3 **1.558**. CoreS3 avoids gaps with 60% preroll ([hardware implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)) |
 | **Say whether it sounds good** | ⚠️ **One listener, one session.** Zero for the kanji path |
 
 ## Architecture
