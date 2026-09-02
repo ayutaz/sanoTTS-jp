@@ -13,6 +13,13 @@ payload（16 B 境界に揃える）
 
 dtype: 0 = fp32 / 1 = int8 / 2 = fp32 scale（int8 の per-output-channel）
 
+**version 2（S4、2026-09-02）**: int8 の conv 重み `[cout][cin][k]` は payload を
+**`[cout][k][align16(cin)]` に並べ替えて 0 埋め**して書く（dims は `(cout, cin, k)` のまま。
+nbytes = cout·k·cinp）。cin == 1（depthwise）はバイト列が同じなので padding しない。
+C 側（csrc/saanotts_int8.c）は転置コピー無しで PIE の `ee.vld.128.ip` に直接渡せる。
+⚠️ v1 の int8 blob（v0.2.0 以前のリリース）は C 側が SAAN_ERR_VERSION で拒む。
+   fp32 だけの v1 blob（golden / ids）は読める。
+
 実行:
     uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \
         --out csrc/student.bin --golden csrc/golden.bin
@@ -37,7 +44,7 @@ from saanotts_jp.ptq import dequantize, quantize_tensor  # noqa: E402
 from saanotts_jp.vocab import V as VOCAB  # noqa: E402
 
 MAGIC = b"SAAN"
-VERSION = 1
+VERSION = 2
 NAME_LEN = 64
 DT_F32, DT_I8, DT_SCALE = 0, 1, 2
 
@@ -46,12 +53,16 @@ class Writer:
     def __init__(self) -> None:
         self.entries: list[tuple[str, int, tuple[int, ...], bytes]] = []
 
-    def add(self, name: str, arr: np.ndarray, dtype: int) -> None:
+    def add(self, name: str, arr: np.ndarray, dtype: int,
+            dims: tuple[int, ...] | None = None) -> None:
+        """`dims` を渡すとヘッダの shape はそれ、payload は `arr` のバイト列になる
+        （v2 の packed conv: shape は論理形 (cout, cin, k)、payload は [cout][k][cinp]）。"""
         if len(name.encode()) >= NAME_LEN:
             raise ValueError(f"名前が長すぎる: {name}")
-        if arr.ndim > 4:
-            raise ValueError(f"{name}: ndim {arr.ndim} > 4")
-        self.entries.append((name, dtype, tuple(arr.shape),
+        shape = tuple(arr.shape) if dims is None else tuple(dims)
+        if len(shape) > 4:
+            raise ValueError(f"{name}: ndim {len(shape)} > 4")
+        self.entries.append((name, dtype, shape,
                              np.ascontiguousarray(arr).tobytes()))
 
     def write(self, path: pathlib.Path) -> dict:
@@ -83,6 +94,23 @@ class Writer:
 
 
 # 量子化の規則は `src/saanotts_jp/ptq.py`（唯一の定義）。ここに式を書き写さない。
+
+
+def conv_stride_v2(cin: int) -> int:
+    """C 側の SAAN_W_STRIDE(cin) と同じ規則: cin == 1 は 1、それ以外は align16(cin)。"""
+    return 1 if cin == 1 else (cin + 15) // 16 * 16
+
+
+def pack_conv_v2(q2d: np.ndarray, cout: int, cin: int, ksz: int) -> np.ndarray:
+    """`[cout, cin*k]`（quantize_tensor の出力）→ v2 payload `[cout][k][cinp]`（0 埋め）。
+
+    ⚠️ **値の並べ替えだけ。** 量子化の規則も丸めも触らない。C 側の `saan_pack_w_i8()` と
+    同じ配置でなければならない（int8_test 2c がバイト単位で突き合わせる）。"""
+    cinp = conv_stride_v2(cin)
+    q3 = np.ascontiguousarray(q2d).reshape(cout, cin, ksz).transpose(0, 2, 1)   # [cout][k][cin]
+    packed = np.zeros((cout, ksz, cinp), dtype=np.int8)
+    packed[:, :, :cin] = q3
+    return packed
 
 
 def main() -> int:
@@ -121,7 +149,11 @@ def main() -> int:
             # 埋め込み・1-D（bias / LayerNorm / LayerScale）は fp32 のまま（論文の指定）
             if args.int8 and v.dim() >= 2 and "emb" not in k and "pos" not in k:
                 q2d, sc = quantize_tensor(v)
-                w.add(full, q2d.reshape(tuple(v.shape)), DT_I8)
+                if v.dim() != 3:
+                    raise SystemExit(f"{full}: int8 の conv 重み以外（ndim {v.dim()}）は "
+                                     f"v2 のレイアウト規則を決めていない")
+                cout, cin, ksz = (int(d) for d in v.shape)
+                w.add(full, pack_conv_v2(q2d, cout, cin, ksz), DT_I8, dims=(cout, cin, ksz))
                 w.add(full + ".scale", sc, DT_SCALE)
                 faked.setdefault(mod, {})[k] = dequantize(q2d, sc, v.shape)
             else:
@@ -178,7 +210,9 @@ def main() -> int:
                                     "n_ids": len(ids), "frames": int(d_hat.sum()),
                                     "samples": int(pcm.shape[-1])},
         "s_v": S_V, "clip": [CLIP_LO, CLIP_HI],
-        "format": "SAAN v1。ヘッダに name/dtype/shape/offset を持つ自己記述形式",
+        "format": "SAAN v2。ヘッダに name/dtype/shape/offset を持つ自己記述形式。"
+                  "int8 conv 重みの payload は [cout][k][align16(cin)] で 0 埋め"
+                  "（cin==1 の depthwise は padding 無し）。v1 との差はこのレイアウトだけ",
         "repro": ("uv run python scripts/export_c_weights.py"
                   f" --ckpt {args.ckpt} --out {args.out} --golden {args.golden}"
                   + (" --int8" if args.int8 else "")

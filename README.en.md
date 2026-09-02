@@ -38,7 +38,7 @@ a counterpart.
 |---|---|
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
-| **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 643,936 B in int8 (flash) |
+| **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 654,032 B in int8 (flash; blob v2 with pre-aligned rows, +10,096 B over v1's 643,936 B) |
 | **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)) |
 | **Hardware audio output** | Works through M5Unified on CoreS3. With 60% preroll: **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)) |
 | **Kanji on the device** | Synthesizes end to end under QEMU (13.7 MB dictionary / 438,750 entries). ⚠️ **Untested on hardware** |
@@ -103,7 +103,7 @@ M5Unified; generation without preroll is still not real-time. **This repository'
 |---|---|---|
 | `saanotts-jp-v3-samples.zip` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Synthesized WAVs |
 | `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch weights (2,744,874 B) |
-| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | int8 blob for the C99 core (643,936 B) |
+| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | int8 blob for the C99 core (643,936 B, **format v1**). ⚠️ **The core after S4 (2026-09-02) needs v2 (654,032 B)**; a v1 blob stops at boot with `SAAN_ERR_VERSION`. The v2 asset ships with the next release; until then build it with `scripts/export_c_weights.py --int8` |
 | `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | fp32 blob, for reference and debugging |
 | `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Reference output for `make -C csrc golden` |
 | `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The same, fp32 |

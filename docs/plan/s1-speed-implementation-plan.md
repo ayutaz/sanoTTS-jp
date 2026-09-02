@@ -395,13 +395,13 @@ typedef struct {
 `saan_conv1d_i8a(..., const int8_t *W, ...)` の `W` は v2 レイアウトを前提にし、`wt` スクラッチと転置ループを削除。PIE は `W + (o*ksz + k)*cinp` を直接 `ee.vld.128.ip` に渡す（**blob 内の各 int8 テンソルの offset は 16 の倍数**。`check_esp32_template.sh` のゲート 4 が見ている）。
 exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2, 1)` → 末尾を `cinp` に 0 埋め → `w.add(full, q3p, DT_I8)`（dims は `(cout, cin, k)` のまま。nbytes = cout·k·cinp）。1-D/2-D（`duration.proj` など）は `[cout][cinp]`。
 
-- [ ] **Step 1: 失敗するテスト**: `int8_test.c` 2c に「blob の int8 テンソルは `nbytes == cout*ksz*align16(cin)`」を足す → v1 blob で落ちる。
-- [ ] **Step 2: exporter を v2 に**し `make -C csrc student_i8.bin golden_i8.bin`（教師 ckpt が要る。手元）。`student.bin` も再生成（fp32 は中身不変・version だけ 2）。
-- [ ] **Step 3: コア**を書き換え、`make -C csrc all-test` 全通過（**int8-e2e の SNR と stream の bit 一致は v1 と同じ値**。積和の順序を変えていないので `dump_pcm` の出力は v1 と bit 同一 → `cmp` で確認）。
-- [ ] **Step 4: v1 blob を渡すと止まる**（陰性対照）: 旧 `student_i8.bin` を退避しておき `saan_weights_open` が `SAAN_ERR_VERSION` を返す。
-- [ ] **Step 5: QEMU**: checksum が S3 の値のまま / `pie_probe` PASS / `prof` の WCOPY 0 回。
-- [ ] **Step 6: リリース**: 資産 `saanotts-jp-v3-int8.bin` を v2 で上げ直す（D-045 = latest のみ）。`README.md` の資産表に「形式 SAAN v2（v0.3.0 以降のコア）」。`check_release_assets.py` 通過。
-- [ ] **Step 7: commit** `perf(S4): blob v2 — 重みを [cout][k][align16(cin)] で持ち、実行時の転置を無くした（bit 同一）`
+- [x] **Step 1: 失敗するテスト**: `int8_test.c` 2c に「blob の int8 テンソルは `nbytes == cout*ksz*align16(cin)`」を足す → v1 blob で落ちる。
+- [x] **Step 2: exporter を v2 に**し `make -C csrc student_i8.bin golden_i8.bin`（教師 ckpt が要る。手元）。`student.bin` も再生成（fp32 は中身不変・version だけ 2）。
+- [x] **Step 3: コア**を書き換え、`make -C csrc all-test` 全通過（**int8-e2e の SNR と stream の bit 一致は v1 と同じ値**。積和の順序を変えていないので `dump_pcm` の出力は v1 と bit 同一 → `cmp` で確認）。
+- [x] **Step 4: v1 blob を渡すと止まる**（陰性対照）: 旧 `student_i8.bin` を退避しておき `saan_weights_open` が `SAAN_ERR_VERSION` を返す。
+- [x] **Step 5: QEMU**: checksum が S3 の値のまま / `pie_probe` PASS / `prof` の WCOPY 0 回。
+- [ ] **Step 6: リリース**: 資産 `saanotts-jp-v3-int8.bin` を v2 で上げ直す（D-045 = latest のみ）。`README.md` の資産表に「形式 SAAN v2（v0.3.0 以降のコア）」。`check_release_assets.py` 通過。⚠️ **外向きの作業なので main へのマージ時にユーザーと行う**（このブランチでは手元の blob だけ v2）
+- [x] **Step 7: commit** `perf(S4): blob v2 — 重みを [cout][k][align16(cin)] で持ち、実行時の転置を無くした（bit 同一）`
 
 ### Task S5: PIE ループの改良（bit 同一）
 
@@ -436,7 +436,8 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 | **S1 検索を init で 1 回に** | ✅ | pull 中の LOOKUP **42,280 → 0 回**（20 発話）/ all-test bit 一致 / QEMU checksum 不変・PIE 5 命令 / QEMU icount の 1 step **811,001 → 741,973**（−8.5%。⚠️ サイクルではない） |
 | **S2 量子化の除算と rintf を消す** | ✅ | 要素ごとの `__divsf3` + `rintf` 呼び出し → `mul.s` + `round.s`（フレームごとの除算 2 回だけ残る）/ W8A8 e2e 平均 24.24 → **24.21 dB**・最小 21.94 不変 / QEMU checksum **`0x04de91103a0e49f9` のまま**（この 1 文では量子化値が 1 つも変わらなかった。丸め水準の宣言どおり、他の文では変わりうる）/ pie_probe C 節: round.s == rintf（22 値、陽性対照つき） |
 | **S3 GELU の erff を Hermite 表に** | ✅ | erff との max\|Δ\| 1.19e-7（陽性対照 1.18e-4 は落ちる）/ golden fp32 SNR 118.97 dB / W8A32・W8A8 の e2e SNR 不変 / **QEMU 基準 checksum が変わった**: W8A8+PIE `0xa69a7ebbb5ccb05f`（\|max\| 9627）/ W8A32 `0xe4b645c30835d42d`（\|max\| 9529 同一・Σx² 8.7e-9）/ QEMU icount 1 step **557,152**（S1 前 811,001、−31%）。記録は M-81 |
-| S4 / S5 | 次 | |
+| **S4 blob v2（事前整列）** | ✅ | **bit 同一**（S3 と 24 文 cmp 0/24、QEMU 両構成の checksum 不変）/ blob 643,936 → 654,032 B / WCOPY 0 / v1 int8 blob は SAAN_ERR_VERSION で拒否 / QEMU icount 1 step 557,152 → **454,548**（S1 前から −44%）。⚠️ リリース資産の v2 化はマージ時 |
+| S5 | 次 | |
 
 ## 実行の順序と依存
 

@@ -35,7 +35,7 @@ bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシ
 |---|---|
 | **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
 | **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
-| **メモリ** | **197 KB** — ESP32-S3 の SRAM 512 KB の 38%。重みは int8 で 643,936 B（flash） |
+| **メモリ** | **197 KB** — ESP32-S3 の SRAM 512 KB の 38%。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
 | **速度** | ⚠️ **未達。** W8A8 + PIE の定常 xRT は AtomS3 **1.718**（n=2、I2S 無効）/ CoreS3 **1.558**（内蔵スピーカー・顔あり）。どちらもリアルタイム条件 `< 1.0` を満たさない（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
 | **実機の音声出力** | CoreS3 の M5Unified 経路で成功。60% を先読みし、発話開始まで **1,781 ms** / 追い越し（途切れ）**0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)） |
 | **漢字を端末で読む** | QEMU で合成まで完走（辞書 13.7 MB / 438,750 entries）。⚠️ **実機未検証** |
@@ -95,7 +95,7 @@ CoreS3 の音声出力は M5Unified を使う派生実装で、先読みなし�
 |---|---|---|
 | `saanotts-jp-v3-samples.zip` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 合成音の WAV |
 | `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch の重み（2,744,874 B） |
-| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | C99 コア用の int8 blob（643,936 B） |
+| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | C99 コア用の int8 blob（643,936 B、**形式 v1**）。⚠️ **S4（2026-09-02）以降のコアは v2（654,032 B）が要る**。v1 を渡すと起動時に `SAAN_ERR_VERSION` で止まる。v2 の資産は次のリリースで上げる。それまでは `scripts/export_c_weights.py --int8` で作る |
 | `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 参照・デバッグ用の fp32 blob |
 | `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc golden` 用の参照出力 |
 | `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 同（fp32） |

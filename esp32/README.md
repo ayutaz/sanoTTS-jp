@@ -165,7 +165,7 @@ idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
 | | サイズ | 枠 |
 |---|---:|---:|
 | app | 359,584 B | 2,097,152 B（17.1%） |
-| model（int8） | 643,936 B | 786,432 B |
+| model（int8 v2） | 654,032 B | 786,432 B |
 | **dict** | **13,702,320 B** | **13,828,096 B**（99.1%） |
 
 ⚠️ **16 MB flash が要る**（`partitions_16mb.csv`）。8 MB のボードには載らない。
@@ -183,7 +183,7 @@ idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
 
 | blob | サイズ | 状態 |
 |---|---:|---|
-| **`csrc/student_i8.bin` (int8)** | **643,936 B** | **既定**。リリースで配布しているのもこれ。**W8A8 + PIE はこれでないと効かない** |
+| **`csrc/student_i8.bin` (int8, **blob v2**)** | **654,032 B** | **既定**。**W8A8 + PIE はこれでないと効かない**。⚠️ リリース v0.2.0 の資産は v1（643,936 B）で、S4 以降のコアは `SAAN_ERR_VERSION` で拒む。`uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --int8 --out csrc/student_i8.bin --golden csrc/golden_i8.bin --golden-from-quantized --report csrc/export_i8.json` で作る |
 | `csrc/student.bin` (fp32) | 2,249,792 B | 参照・デバッグ用。`-DSAAN_MODEL_BLOB=$PWD/../csrc/student.bin` |
 
 ⚠️ **blob は git 管理外。** クローンしただけでは存在しない。
@@ -205,7 +205,7 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 
 ### 1. 重みは flash に置き、SRAM にコピーしない
 
-`esp_partition_mmap()` で `model` パーティションを読む。blob は 643,936 B
+`esp_partition_mmap()` で `model` パーティションを読む。blob は 654,032 B
 （int8）〜 2,249,792 B（fp32）で、512 KB の SRAM には入らない。
 コアは blob を書き換えないので read-only で足りる。
 

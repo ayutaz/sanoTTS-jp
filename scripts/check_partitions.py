@@ -130,9 +130,9 @@ def main(argv=None) -> int:
         print("NG! app パーティションが無い")
         bad += 1
     else:
-        # ⚠️ --rodata では app に blob（int8 643,936 B）が乗る。実測の app 285,440 B +
+        # ⚠️ --rodata では app に blob（int8 v2 654,032 B）が乗る。実測の app 285,440 B +
         #    blob = 928,832 B（QEMU 構成）で、M5Unified + M5GFX を足すと 1.3 MB（報告値）。
-        need = 1_500_000 + (643_936 if args.rodata else 0)
+        need = 1_500_000 + (654_032 if args.rodata else 0)
         for a in apps:
             ok = a["size"] >= need
             print(f"  {'OK ' if ok else 'NG!'} app '{a['name']}' {a['size']:,} B "

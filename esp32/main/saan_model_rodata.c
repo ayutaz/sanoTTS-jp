@@ -5,7 +5,7 @@
  * ESP_ERR_NO_MEM で落ちた（第三者の実機報告。docs/research/s1-m5-cores3-speed.md §0。
  * ⚠️ 私は未再現）。ヘッダに埋めれば app の DROM として起動時にマップされるので踏まない。
  *
- * 代償: app が blob ぶん（643,936 B）大きくなり、**モデルだけの差し替えができない**
+ * 代償: app が blob ぶん（654,032 B。v2）大きくなり、**モデルだけの差し替えができない**
  * （app ごと再ビルド・再フラッシュ）。DevKit の既定はパーティション mmap（saan_model.c）のまま。
  *
  * 選び方: CMake の `-DSAAN_MODEL_RODATA=1`（esp32/main/CMakeLists.txt が SRCS を切り替え、
@@ -14,7 +14,7 @@
  * ⚠️ **`saan_model_blob.h` を include するのはこの翻訳単位だけ。** 配列の定義を持つので、
  *    2 箇所から include するとリンク時に重複定義で落ちる（黙って flash が 2 倍にはならない）。
  * ⚠️ **`const` を外さないこと。** const → .rodata → flash（SRAM 消費 0）。
- *    非 const → .data → DIRAM 643,936 B で即リンク不能。
+ *    非 const → .data → DIRAM 654,032 B で即リンク不能。
  *
  * 出所: 方式は nnn112358/SanoTTS-jp-M5StackCoreS3（MIT）の main/saan_model.c と同じ。 */
 #include "saan_model.h"

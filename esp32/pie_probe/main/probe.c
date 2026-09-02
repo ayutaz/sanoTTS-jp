@@ -124,6 +124,7 @@ static float xin[MAXC * MAXT];
 static float yout[MAXC * MAXT];
 static float yref[MAXC * MAXT];
 static AL16 int8_t qw[MAXC * MAXC / 8];
+static AL16 int8_t qwp[MAXC * MAXC / 8];   /* blob v2 のレイアウト [cout][k][cinp]（S4） */
 static float wf[MAXC * MAXC / 8];
 static float wsc[MAXC];
 
@@ -147,16 +148,18 @@ static void scalar_conv1d_i8a(float *y, const float *x, const int8_t *W,
         float *yo = y + (size_t)o * T;
         const float s = sc[o];
         const float bias = b ? b[o] : 0.0f;
-        const int8_t *wo = W + (size_t)o * cin * ksz;
+        /* ⚠️ W は blob v2 のレイアウト [cout][k][cinp]（S4）。本体と同じ添字 */
+        const int8_t *wo = W + (size_t)o * ksz * cinp;
         for (int t = 0; t < T; ++t) {
             float acc = 0.0f;
             for (int k = 0; k < ksz; ++k) {
                 const int u = t + k - pad;
                 if (u < 0 || u >= T) continue;
                 const int8_t *qu = qx + (size_t)u * cinp;
+                const int8_t *wk = wo + (size_t)k * cinp;
                 int32_t a32 = 0;
                 for (int i = 0; i < cin; ++i)
-                    a32 += (int32_t)wo[(size_t)i * ksz + k] * (int32_t)qu[i];
+                    a32 += (int32_t)wk[i] * (int32_t)qu[i];
                 acc += (float)a32 * sx[u];
             }
             yo[t] = acc * s + bias;
@@ -205,8 +208,9 @@ static int one_shape(const char *tag, int cin, int cout, int ksz, int T,
         for (int i = 0; i < inner; ++i) wf[(size_t)o * inner + i] = rndf();
     }
     saan_quantize_w_i8(qw, wsc, wf, cout, inner);
-    saan_conv1d_i8a(yout, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
-    scalar_conv1d_i8a(yscal, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf2, sxbuf2);
+    saan_pack_w_i8(qwp, qw, cout, cin, ksz);   /* v2 レイアウトに（ref_conv は論理形 qw を読む） */
+    saan_conv1d_i8a(yout, xin, qwp, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
+    scalar_conv1d_i8a(yscal, xin, qwp, wsc, NULL, cin, cout, ksz, T, qbuf2, sxbuf2);
     ref_conv(yref, xin, qw, wsc, cin, cout, ksz, T);
 
     /* **主判定: PIE 版とスカラ版が bit 完全一致すること** */
@@ -230,9 +234,10 @@ static int negative_control(void) {
     for (int i = 0; i < cin * T; ++i) xin[i] = rndf();
     for (int i = 0; i < cout * cin; ++i) wf[i] = rndf();
     saan_quantize_w_i8(qw, wsc, wf, cout, cin * ksz);
-    saan_conv1d_i8a(yout, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
-    qw[5] = (int8_t)(qw[5] + 1);                 /* ← わざと壊す */
-    scalar_conv1d_i8a(yscal, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf2, sxbuf2);
+    saan_pack_w_i8(qwp, qw, cout, cin, ksz);
+    saan_conv1d_i8a(yout, xin, qwp, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
+    qwp[5] = (int8_t)(qwp[5] + 1);               /* ← わざと壊す（cin=48 なので index 5 は実値） */
+    scalar_conv1d_i8a(yscal, xin, qwp, wsc, NULL, cin, cout, ksz, T, qbuf2, sxbuf2);
     size_t ndiff = 0;
     for (size_t i = 0; i < (size_t)cout * T; ++i)
         if (memcmp(&yout[i], &yscal[i], sizeof(float)) != 0) ++ndiff;

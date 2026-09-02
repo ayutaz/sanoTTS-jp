@@ -68,8 +68,9 @@ const float *saan_tf(const saan_weights *w, const char *fmt, ...);
  */
 typedef struct {
     const float  *f32;    /* fp32 ブロブのとき。int8 なら NULL */
-    const int8_t *q;      /* int8 ブロブのとき。fp32 なら NULL */
+    const int8_t *q;      /* int8 ブロブのとき。fp32 なら NULL。**v2 レイアウト [cout][k][cinp]** */
     const float  *scale;  /* int8 の per-output-channel scale [cout] */
+    int32_t cinp;         /* int8 の行ストライド = SAAN_W_STRIDE(cin)。fp32 なら 0 */
 } saan_wref;
 
 #define SAAN_W_OK(r) ((r).f32 != NULL || (r).q != NULL)

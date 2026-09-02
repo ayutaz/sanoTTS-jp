@@ -5828,6 +5828,58 @@ INIT: 191535 cyc / 回
 **実機では QUANT と GELU の削減幅がこれより大きいはず**（`__divsf3` と `erff` は QEMU では安く見える）が、
 **測るまで書かない。**
 
+### 7. S4: blob v2 — 重みを `[cout][k][align16(cin)]` で持ち、実行時の転置コピーを無くした（**bit 同一**）
+
+| | 値 |
+|---|---|
+| exporter | `scripts/export_c_weights.py` VERSION 2。int8 conv 重みの payload を `[cout][k][cinp]` に並べ替えて 0 埋め（cin == 1 の depthwise はそのまま）。dims は論理形のまま |
+| int8 blob | 643,936 → **654,032 B**（+10,096 B。padding は形状だけで決まる: pw1 76→80 ×5 / inp 40→48 / cdown / cup / hdown） |
+| コア | `saan_conv1d_i8a` からスタック `wt`（512 B）と転置ループを削除。PIE は blob の `W + (o·ksz + k)·cinp` を直接 `ee.vld.128.ip` に渡す。`saan_conv1d_i8`（W8A32）は添字だけ変更（ループ順序は同じ） |
+| v1 の拒否 | `saan_weights_open` は int8 を含む v1 blob を `SAAN_ERR_VERSION`（「int8 blob は v2 が要る。v1 = v0.2.0 以前のリリース」）で止める。fp32 だけの v1（golden / ids）は開ける |
+
+再現（bit 同一の確認）: S3 時点のソースで作った `dump_pcm`（v1 blob）と現行（v2 blob）で held-out 24 文を書き出し `cmp`:
+
+| 経路 | 違うファイル |
+|---|---:|
+| W8A8 | **0 / 24** |
+| W8A32 | **0 / 24** |
+
+QEMU も両構成とも S3 の値のまま（W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d`。PIE 命令 5）。
+`pie_probe` は 7 形状で bit 差 0 + 陰性対照 24 件（v2 レイアウトで走らせた）。
+`int8_test` 2c は **C の量子化器 + `saan_pack_w_i8` が exporter と 554,388 / 554,388 値（padding 込み）で一致**。
+`make -C csrc prof` の WCOPY は **0 回**。
+
+⚠️ **テストの潜在バグが 2 件表面化した**: `int8_test.c` が W8A8 の `qx` を `cin·T` で確保していた（カーネルは M-58 以降 `align16(cin)·T` を書く）。S4 で確保パターンが変わって nan として出た。`align16` に直した。
+⚠️ 陰性対照: v1 の int8 blob を渡すと `golden_test` が上のメッセージで止まる（確認済み）。
+
+QEMU（`-icount shift=0`）の 1 step: 557,152 → **454,548**（S1 前 811,001 から **−44%**）。WCOPY 15.2% → 0。
+
+```
+STEP           1.00       454548  100.0%            0       0.00
+HF             1.00        55541   12.2%            0       0.00
+TOKEN          0.67        55404   12.2%           19    2945.55
+AC             5.00        79873   17.6%            0       0.00
+DINP           1.00         5354    1.2%            0       0.00
+DEC            5.00       245975   54.1%            0       0.00
+HEAD           1.00        40090    8.8%            0       0.00
+ISTFT         10.19        26034    5.7%            0       0.00
+LOOKUP         6.24         3733    0.8%          802       4.66
+QUANT         43.33        30772    6.8%        50998       0.60
+WCOPY          0.00            0    0.0%            0       0.00
+MAC         4724.19       267546   58.9%      7279646       0.04
+DW             5.00        33176    7.3%        37240       0.89
+GELU           6.00        69485   15.3%        21664       3.21
+LN             7.14         6265    1.4%         6791       0.92
+RELU           7.14         1247    0.3%         6791       0.18
+PIPE          33.00        10278    2.3%            0       0.00
+INIT: 182793 cyc / 回
+1 step = 454548 cyc（240 MHz なら 1.89 ms）。⚠️ QEMU ではサイクルではない
+```
+
+⚠️ **リリース資産 `saanotts-jp-v3-int8.bin`（latest）はまだ v1。** S4 以降のコアではそのままでは読めない
+（起動時に SAAN_ERR_VERSION で止まる）。**v2 に上げ直すのはリリース作業**（D-045 = latest のみ）で、
+このブランチを main に入れるときに行う。手元の `csrc/student_i8.bin` は v2 で再生成済み。
+
 ### ⚠️ 測っていないこと
 
 - **実機**（板待ち。スタックチャンの板の種類も未同定）

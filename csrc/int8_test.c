@@ -102,7 +102,7 @@ static void synth_conv(const shape_t *s, double out[3]) {
     float *y2 = malloc(sizeof(float) * ny), *y3 = malloc(sizeof(float) * ny);
     int8_t *q = malloc(nw);
     float *sc = malloc(sizeof(float) * (size_t)cout);
-    int8_t *qx = malloc((size_t)cin * T);
+    int8_t *qx = malloc((size_t)(((cin) + 15) & ~15) * (T));   /* ⚠️ 活性化の行ストライドは align16（M-58）。cin*T では溢れる（S4 で nan として表面化） */
     float *sx = malloc(sizeof(float) * (size_t)T);
 
     const float gain = 1.0f / sqrtf((float)(cin * ksz));
@@ -114,11 +114,15 @@ static void synth_conv(const shape_t *s, double out[3]) {
     for (int o = 0; o < cout; ++o)
         for (int i = 0; i < cin * ksz; ++i)
             Wd[(size_t)o * cin * ksz + i] = (float)q[(size_t)o * cin * ksz + i] * sc[o];
+    /* blob v2 のレイアウト（[cout][k][cinp]）に並べ替えてカーネルへ。⚠️ 16 B 境界 */
+    int8_t *qp = NULL;
+    if (posix_memalign((void **)&qp, 16, saan_packed_w_bytes(cout, cin, ksz)) != 0) exit(1);
+    saan_pack_w_i8(qp, q, cout, cin, ksz);
 
     saan_conv1d(y0, x, W, b, cin, cout, ksz, T);     /* 参照: fp32 の重み */
     saan_conv1d(y1, x, Wd, b, cin, cout, ksz, T);    /* 逆量子化した重みを fp32 で */
-    saan_conv1d_i8(y2, x, q, sc, b, cin, cout, ksz, T);
-    saan_conv1d_i8a(y3, x, q, sc, b, cin, cout, ksz, T, qx, sx);
+    saan_conv1d_i8(y2, x, qp, sc, b, cin, cout, ksz, T);
+    saan_conv1d_i8a(y3, x, qp, sc, b, cin, cout, ksz, T, qx, sx);
 
     out[0] = snr_db(y2, y0, ny);   /* W8A32 vs fp32 */
     out[1] = snr_db(y2, y1, ny);   /* W8A32 vs 逆量子化 fp32 = カーネル自体の忠実さ */
@@ -126,7 +130,7 @@ static void synth_conv(const shape_t *s, double out[3]) {
 
     free(W); free(Wd); free(x); free(b);
     free(y0); free(y1); free(y2); free(y3);
-    free(q); free(sc); free(qx); free(sx);
+    free(q); free(qp); free(sc); free(qx); free(sx);
 }
 
 static void synth_dw(int ch, int ksz, int T, double out[3]) {
@@ -137,7 +141,7 @@ static void synth_dw(int ch, int ksz, int T, double out[3]) {
     float *y2 = malloc(sizeof(float) * ny), *y3 = malloc(sizeof(float) * ny);
     int8_t *q = malloc(nw);
     float *sc = malloc(sizeof(float) * (size_t)ch);
-    int8_t *qx = malloc(ny);
+    int8_t *qx = malloc((size_t)(((ch) + 15) & ~15) * (size_t)T);   /* ⚠️ depthwise も活性化の行ストライドは align16(ch)（M-58）。ch*T では溢れる */
     float *sx = malloc(sizeof(float) * (size_t)T);
 
     const float gain = 1.0f / sqrtf((float)ksz);
@@ -277,12 +281,22 @@ int main(int argc, char **argv) {
         float *Wd = malloc(sizeof(float) * nw);
         float *y0 = malloc(sizeof(float) * ny), *y1 = malloc(sizeof(float) * ny);
         float *y2 = malloc(sizeof(float) * ny), *y3 = malloc(sizeof(float) * ny);
-        int8_t *qx = malloc((size_t)in_ch * T);
+        int8_t *qx = malloc((size_t)(((in_ch) + 15) & ~15) * (T));   /* ⚠️ 活性化の行ストライドは align16（M-58）。cin*T では溢れる（S4 で nan として表面化） */
         float *sx = malloc(sizeof(float) * (size_t)T);
         for (size_t i = 0; i < (size_t)in_ch * T; ++i) x[i] = rng_normal();
-        for (int o = 0; o < cout; ++o)
-            for (size_t i = 0; i < inner; ++i)
-                Wd[(size_t)o * inner + i] = (float)q[(size_t)o * inner + i] * scale[o];
+        /* blob v2: 非 depthwise の q は [cout][k][cinp]。逆量子化は論理形 [cout][cin][k] に戻す */
+        const int cinp = SAAN_W_STRIDE(cin);
+        for (int o = 0; o < cout; ++o) {
+            if (is_dw) {
+                for (size_t i = 0; i < inner; ++i)
+                    Wd[(size_t)o * inner + i] = (float)q[(size_t)o * inner + i] * scale[o];
+            } else {
+                for (int i = 0; i < cin; ++i)
+                    for (int k = 0; k < ksz; ++k)
+                        Wd[((size_t)o * cin + i) * ksz + k] =
+                            (float)q[((size_t)o * ksz + k) * cinp + i] * scale[o];
+            }
+        }
 
         if (is_dw) {
             saan_dwconv1d(y0, x, W, cout, ksz, T);
@@ -319,28 +333,37 @@ int main(int argc, char **argv) {
 
     /* ---- 2c. C の量子化器が Python の exporter と **バイト一致**するか ----
      * 丸めが half-to-even（rintf）でないとここで割れる。roundf に変えると落ちる。 */
-    printf("\n== 2c. saan_quantize_w_i8 と scripts/export_c_weights.py の一致 ==\n");
+    printf("\n== 2c. saan_quantize_w_i8 + saan_pack_w_i8 と scripts/export_c_weights.py の一致 ==\n");
     {
-        long q_diff = 0, s_diff = 0, n_val = 0;
+        /* ⚠️ blob v2 は payload が [cout][k][cinp]（0 埋め）。C 側で量子化 → 同じ配置に並べ替えて、
+         *    **padding 込みでバイト単位に**突き合わせる。配置規則が exporter とずれれば落ちる。
+         *    nbytes も見る（v1 の blob なら saan_weights_open が先に拒む） */
+        long q_diff = 0, s_diff = 0, n_val = 0, nb_diff = 0;
         for (int e = 0; e < n_i8; ++e) {
             const uint32_t *d = ents[e].dims;
-            const int cout = (int)d[0];
-            const int inner = (int)(d[1] ? d[1] : 1) * (int)(d[2] ? d[2] : 1);
+            const int cout = (int)d[0], cin = (int)(d[1] ? d[1] : 1), ksz = (int)(d[2] ? d[2] : 1);
+            const int inner = cin * ksz;
             const float *scale = NULL;
             const int8_t *qref = saan_ti8(&I, &scale, "%s", ents[e].name);
             const float *W = (const float *)tensor_of(&F, ents[e].name, 0u, NULL);
+            uint64_t nb = 0;
+            saan_tensor(&I, ents[e].name, NULL, NULL, &nb);
             if (!qref || !scale || !W) { ++bad; continue; }
+            const size_t packed = saan_packed_w_bytes(cout, cin, ksz);
+            if (nb != packed) { ++nb_diff; ++bad; continue; }
             int8_t *q = malloc((size_t)cout * inner);
+            int8_t *qp = malloc(packed);
             float *sc = malloc(sizeof(float) * (size_t)cout);
             saan_quantize_w_i8(q, sc, W, cout, inner);
+            saan_pack_w_i8(qp, q, cout, cin, ksz);
             for (int o = 0; o < cout; ++o) if (sc[o] != scale[o]) ++s_diff;
-            for (size_t i = 0; i < (size_t)cout * inner; ++i)
-                if (q[i] != qref[i]) ++q_diff;
-            n_val += (long)cout * inner;
-            free(q); free(sc);
+            for (size_t i = 0; i < packed; ++i)
+                if (qp[i] != qref[i]) ++q_diff;
+            n_val += (long)packed;
+            free(q); free(qp); free(sc);
         }
-        printf("  %s int8 値 %ld/%ld 一致 / scale の不一致 %ld\n",
-               (q_diff || s_diff) ? "NG!" : "OK ", n_val - q_diff, n_val, s_diff);
+        printf("  %s int8 値 %ld/%ld 一致（v2 配置・padding 込み） / scale の不一致 %ld / nbytes 不一致 %ld\n",
+               (q_diff || s_diff || nb_diff) ? "NG!" : "OK ", n_val - q_diff, n_val, s_diff, nb_diff);
         jp(" \"c_quantizer_matches_python\": {\"n_values\": %ld, \"value_mismatch\": %ld,"
            " \"scale_mismatch\": %ld}, \n", n_val, q_diff, s_diff);
         if (q_diff || s_diff) ++bad;
@@ -361,7 +384,7 @@ int main(int argc, char **argv) {
             const size_t ny = (size_t)cout * Tg;
             float *y0 = malloc(sizeof(float) * ny), *y2 = malloc(sizeof(float) * ny);
             float *y3 = malloc(sizeof(float) * ny);
-            int8_t *qx = malloc((size_t)cin * Tg);
+            int8_t *qx = malloc((size_t)(((cin) + 15) & ~15) * (Tg));   /* ⚠️ 活性化の行ストライドは align16（M-58）。cin*T では溢れる（S4 で nan として表面化） */
             float *sx = malloc(sizeof(float) * (size_t)Tg);
             saan_conv1d(y0, c, W, b, cin, cout, ksz, Tg);
             saan_conv1d_i8(y2, c, q, scale, b, cin, cout, ksz, Tg);
@@ -397,23 +420,27 @@ int main(int argc, char **argv) {
         float *y = malloc(sizeof(float) * (size_t)cout * Tb);
         int8_t *q = malloc(nw);
         float *sc = malloc(sizeof(float) * (size_t)cout);
-        int8_t *qx = malloc((size_t)cin * Tb);
+        int8_t *qx = malloc((size_t)(((cin) + 15) & ~15) * (Tb));   /* ⚠️ 活性化の行ストライドは align16（M-58）。cin*T では溢れる（S4 で nan として表面化） */
         float *sx = malloc(sizeof(float) * (size_t)Tb);
         for (size_t j = 0; j < nw; ++j) W[j] = rng_normal() * 0.1f;
         for (size_t j = 0; j < (size_t)cin * Tb; ++j) x[j] = rng_normal();
         for (int j = 0; j < cout; ++j) b[j] = 0.0f;
         saan_quantize_w_i8(q, sc, W, cout, cin * ksz);
+        int8_t *qp = NULL;   /* blob v2 のレイアウトに並べ替え（16 B 境界） */
+        if (posix_memalign((void **)&qp, 16, saan_packed_w_bytes(cout, cin, ksz)) != 0) exit(1);
+        saan_pack_w_i8(qp, q, cout, cin, ksz);
 
         const int reps = 200;
         double t0 = now_s();
         for (int r = 0; r < reps; ++r) saan_conv1d(y, x, W, b, cin, cout, ksz, Tb);
         const double tf = (now_s() - t0) / reps;
         t0 = now_s();
-        for (int r = 0; r < reps; ++r) saan_conv1d_i8(y, x, q, sc, b, cin, cout, ksz, Tb);
+        for (int r = 0; r < reps; ++r) saan_conv1d_i8(y, x, qp, sc, b, cin, cout, ksz, Tb);
         const double t1 = (now_s() - t0) / reps;
         t0 = now_s();
-        for (int r = 0; r < reps; ++r) saan_conv1d_i8a(y, x, q, sc, b, cin, cout, ksz, Tb, qx, sx);
+        for (int r = 0; r < reps; ++r) saan_conv1d_i8a(y, x, qp, sc, b, cin, cout, ksz, Tb, qx, sx);
         const double t2 = (now_s() - t0) / reps;
+        free(qp);
 
         const double macs = (double)nw * (double)Tb;
         printf("%-22s %11.0f %11.0f %11.0f %8.2f %8.2f %9.1f %9.1f %9.1f\n",
@@ -450,7 +477,7 @@ int main(int argc, char **argv) {
             const size_t inner = is_dw ? (size_t)ksz : (size_t)cin * ksz;
             float *x = malloc(sizeof(float) * (size_t)in_ch * T);
             float *y = malloc(sizeof(float) * (size_t)cout * T);
-            int8_t *qx = malloc((size_t)in_ch * T);
+            int8_t *qx = malloc((size_t)(((in_ch) + 15) & ~15) * (T));   /* ⚠️ 活性化の行ストライドは align16（M-58）。cin*T では溢れる（S4 で nan として表面化） */
             float *sx = malloc(sizeof(float) * (size_t)T);
             for (size_t j = 0; j < (size_t)in_ch * T; ++j) x[j] = rng_normal();
 
@@ -497,6 +524,12 @@ int main(int argc, char **argv) {
         payload_stats((const uint8_t *)fbuf, F.n_tensors, pf);
         payload_stats((const uint8_t *)ibuf, I.n_tensors, pi);
         const uint64_t ptot = pi[0] + pi[1] + pi[2];
+        uint64_t pad_total = 0;   /* blob v2 の padding（下で説明） */
+        for (int e = 0; e < n_i8; ++e) {
+            const uint32_t *d = ents[e].dims;
+            const int cout = (int)d[0], cin = (int)(d[1] ? d[1] : 1), ksz = (int)(d[2] ? d[2] : 1);
+            pad_total += (uint64_t)cout * (uint64_t)ksz * (uint64_t)(SAAN_W_STRIDE(cin) - cin);
+        }
         printf("\n== 4. ブロブのサイズ ==\n");
         printf("  fp32  %8zu B (payload %llu B)\n", fsz, (unsigned long long)pf[0]);
         printf("  int8  %8zu B (payload %llu B = int8 %llu + scale %llu + fp32 %llu)\n",
@@ -512,10 +545,17 @@ int main(int argc, char **argv) {
            fsz, (unsigned long long)pf[0], isz, (unsigned long long)ptot,
            (unsigned long long)pi[1], (unsigned long long)pi[2],
            (unsigned long long)pi[0], (double)pf[0] / (double)ptot,
-           ptot == 624692ull ? "true" : "false");
-        if (ptot != 624692ull) {
-            printf("  ⚠️ M-39 の 624,692 B と一致しない\n");
+           ptot == 624692ull + pad_total ? "true" : "false");
+        /* blob v2（S4）は int8 conv 重みを [cout][k][align16(cin)] で 0 埋めするので、
+         * M-39 の 624,692 B に **dims から計算した padding** が乗る。padding の量は
+         * 形状だけで決まる（この生徒は 10,096 B）。それ以外の 1 バイトの差も許さない */
+        printf("  v2 の padding %llu B（dims から計算）→ 期待 payload %llu B（M-39 の 624,692 + padding）\n",
+               (unsigned long long)pad_total, (unsigned long long)(624692ull + pad_total));
+        if (ptot != 624692ull + pad_total) {
+            printf("  NG! payload が M-39 の 624,692 B + v2 padding と一致しない\n");
             ++bad;
+        } else {
+            printf("  OK  payload = M-39 の 624,692 B + v2 padding %llu B\n", (unsigned long long)pad_total);
         }
     }
 

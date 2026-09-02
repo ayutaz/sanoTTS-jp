@@ -11,10 +11,8 @@
 
 #define I8_NAME_LEN 64
 
-/* W8A8 の ksz>1 用に、重みを [k][cin] へ並べ替えるスタック領域（バイト）。
- * この生徒の ksz>1 層は最大 48·5 = 240 B なので 512 で足りる。
- * 超える形状は並べ替えずに元のレイアウトで回す（結果は同じ、遅いだけ）。 */
-#define SAAN_I8_WT_SCRATCH 512
+/* ⚠️ かつてここに「重みを [k][cin] へ並べ替えるスタック領域 wt（512 B）」があった。
+ *    blob v2（S4）で重みが最初から [cout][k][cinp] なので要らなくなった。 */
 
 /* --- PIE（ESP32-S3 の 128-bit 整数 SIMD） --------------------------------
  *
@@ -25,7 +23,8 @@
  * W8A8 の int32 積和ループでも `ee.*` は 0 件）。手で書くしかない。
  *
  * ⚠️ **`ee.vld.128.ip` は 16 バイト境界を要求する。** そのため
- *   - 重みは必ず 16 バイト整列のスクラッチ `wt` に写してから使う
+ *   - 重みは blob v2 で最初から **[cout][k][cinp]** に並べてある（S4。exporter が 0 埋め）。
+ *     実行時の転置コピーは無い
  *   - activation の行ストライドを **`cinp = align16(cin)`** に広げ、
  *     隙間 `[cin, cinp)` を **0 で埋める**（0 は積和に寄与しない = 端数処理も不要）
  * これで **MAC の 99.40%** を覆う（M-58）。
@@ -78,22 +77,40 @@ static int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
 }
 #endif
 
-/* この (cin) で PIE を使ってよいか。**整列条件をここ 1 箇所で判定する**。
+/* この (cin, W) で PIE を使ってよいか。**整列条件をここ 1 箇所で判定する**。
  *
  * 活性化も重みも **`cinp = align16(cin)` のストライド**に揃えたので、
  * `cin` の 16 倍数性はもう要らない。残る条件は
  *   - `cin > 0`（⚠️ `saan_dot_i8_pie` は `k <= 0` を守っていない。ここが唯一の砦）
- *   - 呼び出し側が `wt` に写せること（`cinp*ksz <= SAAN_I8_WT_SCRATCH`）
+ *   - `W` が 16 B 境界（blob のテンソル offset は 16 の倍数。テストの配列は aligned(16)）
  * ⚠️ **depthwise は対象外。** `saan_dwconv1d_i8a` はチャネル方向のギャザーで、
  * `ee.vmulas.s8.accx`（16 レーンを 1 アキュムレータに畳む内積）では表現できない。
  * ストライドを揃えても載らない（MAC の 0.60%。C-035）。 */
-static int saan_pie_ok(int cin) {
+static int saan_pie_ok(int cin, const int8_t *W) {
 #if SAAN_HAVE_PIE
-    return cin > 0;
+    return cin > 0 && (((uintptr_t)W & 15u) == 0u);
 #else
-    (void)cin;
+    (void)cin; (void)W;
     return 0;
 #endif
+}
+
+/* --- v2 レイアウトへの並べ替え（テスト / 毒テスト用。本番は exporter が書く）--------- */
+
+size_t saan_packed_w_bytes(int cout, int cin, int ksz) {
+    return (size_t)cout * (size_t)ksz * (size_t)SAAN_W_STRIDE(cin);
+}
+
+void saan_pack_w_i8(int8_t *dst, const int8_t *q, int cout, int cin, int ksz) {
+    const int cinp = SAAN_W_STRIDE(cin);
+    for (int o = 0; o < cout; ++o)
+        for (int k = 0; k < ksz; ++k) {
+            int8_t *row = dst + ((size_t)o * ksz + k) * cinp;
+            for (int i = 0; i < cin; ++i) row[i] = q[((size_t)o * cin + i) * ksz + k];
+            /* ⚠️ 本番 0。毒テスト（SAAN_PAD_POISON_W）はここで 127 にする。
+             *    blob v2 の padding は exporter が 0 で書くので、本番経路にこのコードは無い */
+            for (int i = cin; i < cinp; ++i) row[i] = (int8_t)SAAN_PAD_FILL_W;
+        }
 }
 
 /* --- 量子化 -------------------------------------------------------------- */
@@ -183,14 +200,17 @@ size_t saan_act_scratch_bytes(int C, int T) {
 void saan_conv1d_i8(float *y, const float *x, const int8_t *W, const float *scale,
                     const float *b, int cin, int cout, int ksz, int T) {
     const int pad = ksz / 2;
+    const int cinp = SAAN_W_STRIDE(cin);   /* blob v2: W[(o*ksz + k)*cinp + i] */
     for (int o = 0; o < cout; ++o) {
         float *yo = y + (size_t)o * T;
         for (int t = 0; t < T; ++t) yo[t] = 0.0f;
+        /* ⚠️ **ループの順序（i 外 / k 内 / t 最内）は v1 のまま。** float の加算順が変わると
+         *    出力が bit 一致しなくなる。変えたのは W の添字だけ */
         for (int i = 0; i < cin; ++i) {
             const float *xi = x + (size_t)i * T;
-            const int8_t *wk = W + ((size_t)o * cin + i) * ksz;
+            const int8_t *wo = W + (size_t)o * ksz * cinp;
             for (int k = 0; k < ksz; ++k) {
-                const int qv = wk[k];
+                const int qv = wo[(size_t)k * cinp + i];
                 if (qv == 0) continue;           /* fp32 版と同じくゼロ枝刈り */
                 const float wv = (float)qv;
                 const int sh = k - pad;
@@ -231,40 +251,20 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
                      const float *b, int cin, int cout, int ksz, int T,
                      int8_t *qx, float *sx) {
     const int pad = ksz / 2;
-    /* ⚠️ ksz > 1 のとき W[(o·cin + i)·ksz + k] は i 方向に **stride ksz** で
-     * 飛ぶ。内積の内側ループがベクトル化できず、実測で ksz=1 の 5 倍
-     * (31 ps/MAC → 304 ps/MAC) 遅くなった。出力チャネルごとに [k][cin] へ
-     * 並べ替えてから回す。**i についての加算順序は変えていないので結果は同一**。 */
-    SAAN_AL16 int8_t wt[SAAN_I8_WT_SCRATCH];
-    /* 活性化も重みも **`cinp = align16(cin)` のストライド**に揃える。
-     * パディング部は 0 なので積和に寄与せず、端数処理が要らない。 */
-    const int cinp = (int)SAAN_ALIGN16((size_t)cin);
-    /* ⚠️ **PIE を使うときは ksz==1 でも `wt` に写す。** blob 内の `W` の整列は
-     * 保証されていないので、`ee.vld.128.ip` に直接渡せない。写す手間は
-     * O(cout·cin) で、積和の O(cout·cin·T) に対して無視できる（T ≈ 106）。 */
-    const int pie = saan_pie_ok(cin) && cinp * ksz <= SAAN_I8_WT_SCRATCH;
-    const int transposable = pie || (ksz > 1 && cinp * ksz <= SAAN_I8_WT_SCRATCH);
-
-    /* ⚠️ **`wt` のパディング部を 0 にする。消さないこと。**
-     * 「毎回上書きするから無駄」に見えるが、埋めるのは `[cin, cinp)` の隙間で
-     * 下の転置ループは触らない。外すとスタックの残骸が内積に入り、
-     * **例外なしに値だけずれる**（`csrc/int8_pad_test.c` の G-1b が検出する）。 */
-    if (transposable && cinp != cin) memset(wt, SAAN_PAD_FILL_W, sizeof wt);
+    /* 活性化も重みも **`cinp = SAAN_W_STRIDE(cin)` のストライド**（blob v2。S4）。
+     * パディング部は 0 なので積和に寄与せず、端数処理が要らない。
+     * 重みは blob の中で最初から [cout][k][cinp] に並んでいるので、以前あった
+     * スタック `wt` への転置コピー（1 step に 489 KB。M-80 の WCOPY）は無い。 */
+    const int cinp = SAAN_W_STRIDE(cin);
+    const int pie = saan_pie_ok(cin, W);
+    (void)pie;   /* PIE 無しのビルドでは未使用 */
 
     saan_quantize_act_i8p(qx, sx, x, cin, T, cinp);
     for (int o = 0; o < cout; ++o) {
         float *yo = y + (size_t)o * T;
         const float s = scale[o];
         const float bias = b ? b[o] : 0.0f;
-        const int8_t *wo = W + (size_t)o * cin * ksz;
-        if (transposable) {
-            SAAN_PROF_BEGIN(SAAN_PROF_WCOPY);
-            for (int k = 0; k < ksz; ++k)
-                for (int i = 0; i < cin; ++i)
-                    wt[(size_t)k * cinp + i] = wo[(size_t)i * ksz + k];
-            SAAN_PROF_END(SAAN_PROF_WCOPY);
-            SAAN_PROF_ADD(SAAN_PROF_WCOPY, (size_t)cin * ksz);
-        }
+        const int8_t *wo = W + (size_t)o * ksz * cinp;   /* [k][cinp] */
         SAAN_PROF_BEGIN(SAAN_PROF_MAC);
         for (int t = 0; t < T; ++t) {
             float acc = 0.0f;
@@ -272,23 +272,20 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
                 const int u = t + k - pad;
                 if (u < 0 || u >= T) continue;   /* 両端ゼロパディング */
                 const int8_t *qu = qx + (size_t)u * cinp;
+                const int8_t *wk = wo + (size_t)k * cinp;   /* blob 内。16 B 境界 */
                 int32_t a32 = 0;
 #if SAAN_HAVE_PIE
                 if (pie) {
-                    /* `wt` も `qx + u*cinp` も 16 整列、`cinp` は 16 の倍数 */
-                    a32 = saan_dot_i8_pie(wt + (size_t)k * cinp, qu, cinp);
+                    /* `wk` も `qx + u*cinp` も 16 整列、`cinp` は 16 の倍数 */
+                    a32 = saan_dot_i8_pie(wk, qu, cinp);
                 } else
 #endif
-                if (transposable) {
-                    const int8_t *wk = wt + (size_t)k * cinp;
+                {
                     /* ⚠️ 既定は `i < cin`。`SAAN_PIE_EMU=1` のときだけ PIE と
                      * 同じ `cinp` レーンまで回す（パディング検査用。上のヘッダ参照） */
                     const int lanes = SAAN_PIE_EMU ? cinp : cin;
                     for (int i = 0; i < lanes; ++i)
                         a32 += (int32_t)wk[i] * (int32_t)qu[i];
-                } else {
-                    for (int i = 0; i < cin; ++i)
-                        a32 += (int32_t)wo[(size_t)i * ksz + k] * (int32_t)qu[i];
                 }
                 acc += (float)a32 * sx[u];
             }
@@ -362,18 +359,29 @@ const int8_t *saan_ti8(const saan_weights *w, const float **scale,
 
 static saan_wref saan_w_named(const saan_weights *w, const char *buf) {
     char sbuf[I8_NAME_LEN + 8];
-    saan_wref r = {NULL, NULL, NULL};
+    saan_wref r = {NULL, NULL, NULL, 0};
 
-    uint32_t dt = 0;
-    const void *p = saan_tensor(w, buf, &dt, NULL, NULL);
+    uint32_t dt = 0, dims[4] = {0, 0, 0, 0};
+    uint64_t nb = 0;
+    const void *p = saan_tensor(w, buf, &dt, dims, &nb);
     if (!p) return r;                       /* 名前が無い = 両方 NULL のまま */
     if (dt == 0u) { r.f32 = (const float *)p; return r; }
     if (dt != 1u) return r;                 /* scale(2) を重みとして掴まない */
 
+    /* ⚠️ **v2 のレイアウトを nbytes で検算する。** dims は論理形 (cout, cin, k) のまま
+     *    なので、payload が [cout][k][cinp] ぶんあるかを見る。合わなければ「引けなかった」
+     *    （= SAAN_ERR_MISSING で止まる。黙って別物の音を出さない）。 */
+    {
+        const int cout = (int)dims[0], cin = (int)dims[1], ksz = (int)dims[2];
+        if (cout <= 0 || cin <= 0 || ksz <= 0) return r;
+        if (nb != (uint64_t)saan_packed_w_bytes(cout, cin, ksz)) return r;
+        r.cinp = SAAN_W_STRIDE(cin);
+    }
+
     snprintf(sbuf, sizeof sbuf, "%s.scale", buf);
     uint32_t sdt = 0;
     const void *sp = saan_tensor(w, sbuf, &sdt, NULL, NULL);
-    if (!sp || sdt != 2u) return r;         /* scale が無いなら「引けなかった」 */
+    if (!sp || sdt != 2u) { r.cinp = 0; return r; }   /* scale が無いなら「引けなかった」 */
     r.q = (const int8_t *)p;
     r.scale = (const float *)sp;
     return r;

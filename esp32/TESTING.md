@@ -105,6 +105,8 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-
 **リポジトリをクローンしただけでは重みは入っていません**（git 管理外）。
 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)から
 **`saanotts-jp-v3-int8.bin`**（643,936 B）を落としてください。
+⚠️ **この資産は形式 v1 で、S4（2026-09-02）以降のソースでは起動時に `SAAN_ERR_VERSION` で止まります。**
+ソースからビルドするなら v2 の blob を自分で作ってください（`esp32/README.md`「どちらの blob を焼くか」）。v2 の資産は次のリリースで上げます。
 
 ⚠️ `saanotts-jp-v3-stage4.pt` は **PyTorch 用**です。ESP32 では読めません。
 

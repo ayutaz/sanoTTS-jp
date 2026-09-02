@@ -47,11 +47,16 @@ typedef enum {
     SAAN_ERR_RANGE = -6         /* 音素ID が語彙外 */
 } saan_status;
 
-/* 重みブロブ（読み取り専用。コアは書き換えない） */
+/* 重みブロブ（読み取り専用。コアは書き換えない）
+ *
+ * version: 1 = 旧レイアウト（int8 conv 重みが [cout][cin][k]）/ **2 = S4 以降**
+ *   （int8 conv 重みが [cout][k][align16(cin)] で 0 埋め。転置コピー無しで PIE に渡せる）。
+ * ⚠️ **v1 の int8 blob は開けない**（SAAN_ERR_VERSION）。fp32 だけの v1（golden / ids）は開ける。 */
 typedef struct {
     const uint8_t *base;
     size_t size;
     uint32_t n_tensors;
+    uint32_t version;
 } saan_weights;
 
 /* 作業領域。**コアは malloc しない** */

@@ -13,7 +13,7 @@ esp32/main/CMakeLists.txt が `-DSAAN_MODEL_RODATA=1` のときビルド時に�
 
 ⚠️ **`const` を外さないこと。** ESP32-S3 では
    `const` → `.rodata` → **flash**（XIP、SRAM 消費 0）
-   非 `const` → `.data` → **DIRAM**（643,936 B。残り 18,662 B しかないので即リンクエラー）
+   非 `const` → `.data` → **DIRAM**（654,032 B。残り 18,662 B しかないので即リンクエラー）
    実測で確認済み（`xtensa-esp32s3-elf-size -A`）。
 
 ⚠️ **16 バイト境界を明示する。** コアは payload を `const float*` に直接

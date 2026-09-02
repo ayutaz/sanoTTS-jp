@@ -97,7 +97,9 @@ for name in ("csrc/student.bin", "csrc/student_i8.bin"):
         off, nb = struct.unpack_from("<QQ", b, e + 64 + 8 + 16)
         if off % 16: off_bad += 1
         payload += nb
-    okmagic = magic == b"SAAN" and ver == 1
+    # v2 = S4（2026-09-02）以降。int8 conv 重みが [cout][k][align16(cin)] で 0 埋め。
+    # v1 も形式としては読めるが、int8 を持つ v1 はコアが SAAN_ERR_VERSION で拒む
+    okmagic = magic == b"SAAN" and ver in (1, 2)
     print(f"  {'OK ' if okmagic else 'NG!'} {name}: magic={magic.decode(errors='replace')} "
           f"v{ver} / {n} tensors / file {len(b):,} B / payload {payload:,} B")
     print(f"  {'OK ' if off_bad == 0 else 'NG!'}   全テンソルの offset が 16 の倍数"

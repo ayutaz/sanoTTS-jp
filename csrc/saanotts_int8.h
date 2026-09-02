@@ -60,6 +60,22 @@
 #define SAAN_PAD_FILL_W (SAAN_PAD_POISON_W ? 127 : 0)
 #define SAAN_PAD_FILL_A (SAAN_PAD_POISON_A ? 127 : 0)
 
+/* --- int8 conv 重みのレイアウト（blob v2。S4）------------------------------------
+ *
+ * `[cout][ksz][cinp]`、cinp = SAAN_W_STRIDE(cin)。`[cin, cinp)` は 0（exporter が埋める）。
+ * これで `W + (o*ksz + k)*cinp` が常に 16 B 境界で、PIE の `ee.vld.128.ip` に**直接**渡せる。
+ * 以前は実行時に `[cout][cin][k]` からスタックの `wt` へ転置コピーしていた（1 step に 489 KB。M-80）。
+ * ⚠️ cin == 1（depthwise）はバイト列が `[ch][k]` と同一なので padding しない（ストライド 1）。
+ * ⚠️ **exporter（scripts/export_c_weights.py の pack_conv_v2）と同じ規則。** 片方だけ変えると
+ *    黙って別物の音が出る。int8_test の 2c がバイト単位で突き合わせる。 */
+#define SAAN_W_STRIDE(cin) ((cin) == 1 ? 1 : (int)(((unsigned)(cin) + 15u) & ~15u))
+
+/* `[cout][cin][k]`（saan_quantize_w_i8 の出力。inner = cin*k）→ v2 の `[cout][k][cinp]`。
+ * padding は SAAN_PAD_FILL_W（本番 0。毒テストは 127）。**テストと毒テスト専用** —
+ * 本番の blob は exporter が同じ配置で書いてくる。 */
+void   saan_pack_w_i8(int8_t *dst, const int8_t *q, int cout, int cin, int ksz);
+size_t saan_packed_w_bytes(int cout, int cin, int ksz);
+
 /* --- 量子化 -------------------------------------------------------------- */
 
 /* float → 最近接整数（ties-to-even）を int32 で返す。
@@ -106,7 +122,8 @@ size_t saan_act_scratch_bytes(int C, int T);
 /* --- W8A32（重みだけ int8、activation は fp32） -------------------------- */
 
 /* `saan_conv1d` と同じ意味論（両端ゼロパディング、y[o,t] = b[o] + Σ W·x）。
- * `W` は [cout][cin][ksz] の int8、`scale` は [cout] の fp32、`b` は fp32 か NULL。
+ * `W` は **v2 レイアウト [cout][ksz][SAAN_W_STRIDE(cin)]** の int8、`scale` は [cout] の fp32、
+ * `b` は fp32 か NULL。積和の順序（i 外側 / k 内側 / t 最内）は v1 と同じ = **出力は bit 同一**。
  * 積和は int8 を float に上げて溜め、**最後に一度だけ scale[o] を掛ける**
  * （per-output-channel なので出力チャネル内では定数）。 */
 void saan_conv1d_i8(float *y, const float *x, const int8_t *W, const float *scale,
@@ -118,8 +135,11 @@ void saan_dwconv1d_i8(float *y, const float *x, const int8_t *W, const float *sc
 
 /* --- W8A8（activation も int8、int32 で積和） ---------------------------- */
 
-/* `qx` は [T][cin] の int8、`sx` は [T] の fp32。呼び出し側が確保する
- * （`saan_act_scratch_bytes(cin, T)`）。内部で `saan_quantize_act_i8` を呼ぶ。
+/* `W` は **v2 レイアウト [cout][ksz][SAAN_W_STRIDE(cin)]**（上記）。PIE は `W` を直接読むので
+ * **`W` は 16 B 境界**であること（blob のテンソル offset は全部 16 の倍数。テストは aligned(16)）。
+ * 整列していなければスカラ経路に落ちる（結果は同じ。遅いだけ）。
+ * `qx` は [T][cinp] の int8、`sx` は [T] の fp32。呼び出し側が確保する
+ * （`saan_act_scratch_bytes(cin, T)`）。内部で `saan_quantize_act_i8p` を呼ぶ。
  * 積和は **タップ k ごとに int32** で溜め（同一フレームなので scale が共通）、
  * フレームをまたぐ合成だけ fp32 で行う。cin ≤ 304 なので
  * 304 · 127 · 127 = 4.9e6 で int32 は溢れない。 */

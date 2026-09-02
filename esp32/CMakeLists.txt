@@ -62,7 +62,7 @@ project(saanotts_jp)
 #    partitions.csv で offset を 64 KB 境界に置けば 16 バイト境界も自動的に満たす
 #    （将来 PIE を使うときの SOC_SIMD_PREFERRED_DATA_ALIGNMENT = 16 もこれで足りる）。
 #
-# **既定は int8 の student_i8.bin (643,936 B)。**
+# **既定は int8 の student_i8.bin (654,032 B。blob v2)。**
 #    ⚠️ かつて fp32 の student.bin (2,249,792 B) を既定にしていたが、これは
 #    「int8 経路がまだ確定していない」時期の保守的な選択だった。int8 は
 #    **flash と D-cache で 3.5 倍有利**で、リリースで配布しているのもこちら。

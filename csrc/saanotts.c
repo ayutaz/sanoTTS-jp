@@ -35,11 +35,23 @@ static uint64_t rd_u64(const uint8_t *p) {
 saan_status saan_weights_open(saan_weights *w, const void *blob, size_t size) {
     const uint8_t *b = (const uint8_t *)blob;
     if (size < 16 || memcmp(b, "SAAN", 4) != 0) return SAAN_ERR_MAGIC;
-    if (rd_u32(b + 4) != 1u) return SAAN_ERR_VERSION;
+    const uint32_t ver = rd_u32(b + 4);
+    if (ver != 1u && ver != 2u) return SAAN_ERR_VERSION;
     w->base = b;
     w->size = size;
+    w->version = ver;
     w->n_tensors = rd_u32(b + 8);
     if (16u + (size_t)w->n_tensors * HDR_ENT > size) return SAAN_ERR_SHAPE;
+    /* ⚠️ **v1 で int8（dtype 1）を持つ blob は拒む。** v1 の int8 conv 重みは [cout][cin][k]
+     *    で、v2 のカーネルが [cout][k][cinp] として読むと**黙って別物の音**が出る
+     *    （例外も NaN も出ない）。名前は同じなので saan_w では区別できない。ここで止める。
+     *    fp32 だけの v1（golden.bin / ids_heldout.bin）はレイアウトが変わっていないので通す。 */
+    if (ver == 1u) {
+        for (uint32_t i = 0; i < w->n_tensors; ++i) {
+            const uint8_t *e = w->base + 16 + (size_t)i * HDR_ENT + NAME_LEN;
+            if (rd_u32(e) == 1u) return SAAN_ERR_VERSION;
+        }
+    }
     return SAAN_OK;
 }
 
@@ -594,7 +606,8 @@ const char *saan_strerror(saan_status s) {
     switch (s) {
     case SAAN_OK: return "ok";
     case SAAN_ERR_MAGIC: return "SAAN ヘッダでない";
-    case SAAN_ERR_VERSION: return "バージョンが違う";
+    case SAAN_ERR_VERSION: return "blob のバージョンが違う（int8 blob は v2 が要る。v1 = v0.2.0 以前のリリース。"
+                                  "scripts/export_c_weights.py で作り直すこと）";
     case SAAN_ERR_MISSING: return "必要なテンソルが無い";
     case SAAN_ERR_SHAPE: return "shape が想定と違う";
     case SAAN_ERR_ARENA: return "arena が足りない";

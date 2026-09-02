@@ -8,13 +8,13 @@
   "path": "csrc/student.bin",
   "n_tensors": 131,
   "bytes": 2249792,
-  "sha256": "dae6303c1105845aeedabc5141aa811f9d5de02f63d7af4188fb82e6cbe5298e"
+  "sha256": "c083af1f73dad11a5f7221753aa051df4b694c636bb6852c95c737916a87a24a"
  },
  "golden": {
   "path": "csrc/golden.bin",
   "n_tensors": 8,
   "bytes": 779584,
-  "sha256": "b833f7025cf4dff8318847e9c5a620316bbbda3cb4f539baa112aa85eaf3ca81",
+  "sha256": "c55b6ad19f92785fa67ea892ffe70987bf2ddfbbeaf9972ae653061e6ee14d55",
   "text": "今日は良い天気ですね。",
   "n_ids": 53,
   "frames": 106,
@@ -25,6 +25,6 @@
   1,
   80
  ],
- "format": "SAAN v1。ヘッダに name/dtype/shape/offset を持つ自己記述形式",
+ "format": "SAAN v2。ヘッダに name/dtype/shape/offset を持つ自己記述形式。int8 conv 重みの payload は [cout][k][align16(cin)] で 0 埋め（cin==1 の depthwise は padding 無し）。v1 との差はこのレイアウトだけ",
  "repro": "uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --out csrc/student.bin --golden csrc/golden.bin --report csrc/export.json"
 }

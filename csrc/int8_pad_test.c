@@ -19,8 +19,9 @@
  *
  * ## 正しい設計: **相手側を非ゼロにしたうえで「変わらないこと」を見る**
  *
- * カーネルに検査専用のフックを置いた（既定は 0 = 本番の挙動）:
- *   `-DSAAN_PAD_POISON_W=1` … 重み `wt` の隙間を 127 で埋める
+ * 検査専用のフックを置いた（既定は 0 = 本番の挙動）:
+ *   `-DSAAN_PAD_POISON_W=1` … 重みの隙間を 127 で埋める（blob v2 では `saan_pack_w_i8` が埋める。
+ *                             本番の blob は exporter が 0 で書く）
  *   `-DSAAN_PAD_POISON_A=1` … 活性化 `qx` の隙間を 127 で埋める
  *
  * | ビルド | 期待 | 証明されること |
@@ -57,6 +58,7 @@ static float sxbuf[MAXT];
 static float xin[MAXC * MAXT];
 static float yout[MAXC * MAXT];
 static AL16 int8_t qw[MAXC * MAXC];
+static AL16 int8_t qwp[MAXC * MAXC];   /* blob v2 のレイアウト [cout][k][cinp] */
 static float wf[MAXC * MAXC];
 static float wsc[MAXC];
 
@@ -98,10 +100,11 @@ int main(void) {
         for (int o = 0; o < cout; ++o)
             for (int i = 0; i < inner; ++i) wf[(size_t)o * inner + i] = rndf();
         saan_quantize_w_i8(qw, wsc, wf, cout, inner);
+        saan_pack_w_i8(qwp, qw, cout, cin, ksz);   /* 毒（SAAN_PAD_POISON_W）はここで入る */
         /* ⚠️ **arena の使い回しを模す。** 毎回 0 で初期化すると
          * 「隙間がたまたま 0 だった」だけで通ってしまう */
         memset(qbuf, 0x5a, sizeof qbuf);
-        saan_conv1d_i8a(yout, xin, qw, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
+        saan_conv1d_i8a(yout, xin, qwp, wsc, NULL, cin, cout, ksz, T, qbuf, sxbuf);
         h = fold(h, yout, (size_t)cout * T);
     }
     printf("shapes=%d padded=%d poison_w=%d poison_a=%d checksum=%016llx\n",
