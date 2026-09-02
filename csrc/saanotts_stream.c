@@ -50,6 +50,23 @@ typedef struct {
     int C, pad, W;
 } pipe_t;
 
+/* --- 解決済みの重み（S1）---------------------------------------------------
+ *
+ * ⚠️ **テンソル検索（saan_w / saan_tf）は init で 1 回だけ。** step の中では呼ばない。
+ *    検索は名前の vsnprintf + ヘッダ（104 B × 183 エントリ）の strncmp 線形走査で、
+ *    step ごとに 102 回・約 16,000 エントリ（1.66 MB 相当）を舐めていた（M-80）。
+ *    実機では flash から読むので、積和と同じ桁のコストになる。
+ *    ここに置くのは**ポインタだけ**で、計算の順序は 1 つも変わらない（bit 同一）。 */
+typedef struct {
+    saan_wref c1w, c2w;
+    const float *c1b, *c2b, *ng, *nb;
+} saan_acblk_w;
+
+typedef struct {
+    saan_wref dw, p1w, p2w, cdw, cuw;
+    const float *p1b, *p2b, *cdb, *cub, *gm;
+} saan_decblk_w;
+
 static int pipe_init(pipe_t *p, saan_arena *a, int C, int pad) {
     p->C = C; p->pad = pad; p->W = 2 * pad + CH;
     p->buf = (float *)saan_alloc(a, sizeof(float) * (size_t)C * p->W);
@@ -107,7 +124,64 @@ struct saan_stream_impl {
     float *obuf;         /* [(CH + 4) * HOP] 出力の詰め替え */
     int32_t ofill;
     float *tok_buf, *tok_w1, *tok_w2, *tok_out;   /* token チャンクの作業領域 */
+
+    /* S1: 解決済みの重み。init の resolve_weights() が埋める */
+    saan_acblk_w  tokw[3];   /* acoustic.token.%d */
+    saan_acblk_w  acw[5];    /* acoustic.frame.%d */
+    saan_decblk_w decw[5];   /* decoder.{dw,pw1,pw2,cdown,cup,gamma}.%d */
+    saan_wref ow, iw, hdw, how;
+    const float *ib, *hdb, *hob, *emb, *pos;
 };
+
+/* 1 段ぶんの重みを引く。**欠けを許すのは元の step と同じ場所だけ**（bias / LN の bias） */
+static int acblk_resolve(const saan_weights *w, const char *pfx, int bi, saan_acblk_w *o) {
+    o->c1w = saan_w(w, "%s.%d.c1.weight", pfx, bi);
+    o->c1b = saan_tf(w, "%s.%d.c1.bias", pfx, bi);
+    o->c2w = saan_w(w, "%s.%d.c2.weight", pfx, bi);
+    o->c2b = saan_tf(w, "%s.%d.c2.bias", pfx, bi);
+    o->ng  = saan_tf(w, "%s.%d.norm.weight", pfx, bi);
+    o->nb  = saan_tf(w, "%s.%d.norm.bias", pfx, bi);
+    return SAAN_W_OK(o->c1w) && SAAN_W_OK(o->c2w) && o->ng != NULL;
+}
+
+static int decblk_resolve(const saan_weights *w, int i, saan_decblk_w *o) {
+    o->dw  = saan_w(w, "decoder.dw.%d.weight", i);
+    o->p1w = saan_w(w, "decoder.pw1.%d.weight", i);
+    o->p1b = saan_tf(w, "decoder.pw1.%d.bias", i);
+    o->p2w = saan_w(w, "decoder.pw2.%d.weight", i);
+    o->p2b = saan_tf(w, "decoder.pw2.%d.bias", i);
+    o->cdw = saan_w(w, "decoder.cdown.%d.weight", i);
+    o->cdb = saan_tf(w, "decoder.cdown.%d.bias", i);
+    o->cuw = saan_w(w, "decoder.cup.%d.weight", i);
+    o->cub = saan_tf(w, "decoder.cup.%d.bias", i);
+    o->gm  = saan_tf(w, "decoder.gamma.%d", i);
+    return SAAN_W_OK(o->dw) && SAAN_W_OK(o->p1w) && SAAN_W_OK(o->p2w)
+        && SAAN_W_OK(o->cdw) && SAAN_W_OK(o->cuw) && o->gm != NULL;
+}
+
+/* 全部の重みを引く。**1 つでも欠けたら SAAN_ERR_MISSING**（step の中で初めて分かるより早い） */
+static saan_status resolve_weights(saan_stream *st) {
+    struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
+    const saan_weights *w = st->w;
+    for (int i = 0; i < 3; ++i)
+        if (!acblk_resolve(w, "acoustic.token", i, &im->tokw[i])) return SAAN_ERR_MISSING;
+    for (int i = 0; i < 5; ++i)
+        if (!acblk_resolve(w, "acoustic.frame", i, &im->acw[i])) return SAAN_ERR_MISSING;
+    for (int i = 0; i < 5; ++i)
+        if (!decblk_resolve(w, i, &im->decw[i])) return SAAN_ERR_MISSING;
+    im->ow  = saan_w(w, "acoustic.out.weight");
+    im->iw  = saan_w(w, "decoder.inp.weight");
+    im->ib  = saan_tf(w, "decoder.inp.bias");
+    im->hdw = saan_w(w, "decoder.hdown.weight");
+    im->hdb = saan_tf(w, "decoder.hdown.bias");
+    im->how = saan_w(w, "decoder.hout.weight");
+    im->hob = saan_tf(w, "decoder.hout.bias");
+    im->emb = saan_tf(w, "acoustic.emb.weight");
+    im->pos = saan_tf(w, "acoustic.pos.weight");
+    if (!SAAN_W_OK(im->ow) || !SAAN_W_OK(im->iw) || !SAAN_W_OK(im->hdw)
+        || !SAAN_W_OK(im->how) || !im->emb || !im->pos) return SAAN_ERR_MISSING;
+    return SAAN_OK;
+}
 
 size_t saan_stream_arena_needed(int32_t n_ids) {
     const int maxC = DEC_W > AC_W ? DEC_W : AC_W;
@@ -177,14 +251,9 @@ static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
                                 float *out, int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->ac[bi];
-    const saan_weights *w = st->w;
-    const saan_wref c1w = saan_w(w, "acoustic.frame.%d.c1.weight", bi);
-    const float *c1b = saan_tf(w, "acoustic.frame.%d.c1.bias", bi);
-    const saan_wref c2w = saan_w(w, "acoustic.frame.%d.c2.weight", bi);
-    const float *c2b = saan_tf(w, "acoustic.frame.%d.c2.bias", bi);
-    const float *ng = saan_tf(w, "acoustic.frame.%d.norm.weight", bi);
-    const float *nb = saan_tf(w, "acoustic.frame.%d.norm.bias", bi);
-    if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng) return SAAN_ERR_MISSING;
+    const saan_acblk_w *k = &im->acw[bi];   /* init で解決済み（S1） */
+    const saan_wref c1w = k->c1w, c2w = k->c2w;
+    const float *c1b = k->c1b, *c2b = k->c2b, *ng = k->ng, *nb = k->nb;
 
     pipe_push(p, in);
     const int W = p->W;
@@ -219,9 +288,8 @@ static saan_status dec_inp_step_body(saan_stream *st, const float *c_in,
                                      float *h_out, float *c_out, int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->dinp, *pc = &im->cdel[0];
-    const saan_wref iw = saan_w(st->w, "decoder.inp.weight");
-    const float *ib = saan_tf(st->w, "decoder.inp.bias");
-    if (!SAAN_W_OK(iw)) return SAAN_ERR_MISSING;
+    const saan_wref iw = im->iw;   /* init で解決済み（S1） */
+    const float *ib = im->ib;
 
     pipe_push(p, c_in);           /* inp の入力は c そのもの（C=CD） */
     pipe_push(pc, c_in);          /* 下流の条件付け用に同じ c を同期させる */
@@ -256,19 +324,9 @@ static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
                                  int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     pipe_t *p = &im->dblk[i], *pc = &im->cdel[i + 1];
-    const saan_weights *w = st->w;
-    const saan_wref dw = saan_w(w, "decoder.dw.%d.weight", i);
-    const saan_wref p1w = saan_w(w, "decoder.pw1.%d.weight", i);
-    const float *p1b = saan_tf(w, "decoder.pw1.%d.bias", i);
-    const saan_wref p2w = saan_w(w, "decoder.pw2.%d.weight", i);
-    const float *p2b = saan_tf(w, "decoder.pw2.%d.bias", i);
-    const saan_wref cdw = saan_w(w, "decoder.cdown.%d.weight", i);
-    const float *cdb = saan_tf(w, "decoder.cdown.%d.bias", i);
-    const saan_wref cuw = saan_w(w, "decoder.cup.%d.weight", i);
-    const float *cub = saan_tf(w, "decoder.cup.%d.bias", i);
-    const float *gm = saan_tf(w, "decoder.gamma.%d", i);
-    if (!SAAN_W_OK(dw) || !SAAN_W_OK(p1w) || !SAAN_W_OK(p2w)
-        || !SAAN_W_OK(cdw) || !SAAN_W_OK(cuw) || !gm) return SAAN_ERR_MISSING;
+    const saan_decblk_w *k = &im->decw[i];   /* init で解決済み（S1） */
+    const saan_wref dw = k->dw, p1w = k->p1w, p2w = k->p2w, cdw = k->cdw, cuw = k->cuw;
+    const float *p1b = k->p1b, *p2b = k->p2b, *cdb = k->cdb, *cub = k->cub, *gm = k->gm;
 
     pipe_push(p, h_in);
     pipe_push(pc, c_in);
@@ -406,6 +464,7 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
     if (!im) return SAAN_ERR_ARENA;
     memset(im, 0, sizeof *im);
     st->impl = im;
+    SAAN_TRY(resolve_weights(st));   /* S1: 重みの検索はここで 1 回だけ */
 
     for (int i = 0; i < 5; ++i) if (!pipe_init(&im->ac[i], a, AC_W, 4)) return SAAN_ERR_ARENA;
     if (!pipe_init(&im->dinp, a, CD, 1)) return SAAN_ERR_ARENA;
@@ -494,9 +553,7 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
 static saan_status compute_tokens_body(saan_stream *st, int32_t i0, int32_t i1,
                                        float *out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
-    const saan_weights *w = st->w;
-    const float *emb = saan_tf(w, "acoustic.emb.weight");
-    if (!emb) return SAAN_ERR_MISSING;
+    const float *emb = im->emb;   /* init で解決済み（S1） */
 
     const int32_t lo = i0 - TOK_HALO, hi = i1 + TOK_HALO;
     const int n = (int)(hi - lo);
@@ -515,13 +572,9 @@ static saan_status compute_tokens_body(saan_stream *st, int32_t i0, int32_t i1,
     }
 
     for (int bi = 0; bi < 3; ++bi) {
-        const saan_wref c1w = saan_w(w, "acoustic.token.%d.c1.weight", bi);
-        const float *c1b = saan_tf(w, "acoustic.token.%d.c1.bias", bi);
-        const saan_wref c2w = saan_w(w, "acoustic.token.%d.c2.weight", bi);
-        const float *c2b = saan_tf(w, "acoustic.token.%d.c2.bias", bi);
-        const float *ng = saan_tf(w, "acoustic.token.%d.norm.weight", bi);
-        const float *nb = saan_tf(w, "acoustic.token.%d.norm.bias", bi);
-        if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng) return SAAN_ERR_MISSING;
+        const saan_acblk_w *k = &im->tokw[bi];   /* init で解決済み（S1） */
+        const saan_wref c1w = k->c1w, c2w = k->c2w;
+        const float *c1b = k->c1b, *c2b = k->c2b, *ng = k->ng, *nb = k->nb;
         SAAN_TRY(saan_conv1d_w(im->tok_w1, h, c1w, c1b, AC_W, AC_W, 5, n, st->a));
         saan_relu(im->tok_w1, (size_t)AC_W * n);
         /* ⚠️ c1 の出力の発話外もゼロに（一括版では配列外＝ゼロ、frame 側と同じ理由） */
@@ -552,8 +605,7 @@ static saan_status compute_tokens(saan_stream *st, int32_t i0, int32_t i1,
  * `f0` は絶対フレーム番号。範囲外（発話末尾より後ろ）は**ゼロ**にする */
 static saan_status make_hf_body(saan_stream *st, int32_t f0, float *out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
-    const float *pos = saan_tf(st->w, "acoustic.pos.weight");
-    if (!pos) return SAAN_ERR_MISSING;
+    const float *pos = im->pos;   /* init で解決済み（S1） */
 
     /* このチャンクが跨ぐトークン範囲を先に求める */
     int32_t tok_of[CH], within_of[CH];
@@ -601,12 +653,8 @@ static saan_status make_hf(saan_stream *st, int32_t f0, float *out) {
 /* パイプラインを CH フレーム進める。出力は `pcm`（CH * HOP サンプル） */
 static saan_status step_chunk_body(saan_stream *st, float *pcm) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
-    const saan_wref ow = saan_w(st->w, "acoustic.out.weight");
-    const saan_wref hdw = saan_w(st->w, "decoder.hdown.weight");
-    const float *hdb = saan_tf(st->w, "decoder.hdown.bias");
-    const saan_wref how = saan_w(st->w, "decoder.hout.weight");
-    const float *hob = saan_tf(st->w, "decoder.hout.bias");
-    if (!SAAN_W_OK(ow) || !SAAN_W_OK(hdw) || !SAAN_W_OK(how)) return SAAN_ERR_MISSING;
+    const saan_wref ow = im->ow, hdw = im->hdw, how = im->how;   /* init で解決済み（S1） */
+    const float *hdb = im->hdb, *hob = im->hob;
 
     float *a = im->w_ch, *b = im->w_ch2;
     /* 今回入力するフレームの先頭時刻。**段を通るごとに pad ぶん過去にずれる** */

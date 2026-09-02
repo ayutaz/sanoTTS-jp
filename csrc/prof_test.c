@@ -16,7 +16,10 @@
  *
  *   cc -std=c99 -O2 -DSAAN_INT8_ACT=1 -DSAAN_PROFILE=1 -o prof_test prof_test.c \
  *      saanotts.c saanotts_stream.c saanotts_int8.c fft.c -lm
- *   ./prof_test student_i8.bin [--reps 20]
+ *   ./prof_test student_i8.bin [--reps 20] [--expect-no-lookup]
+ *
+ * `--expect-no-lookup` だけはゲート: **pull の中でテンソル検索（LOOKUP）が 1 回でも走ったら
+ * exit 1**。S1（検索を init で 1 回に）の受け入れ条件。S1 前は 102 回/step で落ちる（陰性対照）。
  */
 #define _POSIX_C_SOURCE 199309L
 
@@ -67,8 +70,11 @@ int main(int argc, char **argv) {
         return 2;
     }
     int reps = REPS_DEFAULT;
-    for (int i = 2; i + 1 < argc; ++i)
-        if (strcmp(argv[i], "--reps") == 0) reps = atoi(argv[i + 1]);
+    int expect_no_lookup = 0;
+    for (int i = 2; i < argc; ++i) {
+        if (strcmp(argv[i], "--reps") == 0 && i + 1 < argc) reps = atoi(argv[++i]);
+        else if (strcmp(argv[i], "--expect-no-lookup") == 0) expect_no_lookup = 1;
+    }
     if (reps < 1) reps = 1;
 
     size_t wsz = 0;
@@ -85,6 +91,7 @@ int main(int argc, char **argv) {
 
     saan_prof_reset();
     int32_t pulls = 0, frames = 0;
+    uint32_t lookups_in_pull = 0;   /* init の外（= pull の中）で走った LOOKUP の回数 */
     for (int r = 0; r < reps; ++r) {
         saan_arena a;
         saan_arena_init(&a, abuf, ARENA_BYTES);
@@ -93,12 +100,14 @@ int main(int argc, char **argv) {
             fprintf(stderr, "saan_stream_init 失敗\n");
             return 1;
         }
+        const uint32_t lk_before = saan_prof_cnt[SAAN_PROF_LOOKUP];
         int32_t n = 0;
         for (;;) {
             if (saan_stream_pull(&st, chunk, &n) != SAAN_OK) { fprintf(stderr, "pull 失敗\n"); return 1; }
             if (n <= 0) break;
             if (r == 0) { ++pulls; frames += n; }
         }
+        lookups_in_pull += saan_prof_cnt[SAAN_PROF_LOOKUP] - lk_before;
     }
 
     const uint32_t steps = saan_prof_cnt[SAAN_PROF_STEP];
@@ -121,6 +130,17 @@ int main(int argc, char **argv) {
            (unsigned)saan_prof_cnt[SAAN_PROF_INIT]);
     printf("1 発話の step_chunk 合計: %.3f ms（%u step × %.0f ns）\n",
            step_per_chunk * steps / reps / 1e6, (unsigned)(steps / (uint32_t)reps), step_per_chunk);
+    printf("pull の中の LOOKUP: %u 回（%d 発話の合計。init の分は含まない）\n",
+           (unsigned)lookups_in_pull, reps);
+    if (expect_no_lookup) {
+        if (lookups_in_pull != 0) {
+            printf("  NG! pull の中でテンソル検索が %u 回走っている（S1 の受け入れ条件は 0 回）\n",
+                   (unsigned)lookups_in_pull);
+            free(abuf); free(wbuf);
+            return 1;
+        }
+        printf("  OK  pull の中でテンソル検索は 0 回（重みは init で解決済み）\n");
+    }
     free(abuf);
     free(wbuf);
     return 0;

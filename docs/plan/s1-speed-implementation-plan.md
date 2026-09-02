@@ -145,20 +145,20 @@ bool saan_ui_poll_touch(void);                                /* 押された瞬
 
 **Consumes:** `saan_stream_*`（csrc）。main.c の `synth_once` は `saan_i2s_*` → `saan_audio_*`、統計は `saan_pcm_*`。
 
-- [ ] **Step 1: ゲートを先に確認する（変更前の基準値）**
+- [x] **Step 1: ゲートを先に確認する（変更前の基準値）**
 
 ```bash
 bash scripts/check_esp32_template.sh 2>&1 | grep -E 'bit 完全一致|NG!' 
 ```
 Expected: `[厳密] C 一括版 → int16 と 27136 sample **bit 完全一致**` が student.bin / student_i8.bin の 2 回、NG 0。
 
-- [ ] **Step 2: `saan_pcm.{h,c}` を作る**。`saan_i2s.c` の `saan_f32_to_i16` と 4 統計 + `saan_i2s_pcm_reset` の中身を**移動**（コピーではなく。`saan_i2s.c` から消す）。`s_clips` も移す。
-- [ ] **Step 3: `saan_audio.h` を作り、`saan_i2s.c` を上の API 名に改名**。`saan_audio_begin_utterance` を追加（静的 `s_preroll[SAAN_AUDIO_PREROLL_SAMPLES]` を使い、超えるときだけ `heap_caps_malloc`。`saan_audio_stop` で free）。`SAAN_SKIP_I2S` の分岐はそのまま。
-- [ ] **Step 4: `saan_ui.h` + `saan_ui_null.c`**（4 関数とも何もしない。`poll_touch` は false）。
-- [ ] **Step 5: `main.c` を書き換える**: `#include "saan_audio.h" "saan_pcm.h" "saan_ui.h"`。`synth_once` の先頭で `saan_pcm_reset()` → `saan_ui_status("合成中…")`。プリロール前に `saan_audio_begin_utterance(SAAN_AUDIO_PREROLL_SAMPLES)`。`done:` で `saan_audio_stop()`。統計は `saan_pcm_*`。`tts_task` で `saan_audio_setup(SAAN_SR)` の直後に `saan_ui_init()`。`SAAN_BUFFERED` はこの Task では**入れない**（A-3）。
-- [ ] **Step 6: host stub を直す**: `esp_heap_caps.h` に `void *heap_caps_malloc(size_t, unsigned); void heap_caps_free(void *);` と `MALLOC_CAP_SPIRAM 0x4` を足し、`stubs.c` に `malloc/free` で実装。
-- [ ] **Step 7: `esp32/main/CMakeLists.txt` の SRCS** に `saan_pcm.c saan_ui_null.c` を足す。`check_esp32_template.sh` のゲート 7 の除外を `saan_model_*|saan_audio_*|saan_pcm_*|saan_ui_*|saan_f32_to_i16|saan_stub_*|saan_console_*|saan_dict_*|saan_kanji_*`、ゲート 8 のソース一覧に `saan_pcm.c saan_ui_null.c` を足す。
-- [ ] **Step 8: ゲート**
+- [x] **Step 2: `saan_pcm.{h,c}` を作る**。`saan_i2s.c` の `saan_f32_to_i16` と 4 統計 + `saan_i2s_pcm_reset` の中身を**移動**（コピーではなく。`saan_i2s.c` から消す）。`s_clips` も移す。
+- [x] **Step 3: `saan_audio.h` を作り、`saan_i2s.c` を上の API 名に改名**。`saan_audio_begin_utterance` を追加（静的 `s_preroll[SAAN_AUDIO_PREROLL_SAMPLES]` を使い、超えるときだけ `heap_caps_malloc`。`saan_audio_stop` で free）。`SAAN_SKIP_I2S` の分岐はそのまま。
+- [x] **Step 4: `saan_ui.h` + `saan_ui_null.c`**（4 関数とも何もしない。`poll_touch` は false）。
+- [x] **Step 5: `main.c` を書き換える**: `#include "saan_audio.h" "saan_pcm.h" "saan_ui.h"`。`synth_once` の先頭で `saan_pcm_reset()` → `saan_ui_status("合成中…")`。プリロール前に `saan_audio_begin_utterance(SAAN_AUDIO_PREROLL_SAMPLES)`。`done:` で `saan_audio_stop()`。統計は `saan_pcm_*`。`tts_task` で `saan_audio_setup(SAAN_SR)` の直後に `saan_ui_init()`。`SAAN_BUFFERED` はこの Task では**入れない**（A-3）。
+- [x] **Step 6: host stub を直す**: `esp_heap_caps.h` に `void *heap_caps_malloc(size_t, unsigned); void heap_caps_free(void *);` と `MALLOC_CAP_SPIRAM 0x4` を足し、`stubs.c` に `malloc/free` で実装。
+- [x] **Step 7: `esp32/main/CMakeLists.txt` の SRCS** に `saan_pcm.c saan_ui_null.c` を足す。`check_esp32_template.sh` のゲート 7 の除外を `saan_model_*|saan_audio_*|saan_pcm_*|saan_ui_*|saan_f32_to_i16|saan_stub_*|saan_console_*|saan_dict_*|saan_kanji_*`、ゲート 8 のソース一覧に `saan_pcm.c saan_ui_null.c` を足す。
+- [x] **Step 8: ゲート**
 
 ```bash
 bash scripts/check_esp32_template.sh 2>&1 | grep -E 'bit 完全一致|NG!|手元のゲート'
@@ -166,8 +166,8 @@ grep -rn 'saan_i2s_pcm\|saan_f32_to_i16' esp32/main/*.c | grep -v saan_pcm.c | g
 ```
 Expected: bit 完全一致 ×2 / NG 0 / 定義は `saan_pcm.c` だけ。
 
-- [ ] **Step 9: QEMU で checksum**（既存の手順。`-DSAAN_QEMU=1 -DSAAN_ENABLE_PIE=1 -DSAAN_BOOT_SPEAK=1`）→ `0x04de91103a0e49f9` が出ること。
-- [ ] **Step 10: commit** `refactor(esp32): 音声出力を saan_audio API に、checksum を saan_pcm.c に一本化（bit 同一）`
+- [x] **Step 9: QEMU で checksum**（既存の手順。`-DSAAN_QEMU=1 -DSAAN_ENABLE_PIE=1 -DSAAN_BOOT_SPEAK=1`）→ `0x04de91103a0e49f9` が出ること。
+- [x] **Step 10: commit** `refactor(esp32): 音声出力を saan_audio API に、checksum を saan_pcm.c に一本化（bit 同一）`
 
 ### Task A-2: 重みを `.rodata` に埋める経路
 
@@ -179,11 +179,11 @@ Expected: bit 完全一致 ×2 / NG 0 / 定義は `saan_pcm.c` だけ。
 - Produces: `saan_model_open(saan_weights *w)`（宣言は既存 `saan_model.h`。実装が 2 つになるだけ）。生成ヘッダは `${CMAKE_CURRENT_BINARY_DIR}/saan_model_blob.h` に `const uint8_t g_saan_model_blob[SAAN_MODEL_BLOB_BYTES] __attribute__((aligned(16)))` と `SAAN_MODEL_BLOB_SHA256` / `SAAN_MODEL_BLOB_DTYPE`。
 - CMake: `-DSAAN_MODEL_RODATA=1`（既定 0 = mmap）。
 
-- [ ] **Step 1: `scripts/test_blob_to_header.py` を書く**（失敗するテスト）。stdlib だけで最小の SAAN v1 blob を 2 つ作る（`.scale` テンソルを持つ = int8 / 持たない = fp32）。検査: (a) int8 → 生成成功、`#define SAAN_MODEL_BLOB_SHA256 "<sha>"` が `hashlib.sha256(blob)` と一致、バイト列が `0x..,` で全部並ぶ（数を数える）、`aligned(16)` を含む。(b) fp32 → exit 1（**陽性対照**）。(c) `--allow-fp32` で通る。
-- [ ] **Step 2: 走らせて落ちることを確認** `uv run --no-project --python 3.12 python scripts/test_blob_to_header.py` → `blob_to_header.py` が無いので落ちる。
-- [ ] **Step 3: `scripts/blob_to_header.py` を置く**（出所ヘッダを付けて取り込む）。Step 1 を再実行 → 通る。
-- [ ] **Step 4: `saan_model_rodata.c`**（nnn112358 の `saan_model.c` 相当。`#include "saan_model_blob.h"` は**この翻訳単位だけ**。16 B 境界 assert → `saan_weights_open`。ログに SHA-256 と dtype）。
-- [ ] **Step 5: CMake**。`esp32/main/CMakeLists.txt`:
+- [x] **Step 1: `scripts/test_blob_to_header.py` を書く**（失敗するテスト）。stdlib だけで最小の SAAN v1 blob を 2 つ作る（`.scale` テンソルを持つ = int8 / 持たない = fp32）。検査: (a) int8 → 生成成功、`#define SAAN_MODEL_BLOB_SHA256 "<sha>"` が `hashlib.sha256(blob)` と一致、バイト列が `0x..,` で全部並ぶ（数を数える）、`aligned(16)` を含む。(b) fp32 → exit 1（**陽性対照**）。(c) `--allow-fp32` で通る。
+- [x] **Step 2: 走らせて落ちることを確認** `uv run --no-project --python 3.12 python scripts/test_blob_to_header.py` → `blob_to_header.py` が無いので落ちる。
+- [x] **Step 3: `scripts/blob_to_header.py` を置く**（出所ヘッダを付けて取り込む）。Step 1 を再実行 → 通る。
+- [x] **Step 4: `saan_model_rodata.c`**（nnn112358 の `saan_model.c` 相当。`#include "saan_model_blob.h"` は**この翻訳単位だけ**。16 B 境界 assert → `saan_weights_open`。ログに SHA-256 と dtype）。
+- [x] **Step 5: CMake**。`esp32/main/CMakeLists.txt`:
 
 ```cmake
 if(SAAN_MODEL_RODATA)
@@ -205,15 +205,15 @@ if(SAAN_MODEL_RODATA)
 endif()
 ```
 `esp32/CMakeLists.txt` の `esptool_py_flash_to_partition(flash "model" ...)` を `if(NOT SAAN_MODEL_RODATA)` で囲う。`scripts/check_cmake_syntax.cmake` に `add_custom_command / add_custom_target / add_dependencies / target_include_directories / target_compile_definitions` のスタブを足す。
-- [ ] **Step 6: QEMU で rodata 経路の checksum**
+- [x] **Step 6: QEMU で rodata 経路の checksum**
 
 ```bash
 cd esp32 && idf.py -B build_rodata -DSDKCONFIG=build_rodata/sdkconfig -DSAAN_QEMU=1 -DSAAN_ENABLE_PIE=1 \
     -DSAAN_BOOT_SPEAK=1 -DSAAN_MODEL_RODATA=1 build
 # merge_bin → qemu（既存手順）。ログに "ヘッダ埋め込み (.rodata = flash) 643936 B / dtype int8" と 0x04de91103a0e49f9
 ```
-- [ ] **Step 7: ci.yml の docs job に** `uv run --no-project --python 3.12 python scripts/test_blob_to_header.py` を足す。`bash scripts/check_esp32_template.sh` 通過。
-- [ ] **Step 8: commit** `feat(esp32): 重みを .rodata に埋める経路（PSRAM 有効な板で mmap が落ちる報告への対応）`
+- [x] **Step 7: ci.yml の docs job に** `uv run --no-project --python 3.12 python scripts/test_blob_to_header.py` を足す。`bash scripts/check_esp32_template.sh` 通過。
+- [x] **Step 8: commit** `feat(esp32): 重みを .rodata に埋める経路（PSRAM 有効な板で mmap が落ちる報告への対応）`
 
 ### Task A-3: `esp32/boards/m5unified/` と、main.c の `SAAN_BUFFERED` / タッチ
 
@@ -235,10 +235,10 @@ void saan_console_prompt(void);          /* "\r\nかな> " を出す。行を受
 
 `main.c` の `SAAN_BUFFERED`（既定 0）: 1 なら `saan_audio_begin_utterance(n_frames * SAAN_HOP)` して全チャンクを `preroll_push`、`start` で一気に鳴らす（nnn112358 の `synth_once` と同じ構造）。対話ループ: `saan_console_poll(&line, 20)` が PENDING のとき `saan_ui_poll_touch() && g_last_n_ids > 0` なら直前の列を `synth_once`。`g_last_n_ids` は G2P 失敗時に 0 にする。
 
-- [ ] **Step 1: `saan_console_poll` を実装**（`port_read1(c, timeout_ms)` に `pdMS_TO_TICKS` を渡す。nnn112358 の `saan_console.c` の差分どおり）。`SAAN_INTERACTIVE=0` では従来どおりコンパイル外。
-- [ ] **Step 2: `main.c`** に `SAAN_BUFFERED` と タッチ再生、`g_last_n_ids` / `g_last_text`、`saan_ui_show(SAAN_DEMO_TEXT, SAAN_DEMO_INTERMEDIATE)`（起動時）と `saan_ui_show(NULL, text)`（入力時）、`saan_ui_status("xRT %.2f  途切れ %d/%d", ...)`。
-- [ ] **Step 3: DevKit 構成の回帰**: `bash scripts/check_esp32_template.sh`（bit 一致 ×2）と QEMU（`0x04de91103a0e49f9`）。QEMU の UART に `きょ][おわよ][いて][んきです°ね` を流して同じ checksum（M-63 の T1 と同じ手順）。
-- [ ] **Step 4: `esp32/boards/m5unified/` を作る**。`saan_audio_m5.cpp` は nnn112358 の `saan_speaker.cpp` を `saan_audio_*` 名に合わせ、`saan_f32_to_i16` と統計を**削って `saan_pcm.h` を呼ぶ**（重複ゼロ）。`saan_ui_m5.cpp` は `saan_ui.cpp` そのまま（`saan_model.h` の `SAAN_MODEL_ORIGIN_*` は `saan_model_rodata.c` 側に持たせるか、UI 側の文字列にする）。`CMakeLists.txt`:
+- [x] **Step 1: `saan_console_poll` を実装**（`port_read1(c, timeout_ms)` に `pdMS_TO_TICKS` を渡す。nnn112358 の `saan_console.c` の差分どおり）。`SAAN_INTERACTIVE=0` では従来どおりコンパイル外。
+- [x] **Step 2: `main.c`** に `SAAN_BUFFERED` と タッチ再生、`g_last_n_ids` / `g_last_text`、`saan_ui_show(SAAN_DEMO_TEXT, SAAN_DEMO_INTERMEDIATE)`（起動時）と `saan_ui_show(NULL, text)`（入力時）、`saan_ui_status("xRT %.2f  途切れ %d/%d", ...)`。
+- [x] **Step 3: DevKit 構成の回帰**: `bash scripts/check_esp32_template.sh`（bit 一致 ×2）と QEMU（`0x04de91103a0e49f9`）。QEMU の UART に `きょ][おわよ][いて][んきです°ね` を流して同じ checksum（M-63 の T1 と同じ手順）。
+- [x] **Step 4: `esp32/boards/m5unified/` を作る**。`saan_audio_m5.cpp` は nnn112358 の `saan_speaker.cpp` を `saan_audio_*` 名に合わせ、`saan_f32_to_i16` と統計を**削って `saan_pcm.h` を呼ぶ**（重複ゼロ）。`saan_ui_m5.cpp` は `saan_ui.cpp` そのまま（`saan_model.h` の `SAAN_MODEL_ORIGIN_*` は `saan_model_rodata.c` 側に持たせるか、UI 側の文字列にする）。`CMakeLists.txt`:
 
 ```cmake
 cmake_minimum_required(VERSION 3.16)
@@ -259,7 +259,7 @@ include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(saanotts_m5)
 ```
 `components/saanotts_core/CMakeLists.txt` に **`if(SAAN_ENABLE_PIE AND NOT IDF_TARGET STREQUAL "esp32s3") message(FATAL_ERROR ...)`** を足す（S3 以外で PIE を黙って無効にしない）。
-- [ ] **Step 5: ビルドが通る**（ネットワークが要る: 初回に M5Unified を取る）
+- [x] **Step 5: ビルドが通る**（ネットワークが要る: 初回に M5Unified を取る）
 
 ```bash
 cd esp32/boards/m5unified && idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig \
@@ -267,8 +267,8 @@ cd esp32/boards/m5unified && idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdk
 idf.py -B build_core2 -DSDKCONFIG=build_core2/sdkconfig -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.core2" build
 ```
 Expected: 両方 `Project build complete`。`.dram0.bss` と app サイズをログから控える（M-79 の形）。`-DSAAN_ENABLE_PIE=1` を core2 に渡すと CMake で止まる（陽性対照）。
-- [ ] **Step 6: `scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv`** が通る（model 行無しを許す修正が要れば入れる）。`check_doc_links.py` 通過。
-- [ ] **Step 7: commit** `feat(esp32): M5Unified 対応（boards/m5unified）。SAAN_BUFFERED とタッチ再生を main.c に足した`
+- [x] **Step 6: `scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv`** が通る（model 行無しを許す修正が要れば入れる）。`check_doc_links.py` 通過。
+- [x] **Step 7: commit** `feat(esp32): M5Unified 対応（boards/m5unified）。SAAN_BUFFERED とタッチ再生を main.c に足した`
 
 ### Task A-4: 実機（ユーザーのスタックチャン）
 
@@ -290,10 +290,10 @@ idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig -DSDKCONFIG_DEFAULTS="
 
 ### Task A-5: 手順書
 
-- [ ] `esp32/TESTING.md` に「M5Stack（スタックチャン）で試す」節（A-4 のコマンドと、板の同定法、期待 checksum の表）
-- [ ] `README.md` の「C. ESP32-S3 で喋らせる」に板の選択（DevKit / M5）を 1 行ずつ
-- [ ] `docs/research/s1-m5-cores3-speed.md` §6 を「実装済み（A-1〜A-3）」に書き換え
-- [ ] `check_doc_counters.py` / `check_doc_links.py` 通過 → commit `docs: M5 の手順を TESTING.md と README に足した`
+- [x] `esp32/TESTING.md` に「M5Stack（スタックチャン）で試す」節（A-4 のコマンドと、板の同定法、期待 checksum の表）
+- [x] `README.md` の「C. ESP32-S3 で喋らせる」に板の選択（DevKit / M5）を 1 行ずつ
+- [x] `docs/research/s1-m5-cores3-speed.md` §6 を「実装済み（A-1〜A-3）」に書き換え
+- [x] `check_doc_counters.py` / `check_doc_links.py` 通過 → commit `docs: M5 の手順を TESTING.md と README に足した`
 
 ---
 
@@ -330,11 +330,11 @@ const float *ib, *hdb, *hob, *emb, *pos;
 static saan_status resolve_weights(saan_stream *st);
 ```
 
-- [ ] **Step 1: 失敗する検査を足す**: `prof_test.c` に `--expect-no-lookup`（LOOKUP の `cnt` が INIT の外で 0 でなければ exit 1）。現状の LOOKUP は 101.81 回/step なので**落ちる**ことを確認: `make -C csrc prof_test && ./csrc/prof_test csrc/student_i8.bin --expect-no-lookup` → exit 1。
-- [ ] **Step 2: `resolve_weights`** を書き、`ac_step_body / dec_inp_step_body / dec_step_body / compute_tokens_body / make_hf_body / step_chunk_body` の `saan_w / saan_tf` 呼び出しを impl のフィールド参照に置き換える。**計算順序は 1 つも変えない。**
-- [ ] **Step 3: ゲート**: `make -C csrc all-test`（stream G2 が bit 一致）/ `./csrc/prof_test csrc/student_i8.bin --expect-no-lookup` → exit 0 / QEMU checksum `0x04de91103a0e49f9` 不変。
-- [ ] **Step 4: 実機**（板があれば）`SAAN_PROFILE=1` の表で LOOKUP が 0 回、1 step のサイクル。
-- [ ] **Step 5: commit** `perf(S1): テンソル検索を init で 1 回に（bit 同一。step 内 LOOKUP 102 → 0 回）`
+- [x] **Step 1: 失敗する検査を足す**: `prof_test.c` に `--expect-no-lookup`（LOOKUP の `cnt` が INIT の外で 0 でなければ exit 1）。現状の LOOKUP は 101.81 回/step なので**落ちる**ことを確認: `make -C csrc prof_test && ./csrc/prof_test csrc/student_i8.bin --expect-no-lookup` → exit 1。
+- [x] **Step 2: `resolve_weights`** を書き、`ac_step_body / dec_inp_step_body / dec_step_body / compute_tokens_body / make_hf_body / step_chunk_body` の `saan_w / saan_tf` 呼び出しを impl のフィールド参照に置き換える。**計算順序は 1 つも変えない。**
+- [x] **Step 3: ゲート**: `make -C csrc all-test`（stream G2 が bit 一致）/ `./csrc/prof_test csrc/student_i8.bin --expect-no-lookup` → exit 0 / QEMU checksum `0x04de91103a0e49f9` 不変。
+- [ ] **Step 4: 実機**（板があれば）`SAAN_PROFILE=1` の表で LOOKUP が 0 回、1 step のサイクル。⚠️ 板待ち
+- [x] **Step 5: commit** `perf(S1): テンソル検索を init で 1 回に（bit 同一。step 内 LOOKUP 102 → 0 回）`
 
 ### Task S2: 活性化の量子化からソフト除算と libm 呼び出しを消す（丸め水準）
 
@@ -423,6 +423,18 @@ exporter: `q2d [cout, cin*k]` → `q3 = q2d.reshape(cout, cin, k).transpose(0, 2
 - [ ] S6（token block の持ち越し）/ S7（`SAAN_CHUNK` 16）/ S8（2 コア）を、床を見てから起票
 - [ ] QACC 外積形（16 出力同時）は 20 bit 溢れの解析を spike として別起票
 - [ ] K トラック × PSRAM: `esp_partition_mmap` が落ちる報告を実機で切り分け（`esp_mmu_map_dump_mapped_blocks`）
+
+## 進捗（2026-09-02）
+
+| Task | 状態 | 記録 |
+|---|---|---|
+| A-1 音声 API / saan_pcm | ✅ `1371332` | host stub bit 一致 ×2 / QEMU `0x04de91103a0e49f9` |
+| A-2 .rodata 経路 | ✅ `74a88a3` | QEMU 両経路 `0x04de91103a0e49f9` / app 285,440 → 928,832 B |
+| A-3 boards/m5unified | ✅ `78a55af` | cores3（PIE）1,344,432 B・.bss 235,600 / core2 1,331,808 B・.bss 22,752（arena は PSRAM） |
+| A-5 手順書 | ✅ `12ea114` | |
+| **A-0 / A-4 実機** | ⏳ **板待ち**（ユーザーのスタックチャン。種類は未同定） | |
+| **S1 検索を init で 1 回に** | ✅ | pull 中の LOOKUP **42,280 → 0 回**（20 発話）/ all-test bit 一致 / QEMU checksum 不変・PIE 5 命令 / QEMU icount の 1 step **811,001 → 741,973**（−8.5%。⚠️ サイクルではない） |
+| S2 / S3 / S4 / S5 | 次 | |
 
 ## 実行の順序と依存
 

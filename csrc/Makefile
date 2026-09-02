@@ -177,7 +177,7 @@ lanes: dump_pcm_a32 dump_pcm_a8 student_i8.bin ids_heldout.bin
 	cd .. && uv run --extra eval python scripts/d3_lane_scoreq.py --dir reports/lanes
 
 prof: prof_test student_i8.bin
-	./prof_test student_i8.bin --reps 20
+	./prof_test student_i8.bin --reps 20 --expect-no-lookup
 
 run-bench: bench
 	./bench --weights student.bin --json ../reports/d3b_latency_fft.json --label fft
