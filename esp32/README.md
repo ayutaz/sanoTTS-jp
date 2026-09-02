@@ -209,6 +209,18 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 （int8）〜 2,249,792 B（fp32）で、512 KB の SRAM には入らない。
 コアは blob を書き換えないので read-only で足りる。
 
+置き場は 2 つあり、`saan_model.h` の `saan_model_open()` の実装を CMake で切り替える:
+
+| | 既定（`saan_model.c`） | `-DSAAN_MODEL_RODATA=1`（`saan_model_rodata.c`） |
+|---|---|---|
+| 置き場 | `model` パーティションを `esp_partition_mmap` | `scripts/blob_to_header.py` が `const uint8_t[]`（aligned(16)）にして app の `.rodata` |
+| app サイズ（W8A8+PIE / QEMU 構成） | 285,440 B | **928,832 B**（blob ぶん増える） |
+| モデルだけの差し替え | できる（`model` だけ焼き直す） | **できない**（app ごと再ビルド） |
+| いつ使うか | DevKit | **PSRAM を有効にした板**。CoreS3 では `CONFIG_SPIRAM=y` だと mmap が `ESP_ERR_NO_MEM` で落ちた（第三者の実機報告。未再現） |
+
+どちらも QEMU で同じ checksum `0x04de91103a0e49f9` を出す（起動直後の内部 DRAM free も 72.8 KB で同じ）。
+fp32 blob は `blob_to_header.py` が**ビルド時に拒否する**（回帰: `scripts/test_blob_to_header.py`）。
+
 ### 2. `EMBED_FILES` を使わない — **アライメントが無保証**
 
 ⚠️ **以下は ESP-IDF の公式 cmake を読んで得た事実。** v5.5 は手元にあるので

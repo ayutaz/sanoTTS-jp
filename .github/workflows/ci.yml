@@ -39,6 +39,9 @@ jobs:
       - name: レポートの本文検出ゲート
         run: uv run --no-project --python 3.12 python scripts/test_sanitize_reports.py
 
+      - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
+        run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
+
   # ------------------------------------------------------------------- C99 コア
   # ⚠️ **重みが要るもの（golden / stream / int8 / arena）は入れられない。**
   #    `csrc/*.bin` は git 管理外で、リリースから落とさないと存在しない。

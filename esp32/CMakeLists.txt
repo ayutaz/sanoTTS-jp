@@ -14,6 +14,36 @@ cmake_minimum_required(VERSION 3.16)
 
 set(EXTRA_COMPONENT_DIRS "${CMAKE_CURRENT_LIST_DIR}/components")
 
+# --- 重み blob の場所は **project() より前**に決める ---------------------------
+#
+# ⚠️ ESP-IDF は project() の中でコンポーネント（main/ を含む）の CMakeLists を処理する。
+#    後ろに置くと main/CMakeLists.txt から見た ${SAAN_MODEL_BLOB} が**空文字列**になり、
+#    -DSAAN_MODEL_RODATA=1 のヘッダ生成が `--blob ""` で落ちる（実際に踏んだ）。
+#    CACHE INTERNAL にして子スコープからも見えるようにする。
+if(NOT DEFINED SAAN_MODEL_BLOB)
+    set(SAAN_MODEL_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/student_i8.bin")
+endif()
+
+if(NOT EXISTS "${SAAN_MODEL_BLOB}")
+    message(FATAL_ERROR
+        "重み blob が無い: ${SAAN_MODEL_BLOB}\n"
+        "  ⚠️ blob は git 管理外なので、クローンしただけでは存在しない。\n"
+        "  ⚠️ `idf.py set-target esp32s3` でこれが出たなら、**set-target は不要**。\n"
+        "     sdkconfig.defaults が CONFIG_IDF_TARGET=\"esp32s3\" を持っているので、\n"
+        "     そのまま build に -DSAAN_MODEL_BLOB=<絶対パス> を付けて打てばよい。\n"
+        "  (a) リリースから取る（推奨）:\n"
+        "      https://github.com/ayutaz/sanoTTS-jp/releases/latest\n"
+        "      saanotts-jp-v3-int8.bin を落として -DSAAN_MODEL_BLOB=<その絶対パス>\n"
+        "  (b) 自分で書き出す（教師 ckpt と runs/v3/stage4.pt が要る）:\n"
+        "      uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \\\n"
+        "          --out csrc/student_i8.bin --golden csrc/golden_i8.bin \\\n"
+        "          --int8 --golden-from-quantized --report csrc/export_i8.json")
+endif()
+get_filename_component(SAAN_MODEL_BLOB "${SAAN_MODEL_BLOB}" ABSOLUTE)
+set(SAAN_MODEL_BLOB "${SAAN_MODEL_BLOB}" CACHE INTERNAL "重み blob の絶対パス（main/ が参照する）")
+file(SIZE "${SAAN_MODEL_BLOB}" SAAN_MODEL_BLOB_SIZE)
+message(STATUS "sanoTTS: model blob ${SAAN_MODEL_BLOB} (${SAAN_MODEL_BLOB_SIZE} B)")
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(saanotts_jp)
 
@@ -39,32 +69,13 @@ project(saanotts_jp)
 #    ⚠️ **W8A8 + PIE は fp32 blob では 1 命令も効かない**（`saan_conv1d_w` が
 #    `W.f32` で早期 return する）。main.c が起動時にこれを検査して止める。
 #    fp32 に戻すには -DSAAN_MODEL_BLOB=<...>/student.bin を渡す。
-if(NOT DEFINED SAAN_MODEL_BLOB)
-    set(SAAN_MODEL_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/student_i8.bin")
-endif()
-
-if(NOT EXISTS "${SAAN_MODEL_BLOB}")
-    message(FATAL_ERROR
-        "重み blob が無い: ${SAAN_MODEL_BLOB}\n"
-        "  ⚠️ blob は git 管理外なので、クローンしただけでは存在しない。\n"
-        "  ⚠️ `idf.py set-target esp32s3` でこれが出たなら、**set-target は不要**。\n"
-        "     sdkconfig.defaults が CONFIG_IDF_TARGET=\"esp32s3\" を持っているので、\n"
-        "     そのまま build に -DSAAN_MODEL_BLOB=<絶対パス> を付けて打てばよい。\n"
-        "  (a) リリースから取る（推奨）:\n"
-        "      https://github.com/ayutaz/sanoTTS-jp/releases/latest\n"
-        "      saanotts-jp-v3-int8.bin を落として -DSAAN_MODEL_BLOB=<その絶対パス>\n"
-        "  (b) 自分で書き出す（教師 ckpt と runs/v3/stage4.pt が要る）:\n"
-        "      uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt \\\n"
-        "          --out csrc/student_i8.bin --golden csrc/golden_i8.bin \\\n"
-        "          --int8 --golden-from-quantized --report csrc/export_i8.json")
-endif()
-
-file(SIZE "${SAAN_MODEL_BLOB}" SAAN_MODEL_BLOB_SIZE)
-message(STATUS "sanoTTS: model blob ${SAAN_MODEL_BLOB} (${SAAN_MODEL_BLOB_SIZE} B)")
 
 # partitions.csv の `model` パーティションに焼く。offset はパーティション名から
 # 自動解決される（components/esptool_py/project_include.cmake の定義）。
-esptool_py_flash_to_partition(flash "model" "${SAAN_MODEL_BLOB}")
+# ⚠️ -DSAAN_MODEL_RODATA=1 のときは app に埋めるので焼かない（main/CMakeLists.txt）。
+if(NOT SAAN_MODEL_RODATA)
+    esptool_py_flash_to_partition(flash "model" "${SAAN_MODEL_BLOB}")
+endif()
 
 # --- K-7: 辞書 blob（漢字対応ビルドだけ）------------------------------------
 #
