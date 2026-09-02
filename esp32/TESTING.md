@@ -10,6 +10,9 @@ ESP32-S3 の実機が 1 枚あれば全部決着します。手元では QEMU �
 | **2** | **I2S で実際に音が出るか**（QEMU では通せなかった） |
 | **3** | **漢字版が実機で起動して同じ checksum を出すか**（16 MB ボードのみ） |
 
+⚠️ **1 は 2026-09-02 に第三者が M5Stack CoreS3 で報告しました**（W8A8+PIE で 1.554× RT = 間に合っていない。
+本リポジトリでは未再現）。M5Stack を持っている方は下の **「M. M5Stack で試す」** が近道です。
+
 ⚠️ **「音が良いか」は実機とは別の話**で、**ボードが無くても答えられます**
 （[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
 `saanotts-jp-v3-samples.zip` を聴いた感想が、実は同じくらい貴重です）。
@@ -153,6 +156,67 @@ idf.py -DSAAN_ENABLE_PIE=1 -DSAAN_QEMU=1 \
 ⚠️ 名前は `QEMU` ですが、やっているのは **`i2s_channel_write` を no-op にするだけ**です
 （QEMU の esp32s3 が I2S DMA を捌かないので付けたフラグ）。**止まったのが I2S かどうか**
 自体、有益な報告になります。
+
+---
+
+## M. M5Stack（スタックチャンの中身）で試す
+
+**M5Stack CoreS3 / Core2 / Basic なら配線も DAC も要りません**（内蔵スピーカーと画面を使う）。
+ソースからビルドします（ESP-IDF v5.5 が要る。初回は M5Unified を Component Registry から取るのでネットワークも）。
+
+⚠️ **2026-09-02、第三者が CoreS3 で実機の速度を報告しています**（W8A8+PIE で **定常 1.554× RT**、
+実時間に**間に合っていない**。checksum は下の期待値と一致）。本リポジトリでは**まだ再現していません**。
+この節は、それを自分で確かめるための手順です。
+
+### 板の見分け方
+
+| 外見 | 板 | チップ | この手順で分かること |
+|---|---|---|---|
+| 画面の上にカメラ穴、下に物理ボタン無し | **CoreS3 / CoreS3 SE** | ESP32-S3 | **速度（PIE の効き）まで全部** |
+| 画面の下に丸い印が 3 つ（タッチ）、物理ボタン無し | Core2 | ESP32 | 喋ること + W8A32 の checksum（PIE 無し。**遅い**） |
+| 画面の下に物理ボタン 3 つ | Basic / Gray / Fire | ESP32 | 同上（ボタン A で再生） |
+
+確実なのは USB で繋いで `esptool.py chip_id`（`Chip is ESP32-S3` か `ESP32-D0WD` か）。
+
+### ビルドして焼く
+
+```bash
+. ~/esp/esp-idf/export.sh
+cd esp32/boards/m5unified
+
+# CoreS3（ESP32-S3）: W8A8 + PIE
+idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" -DSAAN_ENABLE_PIE=1 \
+    -DSAAN_MODEL_BLOB=<int8 blob の絶対パス> build
+idf.py -B build_cores3 -p /dev/cu.usbmodem* flash monitor       # 終了は Ctrl+]
+
+# Core2 / Basic（ESP32）: W8A32。⚠️ arena が PSRAM に行くので速度の測定には使えない
+idf.py -B build_core2 -DSDKCONFIG=build_core2/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.core2" \
+    -DSAAN_MODEL_BLOB=<int8 blob の絶対パス> build
+idf.py -B build_core2 -p /dev/cu.usbserial* flash monitor
+```
+
+起動すると画面に「今日は良い天気ですね。」を出して 1 回喋り、下段に `xRT` と途切れ回数が出ます。
+**画面をタッチ（Basic はボタン A）で同じ文をもう一度**、シリアルの `かな> ` に打てばその文を喋ります。
+途切れない再生が要るなら `-DSAAN_BUFFERED=1`（貯めてから鳴らす。待ちは合成時間）。
+
+### 期待値（CoreS3 / 起動時の 1 文）
+
+| 構成 | `出力 PCM ... FNV-1a` | `\|max\|` | `Σx²` |
+|---|---|---:|---:|
+| W8A8 + PIE（`-DSAAN_ENABLE_PIE=1`） | **`0x04de91103a0e49f9`** | 9744 | 74,374,063,946 |
+| W8A32（PIE 無し。Core2 もこちら） | **`0x78c209af06affc01`** | 9529 | 74,155,592,149 |
+
+一致すれば G2P → 合成 → int16 まで QEMU の記録（M-62）と bit 一致しています。**音が鳴っただけでは証拠になりません。**
+
+### 報告してほしいもの（M5）
+
+上の「報告してほしいもの」の 4 行に加えて、**`-DSAAN_PROFILE=1` で焼き直したときの表**
+（`----- 段別プロファイル -----` から `1 step = ... cyc` まで）を丸ごと。
+1 チャンクの時間がどの段（QUANT / GELU / LOOKUP / WCOPY / MAC …）に行っているかが、
+実機でしか取れない唯一の数字です（[`docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)）。
+⚠️ **速度（`定常 xRT`）の報告は `SAAN_PROFILE=0` のビルドで。** 計測自体にコストがあります。
 
 ---
 

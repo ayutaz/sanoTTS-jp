@@ -175,6 +175,16 @@ OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一
 CoreS3 は M5Unified の内蔵スピーカーで再生し、定常 xRT **1.558**を 60% の先読みで補って
 途切れ **0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)）。
 ⚠️ **漢字の方は実機で一度も動かしていない。**
+⚠️ **どちらも実時間に間に合っていない**（本リポジトリでは未再現）。直す順序は
+[`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) §5、
+計画は [`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md)。
+
+**板は 2 通り。**
+
+| 板 | どう焼くか | 音の出口 |
+|---|---|---|
+| ESP32-S3 DevKit / AtomS3 + I2S DAC | 上のイメージを焼く（`esp32/TESTING.md` A） | 外付け DAC（配線が要る。AtomS3 の報告は I2S 無効で速度だけ） |
+| **M5Stack CoreS3 / Core2 / Basic**（スタックチャンの中身） | **ソースからビルド**（`esp32/TESTING.md` の「M. M5Stack で試す」/ [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md)） | 内蔵スピーカー。画面に文が出て、タッチで再生 |
 
 > 漢字を受け付けない理由をかつて「辞書が載らないため」と書いていたが、**測り直したら崩れ、
 > 実装まで通った**。辞書を TTS 専用のバイナリにすると 16 MB ボードに **438,750 entries** が載り、

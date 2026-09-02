@@ -160,23 +160,24 @@ MIT。`components/saanotts_core/` は本リポジトリ `csrc/` の commit `2c61
 `\|max\|` 完全一致 + Σx² 相対差 1e-7 級で示す。** 収まらなければ近似の次数を上げる。
 ⚠️ **S7 / S8 は最後。** 先に S1〜S5 で 1 コアの床を出さないと、何倍になったか分からない。
 
-## 6. M5Stack 対応を本リポジトリに取り込む形（案。⚠️ 未実装）
+## 6. M5Stack 対応を本リポジトリに取り込んだ形（✅ 実装済み。2026-09-02、Task A-1〜A-3）
 
-報告者の構成をそのまま入れるのではなく、**`csrc/` を相対参照する本リポジトリの流儀**（コピーしない。
-`esp32/components/saanotts_core/CMakeLists.txt` の冒頭）に合わせる。
+報告者の構成をそのまま入れるのではなく、**`csrc/` を相対参照する本リポジトリの流儀**（コピーしない）に合わせた。
+計画と各 Task のゲートは [`../plan/s1-speed-implementation-plan.md`](../plan/s1-speed-implementation-plan.md)。
 
-| 何 | どこ | 備考 |
+| 何 | どこ | 検証 |
 |---|---|---|
-| 音声出力の抽象 API | `esp32/main/saan_i2s.h` の 7 関数をそのまま契約にする | `setup / preroll_push / start / write_f32 / stop / clip_count / pcm_*` |
-| 実装 2 つ | `saan_i2s.c`（DevKit、既存）/ **`saan_audio_m5.cpp`（M5.Speaker）** | 後者は報告者の `saan_speaker.cpp` を API 名だけ合わせて取り込む（MIT） |
-| 重みの置き場 2 つ | `saan_model.c`（パーティション mmap、既存）/ **`saan_model_rodata.c`（ヘッダ埋め込み）** | PSRAM 有効な板は後者。`scripts/blob_to_header.py` を取り込む |
-| ボードごとのプロジェクト | **`esp32/boards/m5unified/`**（CMakeLists / sdkconfig.defaults / partitions.csv / idf_component.yml） | `main/` と `components/` は `../../` を参照。M5Unified は Component Registry から |
-| 画面 | `saan_ui_m5.cpp`（任意） | 無くても喋る |
+| 音声出力の抽象 API | `esp32/main/saan_audio.h`（7 関数 `saan_audio_*`）。float→int16 と checksum は **`saan_pcm.c` が唯一の実装** | host stub で C 一括版と bit 一致 ×2 / QEMU checksum 不変 |
+| 実装 2 つ | `saan_i2s.c`（DevKit、既存）/ `esp32/boards/m5unified/main/saan_audio_m5.cpp`（M5.Speaker。報告者のコード由来、MIT） | M5 側は `idf.py build` まで（音は板が要る） |
+| 重みの置き場 2 つ | `saan_model.c`（mmap）/ `saan_model_rodata.c`（`.rodata`。`-DSAAN_MODEL_RODATA=1`）。`scripts/blob_to_header.py` を取り込み、回帰 `scripts/test_blob_to_header.py`（fp32 拒否の陽性対照つき） | QEMU で両経路とも `0x04de91103a0e49f9`。app 285,440 → 928,832 B |
+| ボードごとのプロジェクト | `esp32/boards/m5unified/`（`sdkconfig.cores3` / `sdkconfig.core2`、16 MB の `partitions.csv`、M5Unified は Component Registry） | cores3（PIE）1,344,432 B・.bss 235,600 B / core2 1,331,808 B・.bss 22,752 B でビルド通過 |
+| 画面 | `saan_ui.h` + `saan_ui_null.c` / `saan_ui_m5.cpp`。タッチで直前の列を再合成（コンソールは poll 化） | QEMU の UART で 2 行入力 → M-63 と同じ checksum |
+| `SAAN_BUFFERED` | 貯めてから鳴らす（途切れない。待ちは合成時間） | 板が要る |
 
-**検証できる範囲**: ホストでは無理（C++ と M5Unified）。QEMU は M5Unified の I2C 初期化で止まる可能性が高い。
-**`idf.py build` が通ること**までは手元で確かめられ、音と速度は板が要る。
-⚠️ K トラック（辞書 13.7 MB のパーティション mmap）は PSRAM 有効な板で動かない可能性がある（§0 の報告）。
-**かなトラックを先に通す。**
+⚠️ **ESP32（Core2 / Basic）は静的 arena 208 KB が `dram0_0_seg` に入らない**（65,368 B 溢れた）。
+`SAAN_ARENA_HEAP=1` で PSRAM から取る。**遅い（未測定）ので速度の測定には使わない。**
+⚠️ **S3 以外で `SAAN_ENABLE_PIE=1` を渡すと CMake で止める**（黙ってスカラに落ちない）。
+⚠️ K トラック（辞書 13.7 MB のパーティション mmap）は PSRAM 有効な板で動かない可能性がある（§0 の報告）。**未対応。**
 
 ## 7. 未検証・限界
 
