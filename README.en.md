@@ -10,10 +10,11 @@ This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/a
 ("sanoTTS") to Japanese, distilling [piper-plus](https://github.com/ayutaz/piper-plus)
 (MB-iSTFT-VITS2) into three small students: Duration, Acoustic, and an iSTFT Decoder.
 
-⚠️ **It has never run on real hardware.** Quality and memory hit their targets;
-**speed has never been measured** — there is no ESP32-S3 board on hand
-(see [Status](#status)). The toolchain (ESP-IDF v5.5) and QEMU are installed, and the
-build plus bit-exactness verification do pass.
+✅ **A third party has run inference on real ESP32-S3 hardware.** On an M5Stack AtomS3
+with 8 MB flash, the W8A8 + PIE path produced PCM exactly matching the QEMU baseline.
+However, steady-state xRT was **1.718**, missing real time, and I2S output was disabled
+([independent measurement](https://github.com/magatsux2019/sanotts-atoms3-results);
+see [Status](#status)).
 
 ## What makes Japanese hard
 
@@ -36,7 +37,7 @@ a counterpart.
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 643,936 B in int8 (flash) |
-| **Speed** | ⚠️ **Not met.** Ported as fp32 it runs at **2.47× real-time** (too slow) |
+| **Speed** | ⚠️ **Not met.** An independent M5Stack AtomS3 measurement reported steady-state xRT **1.718** with W8A8 + PIE (n=2, I2S disabled), above the real-time threshold of 1.0 ([measurement](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)) |
 | **Kanji on the device** | Synthesizes end to end under QEMU (13.7 MB dictionary / 438,750 entries). ⚠️ **Untested on hardware** |
 
 ⚠️ **Everything above is a predictor score at n = 24–200, and exactly one person has
@@ -46,15 +47,17 @@ calibrated for Japanese**. Real human Japanese speech scores only
 **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute numbers against
 English papers**.
 
-**Measuring on real hardware is the only thing left.** The int8 kernel using the
-ESP32-S3's PIE (SIMD) **is written** — the dot product uses `ee.vmulas.s8.accx` (a 16-lane
-int8 multiply-accumulate), verified **bit-identical to the scalar path under QEMU**
-(covering **99.4%** of the MACs). The official implementation reports **0.22× real-time
-measured** on the same chip, which supports the direction.
+**One real-hardware measurement is now available.** The int8 kernel uses the ESP32-S3's
+PIE (SIMD): `ee.vmulas.s8.accx` replaces the dot product and covers **99.4%** of the MACs.
+A third party measured the W8A8 + PIE path twice on an M5Stack AtomS3 and reproduced
+**steady-state xRT 1.718**. The checksum and amplitude statistics of all 27,136 generated
+PCM samples exactly matched the QEMU baseline, confirming correctness on hardware
+([measurement](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)).
 
-⚠️ **That still does not mean it got faster.** QEMU is not cycle-accurate, so **speed has
-never been measured**. Whether it reaches 0.22× real-time can only be settled on real
-ESP32-S3 hardware.
+⚠️ **Inference is correct on hardware, but it is not real-time yet.** That measurement
+disabled I2S. What remains is **speed optimization**, **I2S on real hardware**, and
+**confirming that the kanji path boots**. It does not reach the **0.22× real-time**
+reported by the official implementation on the same chip.
 
 **What QEMU has verified:**
 
@@ -63,8 +66,9 @@ ESP32-S3 hardware.
 | 2026-08-30 | The shipping firmware **boots → mmaps the weights → runs G2P → synthesizes → converts to int16**. **PIE is bit-identical to the scalar path across all 27,136 samples** (with a negative control, M-62) |
 | 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.2.0 ships a flash-and-go 16 MB image for it** |
 
-⚠️ **Neither has ever run on real hardware.** What is left is **speed**, **I2S on real
-hardware**, and **confirming the kanji path boots** — all three need a board.
+✅ **Kana-path inference and PCM generation have run on a real AtomS3.** I2S was disabled,
+and **the kanji path is still QEMU-only**. What remains is **real-time performance**,
+**I2S on real hardware**, and **confirming that the kanji path boots**.
 
 ## Getting started
 
@@ -163,7 +167,8 @@ Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over seria
 | Kana | `esp32s3-firmware-w8a8-pie.bin` | The kana intermediate form only | 8 MB+ |
 | **Kanji** | `esp32s3-firmware-kanji-16mb.bin` | **Prefix a line with `!`** for kanji text | **16 MB required** |
 
-⚠️ **Nobody has measured the speed of either.** ⚠️ **The kanji one has never run on hardware.**
+⚠️ **The kana path measured steady-state xRT 1.718 on an AtomS3 (n=2, I2S disabled).**
+⚠️ **The kanji one has never run on hardware.**
 
 > The reason kanji used to be rejected was "the dictionary does not fit". Re-measuring broke that
 > premise, and the implementation now runs: with a TTS-only dictionary format a 16 MB
@@ -217,7 +222,7 @@ regenerate labels or retrain; kanji→kana conversion works with the piper-plus 
 | | Why |
 |---|---|
 | **Regenerate labels / retrain** | The teacher checkpoint lives in a private repository |
-| **Measure real-hardware speed** | ⚠️ **No ESP32-S3 board here.** See [`esp32/TESTING.md`](esp32/TESTING.md) |
+| **Real-time operation including I2S** | ⚠️ The AtomS3 measurement reported steady-state xRT **1.718**, with I2S disabled ([independent measurement](https://github.com/magatsux2019/sanotts-atoms3-results)) |
 | **Say whether it sounds good** | ⚠️ **One listener, one session.** Zero for the kanji path |
 
 ## Architecture
