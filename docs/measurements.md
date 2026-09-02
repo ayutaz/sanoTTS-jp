@@ -5921,6 +5921,28 @@ INIT: 176759 cyc / 回
 `0xa69a7ebbb5ccb05f` になるかで分かる。** 違えば S5a を疑う（S4 までは旧ループで同じ値）。
 ⚠️ **S5b（重み行を QR レジスタに保持して t を回す）は入れていない。** 実機の MAC の cyc/要素を見てから。
 
+### 9. 漢字対応ビルド（K-7）も SAAN 形式 v2 の blob で QEMU を完走した
+
+再現:
+
+```bash
+cd esp32 && idf.py -B build_kanji_v2 -DSDKCONFIG=build_kanji_v2/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" -DSAAN_KANJI=1 -DSAAN_QEMU=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict.bin build
+# merge_bin --fill-flash-size 16MB → qemu -m 4M → `!今日は良い天気ですね。` と `きょ][おわよ][いて][んきです°ね`
+```
+
+| | 値 |
+|---|---|
+| app | 360,832 B / 2,097,152 B |
+| 辞書 | 438,750 entries / 行列 1377×1377（`saan_dict: 辞書 OK`） |
+| `!今日は良い天気ですね。` | 形態素 7 個 → 53 ids → **`0xe4b645c30835d42d`** / \|max\| 9529 / Σx² 74,155,591,505 |
+| `きょ][おわよ][いて][んきです°ね` | **同じ `0xe4b645c30835d42d`** |
+
+漢字経路とかな経路が一致し、値は §5 の W8A32（S3 以降）の基準値と同じ。**v2 形式は漢字対応と独立**
+（辞書は別パーティション、コアは共通）。⚠️ **`esp32/boards/m5unified/` は漢字未対応**（辞書パーティション無し。
+PSRAM 有効時に `esp_partition_mmap` が落ちる報告が未解決）。⚠️ 起動直後の内部 DRAM free は 58,064 B（M-79 の 54,232 B と同水準）。
+
 ### ⚠️ 測っていないこと
 
 - **実機**（板待ち。スタックチャンの板の種類も未同定）
