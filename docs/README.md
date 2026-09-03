@@ -112,7 +112,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             ✅ **CoreS3 で実機確認**（M-83。v0.2.0 コードで checksum が QEMU と一致）。
                             ⚠️ **配布イメージは UART0 入力**で native USB だけの板では操作できない
                             ⚠️ 出荷構成では DRAM が 19,304 B 溢れた
-                            （`K7_MAX_TOKENS` 2048 → 640 で解決。M-79）
+                            （`LABEL_IDS_MAX_TOKENS` 2048 → 640 で解決。M-79）
 [完了] v0.1.1 リリース        手順書を新規 clone でなぞって欠陥 2 件を修正（M-66）。
                             **焼くだけの ESP32 firmware 2 種**を追加（M-67）。
                             ⚠️ モデルは v0.1.0 と bit 同一（再学習していない）
@@ -279,7 +279,7 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 ⚠️ **音としては測っていない。** 0.32% は「ホストと違う音素の割合」。
 
 ゲート: `uv run python scripts/test_k1_dict.py` / `uv run python scripts/k1/k0_verify_dict.py`
-／ `make -C csrc k2`（G6〜G11）／ `k4`（G12/G13）／ `k4b`（G14a〜c）／ `k5`（G22〜G24）
+／ `make -C csrc jdict`（G6〜G11）／ `k4`（G12/G13）／ `k4b`（G14a〜c）／ `k5`（G22〜G24）
 ／ `k6`（G17）／ `k7`（G25〜G27 + **G25b/G25c**: 表を arena に置いても同じ列か）
 ／ `kb-parity`（**K-B の経路判定**がホストと一致するか。596/596）
 ／ `uv run python scripts/k1/k4b_vendor.py --sdist <tgz> --check`（取り込んだ C の同一性）
@@ -407,19 +407,19 @@ sanoTTS-jp/
 │   │                                        + **`saan_g2p_classify`**（K-B: かな / 辞書 / 拒否の 3 値）
 │   ├── saan_prof.h                        段別プロファイラ（`SAAN_PROFILE=1` で有効。回数と要素数）
 │   ├── erf_table.h                        GELU の erf 近似の節点表（**機械生成**。S3）
-│   ├── saan_oj_alloc.h                    Open JTalk の一時ヒープを PSRAM に落とす（M-90）
-│   ├── k1dict.h / k1dict.c                **K-2/K-3/K-6: 辞書 blob リーダ + LOUDS + Viterbi
+│   ├── oj_heap_psram.h                    Open JTalk の一時ヒープを PSRAM に落とす（M-90）
+│   ├── jdict.h / jdict.c                **K-2/K-3/K-6: 辞書 blob リーダ + LOUDS + Viterbi
 │   │                                        + 未知語 + 素性の復元 + 読みの推測**
-│   ├── k4_accent.h / k4_accent.c          **K-4: アクセント規則 4 段（126 行）** ← 新規性の中核
-│   ├── k4b_njd.h / k4b_njd.c              **K-4b: chaining 前の 12 規則**（フォークが足した段）
-│   ├── k7_label2ids.h / k7_label2ids.c    **K-7: ラベル → 生徒インデックス**
-│   ├── k7_table.h / k7_dan.h              語彙 57 / `_DAN_MAP` 76（**どちらも機械生成**）
-│   ├── k5_alloc.h / k5_alloc.c            K-5 の追跡アロケータ（取り込んだ C を改変せず測る）
+│   ├── accent.h / accent.c          **K-4: アクセント規則 4 段（126 行）** ← 新規性の中核
+│   ├── njd_rules.h / njd_rules.c              **K-4b: chaining 前の 12 規則**（フォークが足した段）
+│   ├── label_ids.h / label_ids.c    **K-7: ラベル → 生徒インデックス**
+│   ├── token_table.h / dan_table.h              語彙 57 / `_DAN_MAP` 76（**どちらも機械生成**）
+│   ├── oj_heap_probe.h / oj_heap_probe.c            K-5 の追跡アロケータ（取り込んだ C を改変せず測る）
 │   ├── openjtalk/                         **取り込んだ Open JTalk 34 ファイル**（修正 BSD）
 │   │                                        ⚠️ PROVENANCE.md / 改変は PATCHES の 1 件だけ
-│   ├── k2_test.c / k4_test.c              K-2〜K-4 の受け入れ（どちらも陰性対照つき）
-│   ├── k4b_test.c / k5_mem_test.c         K-4b / K-5 の受け入れ
-│   ├── k6_test.c / k7_test.c              K-6 / K-7 の受け入れ
+│   ├── jdict_test.c / accent_test.c              K-2〜K-4 の受け入れ（どちらも陰性対照つき）
+│   ├── njd_rules_test.c / oj_heap_test.c         K-4b / K-5 の受け入れ
+│   ├── kanji_e2e_test.c / label_ids_test.c              K-6 / K-7 の受け入れ
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）

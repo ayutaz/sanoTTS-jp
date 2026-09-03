@@ -4668,7 +4668,7 @@ uv run python scripts/k1/k0_mmu_window.py        # ESP-IDF から MMU 窓を確�
 uv run python scripts/k1/k1_build_dict.py        # 本番 blob を組んで G1〜G5
 uv run python scripts/k1/k1_fit_point.py         # 予算に入るエントリ数（二分探索）
 uv run python scripts/test_k1_dict.py            # エンコーダの単体（TDD）
-make -C csrc k2                                  # C リーダ + Viterbi（G6〜G8）
+make -C csrc jdict                                  # C リーダ + Viterbi（G6〜G8）
 ```
 
 ### 調査（K-1）
@@ -4698,7 +4698,7 @@ make -C csrc k2                                  # C リーダ + Viterbi（G6〜
 
 ### K-3（未知語ノード生成）
 
-再現: `make -C csrc k2`
+再現: `make -C csrc jdict`
 
 | 項目 | 値 |
 |---|---:|
@@ -4711,7 +4711,7 @@ make -C csrc k2                                  # C リーダ + Viterbi（G6〜
 
 ### K-4（アクセント規則 4 段の C 移植）← 新規性の中核
 
-再現: `make -C csrc k4`
+再現: `make -C csrc accent`
 
 | 項目 | 値 |
 |---|---:|
@@ -4742,7 +4742,7 @@ Viterbi の貪欲比較と行列圧縮は **viterbi-lane**、trie / プールの
 
 ```bash
 uv run python scripts/k1/k4b_gen_vectors.py     # ベクタ（pyopenjtalk が要る）
-make -C csrc k4b
+make -C csrc njd-rules
 ```
 
 出力:
@@ -4786,7 +4786,7 @@ run_njd_from_mecab(run_mecab(t)) == run_frontend(t, use_vanilla=True): 635 / 635
 | 一致した文 | **635 / 635** |
 | 突き合わせた NJD ノード | 10,206 |
 | 取り込んだ第三者コード | 34 ファイル / **pyopenjtalk-plus 0.4.1.post9** |
-| 自分で書いた C | `csrc/k4b_njd.c` 227 行（chaining 前の 12 規則） |
+| 自分で書いた C | `csrc/njd_rules.c` 227 行（chaining 前の 12 規則） |
 
 適用順（`openjtalk.pyx:1514-1526`）:
 
@@ -4798,7 +4798,7 @@ mecab2njd → njd_set_pronunciation → **apply_original_rule_before_chaining**
 
 ⚠️ **`apply_original_rule_before_chaining` は素の Open JTalk に無い。**
 フォークが Python 側で挟んでいる 12 規則で、**移植しないと 302 / 600 で止まる**。
-K-4 の 4 段（`k4_accent.c`）は chaining の**後**なので別物。
+K-4 の 4 段（`accent.c`）は chaining の**後**なので別物。
 
 ⚠️ **ゲートが見ていないもの**:
 
@@ -4883,11 +4883,11 @@ predict_nani を切る             : 0 / 600
 再現:
 
 ```bash
-make -C csrc k5
+make -C csrc oj-heap
 ```
 
 ⚠️ **取り込んだ C を測るために改変してはいない。** ヒープは
-`cc -include k5_alloc.h` で `calloc` / `strdup` / `free` をマクロ差し替え、
+`cc -include oj_heap_probe.h` で `calloc` / `strdup` / `free` をマクロ差し替え、
 スタックは **自前スタックを 0xA5 で塗って pthread で走らせ、塗り残しを数える**。
 
 | | 詰める前（1024） | **詰めた後（256）** |
@@ -4934,7 +4934,7 @@ uv run python scripts/k1/k2_gen_vectors.py --entries 370863 --cases 2000 \
     --out csrc/k2_big.bin                       # 基準
 uv run python scripts/k1/k2_gen_vectors.py --entries 370863 --cases 2000 \
     --matrix-int8 affine --out csrc/k2_big_aff.bin
-make -C csrc k2_test && ./csrc/k2_test csrc/k2_big_aff.bin
+make -C csrc jdict_test && ./csrc/k2_test csrc/k2_big_aff.bin
 uv run python scripts/k1/k1_fit_point.py
 ```
 
@@ -5054,13 +5054,13 @@ D-042 以降の順位付けが**辞書自身の単語コスト**（＝一般コ�
 漢字かな交じり文を入力に、**端末側の全段を 1 本に繋いで**ホストと比べた。
 
 ```
-漢字文 → k1_encode_key → k1_analyze（K-2/K-3 の辞書 + Viterbi + 未知語）
+漢字文 → jdict_encode_key → k1_analyze（K-2/K-3 の辞書 + Viterbi + 未知語）
        → k1_entry_feature（素性の復元）→ mecab2njd
-       → 8 段（K-4b）→ k4_apply（K-4 の 4 段）
+       → 8 段（K-4b）→ accent_apply（K-4 の 4 段）
        → njd2jpcommon → JPCommon_make_label
 ```
 
-再現: `make -C csrc k6`（held-out から 300 文・D-042 の 370,863 entries）
+再現: `make -C csrc kanji-e2e`（held-out から 300 文・D-042 の 370,863 entries）
 
 ### 1. 移植は正しい — **素性が一致した文でラベルの食い違いは 0**
 
@@ -5110,9 +5110,9 @@ G17b は**数を出すだけ**にしてある。合否は「移植の正しさ�
 
 | 何と何を比べたか | 一致 | どこで出るか |
 |---|---:|---|
-| MeCab feature 列 vs ホスト | 236 / 298 = 79.19% | `make -C csrc k6` G17b |
+| MeCab feature 列 vs ホスト | 236 / 298 = 79.19% | `make -C csrc kanji-e2e` G17b |
 | **ラベル列** vs ホスト（端末に載る段だけ） | 238 / 298 = **79.87%** | 同上 |
-| **生徒インデックス列** vs **ホスト既定** | 245 / 298 = **82.21%** | `make -C csrc k7` G26 |
+| **生徒インデックス列** vs **ホスト既定** | 245 / 298 = **82.21%** | `make -C csrc label-ids` G26 |
 
 ⚠️ **ids の方が高いのは当然。** 違うラベル列でも同じ音素 + アクセント記号に
 落ちることがあるので、**ids は粗い**。
@@ -5127,14 +5127,14 @@ G17b は**数を出すだけ**にしてある。合否は「移植の正しさ�
 ## M-75. 未知語のフォールバック — 効くが、**思っていた場所ではなかった**（自己実測）
 
 未知語は読み/発音を持たないので `njd_set_pronunciation` が読点に置換し、
-**語が丸ごと音から消える**（B-0）。`k1_unk_guess()` を足して読みを推測させた。
+**語が丸ごと音から消える**（B-0）。`jdict_unk_guess()` を足して読みを推測させた。
 
 規則は 2 つだけ:
 - 表層が全部かなら、**それ自身が読み**（ひらがなはカタカナへ寄せる）
 - そうでなければ **1 文字ずつ辞書を引いて繋ぐ**（同じ字に複数あれば単語コスト最小）
 - アクセントは **平板（0）**に逃げる
 
-再現: `make -C csrc k6`（held-out 300 文 / 370,863 entries）
+再現: `make -C csrc kanji-e2e`（held-out 300 文 / 370,863 entries）
 
 ```
 === G17d: 未知語のフォールバック ===
@@ -5268,7 +5268,7 @@ I (79) saan_dict: 辞書 OK: 見出し語 303483 / エントリ 370863 / 行列 
 実装のままなので、実機で有効にすればそのまま移る。
 
 ⚠️ **Viterbi の作業領域は 32 KB で足りる**（held-out 298 文。16 KB だと 1 文落ちる）。
-48 KB 取ってある。⚠️ 最初この測定は**空虚だった** — `k7_test.c` の
+48 KB 取ってある。⚠️ 最初この測定は**空虚だった** — `label_ids_test.c` の
 `#define ARENA_N` が `-D` に勝っていて、1 KB でも「全部一致」と出ていた。
 `#ifndef` にして測り直した。
 
@@ -5296,7 +5296,7 @@ I (23104) saanotts: アンダーラン 1 / 14 チャンク
 ```bash
 uv run python scripts/k1/k6_gen_vectors.py --cases 300 --entries <N> \
     [--matrix-int8 affine] --out <vec>
-make -C csrc k7_test && ./csrc/k7_test <vec>     # G26b
+make -C csrc label-ids_test && ./csrc/k7_test <vec>     # G26b
 ```
 
 ⚠️ **PAD を除いた列で測る**（intersperse した PAD を残すと編集距離が倍に膨らむ）。
@@ -5326,7 +5326,7 @@ make -C csrc k7_test && ./csrc/k7_test <vec>     # G26b
 | 528,750 / **affine uint8** | 263/298 | **110** | **34** |
 
 ⚠️ **これは「影響が無い」ではなく「n=298 では検出できない」。**
-高精度の測定（`make -C csrc k2`、n=1,696）では **affine で 3 文 / sym で 9 文**が
+高精度の測定（`make -C csrc jdict`、n=1,696）では **affine で 3 文 / sym で 9 文**が
 変わる（M-72）。298 文なら期待値 0.5〜1.6 文なので、0 は妥当。
 ⚠️ **ベクタは確かに違う**（SHA-256 が 4 通りとも別）。フラグは効いている。
 
@@ -5451,16 +5451,16 @@ ld: region `dram0_0_seg' overflowed by 19304 bytes
 | 漢字なし + I2S（v0.1.1 相当） | 252,320 B | 39,328 B |
 | 漢字あり + I2S 無し（QEMU） | 265,880 B | 56,984 B |
 
-**差 +17,656 B の主犯は `k7_label2ids.c` の `static char tok[2048][16]`
+**差 +17,656 B の主犯は `label_ids.c` の `static char tok[2048][16]`
 = 32,768 B。**
 
 ### 直したこと 2 つ
 
-**1. `K7_MAX_TOKENS` を 2048 → 640。** 端末は ids 350 個で拒否するので
+**1. `LABEL_IDS_MAX_TOKENS` を 2048 → 640。** 端末は ids 350 個で拒否するので
 （`SAAN_MAX_IDS`）トークンは高々 175 個。**640 は 3.6 倍の余裕。**
-`-DK7_MAX_TOKENS=` で上書きできる（ホストのゲートは長文を通すため）。
+`-DLABEL_IDS_MAX_TOKENS=` で上書きできる（ホストのゲートは長文を通すため）。
 
-| `K7_MAX_TOKENS` | ホストとの一致（n=298） |
+| `LABEL_IDS_MAX_TOKENS` | ホストとの一致（n=298） |
 |---:|---:|
 | 640 | **298 / 298** |
 | 256 | **298 / 298** |
@@ -6553,7 +6553,7 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921
 | 漢字経路の作業領域（最低限） | 144,640 B（arena 180,224 B から。Viterbi に 84,736 B 渡る） |
 | flash | app 1.43 MB（factory 2.75 MB）+ 辞書 13.83 MB = 16 MB ちょうど |
 
-**Open JTalk の一時ヒープは PSRAM に落ちている**（`-include saan_oj_alloc.h`）ので、内部 DRAM は発話しても 3 KB しか減らない。
+**Open JTalk の一時ヒープは PSRAM に落ちている**（`-include oj_heap_psram.h`）ので、内部 DRAM は発話しても 3 KB しか減らない。
 
 ### 4. 辞書の mmap — **`esp_partition_mmap` ではなく `esp_mmu_map`**
 

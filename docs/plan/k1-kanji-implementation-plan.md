@@ -112,7 +112,7 @@
 （落ちた語は未知語にならず切り直されて誤読される。C-051）。
 
 再現: `uv run python scripts/test_k1_dict.py` /
-`make -C csrc k2` / `k4` / `k4b` / `k5` / `k6` / `k7`
+`make -C csrc jdict` / `k4` / `k4b` / `k5` / `k6` / `k7`
 
 ---
 
@@ -129,12 +129,12 @@ K-1 調査の一致率はすべて「OpenJTalk と同じ出力か」であって
 |---|---|---|---|
 | G1〜G5 | 辞書エンコーダ（11 フィールド往復 / trie / チェックポイント） | `scripts/test_k1_dict.py` | ✅ |
 | G0-2 | 使う辞書が D-042 の凍結物か | `scripts/k1/k0_verify_dict.py` | ✅ |
-| G6〜G11 | 辞書リーダ + Viterbi + 未知語（参照は MeCab） | `make -C csrc k2` | ✅ |
-| G12/G13 | アクセント規則 4 段（参照は Python 版） | `make -C csrc k4` | ✅ |
-| G14a〜G14e | NJD チェーン（参照はホスト） | `make -C csrc k4b` | ✅ |
-| G22〜G24 | 1 文ピーク RAM / ラベルバッファ / bit 一致 | `make -C csrc k5` | ✅ |
-| G17〜G17d | 端末の全段 vs ホスト（移植の正しさ） | `make -C csrc k6` | ✅ |
-| G25〜G27 | ラベル → 生徒インデックス | `make -C csrc k7` | ✅ |
+| G6〜G11 | 辞書リーダ + Viterbi + 未知語（参照は MeCab） | `make -C csrc jdict` | ✅ |
+| G12/G13 | アクセント規則 4 段（参照は Python 版） | `make -C csrc accent` | ✅ |
+| G14a〜G14e | NJD チェーン（参照はホスト） | `make -C csrc njd-rules` | ✅ |
+| G22〜G24 | 1 文ピーク RAM / ラベルバッファ / bit 一致 | `make -C csrc oj-heap` | ✅ |
+| G17〜G17d | 端末の全段 vs ホスト（移植の正しさ） | `make -C csrc kanji-e2e` | ✅ |
+| G25〜G27 | ラベル → 生徒インデックス | `make -C csrc label-ids` | ✅ |
 | G18 | 既存のかな入力仕様が壊れていない | `make -C csrc all-test` | ✅ |
 | G19〜G21 | ESP32 ビルド / QEMU 完走 / 2 構成の bit 一致 | 手順は [`../../esp32/README.md`](../../esp32/README.md) | ✅ |
 | **G28〜G31** | **実機の速度 / 完走 / checksum** | **ボードが要る** | ✅ **通った**（M-83 / M-90） |
@@ -363,7 +363,7 @@ K-3（未知語ノード生成）が済んだ時点で、**この動作点での
 
 #### ✅ 結果（2026-08-31）
 
-実装は `src/saanotts_jp/k1_dict.py`、テストは `scripts/test_k1_dict.py`、
+実装は `src/saanotts_jp/jdict.py`、テストは `scripts/test_k1_dict.py`、
 本番ビルドは `scripts/k1/k1_build_dict.py`。**TDD**（各スライスで RED → GREEN）。
 
 D-042 の動作点（370,863 entries / 303,483 見出し語）:
@@ -433,7 +433,7 @@ K-2/K-3 でそれらを載せた**全部込みは 12,153,280 B = 11.59 MiB**（�
 
 #### ✅ 結果（2026-08-31）
 
-`csrc/k1dict.{h,c}` / `csrc/k2_test.c` / `make -C csrc k2`。**TDD**（ヘッダとゲートを
+`csrc/jdict.{h,c}` / `csrc/jdict_test.c` / `make -C csrc jdict`。**TDD**（ヘッダとゲートを
 先に書き、スタブで RED を確認してから実装）。
 
 **D-042 の動作点（370,863 entries / 303,483 見出し語）:**
@@ -490,7 +490,7 @@ Viterbi のコストでは決着せず、MeCab は辞書順で先勝ちする。
 
 #### ✅ 結果（2026-08-31）
 
-`csrc/k1dict.c` に実装、`make -C csrc k2` で G6〜G11 をまとめて回す。
+`csrc/jdict.c` に実装、`make -C csrc jdict` で G6〜G11 をまとめて回す。
 
 **D-042 の動作点（370,863 entries / held-out 1,977 文）:**
 
@@ -553,7 +553,7 @@ K-2 では 415 文を除外していたが、未知語を扱えるようにな�
 
 #### ✅ 結果（2026-08-31）
 
-`csrc/k4_accent.{h,c}` / `csrc/k4_test.c` / `make -C csrc k4`。
+`csrc/accent.{h,c}` / `csrc/accent_test.c` / `make -C csrc accent`。
 
 | ゲート | 結果 |
 |---|---|
@@ -596,9 +596,9 @@ retreat と chaining の入れ替えは held-out 1,200 文で **1 文も変わ�
 MeCab の出力（形態素）から NJD ノード列を作るのは別の処理で、
 OpenJTalk の C 実装（`mecab2njd` + `njd_set_*` 群 + `jpcommon`）が担っている。
 
-**結果（M-69）**: `make -C csrc k4b` が **635 / 635 文・NJD ノード 10,206 件**で
+**結果（M-69）**: `make -C csrc njd-rules` が **635 / 635 文・NJD ノード 10,206 件**で
 ホストと一致する。取り込みは **34 ファイル**（`csrc/openjtalk/`）、
-自分で書いた C は `csrc/k4b_njd.c` の **227 行**だけ。
+自分で書いた C は `csrc/njd_rules.c` の **227 行**だけ。
 
 **受け入れ条件**:
 
@@ -624,7 +624,7 @@ uv run python scripts/k1/k4b_vendor.py --sdist <同> --check   # バイト一致
 **2. 素の Open JTalk に無い段が chaining の前にもう 1 つあった。**
 `openjtalk.pyx` の `apply_original_rule_before_chaining`（12 規則）で、
 `njd_set_pronunciation` と `njd_set_digit` の**間**に挟まる。
-移植前は **302 / 600** で止まっていた。`csrc/k4b_njd.c` に写した。
+移植前は **302 / 600** で止まっていた。`csrc/njd_rules.c` に写した。
 
 ```
 mecab2njd → njd_set_pronunciation → **before_chaining** → njd_set_digit
@@ -688,7 +688,7 @@ HTS Working Group, 2008-2016）。MIT との同居に問題はない。
 「G14」が 2 つの別物を指していた。**G17 は K-6 が使っている**ので G22〜G24 にした。
 **G15 / G16 は欠番のまま**（振り直した跡を消さないため）。
 
-再現: `make -C csrc k5`
+再現: `make -C csrc oj-heap`
 
 | | 詰める前 | **詰めた後** |
 |---|---:|---:|
@@ -696,7 +696,7 @@ HTS Working Group, 2008-2016）。MIT との同居に問題はない。
 | ラベルバッファの占める分 | 219,136 B（83.7%） | 54,784 B（56.3%） |
 
 ⚠️ **取り込んだ C を測るために改変してはいない。** ヒープは
-`cc -include k5_alloc.h` でマクロ差し替え、スタックは自前スタックを
+`cc -include oj_heap_probe.h` でマクロ差し替え、スタックは自前スタックを
 0xA5 で塗って pthread で走らせ塗り残しを数えた。
 `MAXBUFLEN` の変更だけは `k4b_vendor.py` の `PATCHES` に**理由つきで**登録してあり、
 `--check` が「上流 + PATCHES」と突き合わせる。**表に無い改変は落ちる。**
@@ -721,13 +721,13 @@ HTS Working Group, 2008-2016）。MIT との同居に問題はない。
 
 **目的**: 端末が出す音素列が、生徒が学習した入力と一致することを保証する。
 
-**結果（M-74）**: `make -C csrc k6` が
+**結果（M-74）**: `make -C csrc kanji-e2e` が
 **素性が一致した 244 文で、ラベルの食い違い 0 件**（陰性対照 44 件）。
 端末の全段を 1 本に繋いだ経路:
 
 ```
-漢字文 → k1_encode_key → k1_analyze（K-2/K-3）→ k1_entry_feature
-       → mecab2njd → 8 段（K-4b）→ k4_apply（K-4 の 4 段）
+漢字文 → jdict_encode_key → k1_analyze（K-2/K-3）→ k1_entry_feature
+       → mecab2njd → 8 段（K-4b）→ accent_apply（K-4 の 4 段）
        → njd2jpcommon → JPCommon_make_label
 ```
 
@@ -763,7 +763,7 @@ blob の version は **2**（C 側は 1 も読める）。
 
 **エントリ数の決定**（§1-2）。370,863 → 528,750 でラベル一致 **+5.66 pt**。
 
-✅ **未知語のフォールバックは入れた**（`k1_unk_guess`。M-75）。未知語 37 件のうち
+✅ **未知語のフォールバックは入れた**（`jdict_unk_guess`。M-75）。未知語 37 件のうち
 **13 件**が読めるようになった。⚠️ **枝刈りの代償は 1 mm も減らない** —
 落ちた語は未知語にならず**切り直されて誤読される**（C-051）。
 
@@ -788,7 +788,7 @@ I (23072) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x78c209af06affc01
 | G19 | `idf.py build` が通り、app 枠と辞書パーティションに収まる | ✅ app **359,584 B / 2 MB**（17.1%）/ dict **13,702,320 B / 13,828,096 B**（99.1%。D-044 後の値） |
 | G20 | QEMU で漢字文を 1 行入力して合成が完走する | ✅ 形態素 7 → ids 53 → 27,136 sample |
 | G21 | **同じターゲット上の 2 構成**で既存経路の出力が bit 一致 | ✅ **3 経路すべて `0x78c209af06affc01`** |
-| G25〜G27 | ラベル → 生徒インデックス（ホスト側。`make -C csrc k7`） | ✅ **298/298**（陰性対照 298 件） |
+| G25〜G27 | ラベル → 生徒インデックス（ホスト側。`make -C csrc label-ids`） | ✅ **298/298**（陰性対照 298 件） |
 
 #### G21 は要求より強い結果になった
 
@@ -810,8 +810,8 @@ I (23072) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x78c209af06affc01
 | `esp32/sdkconfig.kanji` | 16 MB flash + 表の差し替え |
 | `esp32/main/saan_dict.c` | dict パーティションの mmap（64 KB 境界を検査） |
 | `esp32/main/saan_kanji.c` | 漢字文 → ids（端末の全段） |
-| `csrc/k7_label2ids.c` | **ラベル → 生徒インデックス**（`_phonemize_core` の移植） |
-| `csrc/k7_table.h` / `k7_dan.h` | 語彙 57 / `_DAN_MAP` 76（どちらも**機械生成**） |
+| `csrc/label_ids.c` | **ラベル → 生徒インデックス**（`_phonemize_core` の移植） |
+| `csrc/token_table.h` / `dan_table.h` | 語彙 57 / `_DAN_MAP` 76（どちらも**機械生成**） |
 
 有効化は **`idf.py -DSAAN_KANJI=1`** の 1 本。ソースの既定は無効（かな入力だけ）だが、**v0.2.0 では有効にしたイメージを配布している**。
 

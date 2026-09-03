@@ -235,7 +235,7 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600
 
 ⚠️ **QEMU では PSRAM が使えない**（octal PSRAM を持っていない）ので、QEMU 向けのビルドでは
 漢字経路の作業領域を**合成用 arena から切り出す**。実機の M5 構成では Open JTalk の一時ヒープが
-PSRAM に落ちる（component の `-include saan_oj_alloc.h`）ので、**内部 DRAM は 1 発話で 3 KB しか減らない**
+PSRAM に落ちる（component の `-include oj_heap_psram.h`）ので、**内部 DRAM は 1 発話で 3 KB しか減らない**
 （起動直後 132,039 B → 1 発話後 129,155 B。M-90）。
 
 ---
@@ -603,7 +603,7 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 | `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
 | `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。**S3 なら PIE を既定で有効**（D-048）。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
 | `components/saanotts_core/saan_port_esp32.h` | 配置の注入点（`SAAN_HOT_DATA` → `DRAM_ATTR` など。erf 表を内部 DRAM に載せる） |
-| `components/saanotts_core/saan_oj_alloc.{h,c}` | 取り込んだ Open JTalk の一時ヒープを **PSRAM** に向ける（`-include`。ソースは 1 バイトも変えない） |
+| `components/saanotts_core/oj_heap_psram.c` と `csrc/oj_heap_psram.h` | 取り込んだ Open JTalk の一時ヒープを **PSRAM** に向ける（`-include`。ソースは 1 バイトも変えない） |
 | `main/main.c` | arena・プリロール・合成ループ・計測ログ・経路の自動判定・タッチ再生・`SAAN_BUFFERED`・`SAAN_PROFILE` の表 |
 | `main/saan_model.h` | `saan_model_open()` の宣言。実装は 2 つ（下） |
 | `main/saan_model.c` | 実装 1: flash の `model` パーティションを mmap（16 バイト境界を検査） |

@@ -96,7 +96,7 @@ make -C csrc range                                  # 出力範囲つきカー�
 | ゲート | 何を見るか | 要るもの |
 |---|---|---|
 | `make -C csrc kb-parity` | 端末の経路判定（`saan_g2p_classify`）がホストの `classify_route()` と一致するか（**596/596**。K-B / M-90）。⚠️ **片方だけ直すとここが落ちます** | pyopenjtalk |
-| `make -C csrc k2` / `k4` / `k4b` / `k5` / `k6` / `k7` | K トラック（辞書リーダ・Viterbi・アクセント規則・NJD・RAM・端末とホストの一致） | 辞書 `csrc/k1_dict.bin` と pyopenjtalk |
+| `make -C csrc jdict` / `k4` / `k4b` / `k5` / `k6` / `k7` | K トラック（辞書リーダ・Viterbi・アクセント規則・NJD・RAM・端末とホストの一致） | 辞書 `csrc/k1_dict.bin` と pyopenjtalk |
 | `make -C csrc prof` | 段別プロファイラ。`--expect-no-lookup` が「pull 中のテンソル検索 0 回」を守る（S1） | なし |
 | `scripts/check_esp32_template.sh` | ESP32 雛形の静的検査。§10 は**漢字経路の作業領域が arena に収まるか** | なし |
 
@@ -183,7 +183,7 @@ make -C csrc range                                  # range-limited kernels (S9)
 Two families of gates are **not** in `make -C csrc all-test` because they need external
 assets — run them by hand if you touched the code they cover:
 `make -C csrc kb-parity` (the device's route classifier agrees with the host's,
-**596/596**; needs pyopenjtalk) and `make -C csrc k2 k4 k4b k5 k6 k7` (the kanji track;
+**596/596**; needs pyopenjtalk) and `make -C csrc jdict k4 k4b k5 k6 k7` (the kanji track;
 needs `csrc/k1_dict.bin` and pyopenjtalk).
 
 Python must go through `uv` — **never `pip install`**. `~/Documents/piper-plus` (the

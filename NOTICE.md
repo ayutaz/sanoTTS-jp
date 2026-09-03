@@ -176,8 +176,8 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
   `scripts/k1/k4b_vendor.py --check` が「上流 + 改変表」と突き合わせるので、
   **表に無い改変は落ちる**
 - ⚠️ **ESP32 ビルドは一時ヒープを PSRAM に向けるが、取り込んだ C は 1 バイトも変えていない。**
-  `cc -include csrc/saan_oj_alloc.h` で `calloc` / `strdup` / `free` を
-  コンパイル時に差し替えるだけで、実装（`esp32/components/saanotts_core/saan_oj_alloc.c`）は
+  `cc -include csrc/oj_heap_psram.h` で `calloc` / `strdup` / `free` を
+  コンパイル時に差し替えるだけで、実装（`esp32/components/saanotts_core/oj_heap_psram.c`）は
   **本プロジェクトが書いたもの（MIT）**。上流のファイル一覧・SHA-256 は上のまま変わらない
 
 ⚠️ **修正 BSD は MIT と同居できる**（コピーレフトではない）。

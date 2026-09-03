@@ -134,7 +134,7 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 ⚠️ **枝刈りで落ちた語は無音で消えるのではなく、切り直されて誤読される**（C-051）:
 `上毛`（コーゲ）→ `上`（ジョー）+ `毛`。未知語になるのは**辞書にも無い語**だけ
 （端末 37 / 5,015 token = 0.74%、ホストでも 10 件 = 0.20%）。
-未知語のフォールバック `k1_unk_guess` は入れてあり、**37 件中 13 件**を読める形にした。
+未知語のフォールバック `jdict_unk_guess` は入れてあり、**37 件中 13 件**を読める形にした。
 
 ✅ **動作点は決めた**（D-044 / M-77）: **438,750 entries / 接続行列は int16 のまま。**
 
@@ -267,14 +267,14 @@ uv run python scripts/check_doc_links.py           # md の相対リンクが実
 uv run python scripts/check_release_assets.py      # 表の資産がリリースに在るか（要ネットワーク）
 uv run python scripts/k1/k0_verify_dict.py         # 使う辞書が D-042 の凍結物か（陰性対照 2 種。C-045）
 uv run python scripts/test_k1_dict.py              # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
-make -C csrc k2                                    # K-2/K-3 辞書リーダ + Viterbi + 未知語
+make -C csrc jdict                                    # K-2/K-3 辞書リーダ + Viterbi + 未知語
                                                    #   （G6〜G11。⚠️ 辞書が要る）
-make -C csrc k4                                    # K-4 アクセント規則 4 段（G12/G13）
-make -C csrc k4b                                   # K-4b NJD チェーン（G14a/G14b/G14c。
+make -C csrc accent                                    # K-4 アクセント規則 4 段（G12/G13）
+make -C csrc njd-rules                                   # K-4b NJD チェーン（G14a/G14b/G14c。
                                                    #   段ごと・規則ごとの陰性対照つき）
-make -C csrc k5                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
-make -C csrc k6                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
-make -C csrc k7                                    # K-7 ラベル → 生徒インデックス（G25〜G27 +
+make -C csrc oj-heap                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
+make -C csrc kanji-e2e                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
+make -C csrc label-ids                                    # K-7 ラベル → 生徒インデックス（G25〜G27 +
                                                    #   **G25b/G25c**: 表を arena に置いても同じ列か）
 make -C csrc kb-parity                             # **K-B 経路判定**が端末とホストで一致するか
                                                    #   （⚠️ pyopenjtalk が要るので all-test の外）
@@ -546,7 +546,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
-| テスト | `make -C csrc k4b` / `k5` / `k6` / `k7` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
+| テスト | `make -C csrc njd-rules` / `k5` / `k6` / `k7` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
@@ -846,7 +846,7 @@ K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計�
 |---|---|---|
 | 枝刈りの誤読 | `reports/k8_listen/`（12 組。`k8_audio_gap.py --wav-dir` で再生成） | **SCOREQ は誤読を罰しない**（M-78: 差 −0.0127、CI が 0 を跨ぐ） |
 | アクセントの過剰強調 | `reports/d4_accent/student` と `teacher`（各 64 本） | `magnitude_ratio` **1.193** = 生徒の起伏が教師より 19% 大きい（M-59） |
-| 未知語フォールバック | 専用セットは無い（`k1_unk_guess` の出力を作るところから） | 「無音より誤読の方が良い」は**測っていない仮定**のまま |
+| 未知語フォールバック | 専用セットは無い（`jdict_unk_guess` の出力を作るところから） | 「無音より誤読の方が良い」は**測っていない仮定**のまま |
 | 生徒の音そのもの | `reports/student_wav_v3/`（held-out 24 文） | 集約スコアは摩擦音の欠陥を見逃す（論文が実際に見逃した） |
 
 ⚠️ **実機のスピーカーでしか分からないものが残る**（G32 の本体）: **途切れ・音量・実サンプルレートの誤差**。
@@ -903,7 +903,7 @@ xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（S
 端末で 37 / 5,015 token = **0.74%**（ホストでも 10 件 = 0.20%。M-75）。
 **枝刈りの代償（文の 18%）はフォールバックでは 1 mm も減らない。**
 
-✅ 端末側にはフォールバックを入れてある（`k1_unk_guess`。M-75）。
+✅ 端末側にはフォールバックを入れてある（`jdict_unk_guess`。M-75）。
 表層が全部かなら**それ自身が読み**、そうでなければ**1 文字ずつ辞書を引いて繋ぐ**、
 アクセントは**平板に逃げる**。37 件中 **13 件**が読める形になった。
 ⚠️ 残り 24 件は ASCII と、**辞書に単独の見出しが無い漢字**（`勃` `筑`）。

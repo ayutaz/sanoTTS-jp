@@ -40,7 +40,7 @@ Linux + glibc の厳密 `-std=c99` では見えない。**出荷するコア 2 �
 | `make -C csrc golden` / `stream` / `int8` / `int8-e2e` / `arena` | **重み blob が要る**（`csrc/*.bin` は git 管理外）。リリースから落とせば通るが、CI で毎回 2.9 MB 落とすのは割に合わない |
 | `scripts/test_discriminator.py` | **ラベルパックが要る**（`data/pack_sib*`。コーパス由来なので配布しない） |
 | `scripts/kana_g2p.py` | **pyopenjtalk が要る**（凍結テーブルとの突き合わせは live 側が要る） |
-| `make -C csrc k2` … `k7` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
+| `make -C csrc jdict` … `k7` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
 | `scripts/phase0_verify_teacher.py` | **教師 ckpt が private** |
 | ESP-IDF ビルド / QEMU | toolchain が重く、**実機の代わりにならない**（QEMU はサイクル精度ではない） |
 
