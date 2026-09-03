@@ -336,7 +336,11 @@ def intermediate_to_tokens(text: str, table: dict[str, list[str]]) -> list[str]:
 
 # --- 行の経路判定（K-B / 端末の csrc/g2p.c と同じ 3 値）----------------------
 
-MARK_CHARS = frozenset(m[0] for m in MARKS) | {DEVOICED_MARK}
+# ⚠️ **`?` 系は入れない**（`?` `?!` `?.` `?~` は先頭が `?`）。EOS のマークであると同時に
+#    普通の日本語の疑問文にも出る約物で、入れると `本当なんでしょうか?` が拒否になる
+#    （held-out 2,333 行で 45 行 = 1.93%、うち 42 行が普通の疑問文）。
+#    csrc/g2p.c の has_mark() と同じ集合でなければならない（kb_route_parity.py が突き合わせる）。
+MARK_CHARS = frozenset(m[0] for m in MARKS if not m[0].startswith("?")) | {DEVOICED_MARK}
 """「行にマークがあるか」を見るための 1 文字集合。
 
 ⚠️ **手書きしない。** `MARKS` の先頭 1 文字（`?!` `?.` `?~` は `?` に潰れる）と

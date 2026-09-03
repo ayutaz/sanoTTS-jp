@@ -346,8 +346,17 @@ static int run_route(route_fn f, int quiet) {
             "\xe3\x80\x82")
         == SAAN_G2P_ROUTE_REJECT,
         "**中間表現 + `。` → 拒否**（黙って辞書経路に回さない）");
-    chk(R(f, "\xe4\xbb\x8a\xe6\x97\xa5\xe3\x81\xaf?") == SAAN_G2P_ROUTE_REJECT,
-        "漢字文 + 半角 `?` → 拒否（`？` と書くこと）");
+    /* ⚠️ **半角 `?` は拒否しない。** EOS のマークであると同時に普通の疑問文の約物でもあり、
+     *    拒否にすると held-out 2,333 行の 45 行（1.93%、うち 42 行は `本当なんでしょうか?` の
+     *    ような普通の文）が喋れなくなる（K-B の実測）。`has_mark()` は `?` 系を数えない。 */
+    chk(R(f, "\xe4\xbb\x8a\xe6\x97\xa5\xe3\x81\xaf?") == SAAN_G2P_ROUTE_DICT,
+        "漢字文 + 半角 `?` → **辞書**（`?` は普通の疑問文にも出るので拒否しない）");
+    chk(R(f, "\xe6\x9c\xac\xe5\xbd\x93\xe3\x81\xaa\xe3\x82\x93\xe3\x81\xa7"
+            "\xe3\x81\x97\xe3\x82\x87\xe3\x81\x86\xe3\x81\x8b?") == SAAN_G2P_ROUTE_DICT,
+        "`本当なんでしょうか?` → 辞書（K-B が見つけた 42 行の代表）");
+    /* かな + `?` は**かな経路**（`?` は EOS のマークなのでトークン化が通る） */
+    chk(R(f, "\xe3\x81\x82?") == SAAN_G2P_ROUTE_KANA,
+        "`あ?` → かな（`?` は EOS のマーク）");
     /* ⚠️ `°` は**モーラの後ろでしか読まれない**（g2p.h の規約 4）。マークの後ろ・
      *    行頭の `°` はトークン化で落ちる。行にはマーク（`°` 自身）があるので拒否 */
     chk(R(f, "[\xc2\xb0") == SAAN_G2P_ROUTE_REJECT,

@@ -242,17 +242,26 @@ static saan_g2p_status validate(const unsigned char *t, size_t n, int32_t *err_b
     return SAAN_G2P_OK;
 }
 
-/* 行にマークが 1 つでもあるか（`[ ] # _ ^ $ ?` と `°`）。
+/* 行に**中間表現だけの**マークが 1 つでもあるか（`[ ] # _ ^ $` と `°`）。
  *
- * ⚠️ **集合を手書きしない。** `kSaanG2pMarks` の先頭バイトと `°` の 2 バイトから
- *    導く。マークはすべて ASCII か U+00B0 で、UTF-8 は自己同期するので
+ * ⚠️ **`?` 系（`?` `?!` `?.` `?~`）は数えない。** これらは EOS のマークであると同時に
+ *    **普通の日本語の文にも出る約物**で、数えると `本当なんでしょうか?` のような文が
+ *    「かな経路のつもりで書き損じた行」と誤判定されて拒否される。held-out 2,333 行で
+ *    **45 行（1.93%）が拒否**になり、うち 42 行がごく普通の疑問文だった（K-B の実測）。
+ *    残りの `[ ] # _ ^ $ °` は中間表現以外の日本語文にはまず現れないので、
+ *    「トークン化に失敗 かつ これらがある」= 書き損じ、と読んでよい。
+ * ⚠️ **集合を手書きしない。** `kSaanG2pMarks` の先頭バイト（`?` = 0x3f を除く）と
+ *    `°` の 2 バイトから導く。マークはすべて ASCII か U+00B0 で、UTF-8 は自己同期するので
  *    「多バイト文字の一部がたまたま `[` に見える」ことは起きない（生バイト走査で厳密）。 */
+#define SAAN_G2P_QUESTION_B0 0x3fu   /* '?'。`?!` `?.` `?~` も先頭はこれ */
+
 static int has_mark(const unsigned char *t, size_t n) {
     size_t i;
     for (i = 0; i < n; ++i) {
         int k;
         for (k = 0; k < SAAN_G2P_N_MARKS; ++k)
-            if (t[i] == kSaanG2pMarks[k].b0) return 1;
+            if (kSaanG2pMarks[k].b0 != SAAN_G2P_QUESTION_B0
+                && t[i] == kSaanG2pMarks[k].b0) return 1;
         if (t[i] == SAAN_G2P_DEVOICE_B0 && i + 1u < n
             && t[i + 1] == SAAN_G2P_DEVOICE_B1) return 1;
     }
