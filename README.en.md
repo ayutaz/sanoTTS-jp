@@ -134,21 +134,21 @@ native-USB-only boards (CoreS3 / AtomS3) boot but cannot be driven; build from s
 
 ### Which release holds what
 
-**Everything is in the latest release, [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0)** (15 assets), so
+**Everything is in the latest release, [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0)** (15 assets), so
 `releases/latest` is enough.
 
 | Asset | Where | What it is |
 |---|---|---|
-| `saanotts-jp-v3-samples.zip` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Synthesized WAVs |
-| `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch weights (2,744,874 B) |
-| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | int8 blob for the C99 core (643,936 B, **format v1**). ⚠️ **The core after S4 (2026-09-02) needs v2 (654,032 B)**; a v1 blob stops at boot with `SAAN_ERR_VERSION`. The v2 asset ships with the next release; until then build it with `scripts/export_c_weights.py --int8` |
-| `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | fp32 blob, for reference and debugging |
-| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Reference output for `make -C csrc int8-golden` (drop it at `csrc/golden_i8.bin`) |
-| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | For `make -C csrc golden` (= `test`); drop it at `csrc/golden.bin` |
-| `esp32s3-firmware-w8a8-pie.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kana** firmware (8 MB+, flash and go) |
-| `esp32s3-firmware-w8a32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The same without optimization (**the PIE baseline**) |
-| `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kanji** image (**16 MB required**, flash and go) |
-| `k1-dict-438750.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The dictionary blob alone (13,702,320 B) |
+| `saanotts-jp-v3-samples.zip` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | Synthesized WAVs |
+| `saanotts-jp-v3-stage4.pt` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | PyTorch weights (2,744,874 B) |
+| `saanotts-jp-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | int8 blob for the C99 core (643,936 B, **format v1**). ⚠️ **The core after S4 (2026-09-02) needs v2 (654,032 B)**; a v1 blob stops at boot with `SAAN_ERR_VERSION`. The v2 asset ships with the next release; until then build it with `scripts/export_c_weights.py --int8` |
+| `saanotts-jp-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | fp32 blob, for reference and debugging |
+| `golden-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | Reference output for `make -C csrc int8-golden` (drop it at `csrc/golden_i8.bin`) |
+| `golden-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | For `make -C csrc golden` (= `test`); drop it at `csrc/golden.bin` |
+| `esp32s3-firmware-w8a8-pie.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **Kana** firmware (8 MB+, flash and go) |
+| `esp32s3-firmware-w8a32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | The same without optimization (**the PIE baseline**) |
+| `esp32s3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **Kanji** image (**16 MB required**, flash and go) |
+| `k1-dict-438750.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | The dictionary blob alone (13,702,320 B) |
 
 ⚠️ **The weights are bit-identical across v0.1.0 / v0.1.1 / v0.2.0** — no retraining.
 
