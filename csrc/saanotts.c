@@ -292,8 +292,8 @@ SAAN_INLINE float saan_erf_approx_inl(float x) {
      *  (1) `|x| ≥ 4 なら ±1 を return` → ax を 4.0 にクランプして表を引く。u = 128.0 → i = 127,
      *      t = 1.0 で Hermite 基底は (0, 0, 1, 0) を float で正確に出し、y = kSaanErfV[128]
      *      （0.999999985 は float で 1.0f）。±1e30 も同じ経路で ±1.0f になる
-     *  (2) `x < 0 ? -y : y` → y の符号ビットに x の符号ビットを OR（y ≥ 0 なので全有限値で一致。
-     *      x = −0.0 だけ S3 の +0.0 に対し −0.0 を返すが、GELU は 1.0f + (∓0.0f) = 1.0f で同一） */
+     *  (2) ~~`x < 0 ? -y : y` → 符号ビットの OR~~ **撤回**（M-87: 実機で 2 倍遅くなった。下の注記）。
+     *      分岐を消したのは (1) だけ */
     float ax = fabsf(x);
     ax = (ax < (float)SAAN_ERF_TEST_CLAMP) ? ax : (float)SAAN_ERF_TEST_CLAMP;
     const float u = ax * (float)SAAN_ERF_H_INV;    /* 区間座標。整数部が区間番号 */
@@ -314,13 +314,11 @@ SAAN_INLINE float saan_erf_approx_inl(float x) {
                   + f1 * (-2.0f * t3 + 3.0f * t2)
                   + d1 * (t3 - t2);
 #endif
-    uint32_t yb, xb;
-    memcpy(&yb, &y, sizeof yb);
-    memcpy(&xb, &x, sizeof xb);
-    yb |= xb & 0x80000000u;                        /* 奇関数: 符号を x から戻す（分岐なし） */
-    float r;
-    memcpy(&r, &yb, sizeof r);
-    return r;
+    /* 奇関数: 符号を x から戻す。⚠️ **符号ビットの OR（memcpy 経由）にしてはいけない。** GCC 14.2 for Xtensa は
+     * FP → 整数 → FP の往復をレジスタ（rfr / wfr）ではなく**スタック経由の store → load**に落とし、
+     * 実機の GELU が 118 → 211 cyc/要素に**倍増**した（M-87。QEMU / ホストでは見えない）。
+     * 三項演算子なら neg.s + movt.s（分岐なしの条件付き代入）か短い分岐で、pie_probe E3 の 74.5 cyc/要素はこの形 */
+    return x < 0.0f ? -y : y;
 }
 
 /* erf_test.c 向けの外部ラッパ（T5-G1）。ゲートはこれを呼び、本番の GELU は上のインライン版を展開する。
