@@ -35,7 +35,7 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-054 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-055 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
@@ -125,7 +125,7 @@ than an n=24 score.**
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-054 in
+2. **Never delete the correction log.** C-001–C-055 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
 3. **Do not write a gate you cannot break on purpose.** Eleven defects hid behind green
