@@ -247,7 +247,7 @@ void saan_relu(float *x, size_t n) {
 #define SAAN_ERF_TEST_CLAMP SAAN_ERF_XMAX
 #endif
 
-float saan_erf_approx(float x) {
+SAAN_INLINE float saan_erf_approx_inl(float x) {
     /* T5-G3: FP の分岐を 2 つ消した（Xtensa は分岐予測を持たない）。**Hermite の式は S3 と
      * 1 文字も変えていない。** S3 実装との bit 一致は erf_test.c の全格子チェックが守る。
      *  (1) `|x| ≥ 4 なら ±1 を return` → ax を 4.0 にクランプして表を引く。u = 128.0 → i = 127,
@@ -284,11 +284,17 @@ float saan_erf_approx(float x) {
     return r;
 }
 
-/* PyTorch の既定は tanh 近似ではなく erf 版。erf は saan_erf_approx（S3。丸め水準で erff と一致） */
+/* erf_test.c 向けの外部ラッパ（T5-G1）。ゲートはこれを呼び、本番の GELU は上のインライン版を展開する。
+ * ⚠️ ホストではこのラッパとインライン展開が同じ bit になるかは「同じコンパイラなら」の話で、
+ *    Xtensa 側の縮約は QEMU の checksum でしか判定できない */
+float saan_erf_approx(float x) { return saan_erf_approx_inl(x); }
+
+/* PyTorch の既定は tanh 近似ではなく erf 版。erf は saan_erf_approx_inl（S3。丸め水準で erff と一致。
+ * T5-G1 でループにインライン展開 — call8 / entry / retw と wfr / rfr、定数の再ロードが消える） */
 void saan_gelu(float *x, size_t n) {
     SAAN_PROF_BEGIN(SAAN_PROF_GELU);
     for (size_t i = 0; i < n; ++i)
-        x[i] = 0.5f * x[i] * (1.0f + saan_erf_approx(x[i] * 0.70710678f));
+        x[i] = 0.5f * x[i] * (1.0f + saan_erf_approx_inl(x[i] * 0.70710678f));
     SAAN_PROF_END(SAAN_PROF_GELU);
     SAAN_PROF_ADD(SAAN_PROF_GELU, n);
 }

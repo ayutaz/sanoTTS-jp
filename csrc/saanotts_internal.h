@@ -23,6 +23,18 @@
 
 #define SAAN_ALIGN16(x) (((x) + 15u) & ~(size_t)15u)
 
+/* ホットな小関数を呼び出し側に展開する（T5-G1）。C99 の `inline` はヒントなので GCC には
+ * always_inline も付ける。動機は Xtensa の呼び出し規約: FP レジスタが全部 caller-saved なので、
+ * 要素ごとの call8 の往復で FP 定数（13 個）を毎回 l32r + wfr で再ロードし、引数と戻り値も
+ * wfr / rfr とスタック経由で往復していた（M-82 の GELU 118 cyc/要素の主因。maps [2]）。
+ * ⚠️ 式は 1 文字も変えない。IDF（gnu17、-ffp-contract=fast）が展開後に madd.s への縮約を
+ *    変えると丸め水準で動きうる → QEMU の checksum で判定する（T5 の手順） */
+#if defined(__GNUC__)
+#define SAAN_INLINE static inline __attribute__((always_inline))
+#else
+#define SAAN_INLINE static inline
+#endif
+
 void *saan_alloc(saan_arena *a, size_t n);
 
 /* y[o,t] = b[o] + Σ_i Σ_k W[o,i,k] · x[i, t+k-pad]。**両端ゼロパディング** */
@@ -49,6 +61,8 @@ void saan_gelu(float *x, size_t n);
 
 /* erf の近似（S3）。x ∈ [0, 4] を h = 1/32 の 3 次 Hermite（csrc/erf_table.h）、|x| ≥ 4 は ±1。
  * libm の erff との max|Δ| は 2e-7 以下（`make -C csrc erf`。線形補間に落とした陽性対照つき）。
+ * ⚠️ **これは erf_test.c 向けの外部ラッパ**（T5-G1）。本番の saan_gelu は saanotts.c 内の
+ *    インライン版 saan_erf_approx_inl() を直接展開する（同じ本体。2 回書いていない）。
  * ⚠️ **丸め水準の変更。** これを入れた時点で fp32 / W8A32 / W8A8 すべての出力 checksum が
  *    変わる（GELU が全経路で使われる）。新しい基準値は docs/measurements.md の M-81。 */
 float saan_erf_approx(float x);
