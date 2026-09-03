@@ -6,7 +6,20 @@
     echo "電源を入れます。" | uv run python scripts/to_intermediate.py
 
 **ホスト側専用**（OpenJTalk が要る）。端末にはこの出力の 1 行だけを渡す
-（D-010 / D-011。端末側は mora テーブル 951 B + `ん` の異音規則 18 件だけを持つ）。
+（D-010 / D-011。端末側は mora テーブル 877 B + `ん` の異音規則 21 件だけを持つ）。
+
+⚠️ **漢字対応ビルド（`-DSAAN_KANJI=1`）ならこのスクリプトは要らない。**
+   端末は 1 本のプロンプトで両方を受け、`saan_g2p_classify()` が経路を決める
+   （K-B / T11。`!` の前置は不要になった）。このスクリプトが要るのは
+   **辞書を持たないビルド**か、**端末と違う（フル辞書の）読みを使いたいとき**。
+   そのため出力には**端末がどちらの経路に回すか**を必ず併記する。
+
+⚠️ **端末とホストで読みは一致しない。** 辞書経路の端末側の参照値は
+   「`jt.run_frontend(text)`（**生の NJD**）+ 端末に載っている 4 段」
+   （`scripts/k1/g2p_ablate.py` の `STAGES` が正）。
+   `run_frontend(..., predict_nani=False, use_sudachi_kanji_yomi=False)` ではない
+   — あちらは `process_odori_features` が**無条件に**入るので
+   「端末に載る段だけ」と両立しない。差は C-049 / M-70 の 2.00%。
 
 ⚠️ **出した行が本当に元の文と同じ音になるかを、毎回その場で検査する。**
    中間表現は「かな + アクセント記号」なので**人が読めてしまい、間違っていても
@@ -36,11 +49,29 @@ DEVICE_MAX_IDS = 350
 
 SR, HOP = 22050, 256
 
+# 端末の経路（K-B）。⚠️ 名前は `csrc/g2p.c` の `saan_g2p_route_name()` に揃える
+ROUTE_JA = {"kana": "かな", "dict": "辞書", "reject": "拒否"}
+ROUTE_NOTE = {
+    "kana": "（そのまま読める。このスクリプトは要らない）",
+    "dict": "（-DSAAN_KANJI=1 のビルドならそのまま読める。"
+            "⚠️ 読みは端末の枝刈り辞書のもので、下の中間表現とは違いうる）",
+    "reject": "（中間表現の記号が混じっているので端末は喋らない）",
+}
+
 
 def convert(text: str, table, phonemizer) -> tuple[str, dict, list[str]]:
     """戻り値: (中間表現, encode() の結果, 警告のリスト)。往復不一致は警告に入る。"""
     warnings: list[str] = []
     intermediate = "".join(K.text_to_intermediate(text, table))
+
+    # --- 端末がこの行をどう扱うか（K-B。判定は端末と同じ関数）---------------
+    # ⚠️ **出した中間表現がかな経路に乗ることを毎回確かめる。** ここが `dict` や
+    #    `reject` になったら、端末は「この行を中間表現として読まない」。
+    route_out, err_out = K.classify_route(intermediate, table)
+    if route_out != "kana":
+        warnings.append(
+            f"**出力した中間表現を端末がかな経路で受けない**（経路 {route_out} / "
+            f"{err_out} バイト目）。この行を貼っても意図した読みにならない")
 
     # --- 往復の検査（**これが主ゲート**）-----------------------------------
     reference = phonemizer.phonemize(K.normalize_input(text))
@@ -100,6 +131,12 @@ def main() -> int:
         print(f"    # {text}", file=sys.stderr)
         print(f"    # {len(intermediate.encode('utf-8'))} B / {n_ids} ids "
               f"/ 音素 {info['n_phonemes']} 個", file=sys.stderr)
+        # ⚠️ **元の文を端末に直接打った場合の経路も出す。** 漢字対応ビルドなら
+        #    このスクリプトを通さなくてよい（読みは端末の枝刈り辞書のものになる）。
+        route_in, err_in = K.classify_route(text, table)
+        print(f"    # 元の文を端末に直接打つと → 経路「{ROUTE_JA[route_in]}」"
+              f"{'' if route_in != 'reject' else f'（{err_in} バイト目）'}"
+              f"{ROUTE_NOTE[route_in]}", file=sys.stderr)
         if args.ids:
             print(f"    # ids: {' '.join(str(i) for i in info['ids'])}", file=sys.stderr)
         for w in warnings:

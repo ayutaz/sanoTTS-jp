@@ -11,6 +11,15 @@
 
 static const char *TAG = "saan_con";
 
+/* ドライバの RX リング。**行の上限より大きくする**（M-84）。
+ *
+ * ⚠️ **既定の 256 B では 300 B のかな行を一度に貼ると途中で欠ける。**
+ *    実機で踏んだ: 長い行を送ると先頭だけが届き、**短い列として普通に喋る**ので
+ *    音では気づけない（`saan_g2p` は途中で切れた列も妥当な中間表現として通す）。
+ * ⚠️ **行編集側の上限を上げるだけでは直らない。** 溢れるのはドライバの
+ *    リングで、`saan_line` に届く前に落ちている。両方が要る。 */
+#define SAAN_CONSOLE_RX_RING (2 * SAAN_CONSOLE_LINE_MAX)
+
 /* --- バイトの出し入れ（コンソールの種類で切り替える）----------------------
  *
  * ⚠️ **VFS (`stdin` / `fgetc`) を使わない。** VFS 経由の名前は IDF の版で
@@ -25,12 +34,14 @@ static const char *TAG = "saan_con";
 
 static bool port_init(void) {
     usb_serial_jtag_driver_config_t cfg = USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT();
+    cfg.rx_buffer_size = SAAN_CONSOLE_RX_RING;   /* 既定 256 B では長い行が欠ける（M-84） */
     esp_err_t err = usb_serial_jtag_driver_install(&cfg);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "usb_serial_jtag_driver_install: %s", esp_err_to_name(err));
         return false;
     }
-    ESP_LOGI(TAG, "入力: USB Serial/JTAG（DevKit の「USB」ポート）");
+    ESP_LOGI(TAG, "入力: USB Serial/JTAG（DevKit の「USB」ポート）/ RX リング %d B",
+             (int)SAAN_CONSOLE_RX_RING);
     return true;
 }
 
@@ -52,14 +63,16 @@ static bool port_init(void) {
     /* ⚠️ **TX バッファは 0 にする。** 0 なら `uart_write_bytes` は割り込みを
      *    使わず FIFO へ直接書くので、ESP_LOG（ドライバを通らない経路）と
      *    同じ FIFO を取り合っても順序が壊れない。 */
-    esp_err_t err = uart_driver_install(CON_UART, 256, 0, 0, NULL, 0);
+    /* ⚠️ RX も既定の 256 B では長い行が欠ける（USB Serial/JTAG と同じ理由。M-84）。 */
+    esp_err_t err = uart_driver_install(CON_UART, SAAN_CONSOLE_RX_RING, 0, 0, NULL, 0);
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "uart_driver_install(UART%d): %s", (int)CON_UART,
                  esp_err_to_name(err));
         return false;
     }
-    ESP_LOGI(TAG, "入力: UART%d @ %d baud（DevKit の「UART」ポート）",
-             (int)CON_UART, (int)CONFIG_ESP_CONSOLE_UART_BAUDRATE);
+    ESP_LOGI(TAG, "入力: UART%d @ %d baud（DevKit の「UART」ポート）/ RX リング %d B",
+             (int)CON_UART, (int)CONFIG_ESP_CONSOLE_UART_BAUDRATE,
+             (int)SAAN_CONSOLE_RX_RING);
     return true;
 }
 

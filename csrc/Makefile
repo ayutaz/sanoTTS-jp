@@ -13,7 +13,8 @@
 #   make range     S9 の出力範囲版カーネルが [0,T) 版と bit 一致（陽性対照つき。T2）
 #   make erf       GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
-#   make line      端末の行編集ステートマシン（**陽性対照つき**）
+#   make line      端末の行編集ステートマシン + **行の経路判定**（どちらも陽性対照つき）
+#   make kb-parity 経路判定がホスト (kana_g2p.classify_route) と一致するか。⚠️ pyopenjtalk が要る
 #   make k2        K-2/K-3 辞書リーダ + Viterbi + 未知語（MeCab との一致）
 #   make k4        K-4 アクセント規則 4 段（Python 版との一致。陰性対照つき）
 #   make k4b       K-4b NJD チェーン（ホストとの一致。段・規則ごとの陰性対照つき）
@@ -124,8 +125,19 @@ g2p_test: g2p_test.c g2p.c g2p.h g2p_table.h
 # ⚠️ **推論コアにも G2P にも依存しない。** 入力バイト列 → 行 だけを見る。
 #    ベクタが空虚でないことは line_test.c 自身が陽性対照で検査する
 #    （わざと素直に書いた naive_feed() が同じベクタで落ちること）。
-line_test: line_test.c line.c line.h
-	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ line_test.c line.c
+line_test: line_test.c line.c line.h g2p.c g2p.h g2p_table.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ line_test.c line.c g2p.c
+
+# 経路判定（K-B）をホストから駆動する棒。**受け入れゲートではない** —
+# ゲートは `make line` の G11。これは kb_route_parity.py がホスト判定と
+# 突き合わせるための入出力で、端末が実際に走らせるコードをそのまま動かす。
+route_tool: route_tool.c g2p.c g2p.h g2p_table.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ route_tool.c g2p.c
+
+.PHONY: kb-parity
+# ⚠️ **all-test には入れない**（pyopenjtalk が要る。k6 / k7 と同じ扱い）
+kb-parity: route_tool
+	cd .. && $(PYTHON) scripts/k1/kb_route_parity.py
 
 # 自己完結ベクタ。mora テーブルだけから機械生成するので**コーパス本文を含まない**。
 # ⚠️ `/csrc/*.bin` は .gitignore 済み。クリーン clone では毎回生成する
@@ -266,7 +278,7 @@ all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
 	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
-	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
+	      g2p_test line_test route_tool k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
 	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
 	rm -rf k5_ctrl
 
