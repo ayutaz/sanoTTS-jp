@@ -1,0 +1,114 @@
+se_init: ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x2a (SPI_FAST_FLASH_BOOT)
+Saved PC:0x40048839
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1710
+load:0x403c8700,len:0xec0
+load:0x403cb700,len:0x31d4
+entry 0x403c894c
+I (24) boot: ESP-IDF v5.5 2nd stage bootloader
+I (24) boot: compile time Sep  3 2026 09:39:35
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (27) boot: efuse block revision: v1.3
+I (31) qio_mode: Enabling default flash chip QIO
+I (35) boot.esp32s3: Boot SPI Speed : 80MHz
+I (39) boot.esp32s3: SPI Mode       : QIO
+I (43) boot.esp32s3: SPI Flash Size : 4MB
+I (47) boot: Enabling RNG early entropy source...
+I (51) boot: Partition Table:
+I (54) boot: ## Label            Usage          Type ST Offset   Length
+I (60) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (67) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (73) boot:  2 factory          factory app      00 00 00010000 00177000
+I (80) boot: End of partition table
+I (83) esp_image: segment 0: paddr=00010020 vaddr=3c020020 size=ab218h (700952) map
+I (194) esp_image: segment 1: paddr=000bb240 vaddr=3fc95700 size=029b0h ( 10672) load
+I (197) esp_image: segment 2: paddr=000bdbf8 vaddr=40378000 size=02420h (  9248) load
+I (200) esp_image: segment 3: paddr=000c0020 vaddr=42000020 size=1bc4ch (113740) map
+I (223) esp_image: segment 4: paddr=000dbc74 vaddr=4037a420 size=0b284h ( 45700) load
+I (232) esp_image: segment 5: paddr=000e6f00 vaddr=600fe000 size=00020h (    32) load
+I (238) boot: Loaded app from partition at offset 0x10000
+I (238) boot: Disabling RNG early entropy source...
+I (250) cpu_start: Multicore app
+I (259) cpu_start: Pro cpu start user code
+I (259) cpu_start: cpu freq: 240000000 Hz
+I (259) app_init: Application information:
+I (259) app_init: Project name:     pie_probe
+I (263) app_init: App version:      v0.2.0-24-g7981d11-dirty
+I (269) app_init: Compile time:     Sep  3 2026 09:39:23
+I (274) app_init: ELF file SHA256:  df5810fda...
+I (278) app_init: ESP-IDF:          v5.5
+I (282) efuse_init: Min chip rev:     v0.0
+I (285) efuse_init: Max chip rev:     v0.99 
+I (289) efuse_init: Chip rev:         v0.2
+I (293) heap_init: Initializing. RAM available for dynamic allocation:
+I (300) heap_init: At 3FCD29C8 len 00016D48 (91 KiB): RAM
+I (305) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (310) heap_init: At 600FE020 len 00001FC8 (7 KiB): RTCRAM
+I (316) spi_flash: detected chip: generic
+I (319) spi_flash: flash io: qio
+W (322) spi_flash: Detected size(16384k) larger than the size in the binary image header(4096k). Using the size in the binary image header.
+I (334) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (340) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (347) main_task: Started on CPU0
+I (357) main_task: Calling app_main()
+
+=== ESP32-S3 PIE probe ===
+  ビルド: SAAN_PIE=1（PIE カーネル有効）
+  ビルド: 実機向け（D / E の cyc は CCOUNT。5 回の幅 ≥ 1% は NG）
+  CPU 240 MHz / D-cache 64 KB / I-cache 32 KB / flash QIO
+
+-- A. PIE 命令そのもの --
+  OK  A1 全1×全1 (n=16..512)
+  OK  A2 最悪値 -128×-128 ×512 = 8388608 (期待 8388608)
+  OK  A3 乱数 300 回（不一致 0）
+  OK  A4 陰性対照（1 要素変えたら不一致）
+
+-- B. saan_conv1d_i8a（本物のカーネル） --
+  OK  B  dec pw2  (304)         cin=304  ksz=1  bit差 0/768  SNR  48.25 dB  (PIE 有効)
+  OK  B  hout    (48)           cin=48   ksz=1  bit差 0/1536  SNR  48.67 dB  (PIE 有効)
+  OK  B  ac c1 k5 (48)          cin=48   ksz=5  bit差 0/1152  SNR  48.39 dB  (PIE 有効)
+  OK  B  dec inp  (40->48)*     cin=40   ksz=3  bit差 0/1824  SNR  48.40 dB  (PIE 有効)
+  OK  B  cup      (12->16)*     cin=12   ksz=1  bit差 0/1824  SNR  49.07 dB  (PIE 有効)
+  OK  B  pw1      (76->80)*     cin=76   ksz=1  bit差 0/2304  SNR  48.03 dB  (PIE 有効)
+  OK  B  hdown    (76->80)*     cin=76   ksz=1  bit差 0/1152  SNR  47.81 dB  (PIE 有効)
+  OK  B  陰性対照: 重み 1 要素を壊すと bit 差 24 件
+
+-- C. 丸め（round.s vs rintf。S2） --
+  OK  C1 saan_rint_i32 == rintf（22 値。タイと境界を含む）
+  OK  C2 陽性対照: half-away-from-zero は 7 値で rintf と違う（>= 6 なら比較は効いている）
+
+-- D. 重みの置き場所（saan_conv1d_i8a。T6 / P-0） --
+  blob 654032 B / sha256 2d2b8543c06b6a74… / tensors 183
+  行列: cin=48 k=1 cout=2730 → 131040 B = 2730 行 × 48 B（32 B のキャッシュ行 4095 本 / パス）
+  --  D4 skip: CONFIG_SPIRAM 無し（sdkconfig.psram を重ねたビルドで測る）
+  置き場所: flash 0x3c06e6e0 [flash(.rodata)] / DRAM 0x3fc98bd0 [内部 SRAM] / PSRAM 0x0 [skip]
+  Q  量子化 48×8 だけ（差し引き用）   min       9687 / max      10434 cyc（幅 7.71%）
+  D1 hot   flash 16 行 × 171 回 (T=8)   min    3364268 / max    3370893 cyc（幅 0.20%） dot  21888  net    78.0 cyc/dot  1.626 cyc/MAC
+  D2 DRAM  2,730 行 (T=8)                 min    1702359 / max    1702558 cyc（幅 0.01%） dot  21840  net    77.5 cyc/dot  1.615 cyc/MAC
+  D3 flash 2,730 行 (T=8)                 min    2763840 / max    2769801 cyc（幅 0.22%） dot  21840  net   126.1 cyc/dot  2.627 cyc/MAC
+  D4 PSRAM 2,730 行 (T=8)                 skip
+  D5 flash 2,730 行 (T=16, 2 呼び出し) min    4371297 / max    4371478 cyc（幅 0.00%） dot  43680  net    99.6 cyc/dot  2.076 cyc/MAC
+  （net = min − Q × 量子化回数。cyc/MAC は M-82 の 1.61 と比べる値。QEMU の cyc は実機の CCOUNT）
+  cyc/行（(D3−D2)/2730 行）        :    388.8
+  cyc/キャッシュ行（(D3−D2)/4095）  :    259.2   ← 200〜300 なら flash 律速の仮説成立 / <60 なら棄却
+  flash の割合 (D3−D2)/D3          :    38.5%  ← MAC の 1/3 以上なら S7 側の分岐（計画 §5）
+  DRAM ストリームの上乗せ (D2−D1)  :     -0.5 cyc/dot（≈0 なら DRAM ストリームは無償）
+  D5 の償却 (D5 − 2·D2)/2730 行     :    354.1 cyc/行（D3 の cyc/行の半分なら「再利用で償却」）
+  OK  D  D2 (DRAM) と D3 (flash) の y が bit 一致（273 行 × 10、差 0 要素）
+  OK  D  D5 (T=16) の各行 = D2 (T=8) の行の 2 回繰り返し（差 0 要素）
+  OK  D  陰性対照: DRAM 側 1 バイトを壊すと差 8 要素 / 戻すと 0 要素
+
+-- E. GELU 21,664 要素（表 flash / DRAM × erf call / inline。T6） --
+  表: flash 0x3c029348 [flash(.rodata)] / DRAM 0x3fc989c0 [内部 SRAM]   要素 21664
+  OK  E1 現行 saan_gelu（表 flash / erf は call） min   2434346 / max   2434933 cyc（幅 0.02%）  112.4 cyc/要素  E1 との差 0 要素
+  OK  E2 表を DRAM に（erf は call）              min   2456005 / max   2458216 cyc（幅 0.09%）  113.4 cyc/要素  E1 との差 0 要素
+  OK  E3 erf を inline（表 flash）                min   1614734 / max   1616709 cyc（幅 0.12%）   74.5 cyc/要素  E1 との差 0 要素
+  OK  E4 inline + 表 DRAM                         min   1614731 / max   1616391 cyc（幅 0.10%）   74.5 cyc/要素  E1 との差 0 要素
+  OK  E  陰性対照: DRAM の表 1 要素（節点 64）を壊すと差 315 要素（該当区間の入力 317 個）/ 戻すと 0 要素
+
+PIE PROBE: PASS  (A 0 件 / B 0 件 / C 0 件 / D 0 件 / E 0 件 の失敗)
+=== done ===

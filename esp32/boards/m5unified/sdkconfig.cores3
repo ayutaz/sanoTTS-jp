@@ -17,3 +17,7 @@ CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
 # キャッシュ。D-cache 64 KB は DRAM を減らさない（dram0_0_seg は 341,760 B 固定。報告）
 CONFIG_ESP32S3_DATA_CACHE_64KB=y
 CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+# D-cache の行を 64 B に（既定 32 B）。重み 545 KB/step の行フィル回数が半分になり、
+# 定常 xRT 0.926 → **0.861**（M-84、n=3、checksum 不変）。GELU には効かない。
+# ⚠️ PSRAM 上の DMA バッファは 64 B 整列が要る（M5.Speaker は自前の DMA バッファに写すので影響なし。実測で落ちず）
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y

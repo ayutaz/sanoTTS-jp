@@ -1,0 +1,56 @@
+=== ESP32-S3 PIE probe ===
+  ビルド: SAAN_PIE=1（PIE カーネル有効）
+  ビルド: SAAN_QEMU=1（D / E の cyc は意味が無い。再現幅は合否に入れない）
+  CPU 240 MHz / D-cache 64 KB / I-cache 32 KB / flash DIO
+
+-- A. PIE 命令そのもの --
+  OK  A1 全1×全1 (n=16..512)
+  OK  A2 最悪値 -128×-128 ×512 = 8388608 (期待 8388608)
+  OK  A3 乱数 300 回（不一致 0）
+  OK  A4 陰性対照（1 要素変えたら不一致）
+
+-- B. saan_conv1d_i8a（本物のカーネル） --
+  OK  B  dec pw2  (304)         cin=304  ksz=1  bit差 0/768  SNR  48.25 dB  (PIE 有効)
+  OK  B  hout    (48)           cin=48   ksz=1  bit差 0/1536  SNR  48.67 dB  (PIE 有効)
+  OK  B  ac c1 k5 (48)          cin=48   ksz=5  bit差 0/1152  SNR  48.39 dB  (PIE 有効)
+  OK  B  dec inp  (40->48)*     cin=40   ksz=3  bit差 0/1824  SNR  48.40 dB  (PIE 有効)
+  OK  B  cup      (12->16)*     cin=12   ksz=1  bit差 0/1824  SNR  49.07 dB  (PIE 有効)
+  OK  B  pw1      (76->80)*     cin=76   ksz=1  bit差 0/2304  SNR  48.03 dB  (PIE 有効)
+  OK  B  hdown    (76->80)*     cin=76   ksz=1  bit差 0/1152  SNR  47.81 dB  (PIE 有効)
+  OK  B  陰性対照: 重み 1 要素を壊すと bit 差 24 件
+
+-- C. 丸め（round.s vs rintf。S2） --
+  OK  C1 saan_rint_i32 == rintf（22 値。タイと境界を含む）
+  OK  C2 陽性対照: half-away-from-zero は 7 値で rintf と違う（>= 6 なら比較は効いている）
+
+-- D. 重みの置き場所（saan_conv1d_i8a。T6 / P-0） --
+  blob 654032 B / sha256 2d2b8543c06b6a74… / tensors 183
+  行列: cin=48 k=1 cout=2730 → 131040 B = 2730 行 × 48 B（32 B のキャッシュ行 4095 本 / パス）
+  --  D4 skip: CONFIG_SPIRAM 無し（sdkconfig.psram を重ねたビルドで測る）
+  置き場所: flash 0x3c06e700 [flash(.rodata)] / DRAM 0x3fc98bd0 [内部 SRAM] / PSRAM 0x0 [skip]
+  Q  量子化 48×8 だけ（差し引き用）   min        280 / max       1160 cyc（幅 314.29%）
+  D1 hot   flash 16 行 × 171 回 (T=8)   min     107640 / max     116680 cyc（幅 8.40%） dot  21888  net     2.7 cyc/dot  0.057 cyc/MAC
+  D2 DRAM  2,730 行 (T=8)                 min      52920 / max      54840 cyc（幅 3.63%） dot  21840  net     2.4 cyc/dot  0.050 cyc/MAC
+  D3 flash 2,730 行 (T=8)                 min      53320 / max      55440 cyc（幅 3.98%） dot  21840  net     2.4 cyc/dot  0.051 cyc/MAC
+  D4 PSRAM 2,730 行 (T=8)                 skip
+  D5 flash 2,730 行 (T=16, 2 呼び出し) min     106320 / max     120400 cyc（幅 13.24%） dot  43680  net     2.4 cyc/dot  0.050 cyc/MAC
+  （net = min − Q × 量子化回数。cyc/MAC は M-82 の 1.61 と比べる値。QEMU の cyc は**意味が無い**（表示形式の確認のみ））
+  cyc/行（(D3−D2)/2730 行）        :      0.1
+  cyc/キャッシュ行（(D3−D2)/4095）  :      0.1   ← 200〜300 なら flash 律速の仮説成立 / <60 なら棄却
+  flash の割合 (D3−D2)/D3          :     0.8%  ← MAC の 1/3 以上なら S7 側の分岐（計画 §5）
+  DRAM ストリームの上乗せ (D2−D1)  :     -0.3 cyc/dot（≈0 なら DRAM ストリームは無償）
+  D5 の償却 (D5 − 2·D2)/2730 行     :      0.2 cyc/行（D3 の cyc/行の半分なら「再利用で償却」）
+  OK  D  D2 (DRAM) と D3 (flash) の y が bit 一致（273 行 × 10、差 0 要素）
+  OK  D  D5 (T=16) の各行 = D2 (T=8) の行の 2 回繰り返し（差 0 要素）
+  OK  D  陰性対照: DRAM 側 1 バイトを壊すと差 8 要素 / 戻すと 0 要素
+
+-- E. GELU 21,664 要素（表 flash / DRAM × erf call / inline。T6） --
+  表: flash 0x3c029370 [flash(.rodata)] / DRAM 0x3fc989c0 [内部 SRAM]   要素 21664
+  OK  E1 現行 saan_gelu（表 flash / erf は call） min    103320 / max    109080 cyc（幅 5.57%）    4.8 cyc/要素  E1 との差 0 要素
+  OK  E2 表を DRAM に（erf は call）              min    110000 / max    135280 cyc（幅 22.98%）    5.1 cyc/要素  E1 との差 0 要素
+  OK  E3 erf を inline（表 flash）                min     49080 / max     54440 cyc（幅 10.92%）    2.3 cyc/要素  E1 との差 0 要素
+  OK  E4 inline + 表 DRAM                         min     48640 / max     55360 cyc（幅 13.82%）    2.2 cyc/要素  E1 との差 0 要素
+  OK  E  陰性対照: DRAM の表 1 要素（節点 64）を壊すと差 315 要素（該当区間の入力 317 個）/ 戻すと 0 要素
+
+PIE PROBE: PASS  (A 0 件 / B 0 件 / C 0 件 / D 0 件 / E 0 件 の失敗)
+=== done ===

@@ -6041,6 +6041,8 @@ INIT: 6218359 cyc / 回
 
 ### 4. ⚠️ ここから先は仮説。次に測るもの
 
+> **2026-09-03 追記**: この節の仮説は **M-84 / M-85 で測った**。GELU の表の配置は効かない（原因はコード生成）、MAC は flash 律速 38.5% + dot 固定費 61.5%、dot は約 90,000 ではなく約 109,400 回/step、表示 xRT 0.926 は末尾 pull で膨らんでいた（C-054）。
+
 | 仮説 | 根拠 | 切り分け方 |
 |---|---|---|
 | MAC は flash 律速 | 重み 584 KB/step を D-cache 64 KB で流す。QIO 80 MHz の行フィル（32 B）は数百 cyc | **同じ重み 48 KB を DRAM に写して `saan_dot_i8_pie` だけ計時**（flash vs SRAM の比）。差が大きければ **S7（CHUNK 16 = 重み読みを半分）**と重みの一部を PSRAM/DRAM に置く案が効く |
@@ -6117,3 +6119,156 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash 
 
 `0xa69a7ebbb5ccb05f` / 定常 xRT 0.926 を再確認（`reports/m82_cores3/device_back.log`）。
 元のスタックチャンのファームは `~/stackchan_backup_2026-09-02_16MB.bin`（D-047）。
+
+---
+
+## M-84. D-cache の行を 32 B → 64 B にしたら **xRT 0.926 → 0.861**（−7.0%）。GELU は 1 cyc も変わらない（自己実測 / CoreS3）
+
+**2026-09-03。ユーザーの CoreS3（D-047）。** S2 計画（`docs/plan/s2-fast-kanji-m5-plan.md`）の F-1。
+コードは HEAD 253adde（M-82 と同じ csrc / main.c）。変えたのは **sdkconfig の 1 行**だけ:
+
+```
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y     # 既定は LINE_32B（sdkconfig.cores3 は行サイズを指定していなかった）
+```
+
+再現（別 worktree でビルドし、`esptool.py write_flash @flash_args` で焼き、USB Serial/JTAG から同じ 1 行を 3 回）:
+
+```bash
+cd esp32/boards/m5unified && printf 'CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y\n' > sdkconfig.line64
+idf.py -B build_f1 -DSDKCONFIG=build_f1/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3;sdkconfig.line64" -DSAAN_ENABLE_PIE=1 build
+# プロファイル版は同じ + -DSAAN_PROFILE=1（-B build_f1_prof）
+```
+
+### 1. 定常 xRT（`SAAN_PROFILE=0`、`きょ][おわよ][いて][んきです°ね`、n=3。生ログ `reports/m84_cores3/device_f1_line64.log`）
+
+| | 32 B 行（M-82） | **64 B 行** | 差 |
+|---|---:|---:|---:|
+| 初回 pull | 465.85 ms | **433.46 ms** | −7.0% |
+| 2 回目以降 mean | 85.96 ms | **79.96 ms** | −7.0% |
+| 定常 xRT（表示の定義 = M-82 と同じ） | 0.926 | **0.861** | −0.065 |
+| アンダーラン | 1 / 14 | 1 / 14 | 変わらず（末尾 pull。S2 の T1 で消す） |
+| checksum | `0xa69a7ebbb5ccb05f` | **`0xa69a7ebbb5ccb05f`** | bit 同一（同一ターゲット） |
+
+3 回とも 79.96 / 79.97 / 79.96 ms で決定的。
+
+### 2. 段別（`SAAN_PROFILE=1`。生ログ `reports/m84_cores3/device_f1_prof.log`。計測コスト込みなので xRT は 0.877）
+
+| 区間 | 32 B 行（M-82 §3） | **64 B 行** | 差 | cyc/要素 32 → 64 |
+|---|---:|---:|---:|---|
+| STEP | 18,378,513 | **17,125,414** | **−1,253,099（−6.8%）** | |
+| MAC | 11,742,045 | **10,574,980** | **−1,167,065（−9.9%）** | **1.61 → 1.45 cyc/MAC** |
+| GELU | 2,564,524 | 2,563,507 | −0.04% | **118.38 → 118.33**（不変） |
+| TOKEN | 2,077,284 | 1,989,903 | −4.2% | |
+| AC / DEC / HEAD | 3,457,030 / 9,828,083 / 1,890,719 | 3,245,595 / 9,199,831 / 1,607,431 | −6.1% / −6.4% / −15.0% | HEAD（hout 73,872 B を T=8 にしか使わない層）が最も縮む = 行フィルの比率が最大 |
+| QUANT | 1,115,465 | 1,116,006 | ≈0 | 21.87 → 21.88 |
+| DW | 941,209 | 935,322 | −0.6% | 25.27 → 25.12 |
+| LN / RELU | 251,541 / 44,077 | 245,968 / 44,361 | ≈0 | 37.04 → 36.22 / 6.49 → 6.53 |
+| PIPE / ISTFT | 407,304 / 792,310 | 407,355 / 783,863 | ≈0 / −1.1% | |
+| INIT（発話あたり） | 6,218,359 | 6,126,823 | −1.5% | |
+
+### 3. 読み方
+
+- **MAC の減り 1.17 M cyc はほぼ全部が行フィル回数の半減に対応する。** 1 step の重み ≈545 KB は 32 B 行で ≈17,000 本、64 B 行で ≈8,500 本。差 8,500 本で 1.17 M cyc → **行フィル 1 本あたり ≈137 cyc の固定費**（estimate。cmd / addr / dummy の分で、データ転送分は変わらない）。
+- **GELU が 1 cyc も動かない**ので、118 cyc/要素の原因は erf 表の flash 配置ではない（S2 計画 §1 の修正どおり。コード生成 = T5 で直す）。
+- 行フィルの**総時間**は分からない（T6 の P-0 で測る）。分かったのは「固定費の半分 = 1.17 M cyc」だけ。
+- 副作用: PSRAM 上の音声リング（`saan_audio_m5.cpp`）は DMA の直接の相手ではない（M5.Speaker が自分の DMA バッファへ写す）ので 64 B 整列は問題にならなかった。落ちず、checksum も一致。
+
+⚠️ **n=1 文（53 ids）。** 長文は未測定。⚠️ 表示 xRT は M-82 と同じ定義（末尾 pull を含む）で、満チャンク 1 step の実値は 17.13 M cyc / 240 MHz = 71.4 ms → **0.768**（S2 T1 で表示の定義を直す）。
+
+### 4. F-2 `CONFIG_SPIRAM_RODATA=y`（重み込みの .rodata 967 KB を起動時に PSRAM へ写して読む）は **1% しか効かない → 採らない**
+
+64 B 行に重ねて測った（`sdkconfig.line64_rodata`、n=3、生ログ `reports/m84_cores3/device_f2_rodata.log`）。
+起動ログで `mmu_psram: Read only data copied and mapped to SPIRAM` を確認、PSRAM のヒープは 8192K → 7232K（−960 KB）、内部 DRAM free 101,651 → 100,411 B。
+
+| | 64 B 行（F-1） | **64 B 行 + SPIRAM_RODATA** | 差 |
+|---|---:|---:|---:|
+| 初回 pull | 433.46 ms | 429.37 ms | −0.9% |
+| 2 回目以降 mean | 79.96 ms | 79.22 ms | **−0.9%** |
+| 定常 xRT | 0.861 | 0.853 | −0.008 |
+| checksum | `0xa69a7ebbb5ccb05f` | `0xa69a7ebbb5ccb05f` | bit 同一 |
+
+**PSRAM（Quad 80 MHz）も flash（QIO 80 MHz）も 4 bit × 80 MHz で、行フィルの経路は同じ D-cache。** 地図 [1] の予測（≈0、±10%）どおり。
+960 KB の PSRAM と MMU の vaddr を食って 1% なので、S2 計画の P5 / F-2 は**捨てる**。
+「重みを PSRAM に置けば速くなる」は成立しない（少なくともこの板・この構成では）。
+
+⚠️ F-4（flash 120 MHz）は未試行。flash チップは `esptool.py flash_id` で Manufacturer 0x46 / Device 0x4018（品番の同定ができず、HPM 対応が不明。失敗するとブートしないので保留）。
+
+### 5. 文長を振った（64 B 行 + PROFILE=1。生ログ `reports/m84_cores3/device_f1_prof_long.log`）
+
+| 入力 | frames / 音声 | 初回 pull | 2 回目以降 mean | 表示 xRT | STEP cyc | TOKEN（回/step・%） | MAC cyc/MAC | checksum |
+|---|---|---:|---:|---:|---:|---|---:|---|
+| `きょ][おわよ][いて][んきです°ね`（53 ids） | 106 / 1.231 s | 441.41 ms | 81.43 ms | 0.877 | 17,125,431 | 0.67・11.6% | 1.45 | `0xa69a7ebbb5ccb05f` |
+| `あ[し°た]のて][んきわは[れれのちく[も]り_と[ころによりあ][めがふ][るでしょお`（140 ids） | 297 / 3.448 s | 442.13 ms | 77.67 ms | **0.836** | **18,061,749（+5.5%）** | **0.86・14.4%** | 1.45 | `0x8a0dbf6e03cdf7e6`（初出。QEMU 未照合） |
+| 吾輩は猫である…名前はまだ無い…（4 文、約 300 B のかな行。64 B ずつ送信。生ログ `device_f1_prof_long2.log`） | **782 / 9.079 s** | 440.16 ms | 78.60 ms | **0.846** | **18,405,820（+7.5%）** | **0.93・15.2%** | 1.44 | `0x6545e195d251e1d3`（初出。QEMU 未照合）。arena peak 198,048 B |
+| 同じ行を一度に送信 | — | — | — | — | — | — | — | **途中で欠けて合成されず**（§6 の原因） |
+
+- 長い文ほど **TOKEN の比率が上がる**（0.67 → 0.86 → 0.93 回/step、11.6 → 14.4 → 15.2%）が、1 step の総量は +5.5〜7.5%。M-82 の「長文で TOKEN の比率が変わる」は**この程度**。MAC の cyc/MAC は 1.45 で文長に依存しない。
+- 表示 xRT が短文より**低く出る**のは末尾 pull の比率（1/13 → 1/37）が下がるため。定義の問題（S2 T1 で直す）。
+- ⚠️ **300 B のかな行を一度に送ると途中で欠ける。** 原因は行バッファ（`SAAN_CONSOLE_LINE_MAX` 512 B）ではなく **USB Serial/JTAG ドライバの RX リング（`USB_SERIAL_JTAG_DRIVER_CONFIG_DEFAULT` = 256 B）**で、コンソールが 1 バイトずつ読む間にバーストが溢れる。64 B ずつ 30 ms 間隔で送ると通る（§6）。長文を読み上げる目的なら `rx_buffer_size` を上げる（S2 計画 T11 に追加）。
+
+---
+
+## M-85. マイクロベンチ（pie_probe D / E 節）: **MAC の 1.6 cyc/MAC は flash が無くても出る固定費で、flash はその上に 38.5% 乗る**。GELU は表の配置では 1 cyc も動かず、erf のインライン化で −34%（自己実測 / CoreS3）
+
+**2026-09-03。ユーザーの CoreS3（D-047）。** S2 計画 T6（P-0）。生ログ `reports/m85_cores3/device_t6_probe.log`（実機）/ `qemu_t6q.log`（QEMU のゲート）。
+`esp32/pie_probe` に D 節（重みの置き場所）と E 節（GELU の 4 条件）を足した（ブランチ `worktree-wf_ce123157-e7c-3`、T6）。
+**出荷構成と同じ CPU 240 MHz / flash QIO 80 MHz / D-cache 64 KB・32 B 行 / I-cache 32 KB** で焼いた（`sdkconfig.defaults;sdkconfig.cores3`）。PSRAM は無し（D4 は skip）。
+⚠️ QEMU の flash モデルは QIO を受け付けず起動でブートループする（実際に踏んだ）ので、QEMU は DIO のまま bit 一致のゲートだけ、cyc は実機だけ。
+
+再現:
+
+```bash
+cd esp32/pie_probe && idf.py -B build_probe_dev -DSDKCONFIG=build_probe_dev/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" build
+cd build_probe_dev && esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash @flash_args
+# USB Serial/JTAG を 115200 で読む。`=== done ===` まで約 10 秒
+```
+
+### 1. D 節 — 同じ `saan_conv1d_i8a`（W8A8+PIE）、同じバイト列、同じ dot 数で重みの置き場所だけを変える
+
+重みは本物の blob（`student_i8.bin`）の decoder 領域 131,040 B を cin=48 / k=1 / cout=2,730 の行列と見なす（D-cache 64 KB の 2 倍 = 毎パス全行ミス）。CCOUNT、割り込み禁止、5 回の min。
+
+| 条件 | cyc（min） | dot | **cyc/dot** | cyc/MAC | 幅 |
+|---|---:|---:|---:|---:|---:|
+| Q 量子化 48×8 だけ（差し引き用） | 9,687 | — | — | — | 7.7% |
+| **D1 hot**: flash の 16 行だけを 171 回（2 回目以降は全部キャッシュヒット） | 3,364,268 | 21,888 | **78.0** | **1.626** | 0.20% |
+| **D2 DRAM** ストリーム 2,730 行（.bss に memcpy） | 1,702,359 | 21,840 | **77.5** | 1.615 | 0.01% |
+| **D3 flash** ストリーム 2,730 行（.rodata） | 2,763,840 | 21,840 | **126.1** | **2.627** | 0.22% |
+| **D5 flash**、T=16（行の再利用 2 倍。S7 の先取り） | 4,371,297 | 43,680 | **99.6** | 2.076 | 0.00% |
+
+| 読み | 値 |
+|---|---:|
+| flash の待ち (D3 − D2) / 2,730 行 | **388.8 cyc/行（48 B）** |
+| 同 / 4,095 キャッシュ行 | **259.2 cyc / 32 B 行** |
+| flash の割合 (D3 − D2) / D3 | **38.5%** |
+| DRAM ストリームの上乗せ (D2 − D1) | −0.5 cyc/dot（**無償**） |
+| D5 の償却 (D5 − 2·D2) / 2,730 行 | 354.1 cyc/行（D3 の 389 と同程度 = 行を 1 回読む費用は T に依らない。dot あたりは半分） |
+
+ゲート（QEMU と実機の両方で PASS）: D2 / D3 の y が bit 一致（273 行 × 10）/ D5 の各行 = D2 の行の 2 回繰り返し / **陰性対照**: DRAM 側 1 バイトを壊すと 8 要素が違い、戻すと 0。
+
+**結論**:
+- **dot の固定費が床**: 全部キャッシュヒットでも **78 cyc/dot = 1.63 cyc/MAC**（cinp=48 = ベクトル対 3 個。PIE 命令は 6 個なので残り ≈70 cyc は zero.accx / srs.accx / float.s / madd.s の直列チェーンとスカラの境界判定・ポインタ更新）。M-82 §4 の「MAC は flash 律速」は**半分だけ正しい**。
+- **flash はその上に 259 cyc / 32 B 行**乗る（QIO 80 MHz の cmd / addr / dummy + 32 B のデータ ≈ 1 µs。データシート水準の算術 252 cyc と一致）。M-84 の「64 B 行で 1 行あたり 137 cyc の固定費が消える」とも整合する（64 B 行 = 行あたり 259 + α で、行数が半分）。
+- **S7（CHUNK 16）の効き**は D5 のとおり dot あたりの flash 分が半分になる（126 → 100 cyc/dot）。固定費 78 は変わらない。
+- **RTF ≤ 0.5 には両方要る**（S2 計画 §5）: flash 分は S7 + 64 B 行で、固定費は dot の本数削減（S9 = 捨てる出力を計算しない）と直列チェーンの削減（S5b / QACC 外積形）。
+
+### 2. E 節 — 同じ 21,664 要素（±6 の擬似乱数）で GELU の 4 条件
+
+| 条件 | cyc（min） | **cyc/要素** | E1 との差 |
+|---|---:|---:|---:|
+| E1 現行 `saan_gelu`（表 flash / erf は call） | 2,434,346 | **112.4** | — |
+| E2 表を DRAM に写す（erf は call） | 2,456,005 | 113.4 | 0 要素 |
+| E3 erf を always_inline（表 flash） | 1,614,734 | **74.5** | 0 要素 |
+| E4 両方 | 1,614,731 | 74.5 | 0 要素 |
+
+陰性対照: DRAM の表 1 要素（節点 64）を壊すと 315 要素が違い（該当区間の入力 317 個）、戻すと 0。
+
+**結論**: **表の配置は効かない**（M-82 §4 (2) の仮説は棄却。M-84 の 64 B 行でも GELU が動かなかったのと同じ）。**インライン化で −34%**（call8 / entry / retw、引数と戻り値の往復、FP 定数の再ロードが消える）。T5 の G-1 がこれ。残る 74.5 cyc は FPU の直列チェーン（mul → trunc → float → sub → mul → madd×4）で、2〜4 要素のインターリーブが次の手（未実施）。
+⚠️ 112.4 は in-situ の 118.3（M-82）より 5% 低い。in-situ は表と重みが D-cache を争う分。
+
+### 3. 限界
+
+- cinp=48 / k=1 の 1 形状だけ。pw1（cinp 80）/ pw2（cinp 304）は固定費の比率が違う（ベクトル対が 5 / 19 個）。in-situ の 1.45 cyc/MAC（M-84）はこれらの混合。
+- D1 の 78 cyc/dot は「呼び出し固定費 + srs→float→madd の直列チェーン + PIE 発行」の**和**で、内訳は分けていない（審査の指摘どおり cinp ∈ {48, 80, 304} で回帰すれば切片が出る。未実施）。
+- PSRAM（D4）は測っていない（M-84 の F-2 で「SPIRAM_RODATA は 1% しか効かない」を in-situ で確認済み）。

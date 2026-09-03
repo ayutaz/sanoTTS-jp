@@ -1,0 +1,216 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x2a (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037c586
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1710
+load:0x403c8700,len:0xe1c
+load:0x403cb700,len:0x31e0
+entry 0x403c8938
+I (24) boot: ESP-IDF v5.5 2nd stage bootloader
+I (24) boot: compile time Sep  3 2026 09:17:08
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (25) boot: efuse block revision: v1.3
+I (25) qio_mode: Enabling default flash chip QIO
+I (25) boot.esp32s3: Boot SPI Speed : 80MHz
+I (26) boot.esp32s3: SPI Mode       : QIO
+I (26) boot.esp32s3: SPI Flash Size : 16MB
+I (26) boot: Enabling RNG early entropy source...
+I (26) boot: Partition Table:
+I (26) boot: ## Label            Usage          Type ST Offset   Length
+I (27) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (27) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (27) boot:  2 factory          factory app      00 00 00010000 00300000
+I (28) boot: End of partition table
+I (28) esp_image: segment 0: paddr=00010020 vaddr=3c060020 size=ec8a0h (968864) map
+I (172) esp_image: segment 1: paddr=000fc8c8 vaddr=3fc92e00 size=02af8h ( 11000) load
+I (175) esp_image: segment 2: paddr=000ff3c8 vaddr=40378000 size=00c50h (  3152) load
+I (176) esp_image: segment 3: paddr=00100020 vaddr=42000020 size=51170h (332144) map
+I (225) esp_image: segment 4: paddr=00151198 vaddr=40378c50 size=0a0cch ( 41164) load
+I (234) esp_image: segment 5: paddr=0015b26c vaddr=600fe000 size=00020h (    32) load
+I (238) boot: Loaded app from partition at offset 0x10000
+I (239) boot: Disabling RNG early entropy source...
+I (240) esp_psram: Found 8MB PSRAM device
+I (240) esp_psram: Speed: 80MHz
+I (241) cpu_start: Multicore app
+I (1014) esp_psram: SPI SRAM memory test OK
+I (1023) cpu_start: Pro cpu start user code
+I (1023) cpu_start: cpu freq: 240000000 Hz
+I (1023) app_init: Application information:
+I (1023) app_init: Project name:     saanotts_m5
+I (1023) app_init: App version:      v0.2.0-25-g253adde
+I (1024) app_init: Compile time:     Sep  3 2026 09:16:44
+I (1024) app_init: ELF file SHA256:  844ab2fc0...
+I (1024) app_init: ESP-IDF:          v5.5
+I (1024) efuse_init: Min chip rev:     v0.0
+I (1024) efuse_init: Max chip rev:     v0.99 
+I (1024) efuse_init: Chip rev:         v0.2
+I (1024) heap_init: Initializing. RAM available for dynamic allocation:
+I (1025) heap_init: At 3FCCF2D0 len 0001A440 (105 KiB): RAM
+I (1025) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (1025) heap_init: At 600FE020 len 00001FC8 (7 KiB): RTCRAM
+I (1025) esp_psram: Adding pool of 8192K of PSRAM memory to heap allocator
+I (1026) spi_flash: detected chip: generic
+I (1026) spi_flash: flash io: qio
+I (1026) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1027) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1027) main_task: Started on CPU0
+I (1028) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
+I (1028) main_task: Calling app_main()
+I (1028) saanotts: sanoTTS-jp ESP32-S3（**実機未検証** — esp32/README.md を読むこと）
+I (1029) saanotts: 起動直後: 内部 DRAM free 101267 B / 最大ブロック 55296 B
+I (1029) saanotts: arena 212992 B を .bss に静的確保 (0x3fc99220) / G2P の ids 4108 B
+I (1029) saan_model: 重み: ヘッダ埋め込み (.rodata = flash) 654032 B / dtype int8
+I (1029) saan_model:   sha256 2d2b8543c06b6a749f19c9918de68244409e2bb6ad1d921a90b5c358f96d4d79
+I (1029) saan_model: 重み OK: 183 tensors / base 0x3c06e520
+I (1030) saanotts: W8A8 + PIE 有効 / int8 blob を確認
+I (1030) saan_spk: リングバッファ (4096 B) を PSRAM に確保
+I (1030) saan_spk: リングバッファ (4096 B) を PSRAM に確保
+I (1030) saan_spk: リングバッファ (4096 B) を PSRAM に確保
+I (1036) M5GFX: [Autodetect] board_M5StackChan
+I (1037) main_task: Returned from app_main()
+I (1159) M5GFX: CoreS3 touch CIPHER:0x64 / FIRMID:0x10 / VENDID:0x11, panel:ILI9342C
+I (1386) saan_spk: M5.Speaker: board 27 / 出力 22050 Hz / 音源 22,050 Hz（リサンプル無し） / volume 128 / バッファ 3 枚 × 2048 sample
+W (1386) saan_spk: ⚠️ 実サンプルレートの誤差は**未測定**
+I (1418) saan_ui: 画面 320 x 240 / フォント lgfxJapanGothic_20
+I (1419) saanotts: G2P セルフテスト: "きょ][おわよ][いて][んきです°ね" (44 B) -> 53 ids / 0.155 ms
+I (1419) saanotts:      OK  53 ids が demo_ids.h の錨と完全一致
+I (1419) saanotts: 起動時の 1 発話: "今日は良い天気ですね。"
+I (1499) saanotts: init 25.53 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (1499) saanotts: arena used 195808 B / peak 195808 B / 確保 212992 B
+I (1500) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (2182) saanotts: プリロール 4 チャンク完了（初回 pull 441.43 ms / 鳴らし始めまで 682 ms）
+I (2182) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (3325) saanotts: ----- 結果 -----
+I (3325) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (3325) saanotts: 初回 pull 441.43 ms / 2 回目以降 mean 81.44 ms (満チャンク 1 個 = 92.88 ms の音声)
+I (3325) saanotts: 定常 xRT = 0.877  ← **1.0 を超えたら実時間に間に合っていない**
+I (3325) saanotts: アンダーラン 1 / 14 チャンク
+W (3339) saanotts: 途切れている。途切れない再生が要るなら -DSAAN_BUFFERED=1 （1 発話ぶんを貯めてから鳴らす。待ちは合成時間）
+I (3339) saanotts: int16 クリップ 0 sample
+I (3339) saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+I (3339) saanotts:         |max| 9627 / Σx² 74264237672
+I (3339) saanotts: タスクスタック残り 10996 B（16384 B 中）
+W (3340) saanotts: アンダーラン 1 回。実機の内訳は -DSAAN_PROFILE=1 で（M-82: CoreS3 / W8A8+PIE は xRT 0.926 で 1 回残る）。途切れない再生が要るなら -DSAAN_BUFFERED=1
+I (3340) saanotts: ----- 段別プロファイル（step_chunk 21 回の平均。単位 = CCOUNT）-----
+I (3341) saanotts: 区間   回数/step     cyc/step  %%STEP  要素/step cyc/要素
+I (3341) saanotts: STEP           1.00     17125431  100.0%            0       0.00
+I (3341) saanotts: HF             1.00      1996944   11.7%            0       0.00
+I (3341) saanotts: TOKEN          0.67      1989951   11.6%           19  105794.86
+I (3342) saanotts: AC             5.00      3245658   19.0%            0       0.00
+I (3342) saanotts: DINP           1.00       233108    1.4%            0       0.00
+I (3342) saanotts: DEC            5.00      9200017   53.7%            0       0.00
+I (3342) saanotts: HEAD           1.00      1607316    9.4%            0       0.00
+I (3343) saanotts: ISTFT         10.19       783854    4.6%            0       0.00
+I (3343) saanotts: LOOKUP         6.24       119803    0.7%          802     149.43
+I (3343) saanotts: QUANT         43.33      1116483    6.5%        50998      21.89
+I (3343) saanotts: WCOPY          0.00            0    0.0%            0       0.00
+I (3344) saanotts: MAC         4724.19     10573781   61.7%      7279646       1.45
+I (3344) saanotts: DW             5.00       935298    5.5%        37240      25.12
+I (3344) saanotts: CONV32         0.00            0    0.0%            0       0.00
+I (3344) saanotts: GELU           6.00      2563431   15.0%        21664     118.33
+I (3345) saanotts: LN             7.14       246411    1.4%         6791      36.29
+I (3345) saanotts: RELU           7.14        44338    0.3%         6791       6.53
+I (3345) saanotts: PIPE          33.00       407437    2.4%            0       0.00
+I (3345) saanotts: INIT: 6126136 cyc / 回
+I (3346) saanotts: 1 step = 17125431 cyc（240 MHz なら 71.36 ms）。⚠️ QEMU ではサイクルではない
+I (3346) saanotts: 1 発話後: 内部 DRAM free 99163 B / 最大ブロック 55296 B
+I (3346) saan_con: 入力: USB Serial/JTAG（DevKit の「USB」ポート）
+I (3347) saanotts: ==================== 対話モード ====================
+I (3347) saanotts: かな中間表現を 1 行入力して Enter で喋る。
+I (3347) saanotts:   例:  きょ][おわよ][いて][んきです°ね     （今日は良い天気ですね。）
+I (3347) saanotts:   例:  こんにちわ
+I (3347) saanotts: 記号:  [ 上昇 / ] 下降核 / # 句境界 / ° 無声化 / ? ?! ?. ?~ 疑問
+I (3348) saanotts: ⚠️ **漢字・カタカナ・句読点は受け付けない**（端末に辞書が無い）。
+I (3348) saanotts:    漢字混じり文からは**ホスト側**で作る:
+I (3348) saanotts:      uv run python scripts/to_intermediate.py "今日は良い天気ですね。"
+I (3348) saanotts: ⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**
+I (3349) saanotts: 編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 350 ids
+I (3349) saanotts: 画面があればタッチで直前の文をもう一度喋る（saan_ui の実装次第）。
+I (3349) saanotts: ====================================================
+
+かな> きょ][おわよ][いて][んきです°ね
+I (3351) saanotts: G2P: 44 B -> 53 ids / 0.146 ms（音素 25 個・うち PAD 0）
+I (3424) saanotts: init 25.51 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (3425) saanotts: arena used 195808 B / peak 195808 B / 確保 212992 B
+I (3425) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (4107) saanotts: プリロール 4 チャンク完了（初回 pull 441.41 ms / 鳴らし始めまで 682 ms）
+I (4107) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (5253) saanotts: ----- 結果 -----
+I (5253) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (5253) saanotts: 初回 pull 441.41 ms / 2 回目以降 mean 81.43 ms (満チャンク 1 個 = 92.88 ms の音声)
+I (5253) saanotts: 定常 xRT = 0.877  ← **1.0 を超えたら実時間に間に合っていない**
+I (5253) saanotts: アンダーラン 1 / 14 チャンク
+W (5267) saanotts: 途切れている。途切れない再生が要るなら -DSAAN_BUFFERED=1 （1 発話ぶんを貯めてから鳴らす。待ちは合成時間）
+I (5267) saanotts: int16 クリップ 0 sample
+I (5267) saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+I (5267) saanotts:         |max| 9627 / Σx² 74264237672
+I (5267) saanotts: タスクスタック残り 10996 B（16384 B 中）
+W (5268) saanotts: アンダーラン 1 回。実機の内訳は -DSAAN_PROFILE=1 で（M-82: CoreS3 / W8A8+PIE は xRT 0.926 で 1 回残る）。途切れない再生が要るなら -DSAAN_BUFFERED=1
+I (5269) saanotts: ----- 段別プロファイル（step_chunk 21 回の平均。単位 = CCOUNT）-----
+I (5269) saanotts: 区間   回数/step     cyc/step  %%STEP  要素/step cyc/要素
+I (5269) saanotts: STEP           1.00     17124439  100.0%            0       0.00
+I (5269) saanotts: HF             1.00      1996291   11.7%            0       0.00
+I (5270) saanotts: TOKEN          0.67      1989295   11.6%           19  105759.97
+I (5270) saanotts: AC             5.00      3245797   19.0%            0       0.00
+I (5270) saanotts: DINP           1.00       232986    1.4%            0       0.00
+I (5270) saanotts: DEC            5.00      9200086   53.7%            0       0.00
+I (5271) saanotts: HEAD           1.00      1607342    9.4%            0       0.00
+I (5271) saanotts: ISTFT         10.19       783538    4.6%            0       0.00
+I (5271) saanotts: LOOKUP         6.24       119684    0.7%          802     149.28
+I (5271) saanotts: QUANT         43.33      1115071    6.5%        50998      21.86
+I (5272) saanotts: WCOPY          0.00            0    0.0%            0       0.00
+I (5272) saanotts: MAC         4724.19     10572484   61.7%      7279646       1.45
+I (5272) saanotts: DW             5.00       935971    5.5%        37240      25.13
+I (5272) saanotts: CONV32         0.00            0    0.0%            0       0.00
+I (5273) saanotts: GELU           6.00      2564168   15.0%        21664     118.36
+I (5273) saanotts: LN             7.14       246579    1.4%         6791      36.31
+I (5273) saanotts: RELU           7.14        44006    0.3%         6791       6.48
+I (5273) saanotts: PIPE          33.00       407731    2.4%            0       0.00
+I (5274) saanotts: INIT: 6119656 cyc / 回
+I (5274) saanotts: 1 step = 17124439 cyc（240 MHz なら 71.35 ms）。⚠️ QEMU ではサイクルではない
+
+かな> あ[し°た]のて][んきわは[れれのちく[も]り_と[ころによりあ][めがふ][るでしょお
+I (5277) saanotts: G2P: 108 B -> 140 ids / 0.270 ms（音素 69 個・うち PAD 1）
+I (5383) saanotts: init 46.48 ms / 140 ids / 297 frames / 76032 sample / 音声 3.448 s
+I (5383) saanotts: arena used 196480 B / peak 196480 B / 確保 212992 B
+I (5383) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (6066) saanotts: プリロール 4 チャンク完了（初回 pull 442.13 ms / 鳴らし始めまで 682 ms）
+I (6066) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (9432) saanotts: ----- 結果 -----
+I (9432) saanotts: pull 38 回 / 297 frames / 音声 3.448 s（端数チャンク 1 回）
+I (9432) saanotts: 初回 pull 442.13 ms / 2 回目以降 mean 77.67 ms (満チャンク 1 個 = 92.88 ms の音声)
+I (9432) saanotts: 定常 xRT = 0.836  ← **1.0 を超えたら実時間に間に合っていない**
+I (9432) saanotts: アンダーラン 1 / 38 チャンク
+W (9446) saanotts: 途切れている。途切れない再生が要るなら -DSAAN_BUFFERED=1 （1 発話ぶんを貯めてから鳴らす。待ちは合成時間）
+I (9446) saanotts: int16 クリップ 0 sample
+I (9446) saanotts: 出力 PCM: 76032 sample / FNV-1a 0x8a0dbf6e03cdf7e6
+I (9446) saanotts:         |max| 9977 / Σx² 196083569774
+I (9446) saanotts: タスクスタック残り 10996 B（16384 B 中）
+W (9447) saanotts: アンダーラン 1 回。実機の内訳は -DSAAN_PROFILE=1 で（M-82: CoreS3 / W8A8+PIE は xRT 0.926 で 1 回残る）。途切れない再生が要るなら -DSAAN_BUFFERED=1
+I (9447) saanotts: ----- 段別プロファイル（step_chunk 44 回の平均。単位 = CCOUNT）-----
+I (9448) saanotts: 区間   回数/step     cyc/step  %%STEP  要素/step cyc/要素
+I (9448) saanotts: STEP           1.00     18061749  100.0%            0       0.00
+I (9448) saanotts: HF             1.00      2606377   14.4%            0       0.00
+I (9448) saanotts: TOKEN          0.86      2592866   14.4%           24  106622.54
+I (9449) saanotts: AC             5.00      3270523   18.1%            0       0.00
+I (9449) saanotts: DINP           1.00       234139    1.3%            0       0.00
+I (9449) saanotts: DEC            5.00      9232904   51.1%            0       0.00
+I (9449) saanotts: HEAD           1.00      1611434    8.9%            0       0.00
+I (9450) saanotts: ISTFT         13.55      1046239    5.8%            0       0.00
+I (9450) saanotts: LOOKUP         2.98        57101    0.3%          383     149.23
+I (9450) saanotts: QUANT         44.34      1234498    6.8%        52732      23.41
+I (9450) saanotts: WCOPY          0.00            0    0.0%            0       0.00
+I (9451) saanotts: MAC         4776.11     11102689   61.5%      7680640       1.45
+I (9451) saanotts: DW             5.00       954980    5.3%        37240      25.64
+I (9451) saanotts: CONV32         0.00            0    0.0%            0       0.00
+I (9451) saanotts: GELU           6.00      2564948   14.2%        21664     118.40
+I (9452) saanotts: LN             7.66       276605    1.5%         7647      36.17
+I (9452) saanotts: RELU           7.66        49647    0.3%         7647       6.49
+I (9452) saanotts: PIPE          33.00       407506    2.3%            0       0.00
+I (9453) saanotts: INIT: 11152738 cyc / 回
+I (9453) saanotts: 1 step = 18061749 cyc（240 MHz なら 75.26 ms）。⚠️ QEMU ではサイクルではない
+
+かな> わ[がはいわね][こである_な[まえわま][だな][い_ど][こでう[まれた]かと[んとけ[んと]おがつ°[か]ぬ_な][んでもう[すぐらいじ][めじめし°たところでにゃ][あにゃあな[いていた]ことだけわき[お
