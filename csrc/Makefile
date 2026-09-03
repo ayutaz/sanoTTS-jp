@@ -153,8 +153,14 @@ g2p_vectors_corpus.bin:
 	cd .. && $(PYTHON) scripts/gen_g2p_vectors.py --closed --corpus \
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
-.PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \
+.PHONY: test golden stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \
         line range all-test clean
+# ⚠️ **`golden` は `test` の別名。** README / リリースノート v0.2.0 / .github/workflows/README.md が
+#    `make -C csrc golden` と書いているのに、そのターゲットが**存在しなかった**
+#    （配布済みの手順書にも入っている）。名前としても `golden`（ゴールデンテスト）の方が
+#    中身を表すので、別名を足して手順が動くようにする。
+golden: test
+
 test: golden_test
 	./golden_test student.bin golden.bin
 
