@@ -477,6 +477,8 @@ QEMU 上で出荷ファームを**起動から合成完了まで通してあり�
 | `fp32 blob が焼かれている` で起動が止まる | `saanotts-jp-v3-int8.bin` を指しているか確認（`-i8` の付いた方） |
 | `G2P の出力が demo_ids.h の錨と一致しない` | ⚠️ **意図的に止めています**。テーブルか実装がずれている状態なので報告してください |
 | 起動すらしない | **8 MB 以上の flash が要ります**（`model` に 3 MB 確保）。4 MB のボードでは入りません |
+| `mode:QIO` のあと `ets_loader.c 78` → `rst:0x7 (TG0WDT_SYS_RST)` を繰り返す | `esptool.py write_flash` に **`--flash_mode qio` を渡しています**。渡さないでください（ヘッダが QIO になると ROM ローダが読めません）。`@flash_args` はいつも `dio` で、QIO 対応の板では bootloader が起動後に `qio_mode: Enabling default flash chip QIO` で切り替えます（M-86 で踏んだ） |
+| 同じコードなのに xRT が 15% 遅い（例 0.92 → 1.09） | flash が **DIO** で動いています。起動ログに `qio_mode: Enabling default flash chip QIO` が出ているか確認してください（`esp32/sdkconfig.defaults` は QIO。M-86） |
 | 焼いた firmware で `重み OK: 183 tensors` が出ない | `write_flash 0x0` で**イメージ全体**を焼いたか確認してください（`0x10000` に app だけ焼くと重みが入りません） |
 | ログは出るが `かな> ` に打っても反応しない | **挿しているポートが違います**。「UART」側に挿すか、上の `sdkconfig.usb_serial_jtag` を使ってください |
 | 打った文字が画面に出ない | 511 B を超えています（**溢れたらエコーを止める**のが「もう入らない」の合図です） |
