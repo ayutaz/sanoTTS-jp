@@ -26,17 +26,13 @@
  * G2P と合成は同時に走らないので競合しない。小さい配列（ポインタ表など）だけ
  * .bss に残す（合計 4.6 KB）。
  *
- * ⚠️ **Viterbi の作業領域は 32 KB あれば held-out 298 文すべてで足りる**
- *    （16 KB だと 1 文落ちる。ホストで実測）。余裕を見て 48 KB 取る。
- *
- * ⚠️ **トークン数の上限は 96。** 端末は ids 350 個までしか喋らない
- *    （`SAAN_MAX_IDS`）ので、1 文あたりの形態素はそれよりずっと少ない
- *    （K-5 の最長文 98 文字で 67 個）。 */
-#define KJ_MAX_TOK    96
+ * 寸法（KJ_MAX_TOK / KJ_FEAT_MAX / KJ_VITERBI_N）は saan_kanji.h の SAAN_KANJI_* にある
+ * （雛形が arena に収まることをコンパイル時に検査するため。T4） */
+#define KJ_MAX_TOK    SAAN_KANJI_MAX_TOK
 #define KJ_MAX_LABEL  512
 #define KJ_KEY_MAX    1024
-#define KJ_FEAT_MAX   320
-#define KJ_VITERBI_N  (48u * 1024u)
+#define KJ_FEAT_MAX   SAAN_KANJI_FEAT_MAX
+#define KJ_VITERBI_N  SAAN_KANJI_VITERBI_N
 
 /* .bss（小さいものだけ） */
 static char s_key[KJ_KEY_MAX];
@@ -48,10 +44,7 @@ static const char *s_lab[KJ_MAX_LABEL];
 static char *s_feat_flat;
 static k4_node_t *s_k4;
 
-size_t saan_kanji_workbytes(void) {
-    return (size_t)KJ_MAX_TOK * KJ_FEAT_MAX
-         + sizeof(k4_node_t) * KJ_MAX_TOK + KJ_VITERBI_N;
-}
+size_t saan_kanji_workbytes(void) { return SAAN_KANJI_WORKBYTES; }
 
 int saan_kanji_init(void) { return 1; }   /* 確保はしない。arena を借りる */
 

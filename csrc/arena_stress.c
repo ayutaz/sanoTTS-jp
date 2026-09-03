@@ -127,7 +127,8 @@ int main(int argc, char **argv) {
     g_ids_base = base;
 
     int bad = 0;
-    const size_t ARENA = 208u * 1024u;   /* ESP32 の雛形が静的確保する値 */
+    const size_t ARENA = 176u * 1024u;   /* ESP32 の雛形が静的確保する値（esp32/main/main.c の
+                                          * SAAN_ARENA_BYTES。T4 で 208 → 176 KB） */
     const int DESIGN_IDS = 350;          /* D-017 の max_spec_length=700 相当 */
 
     printf("sanoTTS-jp arena ストレス（c'-4 の受け入れ条件）\n");
@@ -265,8 +266,13 @@ int main(int argc, char **argv) {
         int n_ng = 0, ctl_ok = 1;
         for (int i = 0; i < (int)(sizeof nn / sizeof nn[0]); ++i) {
             int32_t *ids = make_ids(nn[i]);
-            void *buf = malloc(ARENA);
-            saan_arena A; saan_arena_init(&A, buf, ARENA);
+            /* ⚠️ ここで見るのは「関数 == 実測」であって大きさではない（大きさは §1 / §2）。
+             * 静的 arena（176 KB）では 520 ids の duration 一時領域（384 B/id）が入らないので、
+             * 緩い上限 saan_stream_arena_needed() の大きさで確保する（T4 で 208 → 176 KB にした際に
+             * 520 が init-fail になったため） */
+            const size_t cap = saan_stream_arena_needed(nn[i]);
+            void *buf = malloc(cap);
+            saan_arena A; saan_arena_init(&A, buf, cap);
             saan_stream st;
             saan_status s = saan_stream_init(&st, &W, &A, ids, nn[i], SAAN_S_V);
             if (s != SAAN_OK) { printf("  NG! init(n_ids=%d): %s\n", nn[i], saan_strerror(s)); ++n_ng; }

@@ -104,27 +104,26 @@ static bool g_dict_ok;
 /* --- arena ---------------------------------------------------------------
  *
  * ⚠️ **`saan_stream_arena_needed()` の戻り値を使わないこと。** あれは緩い上限で、
- *    n_ids=350 に対し **340,016 B (332 KB)** を返す。512 KB の SRAM に対して
- *    65% を占め、IDF / FreeRTOS / I2S DMA と合わせて破綻する。
+ *    n_ids=350 に対し **302,816 B (296 KB)** を返す（T4 後のホスト値）。512 KB の SRAM に対して
+ *    58% を占め、IDF / FreeRTOS / I2S DMA と合わせて破綻する。
  *
- * ⚠️ **CLAUDE.md / M-42 の「197 KB」もそのまま確保量にしないこと。** あれは
- *    高水位（`st.peak_used` = 197,424 B）で、**init が通る最小 arena は
- *    197,632 B**。ALIGN16 の切り上げと確保順の差でわずかに上回る。
+ * ⚠️ **高水位（`st.peak_used`）もそのまま確保量にしないこと。** init が通る最小 arena は
+ *    ALIGN16 の切り上げと確保順の差で高水位をわずかに上回る。
  *
- * 208 KB (212,992 B) の根拠は実測（`make -C csrc arena`、ホスト）:
- *   - n_ids=350（D-017 の max_spec_length=700 相当）の最小 arena  197,632 B
- *   - 208 KB 固定で n_ids 1〜520 は init も pull も成功、560 以上は
- *     SAAN_ERR_ARENA で**きれいに失敗**（n_ids 1〜1000 の 23 点でクラッシュ 0）
- *   - 設計上限 350 ids に対し 15,360 B の余裕、かつ 520 ids まで伸びる
- */
-/* ⚠️ **漢字対応ビルドでは 204 KB に落とす。** PSRAM を有効にすると
- *    IDF 側が DRAM を数 KB 追加で使い、208 KB では **3,776 B 溢れる**（実測）。
- *    204 KB でも 350 ids に必要な 197,632 B に対し 11,264 B の余裕がある。 */
-#if SAAN_KANJI
-#define SAAN_ARENA_BYTES (204 * 1024)
-#else
-#define SAAN_ARENA_BYTES (208 * 1024)
-#endif
+ * 176 KB (180,224 B) の根拠は実測（`make -C csrc arena` / `make -C csrc stream`、ホスト、T4 後）:
+ *   - n_ids=350（D-017 の max_spec_length=700 相当）の最小 arena  160,768 B（W8A32 / fp32）
+ *   - W8A8（`-DSAAN_INT8_ACT=1`。conv 1 本ぶんの activation 作業領域が乗る）の 350 ids の
+ *     高水位 ≈ 158.9 KB（stream_test_a8 の G1 の表）→ 176 KB で約 17 KB の余裕
+ *   - 176 KB 固定で n_ids 350 は init も pull も成功（`make -C csrc arena` §2）
+ *   履歴: T2〜T4 の前は 197,632 B に 15,360 B の余裕を足した 208 KB（D-031 / M-46）。
+ *   T4（cdel 6 本 → リング 1 本 −8,960 B、re/im/frm を w_e と共用 −8,224 B、impl −128 B）で
+ *   a.used が 177,536 → 160,224 B（350 ids、ホスト）になったので下げた。
+ *
+ * ⚠️ 以前は漢字対応ビルドだけ 204 KB に落としていた（PSRAM 有効で IDF が DRAM を数 KB 余分に
+ *    使い、208 KB では 3,776 B 溢れた）。176 KB ならその差は要らないので 1 本にした。
+ * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` + T10 で
+ *    移す .bss 14,464 B が収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
+#define SAAN_ARENA_BYTES (176 * 1024)
 
 /* ⚠️ **黙って確保に失敗したのを検出する二重防御**（init 後の `a.used` の検査）。
  *
@@ -146,9 +145,18 @@ static bool g_dict_ok;
  *    自分の sizeof から計算する関数にした。ホスト側は `make -C csrc arena` の §5 が
  *    「関数の値 == 実測 a.used」を陽性対照つきで守る。 */
 
-/* 受け付ける ids の上限。**arena の限界 (520) ではなく学習分布の上限を採る。**
+#if SAAN_KANJI
+/* T10 が arena へ移す予定の .bss（k7_label2ids.c の tok[640][16] 10,240 B + saan_kanji.c の
+ * s_lab / s_tok / s_key 4,224 B）。計画 T4 のゲート `SAAN_ARENA_BYTES ≥ saan_kanji_workbytes() + 14,464`。
+ * C99 には _Static_assert が無いので配列の typedef で検査する（落ちると「負のサイズの配列」でコンパイルが止まる） */
+#define SAAN_KANJI_T10_BSS_BYTES 14464u
+typedef char saan_arena_holds_kanji_workbytes[
+    (SAAN_ARENA_BYTES >= SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES) ? 1 : -1];
+#endif
+
+/* 受け付ける ids の上限。**arena の限界ではなく学習分布の上限を採る。**
  *
- * ⚠️ **「入るか」と「まともに喋れるか」は別。** arena は 520 ids まで持つが、
+ * ⚠️ **「入るか」と「まともに喋れるか」は別。** arena は 350 ids より先まで持つが、
  *    生徒が学習したのは D-017 の `max_spec_length=700`（= 350 ids 相当）までで、
  *    それを超える入力は**分布の外**になる。しかも clip[1,80] の上限に張り付くと
  *    350 ids で最大 28,000 frames = 325 秒の音声になりうる。

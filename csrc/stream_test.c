@@ -210,7 +210,7 @@ static int g2_multi(const saan_weights *W, const char *path) {
 int main(int argc, char **argv) {
     /* --g1-kb N: G1 の上限（既定 200 = D-029）。⚠️ **W8A8（-DSAAN_INT8_ACT=1）は 200 KB を
      * 超えることが分かっている**（M-55: conv 1 本ぶんの activation 作業領域）。その
-     * レーンは Makefile が実機の静的 arena（esp32/main/main.c の SAAN_ARENA_BYTES = 208 KB）
+     * レーンは Makefile が実機の静的 arena（esp32/main/main.c の SAAN_ARENA_BYTES = 176 KB。T4）
      * を渡す。既定値を動かさないのは、W8A32 / fp32 の 200 KB を黙って緩めないため */
     int g1_kb = 200;
     for (int i = 1; i + 1 < argc; ++i) {

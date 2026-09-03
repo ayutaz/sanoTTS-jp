@@ -149,13 +149,14 @@ test: golden_test
 # 3 レーン（fp32 / W8A32 / W8A8）× held-out 24 文（T2a）。
 # ⚠️ 1 文（golden の in.ids = 106 frames ≡ 2 mod 8）だけでは n_frames mod CH の
 #    残差 1 通りしか見ず、末尾 step 数・obuf の深さの壊れ方を捕まえられない
-# ⚠️ W8A8 のレーンだけ G1 の上限を **208 KB**（実機の静的 arena。esp32/main/main.c の
-#    SAAN_ARENA_BYTES）にする。W8A8 は 200 KB を超えることが分かっている（M-55: conv 1 本ぶんの
-#    activation 作業領域。当時 201.1 KB、blob v2 の今は 203.0 KB）。fp32 / W8A32 は D-029 の 200 KB のまま
+# ⚠️ W8A8 のレーンだけ G1 の上限を**実機の静的 arena**（esp32/main/main.c の SAAN_ARENA_BYTES =
+#    176 KB。T4 で 208 → 176）にする。W8A8 は conv 1 本ぶんの activation 作業領域が乗る（M-55。
+#    当時 201.1 KB、blob v2 で 203.0 KB、T2〜T4 後は 163.0 KB）。fp32 / W8A32 は D-029 の 200 KB のまま
+#    （T4 後の実測 160.6 KB。上限は緩めていないだけで、きつくもしていない）
 stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
 	./stream_test    student.bin    golden.bin ids_heldout.bin
 	./stream_test    student_i8.bin golden.bin ids_heldout.bin
-	./stream_test_a8 --g1-kb 208 student_i8.bin golden.bin ids_heldout.bin
+	./stream_test_a8 --g1-kb 176 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test

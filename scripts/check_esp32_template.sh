@@ -181,6 +181,55 @@ echo "  ✅ ただし **v5.5 で実際にビルドが通り QEMU で動いた**�
 grep -ohE '\b(i2s_[a-z0-9_]+|esp_partition_[a-z0-9_]+|esp_timer_[a-z0-9_]+|heap_caps_[a-z0-9_]+|xTaskCreate|vTaskDelete|uxTaskGetStackHighWaterMark|esp_err_to_name|ESP_LOG[IWED]|I2S_[A-Z0-9_]+|ESP_PARTITION_[A-Z0-9_]+|MALLOC_CAP_[A-Z0-9_]+|portMAX_DELAY|CONFIG_[A-Z0-9_]+)\b' \
   esp32/main/*.c esp32/main/*.h | sort -u | sed 's/^/      /'
 
+# ---------------------------------------------------------------- 10
+hdr "10. 静的 arena が漢字経路の作業領域 + T10 で移す .bss を収められるか（計画 T4 のゲート）"
+# `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + 14,464`。main.c は SAAN_KANJI ビルドで同じ式を
+# 配列の typedef（負のサイズでコンパイルが止まる）として持つ。ここではホストで
+#   (a) 数値を出して比較する（両方ともソースから取る。手で書き写さない）
+#   (b) main.c を -DSAAN_KANJI=1 で構文検査し、typedef が通ることを見る
+#   (c) 陽性対照: 同じ typedef を「足りない arena」で書いた小さな C がコンパイルに**失敗する**こと
+#       （sizeof を含む定数式で本当にコンパイルが止まる = 検査が空虚でない）
+ARENA_EXPR="$(cc -E -dM -I esp32/host_stub -I esp32/main -I csrc -DSAAN_KANJI=1 esp32/main/main.c 2>/dev/null \
+             | sed -n 's/^#define SAAN_ARENA_BYTES //p')"
+T10_EXPR="$(cc -E -dM -I esp32/host_stub -I esp32/main -I csrc -DSAAN_KANJI=1 esp32/main/main.c 2>/dev/null \
+           | sed -n 's/^#define SAAN_KANJI_T10_BSS_BYTES //p' | tr -d u)"
+cat > "$TMP/wb.c" <<'C'
+#include <stdio.h>
+#include "saan_kanji.h"
+int main(void) { printf("%zu\n", (size_t)SAAN_KANJI_WORKBYTES); return 0; }
+C
+if [ -n "$ARENA_EXPR" ] && [ -n "$T10_EXPR" ] \
+   && cc -std=gnu17 -I csrc -I esp32/main -o "$TMP/wb" "$TMP/wb.c" 2>"$TMP/wbw"; then
+    ARENA_B=$(( ARENA_EXPR ))
+    WORK_B="$("$TMP/wb")"
+    NEED_B=$(( WORK_B + T10_EXPR ))
+    if [ "$ARENA_B" -ge "$NEED_B" ]; then
+        ok "SAAN_ARENA_BYTES $ARENA_B B ≥ SAAN_KANJI_WORKBYTES $WORK_B B + T10 の .bss $T10_EXPR B = $NEED_B B（余り $(( ARENA_B - NEED_B )) B）"
+    else
+        ng "SAAN_ARENA_BYTES $ARENA_B B < SAAN_KANJI_WORKBYTES $WORK_B B + $T10_EXPR B = $NEED_B B（$(( NEED_B - ARENA_B )) B 足りない）"
+    fi
+else
+    ng "SAAN_ARENA_BYTES / SAAN_KANJI_T10_BSS_BYTES / SAAN_KANJI_WORKBYTES をソースから取れない"; sed 's/^/      /' "$TMP/wbw"
+fi
+# (b) main.c の typedef。⚠️ -Werror は付けない（SAAN_KANJI の関数は host stub の main から呼ばれず
+#     unused になる）。見るのは error だけ
+if cc -fsyntax-only -std=gnu17 -I esp32/host_stub -I esp32/main -I csrc -DSAAN_KANJI=1 esp32/main/main.c 2>"$TMP/kw"; then
+    ok "main.c（-DSAAN_KANJI=1）の typedef saan_arena_holds_kanji_workbytes が通る"
+else
+    ng "main.c（-DSAAN_KANJI=1）がコンパイルできない（typedef が負のサイズになっていないか）"; grep error "$TMP/kw" | sed 's/^/      /'
+fi
+# (c) 陽性対照
+cat > "$TMP/wb_neg.c" <<'C'
+#include "saan_kanji.h"
+typedef char must_fail[((size_t)1024 >= SAAN_KANJI_WORKBYTES + 14464u) ? 1 : -1];
+int main(void) { return 0; }
+C
+if cc -fsyntax-only -std=gnu17 -I csrc -I esp32/main "$TMP/wb_neg.c" 2>/dev/null; then
+    ng "陽性対照: arena 1,024 B の typedef がコンパイルできてしまう（検査が効いていない）"
+else
+    ok "陽性対照: 同じ typedef を arena 1,024 B で書くとコンパイルが止まる"
+fi
+
 # ---------------------------------------------------------------- 結果
 printf '\n'
 if [ "$FAIL" = "0" ]; then

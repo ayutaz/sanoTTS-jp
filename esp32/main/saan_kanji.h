@@ -15,6 +15,23 @@
 #include <stddef.h>
 #include <stdint.h>
 #include "k1dict.h"
+#include "k4_accent.h"   /* k4_node_t（作業領域の大きさを静的に出すため） */
+
+/* 作業領域の寸法。⚠️ **saan_kanji_workbytes() と 1:1**（関数はこの式をそのまま返す）。
+ * マクロで持つのは、雛形（esp32/main/main.c）が `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + 14,464`
+ * をコンパイル時に検査し、scripts/check_esp32_template.sh がホストで同じ式を評価するため（計画 T4）。
+ *
+ * ⚠️ **Viterbi の作業領域は 32 KB あれば held-out 298 文すべてで足りる**
+ *    （16 KB だと 1 文落ちる。ホストで実測）。余裕を見て 48 KB 取る。
+ * ⚠️ **トークン数の上限は 96。** 端末は ids 350 個までしか喋らない
+ *    （`SAAN_MAX_IDS`）ので、1 文あたりの形態素はそれよりずっと少ない
+ *    （K-5 の最長文 98 文字で 67 個）。 */
+#define SAAN_KANJI_MAX_TOK    96
+#define SAAN_KANJI_FEAT_MAX   320
+#define SAAN_KANJI_VITERBI_N  (48u * 1024u)
+#define SAAN_KANJI_WORKBYTES \
+    ((size_t)SAAN_KANJI_MAX_TOK * SAAN_KANJI_FEAT_MAX \
+     + sizeof(k4_node_t) * SAAN_KANJI_MAX_TOK + SAAN_KANJI_VITERBI_N)
 
 typedef enum {
     SAAN_KANJI_OK = 0,
@@ -29,7 +46,7 @@ typedef enum {
  * ⚠️ **.bss には置けない**（DRAM が 419 KB 足りない。G19 で実測）。 */
 int saan_kanji_init(void);
 
-/* 確保する作業領域のバイト数（ログ用）。 */
+/* 確保する作業領域のバイト数（= SAAN_KANJI_WORKBYTES。ログ用）。 */
 size_t saan_kanji_workbytes(void);
 
 /* 作業領域は呼び出し側が渡す（Viterbi 用。K-2 の arena）。 */
