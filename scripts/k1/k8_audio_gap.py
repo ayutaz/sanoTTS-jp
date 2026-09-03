@@ -8,7 +8,7 @@ D-044（動作点 438,750）は **「音素の 0.32%」だけ**で決めた。�
 音の側から確かめるためのもの。
 
     uv run --extra eval python scripts/k1/k8_audio_gap.py \\
-        --ids <k7_test --dump-ids の出力> --ckpt runs/v3/stage4.pt \\
+        --ids <label_ids_test --dump-ids の出力> --ckpt runs/v3/stage4.pt \\
         --out reports/k8_audio_gap.json [--wav-dir reports/k8_listen]
 
 ⚠️ **レポートに本文は書かない**（コーパス本文をコミットしないため）。

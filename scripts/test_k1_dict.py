@@ -49,7 +49,7 @@ def test_mora_codec() -> None:
     K-1 §2-2: 出現するモーラ記号は 288 種。上位 254 種を 1 バイト、
     残りをエスケープ。複合語は ':' で区切られる。
     """
-    from saanotts_jp.k1_dict import MoraCodec
+    from saanotts_jp.jdict import MoraCodec
 
     print("\n=== モーラ符号化 ===")
 
@@ -86,7 +86,7 @@ def test_key_codec() -> None:
     K-1 §6-2: 上位 255 文字を 1 バイト、残りを 0xFF + 2 バイトにすると
     trie のノードが 2,075,882 → 1,178,163、サイズが −42.3% になる。
     """
-    from saanotts_jp.k1_dict import KeyCodec
+    from saanotts_jp.jdict import KeyCodec
 
     print("\n=== 文字 ID 鍵 ===")
 
@@ -135,7 +135,7 @@ def test_louds_search() -> None:
        (b) テスト文に現れないノードを壊しても落ちなかった
     なので **ヒット数と多バイトヒット数を必ず併記する**。
     """
-    from saanotts_jp.k1_dict import Louds
+    from saanotts_jp.jdict import Louds
 
     print("\n=== LOUDS: common-prefix-search（G3）===")
 
@@ -173,7 +173,7 @@ def test_louds_search() -> None:
 
 def test_louds_negative_control() -> None:
     """G4: 陰性対照 — **実際にヒットした経路上の**ラベルを壊すと G3 が落ちる。"""
-    from saanotts_jp.k1_dict import Louds
+    from saanotts_jp.jdict import Louds
 
     print("\n=== LOUDS: 陰性対照（G4）===")
     keys = [b"abc", b"abd", b"ab", b"b", b"xyz"]
@@ -201,7 +201,7 @@ def test_louds_negative_control() -> None:
 
 def test_louds_serialize() -> None:
     """バイト列に落として読み戻しても同じ答えを返す。"""
-    from saanotts_jp.k1_dict import Louds
+    from saanotts_jp.jdict import Louds
 
     print("\n=== LOUDS: 直列化 ===")
     keys = [b"a", b"ab", b"abc", b"b", b"bc", b"xyz"]
@@ -220,7 +220,7 @@ def test_louds_serialize() -> None:
 
 def _sample_entries():
     """小さいが形式のすべての枝を踏む entry 集合。"""
-    from saanotts_jp.k1_dict import Entry
+    from saanotts_jp.jdict import Entry
     P6 = ("名詞", "一般", "*", "*", "*", "*")
     P6b = ("動詞", "自立", "*", "*", "一段", "基本形")
     return [
@@ -243,7 +243,7 @@ def _sample_entries():
 
 def test_blob_roundtrip() -> None:
     """G1: blob から復元した 11 フィールドが元と一致する。"""
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 辞書 blob: 往復（G1）===")
     entries = _sample_entries()
@@ -268,7 +268,7 @@ def test_blob_roundtrip() -> None:
 
 def test_blob_negative_control() -> None:
     """G2: 陰性対照 — レコードを 1 バイト壊すと G1 が落ちる。"""
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 辞書 blob: 陰性対照（G2）===")
     entries = _sample_entries()
@@ -295,7 +295,7 @@ def test_pool_offset_checkpoint() -> None:
 
     K-1 §4-3: 間隔 256 だと 1 回の復元で最大 2,295 B 読む。**32 間隔**にする。
     """
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 値プールのオフセット（G5）===")
     entries = _sample_entries() * 20          # チェックポイントを跨がせる
@@ -321,7 +321,7 @@ def test_pool_checkpoint_in_blob() -> None:
     レコードを 0 から全部舐めることになる（370,863 回）。
     K-6 で 1 トークンごとに引くので、**索引が blob に無いと成立しない**。
     """
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 値プールの索引が blob に載っているか（G5b）===")
     entries = _sample_entries() * 20
@@ -357,7 +357,7 @@ def test_terminal_rank_index() -> None:
 
     形式: 512 ノードごとに「それより前の終端の数」を u32。
     """
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 終端ランクの索引（G5c）===")
     entries = _sample_entries() * 20
@@ -394,7 +394,7 @@ def test_blob_layout() -> None:
     セクション表を持ち、各セクションは 16 バイト境界に置く
     （`esp32/partitions.csv` が model パーティションに課しているのと同じ理由）。
     """
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== blob の配置（C から読めるか）===")
     raw = DictBlob.build(_sample_entries()).to_bytes()
@@ -428,7 +428,7 @@ def test_no_redundant_surface_table() -> None:
     LOUDS の鍵がすでに見出し語そのものなので、別の文字列表を持つのは冗長。
     370,863 entries の実測ではこの表だけで 3,881,011 B（blob の 33%）あった。
     """
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 見出し語表の冗長性 ===")
     entries = _sample_entries()
@@ -455,7 +455,7 @@ def test_connection_matrix() -> None:
     (`matrix_[lcAttr + lsize_*rcAttr]`) ではこの辞書に合わない
     （K-1 §9-3: 一致 0.91% 対 100.00%）。**推測で書くと必ず外す。**
     """
-    from saanotts_jp.k1_dict import ConnMatrix, DictBlob
+    from saanotts_jp.jdict import ConnMatrix, DictBlob
 
     print("\n=== 接続行列 ===")
 
@@ -502,7 +502,7 @@ def test_louds_rank_index() -> None:
     ⚠️ superblock は **256 bit**。512 bit にすると先行 1 の数が最大 448 になり
     **u8 に入らない**（compress-lane が発見。K-1 §6-1）。
     """
-    from saanotts_jp.k1_dict import Louds
+    from saanotts_jp.jdict import Louds
 
     print("\n=== LOUDS の rank/select 索引 ===")
     keys = [bytes([i % 251, (i * 7) % 251, (i * 13) % 251]) for i in range(500)]
@@ -539,7 +539,7 @@ def test_surface_count_checkpoint() -> None:
     C 側は counts を毎回先頭から足せない（見出し語 30 万件）。
     値プールと同じく **32 見出し語おきのチェックポイント**を blob に持つ。
     """
-    from saanotts_jp.k1_dict import DictBlob
+    from saanotts_jp.jdict import DictBlob
 
     print("\n=== 見出し語ごとのエントリ開始位置 ===")
     entries = _sample_entries() * 30
@@ -572,7 +572,7 @@ def test_char_property() -> None:
 
     CharInfo は type:18 / default_type:8 / length:4 / group:1 / invoke:1。
     """
-    from saanotts_jp.k1_dict import CharProperty
+    from saanotts_jp.jdict import CharProperty
 
     print("\n=== 文字カテゴリ（char.bin）===")
     cp = CharProperty.from_char_bin(_char_bin())
@@ -604,7 +604,7 @@ def test_unk_dict() -> None:
     ⚠️ **未知語の feature は 7 列しかなく `read` / `pron` / `acc` / `chain` を持たない。**
     これが「未知語は誤読ではなく無音で消える」の正体（C-044）。
     """
-    from saanotts_jp.k1_dict import UnkDict
+    from saanotts_jp.jdict import UnkDict
 
     print("\n=== 未知語辞書（unk.dic）===")
     u = UnkDict.from_unk_dic(_unk_dic())
@@ -622,7 +622,7 @@ def test_unk_dict() -> None:
 
 def test_blob_carries_unknown_tables() -> None:
     """blob が未知語処理に要る 2 表を運ぶ（K-3）。"""
-    from saanotts_jp.k1_dict import CharProperty, DictBlob, UnkDict
+    from saanotts_jp.jdict import CharProperty, DictBlob, UnkDict
 
     print("\n=== blob が char / unk を運ぶ ===")
     cp = CharProperty.from_char_bin(_char_bin())

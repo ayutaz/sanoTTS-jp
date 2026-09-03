@@ -3,7 +3,9 @@
 結論は [`../../docs/research/k1-kanji-katakana-ondevice.md`](../../docs/research/k1-kanji-katakana-ondevice.md)、
 実装計画は [`../../docs/plan/k1-kanji-implementation-plan.md`](../../docs/plan/k1-kanji-implementation-plan.md)。
 
-**K-0 〜 K-7 は完了**（QEMU で漢字文から合成まで完走。M-76）。残りは実機（K-8）。
+**K-0 〜 K-8 まで完了**（QEMU で漢字文から合成まで完走 = M-76 → CoreS3 実機 = M-83 →
+M5 のスピーカーで漢字・カタカナ・ひらがなを発話 = M-90）。
+**残りは G32 の聴取だけ**（人が要る。セットは `reports/k8_listen/`）。⚠️ **音は誰も聴いていない。**
 
 ## 本番で使うもの（実装が依存している）
 
@@ -73,14 +75,14 @@ uv run python scripts/k1/k1_build_dict.py        # 本番の辞書 blob を組�
 uv run python scripts/k1/k1_fit_point.py         # 予算に入るエントリ数（本番エンコーダで実測）
 uv run python scripts/k1/k2_gen_vectors.py       # C 側ゲートの参照ベクタ（参照は MeCab）
 uv run python scripts/k1/k4_gen_vectors.py       # K-4 の参照ベクタ（参照は Python 版の 4 段）
-make -C csrc k2                                  # K-2/K-3 の受け入れ（G6〜G11）
-make -C csrc k4                                  # K-4 の受け入れ（G12/G13）
+make -C csrc jdict                                  # K-2/K-3 の受け入れ（G6〜G11）
+make -C csrc accent                                  # K-4 の受け入れ（G12/G13）
 ```
 
-⚠️ `make -C csrc k2` / `k4` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
+⚠️ `make -C csrc jdict` / `accent` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
 数 MB の生成ベクタが要るので、`g2p-corpus` と同じ扱い。
 
-エンコーダ本体は `src/saanotts_jp/k1_dict.py`、その単体テストは
+エンコーダ本体は `src/saanotts_jp/jdict.py`、その単体テストは
 `scripts/test_k1_dict.py`（**TDD で書いた**。実装より先にテストを書き、
 落ちることを確認してから実装している）。
 

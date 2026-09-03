@@ -328,6 +328,17 @@ static int part_b(void) {
     bad += one_shape("cup      (12->16)*", 12, 76, 1, MAXT, 25.0);
     bad += one_shape("pw1      (76->80)*", 76, 96, 1, MAXT, 25.0);
     bad += one_shape("hdown    (76->80)*", 76, 48, 1, MAXT, 25.0);
+    /* S5b は cinp/16 = m ごとに別の asm を展開する（m ≤ 6 が重み常駐、m > 6 は旧 dot）。
+     * 上の 7 形状は decoder / acoustic の本物の層で、m は 19 / 3 / 3 / 3 / 1 / 5 / 5。
+     * ⚠️ **m = 2 は duration（幅 32）で実際に通る**が上の 7 つに入っていない。
+     *    **m = 4 / 6 はこのモデルには出てこない**（`csrc/saanotts_int8.c` の S5b の表）。
+     *    それでも asm を書いた以上は 1 度も実行されない枝を残さないために形だけ足す。
+     * m = 5 × ksz = 3 は「重み常駐 + タップ 3 本 + 両端ゼロパディング」の組み合わせ
+     *    （本物の ksz > 1 は m = 2 と 3 だけなので、これも形だけ）。 */
+    bad += one_shape("dur c1 k5 (32)",      32, 32, 5, MAXT, 25.0);
+    bad += one_shape("m=4 のみ (64)",       64, 64, 1, MAXT, 25.0);
+    bad += one_shape("m=6 のみ (96)",       96, 64, 1, MAXT, 25.0);
+    bad += one_shape("m=5 k=3  (76->80)*",  76, 48, 3, MAXT, 25.0);
     bad += negative_control();
     return bad;
 }
@@ -435,7 +446,7 @@ static const char *region_of(const void *p) {
  * + D5 の各行が D2 の行の 2 回繰り返しと一致 + **DRAM 側 1 バイトを壊した陰性対照が不一致**。
  * ⚠️ y は 87 KB あるので、比較は 273 行ずつ 10 回に分けて行う（行は独立なので結果は同じ）。 */
 
-enum { D_Q = 0, D_1, D_2, D_3, D_4, D_5, D_NCOND };
+enum { D_Q = 0, D_1, D_2, D_3, D_4, D_5, D_6, D_7, D_NCOND };
 
 static const char *d_name[D_NCOND] = {
     "Q  量子化 48×8 だけ（差し引き用）  ",
@@ -444,14 +455,53 @@ static const char *d_name[D_NCOND] = {
     "D3 flash 2,730 行 (T=8)           ",
     "D4 PSRAM 2,730 行 (T=8)           ",
     "D5 flash 2,730 行 (T=16, 2 呼び出し)",
+    "D6 旧形  flash 2,730 行 (T=8)      ",   /* S5b 前のループ。D3 と対 */
+    "D7 旧形  hot 16 行 × 171 回 (T=8)  ",   /* S5b 前のループ。D1 と対 */
 };
 static const uint32_t d_dots[D_NCOND]  = { 0, D_HOT_REPS * D_HOT_COUT * D_T8, D_COUT * D_T8,
-                                           D_COUT * D_T8, D_COUT * D_T8, D_COUT * D_T16 };
+                                           D_COUT * D_T8, D_COUT * D_T8, D_COUT * D_T16,
+                                           D_COUT * D_T8, D_HOT_REPS * D_HOT_COUT * D_T8 };
 /* Q（48×8 の量子化 1 回）を何個ぶん引くか。`saan_quantize_act_i8p` はフレームごとのループなので
  * コストは T に比例する。D5 は T=16 を 2 回 = **4 単位**。
  * ⚠️ M-85（2026-09-03 の実機表）はここが 2 のまま取った値: D5 の raw min 4,371,297 − 2 × 9,687 = 99.6 cyc/dot。
  *    同じ raw から 4 単位で引き直すと 99.2 cyc/dot（換算。再測はしていない）。差 0.4% は読みを変えない。 */
-static const uint32_t d_nquant[D_NCOND] = { 1, D_HOT_REPS, 1, 1, 1, 4 };
+static const uint32_t d_nquant[D_NCOND] = { 1, D_HOT_REPS, 1, 1, 1, 4, 1, D_HOT_REPS };
+
+/* --- S5b の前の形（比較の基準）------------------------------------------------------
+ *
+ * `saan_conv1d_i8a_r` は S5b で **o → k → t + 重み常駐**になった。旧い形は
+ * **o → t → k で、dot ごとに重み行を丸ごとロードし直す**。同じバイナリの中に
+ * 旧い形を組み直して、D6 / D7 で **同じ重み・同じ dot 数**の cyc を取る。
+ * 差 (D6 − D3) / (D7 − D1) が S5b の実機での利得。
+ *
+ * ⚠️ **これはコピーであって本番ではない。** 積和は `saan_dot_i8_pie`（本番と同じ実体。
+ * pw2 では今も本番が呼ぶ）を使い、複製するのはループの外枠だけにしてある。
+ * ⚠️ **時間だけでなく y の bit 一致も見る**（`d_compare_new_old`）。新旧が同じ値を
+ * 出さないなら cyc の比較に意味が無いし、S5b の「bit 同一」の主張そのものが崩れる。
+ * これは QEMU でも効くゲート。 */
+static void d_conv1d_i8a_old(float *y, const float *x, const int8_t *W, const float *sc,
+                             const float *b, int cin, int cout, int ksz, int T,
+                             int8_t *qx, float *sx) {
+    const int pad = ksz / 2;
+    const int cinp = SAAN_W_STRIDE(cin);
+    saan_quantize_act_i8p(qx, sx, x, cin, T, cinp);
+    for (int o = 0; o < cout; ++o) {
+        float *yo = y + (size_t)o * T;
+        const float s = sc[o];
+        const float bias = b ? b[o] : 0.0f;
+        const int8_t *wo = W + (size_t)o * ksz * cinp;
+        for (int t = 0; t < T; ++t) {
+            float acc = 0.0f;
+            for (int k = 0; k < ksz; ++k) {
+                const int u = t + k - pad;
+                if (u < 0 || u >= T) continue;
+                acc += (float)saan_dot_i8_pie(wo + (size_t)k * cinp,
+                                              qx + (size_t)u * cinp, cinp) * sx[u];
+            }
+            yo[t] = acc * s + bias;
+        }
+    }
+}
 
 static void d_run(int c, const int8_t *wflash, const int8_t *wpsram) {
     switch (c) {
@@ -474,6 +524,15 @@ static void d_run(int c, const int8_t *wflash, const int8_t *wpsram) {
     case D_4:
         saan_conv1d_i8a(U.d.y, U.d.x8, wpsram, U.d.scale, NULL,
                         D_CIN, D_COUT, 1, D_T8, U.d.qx, U.d.sx);
+        break;
+    case D_6:
+        d_conv1d_i8a_old(U.d.y, U.d.x8, wflash, U.d.scale, NULL,
+                         D_CIN, D_COUT, 1, D_T8, U.d.qx, U.d.sx);
+        break;
+    case D_7:
+        for (int r = 0; r < D_HOT_REPS; ++r)
+            d_conv1d_i8a_old(U.d.y, U.d.x8, wflash, U.d.scale, NULL,
+                             D_CIN, D_HOT_COUT, 1, D_T8, U.d.qx, U.d.sx);
         break;
     case D_5: {
         const int half = D_COUT / 2;   /* 1,365 行 = 65,520 B（16 の倍数なので 2 本目も整列） */
@@ -513,6 +572,24 @@ static size_t d_compare_rows(const int8_t *wa, const int8_t *wb, int tb) {
                     if (memcmp(&rb[t], &ra[t % D_T8], sizeof(float)) != 0) ++ndiff;
             }
         }
+    }
+    return ndiff;
+}
+
+/* S5b: **本番のカーネル**（新形）と `d_conv1d_i8a_old`（旧形）を同じ重み・同じ入力で
+ * 回して y を突き合わせる。273 行ずつ 10 回（`d_compare_rows` と同じ分割）。 */
+static size_t d_compare_new_old(const int8_t *w) {
+    float *ya = U.d.y;                              /* 273 × 8 */
+    float *yb = U.d.y + (size_t)D_CHUNK * D_T8;     /* 273 × 8 */
+    size_t ndiff = 0;
+    for (int c = 0; c < D_COUT / D_CHUNK; ++c) {
+        const size_t off = (size_t)c * D_CHUNK * D_CIN;
+        saan_conv1d_i8a(ya, U.d.x8, w + off, U.d.scale + c * D_CHUNK, NULL,
+                        D_CIN, D_CHUNK, 1, D_T8, U.d.qx, U.d.sx);
+        d_conv1d_i8a_old(yb, U.d.x8, w + off, U.d.scale + c * D_CHUNK, NULL,
+                         D_CIN, D_CHUNK, 1, D_T8, U.d.qx2, U.d.sx2);
+        for (size_t i = 0; i < (size_t)D_CHUNK * D_T8; ++i)
+            if (memcmp(&ya[i], &yb[i], sizeof(float)) != 0) ++ndiff;
     }
     return ndiff;
 }
@@ -616,6 +693,18 @@ static int part_d(void) {
            D_COUT, (net[D_5] - 2.0 * net[D_2]) / D_COUT);
     if (wpsram)
         printf("  PSRAM の差 (D4−D3)/%d 行       : %8.1f cyc/行\n", D_COUT, (net[D_4] - net[D_3]) / D_COUT);
+    /* S5b（weight-stationary）の利得。**cinp=48（m=3）の 1 形状だけ**の値で、
+     * 本番の 1 step は cinp 16 / 48 / 80 / 304 が混ざる。step の見込みに使うときは
+     * `make -C csrc prof` の形状別の dot 数で重みづけすること。 */
+    printf("  S5b 利得 flash (D6−D3)/dot       : %8.2f cyc/dot（%+.1f%%。旧 %.1f → 新 %.1f）\n",
+           (net[D_6] - net[D_3]) / d_dots[D_3],
+           net[D_6] > 0 ? 100.0 * (net[D_3] - net[D_6]) / net[D_6] : 0.0,
+           net[D_6] / d_dots[D_6], net[D_3] / d_dots[D_3]);
+    printf("  S5b 利得 hot   (D7−D1)/dot       : %8.2f cyc/dot（%+.1f%%。旧 %.1f → 新 %.1f）"
+           "  ← 固定費の床でどれだけ減ったか\n",
+           (net[D_7] - net[D_1]) / d_dots[D_1],
+           net[D_7] > 0 ? 100.0 * (net[D_1] - net[D_7]) / net[D_7] : 0.0,
+           net[D_7] / d_dots[D_7], net[D_1] / d_dots[D_1]);
 
     /* --- ゲート: 同じデータを処理した証明 --- */
     {
@@ -633,6 +722,13 @@ static int part_d(void) {
                    n24 == 0 ? "OK " : "NG!", n24);
             if (n24) ++bad;
         }
+        /* S5b: **本番（新形）と旧形が bit 一致すること**。ここが合わないと D6 / D3 の
+         * cyc 比較に意味が無いし、「S5b は bit 同一」という主張そのものが崩れる。
+         * ⚠️ ここで見るのは cin=48（m=3）だけ。m = 1 / 2 / 4 / 5 / 6 / 19 は B 節の 11 形状が見ている。 */
+        const size_t nno = d_compare_new_old(wflash);
+        printf("  %s D  S5b: 新形（本番）と旧形の y が bit 一致（273 行 × 10、差 %zu 要素）\n",
+               nno == 0 ? "OK " : "NG!", nno);
+        if (nno) ++bad;
         /* 陰性対照: DRAM 側の 1 バイトを壊すと不一致になり、戻すと一致に戻ること */
         U.d.w_dram[5] = (int8_t)(U.d.w_dram[5] + 1);
         const size_t nneg = d_compare_rows(U.d.w_dram, wflash, D_T8);
@@ -662,39 +758,46 @@ static int part_d(void) {
  * E2〜E4 は本体の式を**そのまま**写したもの（`PROBE_ERF_BODY` / `PROBE_GELU_LOOP`）。
  * ⚠️ 「同じカーネルを 2 回書かない」原則の例外。写しが本体とずれていないことは
  *    **4 条件の出力が memcmp で一致する**ことで示す（陰性対照: DRAM の表を 1 要素壊すと不一致）。
- * ⚠️ **T5（GELU のコード生成。別ブランチ）で本体の表が `kSaanErfD`（erf'）から
- *    `kSaanErfDh`（erf' × h を事前に掛けた表）に変わる。** そのとき本体は `D[i] * h` を掛けなくなるので、
- *    T5 と合流したら `PROBE_ERF_BODY` の `d0 / d1` の行と `g_tabD` の memcpy 元を本体に合わせて
- *    書き直すこと。ずれたままなら E1 と E3/E4 の memcmp が落ちて教えてくれる（黙って通ることはない）。
+ * ⚠️ **T5 と合流したのでここは書き直してある**（S5b の作業中に。T6 を書いた時点の
+ *    `kSaanErfD`（erf'）は `kSaanErfDh`（erf' × h を事前に掛けた表）になり、本体は
+ *    `D[i] * h` を掛けなくなった。T5-G3 で早期 return がクランプに、符号は memcpy の OR に変わった）。
+ *    **写しは `saan_erf_approx_inl` と 1 行ずつ同じ**。ずれたら E1 と E3/E4 の memcmp が落ちる。
+ *    ⚠️ この 3 行は S5b とは無関係の**ビルド修復**で、直さないと probe が
+ *    `'kSaanErfD' undeclared` でリンクまで届かなかった。
  * ⚠️ IDF は `-ffp-contract=fast`。インライン化で madd.s への縮約が変わると**丸め水準で**
  *    出力が動きうる（T5 の懸念）。E1 と E3/E4 の memcmp が落ちたらそれが検出されたということで、
  *    ゲートを緩めずに記録すること。 */
-#include "erf_table.h"   /* kSaanErfV / kSaanErfD の .rodata コピー（本体と同じ生成物） */
+#include "erf_table.h"   /* kSaanErfV / kSaanErfDh の .rodata コピー（本体と同じ生成物） */
 
 static float g_tabV[SAAN_ERF_N + 1];   /* .bss = 内部 DRAM */
 static float g_tabD[SAAN_ERF_N + 1];
 
-/* ⚠️ csrc/saanotts.c の saan_erf_approx と 1 行ずつ同じ式（このブランチ = T5 前の形: `D[i] * h`）。
- *    T5 合流後は本体に合わせて更新する（上の注記） */
+/* ⚠️ csrc/saanotts.c の `saan_erf_approx_inl`（T5-G1/G3/G4 後）と 1 行ずつ同じ式。
+ *    表だけを引数にしてある。ずれたら E1 と E3/E4 の memcmp が落ちる。 */
 #define PROBE_ERF_BODY(V, D)                                                    \
-    const float ax = fabsf(x);                                                  \
-    if (ax >= SAAN_ERF_XMAX) return x < 0.0f ? -1.0f : 1.0f;                    \
+    float ax = fabsf(x);                                                        \
+    ax = (ax < SAAN_ERF_XMAX) ? ax : SAAN_ERF_XMAX;                             \
     const float u = ax * (float)SAAN_ERF_H_INV;                                 \
     int i = (int)u;                                                             \
     if (i >= SAAN_ERF_N) i = SAAN_ERF_N - 1;                                    \
     const float t = u - (float)i;                                               \
     const float f0 = V[i], f1 = V[i + 1];                                       \
-    const float h = 1.0f / (float)SAAN_ERF_H_INV;                               \
-    const float d0 = D[i] * h, d1 = D[i + 1] * h;                               \
+    const float d0 = D[i], d1 = D[i + 1];                                       \
     const float t2 = t * t, t3 = t2 * t;                                        \
     const float y = f0 * (2.0f * t3 - 3.0f * t2 + 1.0f)                         \
                   + d0 * (t3 - 2.0f * t2 + t)                                   \
                   + f1 * (-2.0f * t3 + 3.0f * t2)                               \
                   + d1 * (t3 - t2);                                             \
-    return x < 0.0f ? -y : y;
+    uint32_t yb, xb;                                                            \
+    memcpy(&yb, &y, sizeof yb);                                                 \
+    memcpy(&xb, &x, sizeof xb);                                                 \
+    yb |= xb & 0x80000000u;                                                     \
+    float r;                                                                    \
+    memcpy(&r, &yb, sizeof r);                                                  \
+    return r;
 
 static float __attribute__((noinline)) erf_call_dram(float x) { PROBE_ERF_BODY(g_tabV, g_tabD) }
-static inline float __attribute__((always_inline)) erf_inl_flash(float x) { PROBE_ERF_BODY(kSaanErfV, kSaanErfD) }
+static inline float __attribute__((always_inline)) erf_inl_flash(float x) { PROBE_ERF_BODY(kSaanErfV, kSaanErfDh) }
 static inline float __attribute__((always_inline)) erf_inl_dram(float x) { PROBE_ERF_BODY(g_tabV, g_tabD) }
 
 #define PROBE_GELU_LOOP(ERF)                                                    \
@@ -739,7 +842,7 @@ static int part_e(void) {
     };
     int bad = 0;
     memcpy(g_tabV, kSaanErfV, sizeof g_tabV);
-    memcpy(g_tabD, kSaanErfD, sizeof g_tabD);
+    memcpy(g_tabD, kSaanErfDh, sizeof g_tabD);
     printf("  表: flash %p [%s] / DRAM %p [%s]   要素 %d\n",
            (const void *)kSaanErfV, region_of(kSaanErfV), (const void *)g_tabV, region_of(g_tabV), E_N);
 

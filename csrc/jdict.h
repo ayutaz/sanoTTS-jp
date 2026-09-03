@@ -7,8 +7,8 @@
  *   - 依存は libc の一部だけ。malloc をコアで呼ばない。作業領域は arena で渡す
  *   - blob は mmap した領域をそのまま指す（コピーしない）
  */
-#ifndef K1DICT_H
-#define K1DICT_H
+#ifndef JDICT_H
+#define JDICT_H
 
 #include <stddef.h>
 #include <stdint.h>
@@ -64,45 +64,45 @@ typedef struct {
     const uint8_t *unk;          /* 未知語エントリ（可変長） */
     uint32_t       unk_len;
     uint32_t       n_unk;
-} k1_dict_t;
+} jdict_t;
 
-typedef struct { uint32_t len; uint32_t rank; } k1_hit_t;
+typedef struct { uint32_t len; uint32_t rank; } jdict_hit_t;
 /* entry の最上位ビットが立っていたら **未知語**で、下位は unk エントリの番号。 */
-#define K1_UNKNOWN_FLAG 0x80000000u
+#define JDICT_UNKNOWN_FLAG 0x80000000u
 
-typedef struct { uint32_t begin, end, entry; } k1_token_t;
+typedef struct { uint32_t begin, end, entry; } jdict_token_t;
 
 /* blob を開く。0 で成功、負でエラー。 */
-int k1_open(k1_dict_t *d, const uint8_t *blob, size_t n);
+int jdict_open(jdict_t *d, const uint8_t *blob, size_t n);
 
 /* 文字列（UTF-8）を鍵バイト列に符号化する。out_n は入出力。0 で成功。 */
-int k1_encode_key(const k1_dict_t *d, const uint8_t *utf8, size_t n,
+int jdict_encode_key(const jdict_t *d, const uint8_t *utf8, size_t n,
                   uint8_t *out, size_t *out_n);
 
 /* key[start..] の接頭辞のうち見出し語になっているものを列挙。件数を返す。 */
-int k1_common_prefix_search(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-                            size_t start, k1_hit_t *out, int max_out);
+int jdict_prefix_search(const jdict_t *d, const uint8_t *key, size_t key_n,
+                            size_t start, jdict_hit_t *out, int max_out);
 
 /* 見出し語 rank のエントリ範囲。 */
-void k1_entry_range(const k1_dict_t *d, uint32_t rank,
+void jdict_entry_range(const jdict_t *d, uint32_t rank,
                     uint32_t *first, uint32_t *count);
 
 /* エントリの接続情報。 */
-void k1_entry_conn(const k1_dict_t *d, uint32_t entry,
+void jdict_entry_conn(const jdict_t *d, uint32_t entry,
                    uint16_t *lc, uint16_t *rc, int16_t *wcost);
 
 /* 遷移コスト。⚠️ 索引は flat[rc_prev + lsize*lc_cur]（K-1 §9-3）。 */
-int16_t k1_trans(const k1_dict_t *d, uint16_t rc_prev, uint16_t lc_cur);
+int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur);
 
 /* 見出し語 rank の表層形を UTF-8 で書き出す。バイト数を返す（負でエラー）。
  * ⚠️ **LOUDS を親へ遡って組み立てる。** 見出し語の文字列表は blob に無い
  *    （鍵そのものが表層形なので冗長。K-1）。 */
-int k1_surface_of_rank(const k1_dict_t *d, uint32_t rank, char *out, size_t out_n);
+int jdict_surface_of_rank(const jdict_t *d, uint32_t rank, char *out, size_t out_n);
 
 /* 鍵バイト列の [from, to) を UTF-8 に戻す。バイト数を返す（負でエラー）。
  * ⚠️ **トークンの begin/end は「鍵」の上の位置**で、元テキストの位置ではない。
  *    表層形はここで作る。 */
-int k1_key_to_utf8(const k1_dict_t *d, const uint8_t *key, size_t from, size_t to,
+int jdict_key_to_utf8(const jdict_t *d, const uint8_t *key, size_t from, size_t to,
                    char *out, size_t out_n);
 
 /* エントリ entry の MeCab feature 文字列を組む（surface は呼び出し側が渡す）。
@@ -110,18 +110,18 @@ int k1_key_to_utf8(const k1_dict_t *d, const uint8_t *key, size_t from, size_t t
  *   "表層,品詞,細分類1,細分類2,細分類3,活用型,活用形,原形,読み,発音,アクセント,結合規則"
  *
  * これを `mecab2njd()` にそのまま渡せる。バイト数を返す（負でエラー）。 */
-int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
+int jdict_entry_feature(const jdict_t *d, uint32_t entry,
                      const char *surface, char *out, size_t out_n);
 
 /* 未知語ノード（entry の最上位ビットが立っているもの）の feature 文字列。
  * ⚠️ **未知語は 8 列しか無い**（読み/発音/acc/結合規則が無い）。
  *    これがそのまま「無音で消える」の入口（B-0）。 */
-int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
+int jdict_unk_feature(const jdict_t *d, uint32_t entry,
                    const char *surface, char *out, size_t out_n);
 
 /* 未知語の読みを**推測して** 12 列の feature を作る。
  * 0 以上で成功（バイト数）、負なら推測できない（呼び出し側が
- * `k1_unk_feature` に落ちる）。
+ * `jdict_unk_feature` に落ちる）。
  *
  * ⚠️ **これは正しさではなく「無音で消えない」ための措置。**
  *    未知語は読み/発音を持たないので `njd_set_pronunciation` が読点に
@@ -134,15 +134,15 @@ int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
  *   - そうでなければ、**1 文字ずつ辞書を引いて読みを繋ぐ**
  *     （同じ字に複数あれば単語コスト最小）
  * アクセントは **平板（0）**に逃げる。 */
-int k1_unk_guess(const k1_dict_t *d, uint32_t entry,
+int jdict_unk_guess(const jdict_t *d, uint32_t entry,
                  const char *surface, char *out, size_t out_n);
 
 /* Viterbi。arena は作業領域。返り値はトークン数、負でエラー。 */
-int k1_analyze(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-               void *arena, size_t arena_n, k1_token_t *out, int max_out);
+int jdict_analyze(const jdict_t *d, const uint8_t *key, size_t key_n,
+               void *arena, size_t arena_n, jdict_token_t *out, int max_out);
 
 /* 陰性対照用: 接続コストを全部 0 にして解析する（G7）。 */
-int k1_analyze_nocost(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-                      void *arena, size_t arena_n, k1_token_t *out, int max_out);
+int jdict_analyze_nocost(const jdict_t *d, const uint8_t *key, size_t key_n,
+                      void *arena, size_t arena_n, jdict_token_t *out, int max_out);
 
 #endif

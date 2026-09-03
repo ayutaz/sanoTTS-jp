@@ -18,8 +18,13 @@ endif()
 #   1      … saan_model_rodata.c  scripts/blob_to_header.py が ${SAAN_MODEL_BLOB} を
 #                                 const uint8_t[]（aligned(16)）のヘッダにして .rodata に埋める
 #
-# ⚠️ **PSRAM を有効にした板は 1 にする。** CoreS3 では CONFIG_SPIRAM=y だと
-#    esp_partition_mmap が ESP_ERR_NO_MEM で落ちた（第三者の実機報告。未再現）。
+# ⚠️ **M5 構成（boards/m5unified）は 1 にしてある。**
+#    ~~PSRAM を有効にした板は 1 にする（CONFIG_SPIRAM=y だと esp_partition_mmap が
+#    ESP_ERR_NO_MEM で落ちる）~~ → **原因は PSRAM ではなかった**（M-90。esp32/README.md §1 で撤回）。
+#    `CONFIG_SPI_FLASH_ROM_IMPL=y` の板では spi_flash_mmap が ROM 実装になり、
+#    IDF が渡すプールが 128 ページ = 8 MB しか無いのが理由。重み 654,032 B はこの上限に
+#    当たらないが、M5 側はパーティション表に `model` 行を持たないので .rodata に置く。
+#    （辞書 13.7 MB = 211 ページの方は esp_mmu_map で貼っている。saan_dict.c）
 # ⚠️ 1 のとき app は blob ぶん（643,936 B）大きくなり、モデルだけの差し替えはできない。
 if(SAAN_MODEL_RODATA)
     set(SAAN_MODEL_SRC "saan_model_rodata.c")
@@ -31,7 +36,11 @@ idf_component_register(
     SRCS "main.c" ${SAAN_MODEL_SRC} "saan_i2s.c" "saan_pcm.c" "saan_ui_null.c"
          "saan_console.c" ${SAAN_MAIN_K}
     INCLUDE_DIRS "."
-    REQUIRES saanotts_core driver esp_partition esp_timer
+    # ⚠️ `esp_mm` は saan_dict.c の **もう一方の経路**（esp_mmu_map）のため。
+    #    DevKit は CONFIG_SPI_FLASH_ROM_IMPL=n なので既定では esp_partition_mmap の
+    #    ままだが、`-DSAAN_DICT_MMU=1` で切り替えられるようにここに置いておく
+    #    （REQUIRES を書かないと include が見つからず、切り替えた瞬間に落ちる）。
+    REQUIRES saanotts_core driver esp_partition esp_mm esp_timer
 )
 
 if(SAAN_MODEL_RODATA)
@@ -58,6 +67,14 @@ endif()
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
 #    「fp32 blob なのに W8A8 有効」ガードがこれを見る。片方だけ定義すると
 #    ガードが黙って消えて、**効いていないのに気づけない**構成に戻る。
+# ⚠️ D-048: ESP32-S3 では既定で有効（コア component の CMakeLists.txt が SAAN_ENABLE_PIE を立てる）。
+# main 側は arena の見積り（W8A8 の scratch）に使うだけなので、同じ既定をここでも組む。
+if(NOT DEFINED SAAN_ENABLE_PIE)
+    idf_build_get_property(_saan_main_target IDF_TARGET)
+    if(_saan_main_target STREQUAL "esp32s3")
+        set(SAAN_ENABLE_PIE 1)
+    endif()
+endif()
 if(SAAN_ENABLE_PIE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
 endif()

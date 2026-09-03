@@ -7,10 +7,10 @@
 #define SAAN_DICT_H
 
 #include <stdbool.h>
-#include "k1dict.h"
+#include "jdict.h"
 
 /* dict パーティションを mmap して開く。失敗したら false。 */
-bool saan_dict_open(k1_dict_t *d);
+bool saan_dict_open(jdict_t *d);
 void saan_dict_close(void);
 
 #endif /* SAAN_DICT_H */

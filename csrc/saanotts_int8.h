@@ -174,6 +174,18 @@ void saan_conv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *s
 void saan_dwconv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *scale,
                          int ch, int ksz, int T, int t0, int t1, int8_t *qx, float *sx);
 
+/* --- 測定用（S5b）-------------------------------------------------------
+ *
+ * `saan_conv1d_i8a_r` は ESP32-S3 では **weight-stationary**（重み行を q レジスタに
+ * 常駐させ、o → k → t で回す。S5b）。その前の形は「dot ごとに重み行を丸ごと
+ * ロードし直す」もので、これがその dot 1 個ぶん。
+ * **本番でも cinp > 96（dec の pw2 = 304）では今もこちらが呼ばれる。**
+ * `esp32/pie_probe` の D 節が、これで旧い形のループを組み直して cyc/dot を比べる。
+ * ⚠️ ホストや PIE 無効のビルドには**存在しない**。 */
+#if defined(__XTENSA__) && defined(SAAN_PIE) && SAAN_PIE
+int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n);
+#endif
+
 /* --- ブロブから int8 テンソルを引く -------------------------------------- */
 
 /* `fmt` で名前を組み立てて int8 テンソル（dtype 1）と、

@@ -63,10 +63,12 @@
  *   - 最後の 1 組だけ併合しない `ee.vmulas.s8.accx` で締める。**併合形で回し切ると
  *     配列の 16 B 先を 1 回読む**（arena や blob の端では未マップ領域に触りうる）
  *   - k == 1（cinp = 16。cup 12→16）は `loopnez` の回数が 0 で本体を飛ばし、締めの 1 命令だけ走る
- * 整数演算なので旧ループと **bit 同一**（esp32/pie_probe の B 節 7 形状 + QEMU の checksum で確認）。
+ * 整数演算なので旧ループと **bit 同一**（esp32/pie_probe の B 節 11 形状 + QEMU の checksum で確認）。
  * ⚠️ QEMU が併合形の意味論を実機と同じに実装しているかは、実機の checksum が一致するかで分かる。 */
 #if SAAN_HAVE_PIE
-static int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
+/* ⚠️ **`static` ではない。** `esp32/pie_probe` の D 節が S5b の前後を実機で比べる
+ * ために「旧い形」を組み直す。宣言は saanotts_int8.h（同じ #if の下）。 */
+int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
     int32_t out = 0;
     const int8_t *pa = a, *pb = b;
     const int k = n >> 4;
@@ -86,6 +88,123 @@ static int32_t saan_dot_i8_pie(const int8_t *a, const int8_t *b, int n) {
         : [km1] "a"(km1), [sh] "a"(0)
         : "memory");
     return out;
+}
+#endif
+
+/* --- S5b: weight-stationary（重み行を q レジスタに常駐させる）-----------------
+ *
+ * M-85（実機 CoreS3）: dot の固定費は **78.0 cyc/dot**（全部キャッシュヒットでも
+ * 1.63 cyc/MAC）で MAC の 61.5%。内訳は `zero.accx` / `srs.accx` / `float.s` /
+ * `madd.s` の直列チェーンと、**dot ごとに 24 命令前後のスカラ**（重み行ポインタの
+ * 再計算・`u` の範囲判定・関数の入口出口）。
+ *
+ * 上の `saan_dot_i8_pie` は **dot ごとに重み行を丸ごとロードし直す**（16 レーンに
+ * つき `ee.vld.128.ip` 1 命令）。同じ (o, k) の重み行は `t` を通してずっと同じなので、
+ * ループ順を **o → t → k から o → k → t** に変えれば **1 回ロードするだけで済む**。
+ * 8 本の q レジスタのうち m = cinp/16 本を重みに、2 本を活性化に使う
+ * （**m ≤ 6、つまり cinp ≤ 96 まで**）。
+ *
+ * held-out 24 文を W8A8 で流して実測した内訳（cin / cinp / m と dot 数を
+ * `saan_conv1d_i8a_r` の入口で数えた。dots = cout × ksz × (t1−t0) の総和）:
+ *
+ *   | m  | 層                          | cinp | dot          | MAC          | 経路 |
+ *   |---:|-----------------------------|-----:|-------------:|-------------:|------|
+ *   |  1 | dec cup (12→16)             |   16 |  1,982,840  4.9% |    23,794,080  0.9% | 常駐 |
+ *   |  2 | duration c1/c2/proj (32)    |   32 |  2,330,425  5.8% |    74,573,600  2.9% | 常駐 |
+ *   |  3 | ac c1/c2・out, dec inp/cdown/hout (40→48, 48) | 48 | 25,757,206 64.0% | 1,224,323,616 48.1% | 常駐 |
+ *   |  5 | dec pw1・hdown (76→80)      |   80 |  8,181,824 20.3% |   621,818,624 24.4% | 常駐 |
+ *   | 19 | dec pw2 (304)               |  304 |  1,982,840  4.9% |   602,783,360 23.7% | **旧 dot** |
+ *
+ * **dot の 95.1%（MAC の 76.3%）が常駐経路に載る。** pw2 だけは 19 本ぶんの重みが
+ * レジスタに入らないので `saan_dot_i8_pie` のまま。⚠️ dot の割合と MAC の割合は
+ * 大きく違う（pw2 は 1 dot が 304 MAC）。**固定費は dot 数に比例する**ので、
+ * この改造の効きは dot 側の 95.1% で読むこと。
+ * ⚠️ m = 4 / 6 はこのモデルには出てこない（`esp32/pie_probe` の B 節に形だけ足してある）。
+ *
+ * 16 レーンあたりの命令は **2 → 1**（重みのロードが消える）。加えて
+ *   - 重み行ポインタの再計算が dot ごと → (o, k) ごとに
+ *   - `u < 0 || u >= T` の判定が dot ごと → (o, k) ごとに t の範囲へ畳まれる
+ * ⚠️ **`ee.accx` は 1 本しかないので t 方向を並列にはできない。** 直列チェーン
+ * （zero → 積和 → srs）は 1 dot につき 1 回のまま残る。**利得の上限は小さい**
+ * （M-85 の見積りで −2〜−8 ms/step）。flash の待ち（38.5%）には効かない。
+ *
+ * ⚠️ **`.ld.ip` の書き込み先は掛ける 2 本のどちらとも別のレジスタにする。**
+ * S5a は `qu == qx` に頼っている（「積和はロード前の値」）。ここでは活性化の
+ * レジスタを 2 本で ping-pong させて **別名を一切作らない**。実機と QEMU で
+ * 意味論が食い違う余地をこれ以上増やさないため。
+ *
+ * ⚠️ 最後の 1 組だけ `.ld.ip` を使わない理由は S5a と同じ（配列の 16 B 先を読まない）。
+ * 1 dot での `%[pa]` の前進は 16 × (m − 1) + 16 = cinp ちょうどで、次のフレームの
+ * 行頭に着く（活性化は [T][cinp] の連続配置）。 */
+#if SAAN_HAVE_PIE
+
+/* 重み 1 レーン（16 B）を q#i に読む */
+#define WS_LDW(i)       "ee.vld.128.ip q" #i ", %[pw], 16\n"
+/* 1 dot の頭: accx を 0 に、活性化の先頭レーンを q#a に */
+#define WS_HEAD(a)      "ee.zero.accx\n" \
+                        "ee.vld.128.ip q" #a ", %[pa], 16\n"
+/* 中間レーン: q#w · q#a を溜めつつ、次のレーンを q#u に読む（u は w とも a とも別） */
+#define WS_MID(w, a, u) "ee.vmulas.s8.accx.ld.ip q" #u ", %[pa], 16, q" #w ", q" #a "\n"
+/* 最終レーン: 読まずに掛けて、40 bit の accx を int32 に落として out[] へ */
+#define WS_TAIL(w, a)   "ee.vmulas.s8.accx q" #w ", q" #a "\n" \
+                        "ee.srs.accx %[tp], %[z], 0\n" \
+                        "s32i %[tp], %[po], 0\n" \
+                        "addi %[po], %[po], 4\n"
+
+#define WS_ASM(LOADW, BODY)                                                    \
+    __asm__ volatile(                                                          \
+        LOADW                                                                  \
+        "loopnez %[n], 1f\n"                                                   \
+        BODY                                                                   \
+        "1:\n"                                                                 \
+        : [pa] "+&a"(pa), [pw] "+&a"(pw), [po] "+&a"(po), [tp] "=&a"(tp)       \
+        : [n] "a"(n), [z] "a"(0)                                               \
+        : "memory")
+
+/* 重み行 `w`（cinp バイト、16 B 境界）と、連続する `n` フレームの活性化
+ * `a`（[n][cinp]、16 B 境界）の内積を `out[0..n)` に書く。
+ * **載せられたら 1、cinp が広すぎる（m > 6）/ 狭すぎる（m == 0）なら 0 を返す**
+ * （0 のときは `out` に触らない。呼び出し側が従来の dot に落ちる）。 */
+static int saan_dot_rows_i8_pie(int32_t *out, const int8_t *w, const int8_t *a,
+                                int cinp, int n) {
+    const int8_t *pa = a;
+    const int8_t *pw = w;
+    int32_t *po = out;
+    int32_t tp = 0;
+    if (n <= 0) return 1;
+    switch (cinp >> 4) {
+    case 1:
+        WS_ASM(WS_LDW(0),
+               WS_HEAD(1) WS_TAIL(0, 1));
+        break;
+    case 2:
+        WS_ASM(WS_LDW(0) WS_LDW(1),
+               WS_HEAD(2) WS_MID(0, 2, 3) WS_TAIL(1, 3));
+        break;
+    case 3:
+        WS_ASM(WS_LDW(0) WS_LDW(1) WS_LDW(2),
+               WS_HEAD(3) WS_MID(0, 3, 4) WS_MID(1, 4, 3) WS_TAIL(2, 3));
+        break;
+    case 4:
+        WS_ASM(WS_LDW(0) WS_LDW(1) WS_LDW(2) WS_LDW(3),
+               WS_HEAD(4) WS_MID(0, 4, 5) WS_MID(1, 5, 4) WS_MID(2, 4, 5)
+               WS_TAIL(3, 5));
+        break;
+    case 5:
+        WS_ASM(WS_LDW(0) WS_LDW(1) WS_LDW(2) WS_LDW(3) WS_LDW(4),
+               WS_HEAD(5) WS_MID(0, 5, 6) WS_MID(1, 6, 5) WS_MID(2, 5, 6)
+               WS_MID(3, 6, 5) WS_TAIL(4, 5));
+        break;
+    case 6:
+        WS_ASM(WS_LDW(0) WS_LDW(1) WS_LDW(2) WS_LDW(3) WS_LDW(4) WS_LDW(5),
+               WS_HEAD(6) WS_MID(0, 6, 7) WS_MID(1, 7, 6) WS_MID(2, 6, 7)
+               WS_MID(3, 7, 6) WS_MID(4, 6, 7) WS_TAIL(5, 7));
+        break;
+    default:
+        return 0;                      /* m == 0（cin == 1）/ m > 6（pw2 の 304） */
+    }
+    (void)tp; (void)pa; (void)pw; (void)po;
+    return 1;
 }
 #endif
 
@@ -282,6 +401,13 @@ void saan_dwconv1d_i8(float *y, const float *x, const int8_t *W, const float *sc
 
 /* --- W8A8 ---------------------------------------------------------------- */
 
+/* S5b: t 方向のブロック長。`acc[]`（と PIE 版の `a32b[]`）をスタックに置くための上限で、
+ * 出力列がこれより長ければ複数ブロックに切る。ブロックに切っても各 t の足し込み順は
+ * 変わらないので **bit 同一**。ストリーミングの本番は Ty = SAAN_CHUNK = 8 なので 1 ブロックで
+ * 収まり、一括版（`saanotts.c`。Ty = n_frames）だけが複数ブロックになる。
+ * スタックは float 32 + int32 32 = 256 B。 */
+#define SAAN_WSTAT_TB 32
+
 void saan_conv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *scale,
                        const float *b, int cin, int cout, int ksz, int T, int t0, int t1,
                        int8_t *qx, float *sx) {
@@ -304,36 +430,73 @@ void saan_conv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *s
         if (u1 > T) u1 = T;
         saan_quantize_act_i8pr(qx, sx, x, cin, T, cinp, u0, u1);
     }
+    /* S5b: ループ順は **o → k → t**（旧: o → t → k）。同じ (o, k) の重み行を
+     * t を通して使い回すための順序で、`saan_dot_rows_i8_pie` が重み行を
+     * q レジスタに 1 回だけロードして t を回す。
+     *
+     * ⚠️ **float の足し込み順は変えていない。** ある t の `acc` は k 昇順に
+     * 溜まる（範囲外のタップは下の `ta`/`tb` で t 側に畳んであるので、
+     * 旧ループの `continue` と同じ組み合わせだけが足される）。したがって
+     * 旧実装と **bit 同一**。`acc` はレジスタから配列に移ったが、float は
+     * 格納しても値が変わらない（IEEE 単精度・拡張精度を持たない）。
+     * ⚠️ 順序を変えると **ホストのゲートでは検出できない**（ホストも同じ順序で
+     * 動くため）。ここを触るときは QEMU の checksum を必ず取り直すこと。
+     *
+     * `t` は `SAAN_WSTAT_TB` 列ずつのブロックに切る（`acc` / `a32b` をスタックに
+     * 置くため）。ブロックに切っても各 t の足し込み順は変わらない。 */
     for (int o = 0; o < cout; ++o) {
         float *yo = y + (size_t)o * Ty;
         const float s = scale[o];
         const float bias = b ? b[o] : 0.0f;
         const int8_t *wo = W + (size_t)o * ksz * cinp;   /* [k][cinp] */
         SAAN_PROF_BEGIN(SAAN_PROF_MAC);
-        for (int t = t0; t < t1; ++t) {
-            float acc = 0.0f;
+        for (int tb0 = t0; tb0 < t1; tb0 += SAAN_WSTAT_TB) {
+            int tb1 = tb0 + SAAN_WSTAT_TB;
+            if (tb1 > t1) tb1 = t1;
+            const int nb = tb1 - tb0;
+            float acc[SAAN_WSTAT_TB];
+#if SAAN_HAVE_PIE
+            int32_t a32b[SAAN_WSTAT_TB];
+#endif
+            for (int i = 0; i < nb; ++i) acc[i] = 0.0f;
             for (int k = 0; k < ksz; ++k) {
-                const int u = t + k - pad;
-                if (u < 0 || u >= T) continue;   /* 両端ゼロパディング */
-                const int8_t *qu = qx + (size_t)u * cinp;
+                /* 両端ゼロパディング: u = t + k − pad が [0, T) に入る t だけ。
+                 * 旧ループの `if (u < 0 || u >= T) continue;` と同じ集合。 */
+                int ta = pad - k;
+                int te = T + pad - k;
+                if (ta < tb0) ta = tb0;
+                if (te > tb1) te = tb1;
+                if (ta >= te) continue;
+                const int n = te - ta;
                 const int8_t *wk = wo + (size_t)k * cinp;   /* blob 内。16 B 境界 */
-                int32_t a32 = 0;
+                const int8_t *qu = qx + (size_t)(ta + k - pad) * cinp;
+                const float *sxu = sx + (ta + k - pad);
+                float *ap = acc + (ta - tb0);
 #if SAAN_HAVE_PIE
                 if (pie) {
-                    /* `wk` も `qx + u*cinp` も 16 整列、`cinp` は 16 の倍数 */
-                    a32 = saan_dot_i8_pie(wk, qu, cinp);
+                    /* `wk` も `qu` も 16 整列、`cinp` は 16 の倍数。
+                     * cinp ≤ 96 なら重み常駐（S5b）、それより広い pw2 は 1 dot ずつ */
+                    if (!saan_dot_rows_i8_pie(a32b, wk, qu, cinp, n)) {
+                        for (int i = 0; i < n; ++i)
+                            a32b[i] = saan_dot_i8_pie(wk, qu + (size_t)i * cinp, cinp);
+                    }
+                    for (int i = 0; i < n; ++i) ap[i] += (float)a32b[i] * sxu[i];
                 } else
 #endif
                 {
                     /* ⚠️ 既定は `i < cin`。`SAAN_PIE_EMU=1` のときだけ PIE と
                      * 同じ `cinp` レーンまで回す（パディング検査用。上のヘッダ参照） */
                     const int lanes = SAAN_PIE_EMU ? cinp : cin;
-                    for (int i = 0; i < lanes; ++i)
-                        a32 += (int32_t)wk[i] * (int32_t)qu[i];
+                    for (int i = 0; i < n; ++i) {
+                        const int8_t *qi = qu + (size_t)i * cinp;
+                        int32_t a32 = 0;
+                        for (int j = 0; j < lanes; ++j)
+                            a32 += (int32_t)wk[j] * (int32_t)qi[j];
+                        ap[i] += (float)a32 * sxu[i];
+                    }
                 }
-                acc += (float)a32 * sx[u];
             }
-            yo[t - t0] = acc * s + bias;
+            for (int i = 0; i < nb; ++i) yo[tb0 - t0 + i] = acc[i] * s + bias;
         }
         SAAN_PROF_END(SAAN_PROF_MAC);
         SAAN_PROF_ADD(SAAN_PROF_MAC, (size_t)cin * ksz * Ty);

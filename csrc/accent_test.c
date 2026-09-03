@@ -11,12 +11,12 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
-#include "k4_accent.h"
+#include "accent.h"
 
 #define MAX_NODES 512
 
-static const unsigned STAGE_BIT[4] = { K4_FILLER, K4_SUPPRESS_U,
-                                       K4_RETREAT, K4_CHAINING };
+static const unsigned STAGE_BIT[4] = { ACCENT_FILLER, ACCENT_SUPPRESS_U,
+                                       ACCENT_RETREAT, ACCENT_CHAINING };
 static const char *STAGE_NAME[4] = {
     "modify_filler_accent", "suppress_u_long",
     "retreat_acc_nuc", "modify_acc_after_chaining" };
@@ -33,7 +33,7 @@ static void rdstr(char *out, size_t cap) {
 }
 
 int main(int argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "k4_vectors.bin";
+    const char *path = (argc > 1) ? argv[1] : "accent_vectors.bin";
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "NG: ベクタが開けない: %s\n", path); return 1; }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -45,7 +45,7 @@ int main(int argc, char **argv) {
     g += 4;
     uint32_t n_cases = rd32(), n_stages = rd32();
     uint32_t n_dan = rd32();
-    static k4_dan_t dan[256];
+    static accent_dan_t dan[256];
     static char dan_buf[256][8];
     for (uint32_t i = 0; i < n_dan && i < 256; i++) {
         rdstr(dan_buf[i], sizeof dan_buf[i]);
@@ -54,7 +54,7 @@ int main(int argc, char **argv) {
     }
     printf("ケース %u / 段 %u / _DAN_MAP %u 件\n", n_cases, n_stages, n_dan);
 
-    static k4_node_t in[MAX_NODES], work[MAX_NODES];
+    static accent_node_t in[MAX_NODES], work[MAX_NODES];
     int ok_all = 0, ng_all = 0;
     int omit_diff[4] = {0,0,0,0}, omit_match[4] = {0,0,0,0}, omit_total[4] = {0,0,0,0};
 
@@ -62,25 +62,25 @@ int main(int argc, char **argv) {
         uint32_t nn = rd32();
         if (nn > MAX_NODES) { fprintf(stderr, "NG: ノードが多すぎる %u\n", nn); return 1; }
         for (uint32_t i = 0; i < nn; i++) {
-            rdstr(in[i].pos, K4_STR_MAX);   rdstr(in[i].ctype, K4_STR_MAX);
-            rdstr(in[i].cform, K4_STR_MAX); rdstr(in[i].orig, K4_STR_MAX);
-            rdstr(in[i].pron, K4_PRON_MAX); rdstr(in[i].read, K4_PRON_MAX);
+            rdstr(in[i].pos, ACCENT_STR_MAX);   rdstr(in[i].ctype, ACCENT_STR_MAX);
+            rdstr(in[i].cform, ACCENT_STR_MAX); rdstr(in[i].orig, ACCENT_STR_MAX);
+            rdstr(in[i].pron, ACCENT_PRON_MAX); rdstr(in[i].read, ACCENT_PRON_MAX);
             in[i].acc = rdi32(); in[i].mora_size = rdi32(); in[i].chain_flag = rdi32();
         }
         /* 期待値は 1 + n_stages 組。**全段の期待値を保持して比較に使う。** */
         static int32_t full_acc[MAX_NODES], full_chain[MAX_NODES];
-        static char full_pron[MAX_NODES][K4_PRON_MAX];
+        static char full_pron[MAX_NODES][ACCENT_PRON_MAX];
         for (uint32_t grp = 0; grp <= n_stages; grp++) {
-            unsigned mask = K4_ALL;
+            unsigned mask = ACCENT_ALL;
             if (grp > 0) mask &= ~STAGE_BIT[grp - 1];
-            memcpy(work, in, sizeof(k4_node_t) * nn);
-            k4_apply(work, (int)nn, mask, dan, (int)n_dan);
+            memcpy(work, in, sizeof(accent_node_t) * nn);
+            accent_apply(work, (int)nn, mask, dan, (int)n_dan);
 
             int same_exp = 1;      /* C が期待値と一致するか */
             int same_full = 1;     /* この期待値は「全段」と同じか */
             for (uint32_t i = 0; i < nn; i++) {
                 int32_t e_acc = rdi32(), e_chain = rdi32();
-                char e_pron[K4_PRON_MAX]; rdstr(e_pron, K4_PRON_MAX);
+                char e_pron[ACCENT_PRON_MAX]; rdstr(e_pron, ACCENT_PRON_MAX);
                 if (work[i].acc != e_acc || work[i].chain_flag != e_chain
                     || strcmp(work[i].pron, e_pron)) same_exp = 0;
                 if (grp == 0) {

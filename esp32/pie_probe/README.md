@@ -4,9 +4,9 @@ ESP32-S3 の **PIE（128-bit 整数 SIMD）** が使えるかを確かめる最�
 **実機のマイクロベンチ 2 本（D / E。T6 / P-0）**を足したもの。成果物ではない。
 
 ⚠️ **A〜C の前提検証は終わっている。** 本体のカーネルは実装済みで（M-57 / M-58、MAC の 99.40%）、
-出荷ファームでも `idf.py -DSAAN_ENABLE_PIE=1 build` で有効にでき、
-**QEMU で全経路 bit 一致**を確認した（M-62）。A〜C は**最小の切り分け用**として残してある
-（実機で不正命令例外が出たときなど）。
+**ESP32-S3 では出荷ファームの既定になった**（D-048。フラグを付けなくても W8A8 + PIE）。
+**QEMU で全経路 bit 一致**（M-62）、**実機でも checksum 一致**（M-83 / M-86 / M-90）。
+A〜C は**最小の切り分け用**として残してある（実機で不正命令例外が出たときなど）。
 
 **D / E は「MAC 1.61 cyc/MAC（M-82）は flash 律速か」「GELU 118 cyc/要素の原因は表か call か」を
 実機で数字にするためのもの。** 結果は M-85（`docs/measurements.md`）。計画 §5 の分岐はこれで決めた。
@@ -40,7 +40,7 @@ CPU MHz / D-cache / flash モード**が出るので、cyc を読む前に必ず
 
 | ファイル | 役割 |
 |---|---|
-| `sdkconfig.defaults` | 既定。**出荷構成（`esp32/boards/m5unified/sdkconfig.cores3`）と同じ 240 MHz / -O2 / flash 80 MHz / D-cache 64 KB・32 B 行**。flash モードだけ **DIO** |
+| `sdkconfig.defaults` | 既定。240 MHz / -O2 / flash 80 MHz / D-cache 64 KB。⚠️ **行は IDF 既定の 32 B のまま**で、出荷構成（`esp32/boards/m5unified/sdkconfig.cores3`）は 2026-09-03 に **64 B** になった（M-84）。**D 節の cyc/行 は 32 B 行の値**（M-85 もそう）。flash モードだけ **DIO** |
 | `sdkconfig.cores3` | **実機だけ**に重ねる: `CONFIG_ESPTOOLPY_FLASHMODE_QIO=y` |
 | `sdkconfig.psram` | D4 用: `CONFIG_SPIRAM=y`（Quad / 80 MHz / `IGNORE_NOTFOUND`）。無い板や QEMU では「D4 skip」 |
 | `main/probe_blob.c` | 本物の `csrc/student_i8.bin` を `.rodata` に埋める翻訳単位（`esp32/cmake/saan_model_rodata.cmake`。M5 構成と同じ仕組み） |
@@ -53,7 +53,10 @@ M-82 / M-85 と比べられない**ので、実機は必ず `sdkconfig.cores3` �
 
 ⚠️ **blob が無いと D 節は skip**（`csrc/student_i8.bin` を置くか `-DSAAN_MODEL_BLOB=<絶対パス>`）。
 skip は末尾に `⚠️ D 節は blob 無しで skip` と出て、**黙って PASS にはならない**。
-入手は https://github.com/ayutaz/sanoTTS-jp/releases/latest 。
+⚠️ **blob v2 が要る**（`saan_weights_open` を通すので v1 は `SAAN_ERR_VERSION`）。
+リリース v0.2.0 の `saanotts-jp-v3-int8.bin` は **v1** なので、
+`uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --int8 --out csrc/student_i8.bin
+--golden csrc/golden_i8.bin --golden-from-quantized --report csrc/export_i8.json` で作ること。
 
 ## 確かめていること
 
@@ -63,9 +66,9 @@ skip は末尾に `⚠️ D 節は blob 無しで skip` と出て、**黙って 
 | 2 | `ee.vmulas.s8.accx` が 16 レーンの int8 積和を**正しく**計算する |
 | 3 | 乱数 300 回でスカラ実装と**完全一致** |
 | 4 | **陰性対照** — 1 要素変えたら不一致になる（比較が効いている証拠） |
-| B | **本物のカーネル** `saan_conv1d_i8a` が PIE 有無で bit 一致（7 形状。cin 12→16 〜 304、blob v2 の `[cout][k][cinp]` レイアウト）+ 陰性対照 24 件 |
+| B | **本物のカーネル** `saan_conv1d_i8a` が PIE 有無で bit 一致（**11 形状**。cin 12→16 〜 304、blob v2 の `[cout][k][cinp]` レイアウト。うち 4 形状は S5b の m = 2 / 4 / 6 / (5, ksz=3) の枝を通すためのもの。m=2 は duration の実形状、m=4 / 6 とこの ksz=3 はモデルには無い）+ 陰性対照 24 件 |
 | C | **丸め**（S2）: `saan_rint_i32`（Xtensa は `round.s`）が `rintf` とタイ・境界 22 値で一致 + 陽性対照（half-away-from-zero は 6 値で違う） |
-| **D** | **重みの置き場所**（T6 / P-0）: 同じ `saan_conv1d_i8a`・同じ 131,040 B・同じ dot 数で、重みを flash / DRAM / PSRAM に置いて CCOUNT を取る。ゲートは **D2 / D3 / (D4) の y が memcmp 一致** + **D5（T=16）の各行 = D2 の行の 2 回繰り返し** + **DRAM 側 1 バイトを壊すと不一致・戻すと一致** + 実機では 5 回の min-max 幅 < 1% |
+| **D** | **重みの置き場所**（T6 / P-0）と **S5b の前後**: 同じ `saan_conv1d_i8a`・同じ 131,040 B・同じ dot 数で、重みを flash / DRAM / PSRAM に置いて CCOUNT を取る（D1〜D5）。**D6 / D7 は S5b 前のループ形**で D3 / D1 と対になる。ゲートは **D2 / D3 / (D4) の y が memcmp 一致** + **D5（T=16）の各行 = D2 の行の 2 回繰り返し** + **新形（本番）と旧形の y が bit 一致** + **DRAM 側 1 バイトを壊すと不一致・戻すと一致** + 実機では 5 回の min-max 幅 < 1% |
 | **E** | **GELU**（T6）: 同じ 21,664 要素を「表 flash / DRAM × erf を call / inline」の 4 条件で。ゲートは **E2〜E4 の出力が E1（本体 `saan_gelu`）と memcmp 一致** + **DRAM の表 1 要素を壊すと不一致・戻すと一致**（壊した区間に入力が落ちた個数も出す。0 個なら空振り） + 幅 < 1% |
 
 ## D 節の読み方（重みの置き場所）
@@ -81,12 +84,17 @@ int8 行列と見なす（中身は何でもよい。**D-cache 64 KB の 2 倍**
 | **D3 flash** | `.rodata` の行列そのものを 1 回 | **(D3 − D2) = flash の待ち**。÷ 4,095 で cyc/キャッシュ行 |
 | **D4 PSRAM** | `sdkconfig.psram` のビルドだけ | (D4 − D3) が PSRAM と flash の差 |
 | **D5 flash T=16** | D3 を T=16（cout=1,365 × 2 呼び出し） | 行の再利用 2 倍で flash 分が dot あたり半分になるか（S7 の先取り） |
+| **D6 旧形 flash** | D3 と同じだが **S5b 前のループ**（o → t → k、dot ごとに重み行を再ロード） | **(D6 − D3) = S5b の利得**（flash 込み） |
+| **D7 旧形 hot** | D1 と同じだが S5b 前のループ | **(D7 − D1) = S5b の利得**（固定費の床で。flash の待ちを含まない） |
 
 **判定の目安（probe が印字する）:**
 
 - **cyc/キャッシュ行 ((D3−D2)/4,095) が 200〜300 → flash 律速の仮説成立 / < 60 → 棄却**
 - **flash の割合 (D3−D2)/D3 が MAC の 1/3 以上 → S7（CHUNK 16）側の分岐**（計画 §5）
 - **(D2 − D1) ≈ 0 → DRAM ストリームは無償**（重みを DRAM に常駐させても固定費は消えない）
+- **(D7 − D1) / dot = S5b が固定費から削った分**。⚠️ D 節は cinp=48（m=3）の 1 形状だけ。
+  本番の 1 step は m = 1 / 2 / 3 / 5 / 19 が混ざるので、step の見込みは
+  `csrc/saanotts_int8.c` の S5b の表（dot の 95.1% が常駐経路）で重みづけして読むこと
 
 **実機の値（M-85。CoreS3 / QIO 80 MHz / 240 MHz / D-cache 64 KB・32 B 行 / PSRAM 無し、2026-09-03）:**
 
@@ -125,10 +133,17 @@ D3 ≈ D2、E1 4.8 cyc/要素）、**幅も 3〜300% 出る**。`-DSAAN_QEMU=1` 
 ⚠️ **E2〜E4 は本体の式の写し**（`PROBE_ERF_BODY` / `PROBE_GELU_LOOP`。「同じカーネルを 2 回書かない」原則の例外）。
 写しが本体とずれていないことは **E1 との memcmp 一致**で示し、比較が効いていることは
 **DRAM の表 1 要素（節点 64）を壊すと不一致・戻すと一致**で示す（実機 315 要素 / 該当区間の入力 317 個）。
-⚠️ **T5（別ブランチ。GELU のコード生成）で本体の erf 表が `kSaanErfD`（erf'）から `kSaanErfDh`（erf' × h を
-事前に掛けた表）に変わる。** このブランチの写しは T5 前の形（`D[i] * h`）なので、**T5 と合流したら
-`PROBE_ERF_BODY` の `d0 / d1` の行と `g_tabD` の memcpy 元を本体に合わせて書き直すこと。**
-ずれたままなら E1 と E3/E4 の memcmp が落ちる（黙って通ることはない）。
+⚠️ **T5 と合流したので写しは書き直した**（S5b の作業中に）。本体の erf 表は `kSaanErfD`（erf'）から
+`kSaanErfDh`（erf' × h を事前に掛けた表）になり、T5-G3 で早期 return がクランプになった。
+⚠️ 直すまで probe は `'kSaanErfD' undeclared` でビルドできなかった（S5b 以前からのビルド破れ）。
+
+⚠️ **いま写しは本体と 1 行ずれている（2026-09-03 時点）。** T5-G3 は符号の復元も
+`x < 0 ? -y : y` から**符号ビットの memcpy OR** に変えたが、**それは M-87 で撤回された**
+（実機の GELU が 118 → 211 cyc/要素に倍増。C-055）。**本体は三項演算子に戻り、
+`probe.c` の `PROBE_ERF_BODY` は memcpy OR のまま**なので、**E3 / E4 が測っているのは
+本番と別の形**。⚠️ **E1 との memcmp では検出できない** — 2 つの形は同じ値を出す
+（速さだけが違う）。**これが C-055 そのもの**で、「マイクロベンチは同じ形でしか本番を予測しない」の
+生きた実例として残してある。**新しい形を入れるときは、先に E 節へその形を足して実機で測ること**（1 回 10 秒）。
 ⚠️ IDF は `-ffp-contract=fast`。インライン化で `madd.s` への縮約が変わると**丸め水準で**出力が動きうる。
 実機 / QEMU とも差 0 要素だったが、落ちたらゲートを緩めず記録すること。
 
@@ -138,6 +153,8 @@ D3 ≈ D2、E1 4.8 cyc/要素）、**幅も 3〜300% 出る**。`-DSAAN_QEMU=1` 
 - **実機の PIE と QEMU の PIE が同じである保証**（実機の checksum が QEMU と一致することで裏を取っている。M-82 / M-83）
 - **D4（PSRAM）は未実測**（CoreS3 の pie_probe は PSRAM 無しで焼いた。`sdkconfig.psram` は QEMU で「D4 skip」まで）
 - D 節は **cin=48 / k=1 の 1 形状**だけ。本番は cinp 16〜304 の混合で、固定費と flash の比は層ごとに違う
+- **D-cache 64 B 行では測り直していない**（M-85 は 32 B 行。出荷構成は 64 B に変わった = M-84）。
+  行フィルの回数が半分になるので **(D3 − D2) はおそらく変わる**が、**測っていない**
 - D 節の割り込み禁止区間は最長 D5 の約 4.4 M cyc ≈ 18 ms（INT WDT 300 ms の内側）。**他コアの IDLE は止めていない**
   （キャッシュは共有だが、幅 ≤ 0.22% だったので影響は見えていない）
 

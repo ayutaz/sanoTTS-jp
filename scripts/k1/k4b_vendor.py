@@ -12,7 +12,7 @@
 
 ⚠️ **改変は `PATCHES` に列挙したものだけ。** `--check` は「上流 + PATCHES」と
 突き合わせるので、**表に無い改変は落ちる**。改変を足したら
-`make -C csrc k4b` と `make -C csrc k5` を通し直すこと。
+`make -C csrc njd-rules` と `make -C csrc oj-heap` を通し直すこと。
 """
 from __future__ import annotations
 
@@ -40,7 +40,7 @@ SKIP_MARKS = ("_shift_jis", "_euc_jp", "_ascii")
 
 # ⚠️ **取り込んだコードへの改変は、ここに列挙したものだけ。**
 # `--check` は「上流 + この表」と突き合わせるので、**表に無い改変は落ちる**。
-# 改変を足したら **必ず `make -C csrc k4b` と `make -C csrc k5` を通し直す**。
+# 改変を足したら **必ず `make -C csrc njd-rules` と `make -C csrc oj-heap` を通し直す**。
 PATCHES = [
     (
         "jpcommon_label.c",
@@ -154,7 +154,7 @@ def write_provenance(dist: str, files: list[pathlib.Path], sha: str) -> None:
 
 ```bash
 uv run python scripts/k1/k4b_vendor.py --sdist pyopenjtalk_plus-<ver>.tar.gz
-make -C csrc k4b        # ⚠️ **必ず G14a を通し直す**
+make -C csrc njd-rules        # ⚠️ **必ず G14a を通し直す**
 ```
 """
     (DEST / "PROVENANCE.md").write_text(body, encoding="utf-8")
@@ -207,7 +207,7 @@ def main() -> int:
         (DEST / p.name).write_bytes(patched(p))
     write_provenance(dist, files, sha)
     print(f"取り込んだ → {DEST}")
-    print("⚠️ **`make -C csrc k4b` を通し直すこと**")
+    print("⚠️ **`make -C csrc njd-rules` を通し直すこと**")
     if tmp:
         shutil.rmtree(tmp, ignore_errors=True)
     return 0

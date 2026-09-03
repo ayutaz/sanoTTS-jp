@@ -1,7 +1,7 @@
 /* K-7 の受け入れゲート（ホスト側）。   make -C csrc k7
  *
  * K-6 で「漢字文 → ラベル」まで通った。ここはその先の
- * 「ラベル → 生徒インデックス」（`k7_label2ids.c`）を検査する。
+ * 「ラベル → 生徒インデックス」（`label_ids.c`）を検査する。
  *
  * G25  **移植の正しさ**: ホストのラベルを入れたら、ホストと同じ ids が出る
  * G25b 陰性対照: アクセント記号の規則を 1 つ抜くと G25 が落ちる
@@ -14,10 +14,10 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "k1dict.h"
-#include "k4_accent.h"
-#include "k4b_njd.h"
-#include "k7_label2ids.h"
+#include "jdict.h"
+#include "accent.h"
+#include "njd_rules.h"
+#include "label_ids.h"
 #include "openjtalk/njd.h"
 #include "openjtalk/jpcommon.h"
 #include "openjtalk/mecab2njd.h"
@@ -49,22 +49,22 @@ static char *rdstr(char *out, size_t cap) {
     return out;
 }
 
-static int njd_to_k4(NJD *njd, k4_node_t *out, int max_out) {
+static int njd_to_k4(NJD *njd, accent_node_t *out, int max_out) {
     int n = 0;
     for (NJDNode *p = njd->head; p && n < max_out; p = p->next, n++) {
-        snprintf(out[n].pos,   K4_STR_MAX,  "%s", NJDNode_get_pos(p));
-        snprintf(out[n].ctype, K4_STR_MAX,  "%s", NJDNode_get_ctype(p));
-        snprintf(out[n].cform, K4_STR_MAX,  "%s", NJDNode_get_cform(p));
-        snprintf(out[n].orig,  K4_STR_MAX,  "%s", NJDNode_get_orig(p));
-        snprintf(out[n].pron,  K4_PRON_MAX, "%s", NJDNode_get_pron(p));
-        snprintf(out[n].read,  K4_PRON_MAX, "%s", NJDNode_get_read(p));
+        snprintf(out[n].pos,   ACCENT_STR_MAX,  "%s", NJDNode_get_pos(p));
+        snprintf(out[n].ctype, ACCENT_STR_MAX,  "%s", NJDNode_get_ctype(p));
+        snprintf(out[n].cform, ACCENT_STR_MAX,  "%s", NJDNode_get_cform(p));
+        snprintf(out[n].orig,  ACCENT_STR_MAX,  "%s", NJDNode_get_orig(p));
+        snprintf(out[n].pron,  ACCENT_PRON_MAX, "%s", NJDNode_get_pron(p));
+        snprintf(out[n].read,  ACCENT_PRON_MAX, "%s", NJDNode_get_read(p));
         out[n].acc = NJDNode_get_acc(p);
         out[n].mora_size = NJDNode_get_mora_size(p);
         out[n].chain_flag = NJDNode_get_chain_flag(p);
     }
     return n;
 }
-static void k4_to_njd(NJD *njd, const k4_node_t *in, int n) {
+static void k4_to_njd(NJD *njd, const accent_node_t *in, int n) {
     int i = 0;
     for (NJDNode *p = njd->head; p && i < n; p = p->next, i++) {
         NJDNode_set_pron(p, in[i].pron);
@@ -78,7 +78,7 @@ static int k7_is_mark(int32_t id) {
     static const char *const M[] = { "_", "^", "$", "?", "?!", "?.", "?~",
                                      "#", "[", "]" };
     for (size_t i = 0; i < sizeof M / sizeof *M; i++)
-        if (k7_token_id(M[i]) == id) return 1;
+        if (label_ids_token_id(M[i]) == id) return 1;
     return 0;
 }
 
@@ -105,7 +105,15 @@ static const char *labp[MAX_LABEL];
 static int32_t ids_dev[MAX_IDS], ids_full[MAX_IDS], ids_got[MAX_IDS];
 
 int main(int argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "k6_vectors.bin";
+    const char *path = (argc > 1) ? argv[1] : "kanji_e2e_vectors.bin";
+#if defined(LABEL_IDS_EXTERNAL_SCRATCH) && LABEL_IDS_EXTERNAL_SCRATCH
+    /* T10(a) の陽性側: **置き場を外から渡した構成でも同じ列になるか**。
+     * 端末（esp32/main/saan_kanji.c）は合成 arena から切り出して渡す。
+     * ⚠️ ここで渡さないと label_ids_convert は LABEL_IDS_ERR_ARG を返す = 全件落ちる
+     *    （**黙って動かない**のではなく落ちることの確認でもある）。 */
+    static char k7_scratch[LABEL_IDS_SCRATCH_BYTES];
+    label_ids_set_scratch(k7_scratch, sizeof k7_scratch);
+#endif
     /* --dump-ids <file>: 端末 ids とホスト ids を書き出す（音の測定に渡す）。
      * ⚠️ **本文は書かない。** レポートにコーパス本文を混ぜないため（hook が deny する）。
      * 形式: 1 行 1 文 `<index>\t<dev ids 空白区切り>\t<host ids 空白区切り>` */
@@ -124,7 +132,7 @@ int main(int argc, char **argv) {
     g = buf + 4;
     uint32_t n_cases = rd32();
 
-    static k4_dan_t dan[256];
+    static accent_dan_t dan[256];
     static char dan_kana[256][8];
     uint32_t n_dan_u = rd32();
     int n_dan = (int)(n_dan_u < 256 ? n_dan_u : 256);
@@ -139,14 +147,14 @@ int main(int argc, char **argv) {
     uint32_t blob_len = rd32();
     const uint8_t *blob = g; g += blob_len;
 
-    k1_dict_t d;
-    if (k1_open(&d, blob, blob_len) != 0) { fprintf(stderr, "NG: k1_open\n"); return 1; }
+    jdict_t d;
+    if (jdict_open(&d, blob, blob_len) != 0) { fprintf(stderr, "NG: jdict_open\n"); return 1; }
 
     void *arena = malloc(ARENA_N);
     static char text[4096], key[8192], feat_buf[MAX_TOK][512];
     static char *feat[MAX_TOK];
-    static k1_token_t tok[MAX_TOK];
-    static k4_node_t k4n[MAX_TOK];
+    static jdict_token_t tok[MAX_TOK];
+    static accent_node_t k4n[MAX_TOK];
 
     int ok25 = 0, ng25 = 0, ok26 = 0, ng26 = 0, err = 0, shown = 0;
     int ctrl25 = 0;
@@ -156,7 +164,7 @@ int main(int argc, char **argv) {
 
     for (int pass = 0; pass < 2; pass++) {
     /* pass 1 = 陰性対照: アクセント記号 `[` を出さない（k7 側を壊す） */
-    if (pass == 1) k7_debug_drop_rise = 1; else k7_debug_drop_rise = 0;
+    if (pass == 1) label_ids_debug_drop_rise = 1; else label_ids_debug_drop_rise = 0;
     g = blob + blob_len;
     for (uint32_t c = 0; c < n_cases; c++) {
         rdstr(text, sizeof text);
@@ -178,9 +186,9 @@ int main(int argc, char **argv) {
 
         /* --- G25: ホストのラベルを入れて ids を作る ------------------- */
         int32_t n_got = 0;
-        k7_status st = k7_label2ids(labp, (int)ndev, text,
+        label_ids_status st = label_ids_convert(labp, (int)ndev, text,
                                     ids_got, MAX_IDS, &n_got);
-        int same = (st == K7_OK) && ((uint32_t)n_got == nid);
+        int same = (st == LABEL_IDS_OK) && ((uint32_t)n_got == nid);
         if (same)
             for (int32_t i = 0; i < n_got; i++)
                 if (ids_got[i] != ids_dev[i]) { same = 0; break; }
@@ -191,7 +199,7 @@ int main(int argc, char **argv) {
             if (shown < 3) {
                 printf("  G25 食い違い: %.34s\n", text);
                 printf("    ホスト %u 個 / 端末 %d 個 (%s)\n", nid, (int)n_got,
-                       k7_strerror(st));
+                       label_ids_strerror(st));
                 shown++;
             }
         }
@@ -199,25 +207,25 @@ int main(int argc, char **argv) {
 
         /* --- G26: 漢字文から通しで ids を作る ------------------------- */
         size_t key_n = sizeof key;
-        if (k1_encode_key(&d, (const uint8_t *)text, strlen(text),
+        if (jdict_encode_key(&d, (const uint8_t *)text, strlen(text),
                           (uint8_t *)key, &key_n) != 0) { err++; continue; }
-        int nt = k1_analyze(&d, (const uint8_t *)key, key_n,
+        int nt = jdict_analyze(&d, (const uint8_t *)key, key_n,
                             arena, ARENA_N, tok, MAX_TOK);
         if (nt <= 0) { ng26++; continue; }
         int nf = 0, bad = 0;
         for (int i = 0; i < nt && nf < MAX_TOK; i++) {
             char surf[256];
-            if (k1_key_to_utf8(&d, (const uint8_t *)key, tok[i].begin, tok[i].end,
+            if (jdict_key_to_utf8(&d, (const uint8_t *)key, tok[i].begin, tok[i].end,
                                surf, sizeof surf) < 0) { bad = 1; break; }
             int r = -1;
-            if (tok[i].entry & K1_UNKNOWN_FLAG)
-                r = k1_unk_guess(&d, tok[i].entry, surf, feat_buf[nf],
+            if (tok[i].entry & JDICT_UNKNOWN_FLAG)
+                r = jdict_unk_guess(&d, tok[i].entry, surf, feat_buf[nf],
                                  sizeof feat_buf[0]);
             if (r < 0)
-                r = (tok[i].entry & K1_UNKNOWN_FLAG)
-                    ? k1_unk_feature(&d, tok[i].entry, surf, feat_buf[nf],
+                r = (tok[i].entry & JDICT_UNKNOWN_FLAG)
+                    ? jdict_unk_feature(&d, tok[i].entry, surf, feat_buf[nf],
                                      sizeof feat_buf[0])
-                    : k1_entry_feature(&d, tok[i].entry, surf, feat_buf[nf],
+                    : jdict_entry_feature(&d, tok[i].entry, surf, feat_buf[nf],
                                        sizeof feat_buf[0]);
             if (r < 0) { bad = 1; break; }
             feat[nf] = feat_buf[nf]; nf++;
@@ -228,14 +236,14 @@ int main(int argc, char **argv) {
         NJD_initialize(&njd); JPCommon_initialize(&jp);
         mecab2njd(&njd, feat, nf);
         njd_set_pronunciation(&njd);
-        k4b_before_chaining(&njd);
+        njd_rules_before_chaining(&njd);
         njd_set_digit(&njd);
         njd_set_accent_phrase(&njd);
         njd_set_accent_type(&njd);
         njd_set_unvoiced_vowel(&njd);
         njd_set_long_vowel(&njd);
         int nk = njd_to_k4(&njd, k4n, MAX_TOK);
-        k4_apply(k4n, nk, K4_ALL, dan, n_dan);
+        accent_apply(k4n, nk, ACCENT_ALL, dan, n_dan);
         k4_to_njd(&njd, k4n, nk);
         njd2jpcommon(&jp, &njd);
         JPCommon_make_label(&jp);
@@ -245,9 +253,9 @@ int main(int argc, char **argv) {
         for (int i = 0; i < nl && i < MAX_LABEL; i++) lp2[i] = ls[i];
 
         int32_t n2 = 0;
-        k7_status st2 = k7_label2ids(lp2, nl < MAX_LABEL ? nl : MAX_LABEL,
+        label_ids_status st2 = label_ids_convert(lp2, nl < MAX_LABEL ? nl : MAX_LABEL,
                                      text, ids_got, MAX_IDS, &n2);
-        int same2 = (st2 == K7_OK) && ((uint32_t)n2 == nidf);
+        int same2 = (st2 == LABEL_IDS_OK) && ((uint32_t)n2 == nidf);
         if (same2)
             for (int32_t i = 0; i < n2; i++)
                 if (ids_got[i] != ids_full[i]) { same2 = 0; break; }
@@ -264,7 +272,7 @@ int main(int argc, char **argv) {
         {
             static int32_t a[MAX_IDS], b[MAX_IDS];
             static int32_t ap[MAX_IDS], bp[MAX_IDS];
-            int32_t pad = k7_token_id("_");
+            int32_t pad = label_ids_token_id("_");
             int na = 0, nb = 0, nap = 0, nbp = 0;
             /* ⚠️ **PAD を落とす。** intersperse した PAD は音素 1 個につき
              *    1 個入るので、残すと編集距離が倍に膨らんで読めなくなる。 */
@@ -305,7 +313,7 @@ int main(int argc, char **argv) {
     printf("  ⚠️ **これは音の良し悪しではない。** 「ホストと違う音素の割合」\n");
 
     printf("\n=== G27: 語彙表 ===\n");
-    printf("  %d トークン（`src/saanotts_jp/vocab.py` から生成）\n", k7_n_tokens);
+    printf("  %d トークン（`src/saanotts_jp/vocab.py` から生成）\n", label_ids_n_tokens);
 
     int bad = (ng25 != 0) || (ok25 == 0) || (ctrl25 == 0);
     printf("\n%s\n", bad ? "NG!" : "OK  G25 通過（ラベル → ids はホストと完全一致）");

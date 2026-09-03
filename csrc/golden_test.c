@@ -26,14 +26,16 @@ static void *slurp(const char *path, size_t *size) {
     return b;
 }
 
-typedef struct { double snr_db, pearson, max_abs; size_t n; } cmp_t;
+typedef struct { double snr_db, pearson, max_abs; size_t n, n_bad; } cmp_t;
 
 static cmp_t compare(const float *a, const float *b, size_t n) {
     double sa = 0, sb = 0;
     for (size_t i = 0; i < n; ++i) { sa += a[i]; sb += b[i]; }
     const double ma = sa / (double)n, mb = sb / (double)n;
     double num = 0, da = 0, db = 0, sig = 0, err = 0, mx = 0;
+    size_t nbad = 0;
     for (size_t i = 0; i < n; ++i) {
+        if (!isfinite(a[i]) || !isfinite(b[i])) ++nbad;
         const double xa = a[i] - ma, xb = b[i] - mb;
         num += xa * xb; da += xa * xa; db += xb * xb;
         sig += (double)b[i] * b[i];
@@ -43,8 +45,16 @@ static cmp_t compare(const float *a, const float *b, size_t n) {
     }
     cmp_t c;
     c.n = n;
+    c.n_bad = nbad;
+    /* ⚠️ **NaN を「完全一致」と読ませない。** 素直に書くと落とし穴がある:
+     *   - `err` が NaN なら `err > 0` は **false** なので INFINITY 分岐に落ちる
+     *   - `da` / `db` が NaN なら `da > 0 && db > 0` も false なので pearson = 1.0 になる
+     * つまり **出力に NaN が 1 つでも混じると「Pearson 1.000000 / SNR inf」で PASS する**。
+     * 実際に踏んだ: 重みを 4 バイト壊した blob で `SNR inf dB / max|Δ| 1.684e-03` が出て通った
+     * （`fabs(NaN) > mx` も false なので max|Δ| は NaN 以外の最大値のまま残り、矛盾に見える）。
+     * 非有限を数えて別に落とす。 */
     c.pearson = (da > 0 && db > 0) ? num / sqrt(da * db) : 1.0;
-    c.snr_db = err > 0 ? 10.0 * log10(sig / err) : INFINITY;
+    c.snr_db = err > 0 ? 10.0 * log10(sig / err) : (err == 0 ? INFINITY : NAN);
     c.max_abs = mx;
     return c;
 }
@@ -125,12 +135,49 @@ int main(int argc, char **argv) {
         }
         cmp_t c = compare(chk[i].got, ref, rn);
         const int ok_r = c.pearson >= chk[i].min_r;
-        const int ok_s = c.snr_db >= chk[i].min_snr;
-        const int ok = ok_r && ok_s;
+        const int ok_s = c.snr_db >= chk[i].min_snr;   /* NaN >= x は false なのでここで落ちる */
+        const int ok = ok_r && ok_s && c.n_bad == 0;
         bad += !ok;
         printf("  %s %-24s Pearson %.6f  SNR %7.2f dB  max|Δ| %.3e  n=%zu%s\n",
                ok ? "OK " : "NG!", chk[i].name, c.pearson, c.snr_db, c.max_abs, rn,
-               ok ? "" : (!ok_r ? "  ← Pearson 不足" : "  ← SNR 不足"));
+               ok ? "" : (c.n_bad ? "  ← 非有限（NaN / inf）を含む"
+                                  : (!ok_r ? "  ← Pearson 不足" : "  ← SNR 不足")));
+        if (c.n_bad)
+            printf("      非有限 %zu / %zu 要素（**NaN は Pearson 1.0 / SNR inf に化ける**）\n",
+                   c.n_bad, rn);
+    }
+
+    /* --- 陽性対照（毎回走る）------------------------------------------------
+     * ⚠️ **この比較器は一度、NaN を「完全一致」と報告して通していた**（C-056）。
+     * `err > 0` / `da > 0 && db > 0` という「正常なら真」の条件で分岐していたので、
+     * NaN は全部 else 側（= 一致）に落ちていた。**同じ壊れ方に戻っていないか毎回見る。**
+     * 実データを 1 要素だけ壊した複製を作り、比較器が**落とすこと**を確かめる。 */
+    {
+        const size_t n = (size_t)out.n_samples;
+        float *probe = (float *)malloc(sizeof(float) * n);
+        int pc_bad = 0;
+        if (!probe) {
+            printf("  NG! 陽性対照: 作業領域が取れない\n");
+            ++bad;
+        } else {
+            const float *ref_pcm = get(&G, "out.pcm", &nb);
+            memcpy(probe, out.pcm, sizeof(float) * n);
+            probe[n / 2] = (float)NAN;              /* (1) NaN を 1 つ混ぜる */
+            cmp_t cn = compare(probe, ref_pcm, n);
+            const int caught_nan = !(cn.pearson >= 0.98 && cn.snr_db >= 40.0 && cn.n_bad == 0);
+            memcpy(probe, out.pcm, sizeof(float) * n);
+            for (size_t i = 0; i < n; ++i) probe[i] *= 0.5f;   /* (2) 半分に潰す */
+            cmp_t ch = compare(probe, ref_pcm, n);
+            /* ⚠️ Pearson はスケール不変なので 1.0 のまま。**SNR で落ちなければ空虚**。 */
+            const int caught_half = !(ch.snr_db >= 40.0);
+            pc_bad = !(caught_nan && caught_half);
+            printf("  %s 陽性対照: NaN 1 個 → %s / 振幅 0.5 倍 → %s（C-056）\n",
+                   pc_bad ? "NG!" : "OK ",
+                   caught_nan ? "落ちる" : "**通ってしまう**",
+                   caught_half ? "落ちる" : "**通ってしまう**");
+            bad += pc_bad;
+            free(probe);
+        }
     }
 
     printf("\n%s\n", bad ? "一致しない項目がある"

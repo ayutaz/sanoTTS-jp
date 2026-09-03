@@ -2,14 +2,26 @@
 #
 # ⚠️ **`model` パーティションは無い。** 重み blob は app の .rodata に埋める
 #    （scripts/blob_to_header.py。PSRAM 有効だと esp_partition_mmap が落ちる報告のため）。
-#    ⚠️ **代わりに app が大きくなる**（blob 643,936 B ぶん）。factory 3 MB は
-#       M5Unified + M5GFX + blob を積んでも余裕がある。
+#    ⚠️ **代わりに app が大きくなる**（blob 654,032 B ぶん）。factory 2.75 MB は
+#       M5Unified + M5GFX + blob + 漢字コードを積んでも余裕がある。
 #    ⚠️ **モデルだけの差し替えはできない。** アプリごと再ビルド・再フラッシュが要る。
-# ⚠️ 辞書（K トラック）は載せていない。PSRAM 有効な板での mmap は要検証。
 #
-# 検査: uv run python scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv
+# --- 辞書（K トラック / -DSAAN_KANJI=1）--------------------------------------
+# ⚠️ **offset は esp32/partitions_16mb.csv の `dict` 行と同じ 0x2D0000 にしてある。**
+#    リリースの k1-dict-438750.bin を **DevKit 版と同じアドレスに焼ける**ので、
+#    板ごとに別の辞書イメージを作らずに済む。ずらすと「同じファイルなのに
+#    どちらの板向けか」を人が覚える必要が出る。
+# ⚠️ **辞書を焼いていなくても起動はする**（saan_dict_open が false を返し、
+#    かな入力だけで続く）。漢字を使わないなら焼かなくてよい。
+# ⚠️ **この板では esp_partition_mmap ではなく esp_mmu_map で貼る**（saan_dict.c）。
+#    sdkconfig.defaults の CONFIG_SPI_FLASH_ROM_IMPL=y だと spi_flash_mmap が
+#    ROM 実装になり、IDF が渡すプールが 128 ページ = 8 MB しか無いため、
+#    211 ページ (0xD30000 / 0x10000) の辞書は vaddr が余っていても貼れない。
+#
+# 検査: uv run python scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv --rodata
 #
 # Name,   Type, SubType, Offset,   Size,     Flags
 nvs,      data, nvs,     0x9000,   0x6000,
 phy_init, data, phy,     0xf000,   0x1000,
-factory,  app,  factory, 0x10000,  0x300000,
+factory,  app,  factory, 0x10000,  0x2C0000,
+dict,     data, 0x41,    0x2D0000, 0xD30000,

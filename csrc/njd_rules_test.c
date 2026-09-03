@@ -7,7 +7,7 @@
  *   mecab2njd → pronunciation → **before_chaining** → digit → accent_phrase
  *   → accent_type → unvoiced_vowel → long_vowel
  * ⚠️ **before_chaining は素の Open JTalk に無い**（フォークが Python 側で
- *    挟んでいる段。`k4b_njd.h`）。飛ばすと 302 / 600 で止まる。
+ *    挟んでいる段。`njd_rules.h`）。飛ばすと 302 / 600 で止まる。
  * ⚠️ **K-4 の 4 段はこの後**に適用される。ここでは通さない。
  */
 #include <stdio.h>
@@ -17,7 +17,7 @@
 
 #include "openjtalk/njd.h"
 #include "openjtalk/mecab2njd.h"
-#include "k4b_njd.h"
+#include "njd_rules.h"
 #include "openjtalk/njd_set_pronunciation.h"
 #include "openjtalk/njd_set_digit.h"
 #include "openjtalk/njd_set_accent_phrase.h"
@@ -29,7 +29,7 @@
 #define STAGES 7
 
 static const char *STAGE_NAME[STAGES] = {
-    "njd_set_pronunciation", "k4b_before_chaining", "njd_set_digit",
+    "njd_set_pronunciation", "njd_rules_before_chaining", "njd_set_digit",
     "njd_set_accent_phrase", "njd_set_accent_type", "njd_set_unvoiced_vowel",
     "njd_set_long_vowel"
 };
@@ -53,7 +53,7 @@ static char *rdstr(char *out, size_t cap) {
 static void run_chain(NJD *njd, char **feat, int n, int skip) {
     mecab2njd(njd, feat, n);
     if (skip != 0) njd_set_pronunciation(njd);
-    if (skip != 1) k4b_before_chaining(njd);
+    if (skip != 1) njd_rules_before_chaining(njd);
     if (skip != 2) njd_set_digit(njd);
     if (skip != 3) njd_set_accent_phrase(njd);
     if (skip != 4) njd_set_accent_type(njd);
@@ -62,7 +62,7 @@ static void run_chain(NJD *njd, char **feat, int n, int skip) {
 }
 
 int main(int argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "k4b_vectors.bin";
+    const char *path = (argc > 1) ? argv[1] : "njd_rules_vectors.bin";
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "NG: ベクタが開けない: %s\n", path); return 1; }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -81,8 +81,8 @@ int main(int argc, char **argv) {
     int first_bad = 1;
     /* 規則の発火は本番の 1 周（pass = -1）だけ数える。陰性対照の周回を
      * 混ぜると「何を覆えているか」の数字にならない。 */
-    unsigned rule_hits[K4B_N_RULES];
-    int rule_diff[K4B_N_RULES]; memset(rule_diff, 0, sizeof rule_diff);
+    unsigned rule_hits[NJD_RULES_N];
+    int rule_diff[NJD_RULES_N]; memset(rule_diff, 0, sizeof rule_diff);
 
     /* pass = -1        本番
      * pass < STAGES    段を 1 つ抜く（G14b）
@@ -90,10 +90,10 @@ int main(int argc, char **argv) {
     /* --solo: 本番の 1 周だけ。上流の stderr が陰性対照の周回で出ているのか、
      * 本番でも出ているのかを切り分けるため。 */
     int last_pass = (argc > 2 && strcmp(argv[2], "--solo") == 0)
-                    ? 0 : STAGES + K4B_N_RULES;
+                    ? 0 : STAGES + NJD_RULES_N;
     for (int pass = -1; pass < last_pass; pass++) {
         int skip = (pass < STAGES) ? pass : -1;
-        k4b_rule_mask = (pass >= STAGES) ? ~(1u << (pass - STAGES)) : ~0u;
+        njd_rules_mask = (pass >= STAGES) ? ~(1u << (pass - STAGES)) : ~0u;
         g = body;
         int local_ng = 0;
         for (uint32_t c = 0; c < n_cases; c++) {
@@ -149,11 +149,11 @@ int main(int argc, char **argv) {
             else if (!same) local_ng++;
             NJD_clear(&njd);
         }
-        if (pass < 0) memcpy(rule_hits, k4b_rule_hits, sizeof rule_hits);
+        if (pass < 0) memcpy(rule_hits, njd_rules_hits, sizeof rule_hits);
         else if (pass < STAGES) stage_diff[pass] = local_ng;
         else rule_diff[pass - STAGES] = local_ng;
     }
-    k4b_rule_mask = ~0u;
+    njd_rules_mask = ~0u;
 
     printf("\n=== G14a: MeCab feature 列 → NJD 列 がホストと一致 ===\n");
     printf("  %s %d / %u 文（NJD ノード %d 件）\n",
@@ -162,17 +162,17 @@ int main(int argc, char **argv) {
     printf("\n=== G14c: before_chaining の規則を 1 つずつ抜く ===\n");
     printf("  %-24s %8s %8s\n", "規則", "発火", "抜くと落ちる");
     int n_cold = 0;
-    for (int k = 0; k < K4B_N_RULES; k++) {
+    for (int k = 0; k < NJD_RULES_N; k++) {
         /* ⚠️ 発火しても落ちない規則がある（規則 1 は後段の njd_set_digit に
          *    上書きされて消える）。**「落ちる」の方だけが覆えている証拠。** */
         const char *note = rule_diff[k] ? ""
             : (rule_hits[k] ? "   ⚠️ **発火するが結果に出ない = 検証できていない**"
                             : "   ⚠️ **一度も発火しない = 検証できていない**");
         printf("  %-24s %8u %8d%s\n",
-               k4b_rule_name[k], rule_hits[k], rule_diff[k], note);
+               njd_rules_name[k], rule_hits[k], rule_diff[k], note);
         if (!rule_diff[k]) n_cold++;
     }
-    printf("  → **検証できている規則: %d / %d**\n", K4B_N_RULES - n_cold, K4B_N_RULES);
+    printf("  → **検証できている規則: %d / %d**\n", NJD_RULES_N - n_cold, NJD_RULES_N);
 
     printf("\n=== G14b: 陰性対照（段を 1 つ抜く）===\n");
     int bad13 = 0, n_eff = 0;

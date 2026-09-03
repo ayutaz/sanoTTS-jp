@@ -12,10 +12,17 @@
  *      - CRLF を 2 行として扱う        → 発話のたびに空行が 1 回入る
  *      - 溢れたら黙って切り詰める      → 長文の貼り付けで先頭だけ喋る
  *
+ * G11 は**行の経路判定**（`saan_g2p_classify` / K-B）。こちらの陽性対照は
+ * `naive_classify()` = **手書きの文字集合で判定する実装**で、審査が却下したもの。
+ * 同じベクタで落ちることを見て初めて「文字集合ではだめ」と言える。
+ *
  * ⚠️ **見ていないもの**: UART から本当に 1 バイトずつ取れるか（IDF の API）、
  *    端末のエコーが読める見た目になるか、全角の表示幅。**これは実機でしか見えない。**
+ *    経路判定がホスト側と一致するかは**ここでは見ていない** —
+ *    `uv run python scripts/k1/kb_route_parity.py`（held-out 298 文 + 中間表現 298 行）。
  */
 #include "line.h"
+#include "g2p.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -253,6 +260,132 @@ static int run(feed_fn f, int quiet) {
     return g_fail;
 }
 
+/* --- G11 経路の判定（K-B / saan_g2p_classify）------------------------------
+ *
+ * ⚠️ **陽性対照は「手書きの文字集合」。** 審査が却下した実装をここに置いてある:
+ *    「ひらがな + ー + [ ] # ° + ? 系ならかな経路、1 文字でも外なら辞書経路」。
+ *    もっともらしいが、凍結テーブルと 3 か所でずれる:
+ *      - `ぁぃぇぉゃゅょゎゐゑゕゖ` は**単独ではモーラになれない**（表に無い）
+ *      - `_ ^ $` はひらがなではないが**マーク側**
+ *      - **拒否という 3 番目の値が無い**ので「中間表現 + `。`」が
+ *        黙って辞書経路に回り、**それらしい音が出てしまう**
+ *    この 3 つを検出できないベクタは、本物の回帰も検出できない。
+ */
+typedef saan_g2p_route (*route_fn)(const char *, size_t, saan_g2p_status *, int32_t *);
+
+static int cp_in(uint32_t cp, uint32_t lo, uint32_t hi) { return cp >= lo && cp <= hi; }
+
+static saan_g2p_route naive_classify(const char *text, size_t n,
+                                     saan_g2p_status *why, int32_t *err_byte) {
+    const unsigned char *t = (const unsigned char *)text;
+    size_t i;
+    if (why) *why = SAAN_G2P_OK;
+    if (err_byte) *err_byte = -1;
+    for (i = 0; i < n; ) {
+        uint32_t cp;
+        size_t l;
+        if (t[i] < 0x80u)      { cp = t[i]; l = 1; }
+        else if (t[i] < 0xE0u) { if (i + 1 >= n) return SAAN_G2P_ROUTE_DICT;
+                                 cp = ((uint32_t)(t[i] & 0x1Fu) << 6) | (t[i+1] & 0x3Fu); l = 2; }
+        else if (t[i] < 0xF0u) { if (i + 2 >= n) return SAAN_G2P_ROUTE_DICT;
+                                 cp = ((uint32_t)(t[i] & 0x0Fu) << 12)
+                                    | ((uint32_t)(t[i+1] & 0x3Fu) << 6) | (t[i+2] & 0x3Fu); l = 3; }
+        else return SAAN_G2P_ROUTE_DICT;
+        /* 「かな経路のアルファベット」を手で並べたもの */
+        if (!(cp_in(cp, 0x3041, 0x3096)                /* ひらがな */
+              || cp == 0x30FC                          /* ー */
+              || cp == 0x00B0                          /* ° */
+              || cp == '[' || cp == ']' || cp == '#'
+              || cp == '?' || cp == '!' || cp == '.' || cp == '~'))
+            return SAAN_G2P_ROUTE_DICT;
+        i += l;
+    }
+    return SAAN_G2P_ROUTE_KANA;
+}
+
+#define R(f, lit) (f)((lit), sizeof(lit) - 1, NULL, NULL)
+
+static int run_route(route_fn f, int quiet) {
+    g_fail = 0;
+    g_quiet = quiet;
+
+    if (!quiet) printf("\nG11. 経路の判定（かな / 辞書 / 拒否）\n");
+
+    /* (1) かな経路 — トークン化が行末まで通る */
+    chk(R(f, "\xe3\x81\x8d\xe3\x82\x87][\xe3\x81\x8a\xe3\x82\x8f\xe3\x82\x88][\xe3\x81\x84"
+            "\xe3\x81\xa6][\xe3\x82\x93\xe3\x81\x8d\xe3\x81\xa7\xe3\x81\x99\xc2\xb0\xe3\x81\xad")
+        == SAAN_G2P_ROUTE_KANA, "M-63 の中間表現 → かな");
+    chk(R(f, "\xe3\x81\x93\xe3\x82\x93\xe3\x81\xab\xe3\x81\xa1\xe3\x81\xaf")
+        == SAAN_G2P_ROUTE_KANA, "純ひらがな `こんにちは` → かな（D-040 を守る）");
+    chk(R(f, "][#") == SAAN_G2P_ROUTE_KANA, "記号だけの行 `][#` → かな");
+    chk(R(f, "") == SAAN_G2P_ROUTE_KANA, "空行 → かな（案内は呼び出し側の仕事）");
+    /* ⚠️ `_ ^ $` はひらがなではないが**マーク側**。手書きの集合はここで落ちる */
+    chk(R(f, "\xe3\x81\x82_\xe3\x81\x84") == SAAN_G2P_ROUTE_KANA,
+        "`あ_い`（PAD マーク）→ かな");
+    chk(R(f, "\xe3\x81\x82?~") == SAAN_G2P_ROUTE_KANA, "疑問 EOS `あ?~` → かな");
+    /* ⚠️ `あ°` は**正当な無声化モーラ**（`A`）。`°` があるだけでは拒否にならない */
+    chk(R(f, "\xe3\x81\x82\xc2\xb0") == SAAN_G2P_ROUTE_KANA, "`あ°`（無声化モーラ）→ かな");
+
+    /* (2) 辞書経路 — 通らず、マークが 1 つも無い */
+    chk(R(f, "\xe4\xbb\x8a\xe6\x97\xa5\xe3\x81\xaf\xe8\x89\xaf\xe3\x81\x84"
+            "\xe5\xa4\xa9\xe6\xb0\x97\xe3\x81\xa7\xe3\x81\x99\xe3\x81\xad\xe3\x80\x82")
+        == SAAN_G2P_ROUTE_DICT, "漢字文 `今日は良い天気ですね。` → 辞書");
+    chk(R(f, "\xe3\x82\xb3\xe3\x83\xb3\xe3\x83\x8b\xe3\x83\x81\xe3\x83\x8f")
+        == SAAN_G2P_ROUTE_DICT, "カタカナだけ `コンニチハ` → 辞書");
+    chk(R(f, "2026\xe5\xb9\xb4") == SAAN_G2P_ROUTE_DICT, "数字混じり `2026年` → 辞書");
+    chk(R(f, "\xe3\x81\x82\xe3\x80\x82") == SAAN_G2P_ROUTE_DICT,
+        "ひらがな + 句点 `あ。` → 辞書（`。` は端末のかな経路には無い）");
+    /* ⚠️ 単独では**モーラになれない**小書き文字。手書きの集合はここでも落ちる */
+    chk(R(f, "\xe3\x81\x81") == SAAN_G2P_ROUTE_DICT, "`ぁ` 単独 → 辞書（表に無い）");
+    chk(R(f, "\xe3\x82\x83") == SAAN_G2P_ROUTE_DICT, "`ゃ` 単独 → 辞書（表に無い）");
+    chk(R(f, "\xe3\x82\x90") == SAAN_G2P_ROUTE_DICT, "`ゐ` 単独 → 辞書（表に無い）");
+
+    /* (3) 拒否 — 通らず、マークがある。**ここが 3 値にした理由** */
+    chk(R(f, "\xe3\x81\x8d\xe3\x82\x87][\xe3\x81\x8a\xe3\x82\x8f\xe3\x82\x88][\xe3\x81\x84"
+            "\xe3\x81\xa6][\xe3\x82\x93\xe3\x81\x8d\xe3\x81\xa7\xe3\x81\x99\xc2\xb0\xe3\x81\xad"
+            "\xe3\x80\x82")
+        == SAAN_G2P_ROUTE_REJECT,
+        "**中間表現 + `。` → 拒否**（黙って辞書経路に回さない）");
+    /* ⚠️ **半角 `?` は拒否しない。** EOS のマークであると同時に普通の疑問文の約物でもあり、
+     *    拒否にすると held-out 2,333 行の 45 行（1.93%、うち 42 行は `本当なんでしょうか?` の
+     *    ような普通の文）が喋れなくなる（K-B の実測）。`has_mark()` は `?` 系を数えない。 */
+    chk(R(f, "\xe4\xbb\x8a\xe6\x97\xa5\xe3\x81\xaf?") == SAAN_G2P_ROUTE_DICT,
+        "漢字文 + 半角 `?` → **辞書**（`?` は普通の疑問文にも出るので拒否しない）");
+    chk(R(f, "\xe6\x9c\xac\xe5\xbd\x93\xe3\x81\xaa\xe3\x82\x93\xe3\x81\xa7"
+            "\xe3\x81\x97\xe3\x82\x87\xe3\x81\x86\xe3\x81\x8b?") == SAAN_G2P_ROUTE_DICT,
+        "`本当なんでしょうか?` → 辞書（K-B が見つけた 42 行の代表）");
+    /* かな + `?` は**かな経路**（`?` は EOS のマークなのでトークン化が通る） */
+    chk(R(f, "\xe3\x81\x82?") == SAAN_G2P_ROUTE_KANA,
+        "`あ?` → かな（`?` は EOS のマーク）");
+    /* ⚠️ `°` は**モーラの後ろでしか読まれない**（g2p.h の規約 4）。マークの後ろ・
+     *    行頭の `°` はトークン化で落ちる。行にはマーク（`°` 自身）があるので拒否 */
+    chk(R(f, "[\xc2\xb0") == SAAN_G2P_ROUTE_REJECT,
+        "`[°`（モーラに付かない `°`）→ 拒否");
+    /* ⚠️ **`°` だけがマークの行**を必ず入れる。`[ ] #` がある行しか見ないと、
+     *    マーク集合から `°` を落とす壊し方を検出できない（実際に取り逃がした） */
+    chk(R(f, "\xe3\x81\xa7\xe3\x81\x99\xc2\xb0\xe3\x81\xad\xe3\x80\x82")
+        == SAAN_G2P_ROUTE_REJECT,
+        "**`です°ね。`（マークが `°` だけ）→ 拒否**");
+    chk(R(f, "\xff\xfe") == SAAN_G2P_ROUTE_REJECT,
+        "不正な UTF-8 → 拒否（辞書経路にも回さない）");
+
+    /* (4) 位置を返す（「どの文字を消せばいいか」が分からないと直せない）--------- */
+    {
+        saan_g2p_status why = SAAN_G2P_OK;
+        int32_t eb = -1;
+        /* "あ" (3B) + "。" (3B) + "[" -> 3 バイト目で止まる */
+        (void)f("\xe3\x81\x82\xe3\x80\x82[", 7, &why, &eb);
+        chk(eb == 3, "拒否の err_byte が引けない文字の先頭（3）");
+        chk(why == SAAN_G2P_ERR_UNKNOWN, "why が ERR_UNKNOWN");
+        why = SAAN_G2P_ERR_ARG; eb = 99;
+        (void)f("\xe3\x81\x82", 3, &why, &eb);
+        chk(why == SAAN_G2P_OK && eb == -1, "かな経路では why=OK / err_byte=-1");
+    }
+    return g_fail;
+}
+
+#undef R
+
 int main(void) {
     printf("== 行編集ステートマシン（csrc/line.c）==\n");
     const int fails = run(saan_line_feed, 0);
@@ -273,7 +406,25 @@ int main(void) {
         printf("NG! csrc/line.c が %d 項目で落ちた\n", fails);
         return 1;
     }
+
+    printf("\n== 経路の判定（csrc/g2p.c の saan_g2p_classify / K-B）==\n");
+    const int rfails = run_route(saan_g2p_classify, 0);
+    printf("\n== 陽性対照: 手書きの文字集合で判定する naive_classify() ==\n");
+    printf("  （審査が却下した実装。小書き文字 / `_ ^ $` / 拒否の欠落を検出できるか）\n");
+    const int naive_rfails = run_route(naive_classify, 1);
+    printf("  同じベクタで %d 項目が落ちた\n", naive_rfails);
+    if (naive_rfails == 0) {
+        printf("NG! **経路判定の陽性対照が 1 つも落ちない = G11 は空虚**。\n");
+        printf("    naive_classify() は 3 つの既知のずれをわざと持っている。\n");
+        return 1;
+    }
+    if (rfails != 0) {
+        printf("NG! saan_g2p_classify が %d 項目で落ちた\n", rfails);
+        return 1;
+    }
+
     printf("OK  csrc/line.c は全項目通過 / 陽性対照は %d 項目で落ちた\n", naive_fails);
+    printf("OK  saan_g2p_classify は全項目通過 / 陽性対照は %d 項目で落ちた\n", naive_rfails);
     printf("⚠️ 見ていないもの: UART から本当に 1 バイトずつ取れるか、"
            "端末のエコーの見た目、全角の表示幅（**実機でしか見えない**）\n");
     return 0;

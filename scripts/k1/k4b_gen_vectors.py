@@ -18,7 +18,7 @@ K-4 の 4 段は**この後**に適用されるので、ここでは通さない
 「1つ / 1個 / 1人」で読みが変わる軸は B-0 が挙げたもので、
 **抜けても音では気づけない**。
 
-出力（既定 `csrc/k4b_vectors.bin`）:
+出力（既定 `csrc/njd_rules_vectors.bin`）:
 
     magic "K4B1" u32 / n_cases u32
     ケース × n:
@@ -85,7 +85,7 @@ def _s(x: str) -> bytes:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", type=int, default=600)
-    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/k4b_vectors.bin"))
+    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/njd_rules_vectors.bin"))
     ap.add_argument("--only-texts", help="1 行 1 文のファイルだけからベクタを作る"
                                          "（規則の当たりを探すとき用）")
     a = ap.parse_args()

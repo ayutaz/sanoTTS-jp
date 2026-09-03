@@ -45,6 +45,15 @@ __pycache__/
 # 個人設定（許可モード等）。チームで共有しない
 .claude/settings.local.json
 
+# セッションの作業用ディレクトリ（Claude Code が作る）。**成果物ではない**
+#   .claude/worktrees/ … 並行タスク用の git worktree（作業後に git worktree remove する）
+#   .workflows/        … 一回限りのオーケストレーション用スクリプト。
+#                        ⚠️ かつて .workflows/phase-a.js を追跡していたが、Phase A（2026-08-27）
+#                        限りの道具で、どの文書からも参照されず中身も D-013 / M-16 の頃で
+#                        止まっていたので外した。**結論は docs/decisions.md に残っている**
+.claude/worktrees/
+/.workflows/
+
 # 学習の成果物。重みは数 MB だが、ログと一緒に runs/ ごと除外する
 # （再現に要るのは summary.json と log.jsonl だけなので、必要になったら個別に追跡する）
 /runs/*/stage*.pt
@@ -71,6 +80,7 @@ __pycache__/
 /csrc/arena_stress
 /csrc/g2p_test
 /csrc/line_test
+/csrc/route_tool
 /csrc/dump_pcm_a32
 /csrc/dump_pcm_a8
 /csrc/int8_e2e_test_a8
@@ -123,27 +133,36 @@ reports/e1_dnsmos/scratch/
 # K-1 の中間生成物（entries.tsv 90 MB / trie キャッシュ 54 MB）
 .k1work/
 
-# K-2 の検証ベクタ（blob 込みで数 MB。make -C csrc k2 が生成する）
-csrc/k2_vectors.bin
-csrc/k2_test
-csrc/k4_vectors.bin
-csrc/k4_test
-
-# K-4b / K-5 の生成物（`make -C csrc k4b` / `k5` で再生成できる）
-csrc/k4b_test
-csrc/k4b_stderr.log
-csrc/k5_mem_test
-csrc/k5_mem_ctrl
-csrc/k5_stderr.log
-csrc/k5_ctrl/
+# 漢字経路のテストの生成物（`make -C csrc jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids`
+# で作り直せる）。⚠️ **検証ベクタは blob 込みで数 MB ある。**
+csrc/jdict_vectors.bin
+csrc/jdict_vectors_i8.bin
+csrc/jdict_big*.bin
+csrc/jdict_test
+csrc/jdict_stderr.log
+csrc/accent_vectors.bin
+csrc/accent_test
+csrc/njd_rules_vectors.bin
+csrc/njd_rules_test
+csrc/njd_rules_stderr.log
+csrc/oj_heap_test
+csrc/oj_heap_ctrl
+csrc/oj_heap_ctrl_src/
+csrc/oj_heap_stderr.log
+csrc/oj_worst.bin
 # ⚠️ ラベルはコーパス由来の派生物なので**コミットしない**（数 MB あるのに加えて、
 #    フルコンテキストラベルは元の文をかなり復元できる）
-csrc/k5_labels*.txt
+csrc/oj_labels*.txt
 csrc/openjtalk/*.o
-csrc/k6_test
-csrc/k6_stderr.log
-csrc/k7_test
-csrc/k7_stderr.log
+csrc/kanji_e2e_vectors.bin
+csrc/kanji_e2e_test
+csrc/kanji_e2e_stderr.log
+csrc/label_ids_test
+csrc/label_ids_test_ext
+csrc/label_ids_stderr.log
+# G25b（T10(a)）の突き合わせ用。⚠️ ids はコーパス由来の派生物なのでコミットしない
+csrc/label_ids_bss.txt
+csrc/label_ids_ext.txt
 
 # K-7 のビルド出力
 esp32/build_kanji/

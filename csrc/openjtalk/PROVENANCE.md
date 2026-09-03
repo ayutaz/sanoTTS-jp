@@ -47,5 +47,5 @@
 
 ```bash
 uv run python scripts/k1/k4b_vendor.py --sdist pyopenjtalk_plus-<ver>.tar.gz
-make -C csrc k4b        # ⚠️ **必ず G14a を通し直す**
+make -C csrc njd-rules        # ⚠️ **必ず G14a を通し直す**
 ```

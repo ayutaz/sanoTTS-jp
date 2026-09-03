@@ -7,7 +7,7 @@
     retreat_acc_nuc                            36 行 / 外部定数なし / LOO 214 文
     modify_acc_after_chaining                  42 行 / 外部定数なし / LOO 204 文
 
-出力（既定 `csrc/k4_vectors.bin`）:
+出力（既定 `csrc/accent_vectors.bin`）:
 
     magic "K4V1" u32 / n_cases u32 / n_stages u32
     _DAN_MAP: n u32 →（かな 1 文字 UTF-8 / 母音 1 B）× n
@@ -51,7 +51,7 @@ def _pack_str(s: str) -> bytes:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--cases", type=int, default=600)
-    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/k4_vectors.bin"))
+    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/accent_vectors.bin"))
     a = ap.parse_args()
 
     import pyopenjtalk

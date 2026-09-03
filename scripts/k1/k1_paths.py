@@ -24,6 +24,12 @@ os.makedirs(WORK, exist_ok=True)
 PP = os.environ.get("PIPER_PLUS_ROOT", os.path.expanduser("~/Documents/piper-plus"))
 DICT_PP = os.path.join(PP, "build/share/open_jtalk/dic")
 
+# 凍結した辞書の動作点（D-044。D-042 の 370,863 から引き上げた）。
+# ⚠️ **ここが唯一の定義。** ベクタ生成器と辞書ビルダの両方がこれを使う。
+#    別々に持つと、ベクタを作り直したときに**別の動作点を測ってしまう**
+#    （実際に踏んだ: 既定が 370,863 のままで「音素の 1.44%」が出た。正しくは 0.32%）。
+TARGET_ENTRIES = 438_750
+
 HELDOUT = os.path.join(ROOT, "data/splits/corpus_heldout.tsv")
 TRAIN = os.path.join(ROOT, "data/splits/corpus_train.tsv")
 

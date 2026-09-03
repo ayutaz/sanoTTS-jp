@@ -1,9 +1,9 @@
-/* K-4: アクセント規則 4 段。詳細は k4_accent.h。
+/* K-4: アクセント規則 4 段。詳細は accent.h。
  *
  * pyopenjtalk-plus の Python 実装をそのまま写した。**規則を「改善」しない** —
  * 目的は既定経路と一致させることで、日本語として正しくすることではない。
  */
-#include "k4_accent.h"
+#include "accent.h"
 #include <string.h>
 
 /* ---------------------------------------------------------------- UTF-8 */
@@ -41,7 +41,7 @@ static const char *u8last(const char *s) {
 
 /* ---------------------------------------------------------------- 1. filler */
 
-static void modify_filler_accent(k4_node_t *nd, int n) {
+static void modify_filler_accent(accent_node_t *nd, int n) {
     int after = 0;
     for (int i = 0; i < n; i++) {
         if (strcmp(nd[i].pos, "フィラー") == 0) {
@@ -56,20 +56,20 @@ static void modify_filler_accent(k4_node_t *nd, int n) {
 
 /* ------------------------------------------------------- 2. suppress_u_long */
 
-static char dan_of(const k4_dan_t *dan, int n_dan, const char *ch) {
+static char dan_of(const accent_dan_t *dan, int n_dan, const char *ch) {
     for (int i = 0; i < n_dan; i++)
         if (u8eq(ch, dan[i].kana)) return dan[i].dan;
     return 0;
 }
 
-static void suppress_u_long(k4_node_t *nd, int n,
-                            const k4_dan_t *dan, int n_dan) {
+static void suppress_u_long(accent_node_t *nd, int n,
+                            const accent_dan_t *dan, int n_dan) {
     if (n < 2) return;
     for (int i = 0; i < n - 1; i++) {
         if (strcmp(nd[i + 1].pron, "ー") != 0) continue;
         if (strcmp(nd[i + 1].read, "ウ") != 0) continue;
         /* current_feature["pron"].rstrip("’") */
-        char cur[K4_PRON_MAX];
+        char cur[ACCENT_PRON_MAX];
         size_t L = strlen(nd[i].pron);
         if (L >= sizeof cur) L = sizeof cur - 1;
         memcpy(cur, nd[i].pron, L); cur[L] = 0;
@@ -96,18 +96,18 @@ static int is_youon(const char *p) {
     return 0;
 }
 
-static void retreat_acc_nuc(k4_node_t *nd, int n) {
+static void retreat_acc_nuc(accent_node_t *nd, int n) {
     if (n <= 0) return;
     int acc = 0;
-    k4_node_t *head = &nd[0];
+    accent_node_t *head = &nd[0];
     for (int i = 0; i < n; i++) {
-        k4_node_t *v = &nd[i];
+        accent_node_t *v = &nd[i];
         if (v->chain_flag == 0 || v->chain_flag == -1) {
             head = v;
             acc = v->acc;
         }
         /* 拗音を落とす。全部落ちたら元の pron を使う（Python と同じ） */
-        char pron[K4_PRON_MAX];
+        char pron[ACCENT_PRON_MAX];
         size_t o = 0;
         for (size_t j = 0; v->pron[j]; ) {
             int cl = u8len((unsigned char)v->pron[j]);
@@ -142,12 +142,12 @@ static int orig_is_chained(const char *s) {
     return 0;
 }
 
-static void modify_acc_after_chaining(k4_node_t *nd, int n) {
+static void modify_acc_after_chaining(accent_node_t *nd, int n) {
     if (n <= 0) return;
     int acc = 0, after_nuc = 0, phase_len = 0;
-    k4_node_t *head = &nd[0];
+    accent_node_t *head = &nd[0];
     for (int i = 0; i < n; i++) {
-        k4_node_t *v = &nd[i];
+        accent_node_t *v = &nd[i];
         if (v->chain_flag == 0 || v->chain_flag == -1) {
             after_nuc = 0;
             head = v;
@@ -174,15 +174,15 @@ static void modify_acc_after_chaining(k4_node_t *nd, int n) {
 
 /* ---------------------------------------------------------------- 適用 */
 
-void k4_apply(k4_node_t *nodes, int n, unsigned mask,
-              const k4_dan_t *dan, int n_dan) {
+void accent_apply(accent_node_t *nodes, int n, unsigned mask,
+              const accent_dan_t *dan, int n_dan) {
     /* 順序は Python の apply_postprocessing に合わせてある。
      * ⚠️ **ただし「入れ替えてはいけない」は検証できていない。**
      *    retreat と chaining を入れ替えても held-out 1,200 文で結果が
      *    1 文も変わらなかった（Python 側で実測）。ゲートもこの入れ替えを
      *    捕まえられない。**この corpus は段の順序を区別しない。** */
-    if (mask & K4_FILLER)     modify_filler_accent(nodes, n);
-    if (mask & K4_SUPPRESS_U) suppress_u_long(nodes, n, dan, n_dan);
-    if (mask & K4_RETREAT)    retreat_acc_nuc(nodes, n);
-    if (mask & K4_CHAINING)   modify_acc_after_chaining(nodes, n);
+    if (mask & ACCENT_FILLER)     modify_filler_accent(nodes, n);
+    if (mask & ACCENT_SUPPRESS_U) suppress_u_long(nodes, n, dan, n_dan);
+    if (mask & ACCENT_RETREAT)    retreat_acc_nuc(nodes, n);
+    if (mask & ACCENT_CHAINING)   modify_acc_after_chaining(nodes, n);
 }
