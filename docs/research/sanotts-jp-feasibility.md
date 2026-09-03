@@ -5,11 +5,22 @@
 - 教師モデル供給元: [`~/Documents/piper-plus`](file://~/Documents/piper-plus) (piper-plus v2.0.0)
 - ⚠️ **この行は誤りだった（C-024）。** 当時「`Ampixa/saanotts` は 404」と記録したが、**綴り間違い**で、正しくは [`Ampixa/sanoTTS`](https://github.com/Ampixa/sanoTTS)。**公式実装は実在する**（GPL-3.0）。ただし本リポジトリは MIT なので**ソースコードは参照せず** clean-room で進める。上流から得た事実は [`../upstream-sanotts.md`](../upstream-sanotts.md) を見ること
 
-> **⚠️ 本書は初期調査（着手判断のための資料）。** その後の実測でいくつかの結論が
+> **⚠️ 本書は初期調査（2026-08-26、着手判断のための資料）。** その後の実測でいくつかの結論が
 > 更新されている（特に §3.1 の G2P と §4 の決定事項）。
 > **現在地は [`../README.md`](../README.md)、確定事項は [`../decisions.md`](../decisions.md)、
 > 数値は [`../measurements.md`](../measurements.md) が正。**
 > 本書は「論文の全数値」と「piper-plus の資産棚卸し」の参照元として使う。
+>
+> **2026-09-03 時点の現在地**（本書の予想と突き合わせるとき用。数値の出典はすべて `../measurements.md`）:
+>
+> | 本書が「これから」と書いたこと | 今 |
+> |---|---|
+> | Phase 0〜6 | **Phase 0 / A / B / C / D と検証タスクは全部決着**。成果物は `runs/v3/stage4.pt` |
+> | 端末で喋るか | **M5Stack CoreS3 の実機で喋っている**（[M-90](../measurements.md#m-90)） |
+> | RTF | **満チャンク 1 pull で 0.446**（W8A8+PIE）。要件 ≤ 0.5 を満たす。⚠️ 発話全体では 0.541〜0.712 で未達（分母は未決 = D-049） |
+> | 品質 | SCOREQ 教師比 **0.6444**（目標 0.55）/ DNSMOS OVRL 教師比 0.7969 / アクセント符号一致 37/37（[M-61](../measurements.md#m-61) / M-59） |
+> | G2P（§3.1 の最大の障壁） | **かな中間表現なら端末側 877 B**。さらに **漢字も端末で扱える**（辞書 13.7 MB を mmap。`b0-g2p-footprint.md` の結論は [`k1-kanji-katakana-ondevice.md`](k1-kanji-katakana-ondevice.md) で覆った） |
+> | 残っていること | **聴取（G32）だけ。音は誰も聴いていない。** |
 
 ---
 
@@ -293,7 +304,7 @@ resblock=2  upsample_rates=(4,4)  upsample_initial_channel=256  use_sdp=True
 | `load_state_dict` | **missing 0 / unexpected 0** |
 | 話者埋め込み参照 | `eval/spk_tsukuyomi.npy` は shape `(192,)` / L2 ノルム 1.0 → `speaker_embeddings` にそのまま渡せる |
 
-決定的推論も疎通済み（`scripts/phase0_verify_teacher.py`、5 チェックすべて PASS）:
+決定的推論も疎通済み（`scripts/phase0_verify_teacher.py`、**6 チェック**すべて PASS。⚠️ かつて「5 チェック」と書いていたが、スクリプトの `checks` は 6 項目）:
 
 ```
 zT latent   : (1, 192, 37)   ← 192ch、論文の教師潜在と一致
@@ -517,9 +528,9 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 
 1. ~~教師 `.ckpt` を確定~~ → **完了**: `piper-plus-zero-shot-tsukuyomi/epoch=499-step=22000.ckpt` を取得済み
 2. ~~`infer()` を通る piper-plus 版を特定~~ → **完了**: v2.0 HEAD でそのまま動く（§2.4）
-3. ~~決定的推論の再現確認~~ → **完了**: `scripts/phase0_verify_teacher.py` が 5 チェック PASS
-4. **残**: ターゲット tier を決定（567 K MCU / 1.4 M quality）
-5. **残**: 実際の日本語 G2P（PUA 経由の音素化 + A1/A2/A3 韻律）を繋いでラベル生成を疎通させる
+3. ~~決定的推論の再現確認~~ → **完了**: `scripts/phase0_verify_teacher.py` が 6 チェック PASS
+4. ~~ターゲット tier を決定~~ → **完了: 567 K embedded tier が成果物**。1.4 M z-line は**作らなかった**（567 K が先に目標へ届いたため）
+5. ~~日本語 G2P を繋いでラベル生成を疎通させる~~ → **完了**（D-014 の経路。⚠️ **A1/A2/A3 韻律は使わない** — `prosody_features` は一律ゼロ = D-014、アクセントは音素列の `[` `]` `#` だけで足りた = D-030）
 
 ### Phase 1: 教師ラベル生成パイプライン
 - 日本語テキスト → OpenJTalk 音素ID + prosody(A1/A2/A3) + アクセント記号
@@ -550,6 +561,8 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 - 埋め込み・正規化アフィン・iSTFT は fp のまま
 - ゴールデンベクタと **Pearson 相関 ≥ 0.98** のテスト
 - ESP32-S3 port（PIE カーネル、half-size real iFFT、dual core column split、arena ≤ 約 289 KB）
+  → **PIE カーネルは書けて実機で動いた**（M-57 / M-58 / M-90）。**arena は 180,224 B（used 157,360 B）**で見積りより小さい（M-89）。
+  ⚠️ **dual core column split は入れていない**（1 コアで要件を満たしたため。S-1 §5 の S8）
 
 ### Phase 6: 評価
 - 日本語 diverse セット（テンプレート禁止、§3.6 の多様性軸をカバー、24 文では足りない）
@@ -566,15 +579,15 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 |---|---|---|
 | **教師コーパスのライセンス** | **本プロジェクトでは非ブロッカー** | 検証目的・生成物を配布しないため着手を止めない（2026-08-26 ユーザー判断）。**公開する段になったら要再確認**: `data-sources.yml` によると つくよみちゃんコーパスは `CC-BY-4.0 / verified: false`（規約は [tyc.rei-yumesaki.net/about/terms/](https://tyc.rei-yumesaki.net/about/terms/)）、MOE-Speech (20 speakers) は `CC-BY-SA-4.0 / verified: false` で、**CC-BY-SA は蒸留物への継承の議論がある** |
 | ~~**日本語 G2P が MCU に載らない**~~ | **解消済み** | 辞書枝刈りは 40 MiB 必要で不成立だったが、入力を「ひらがな + アクセント記号 + 無声化マーク」に変更して**端末側 877 B** で解決した（D-009 〜 D-011、`scripts/kana_g2p.py`） |
-| ~~ESP32 のメモリ~~ | **中止材料なし** | I2S 逐次出力なら arena 約 96 KB（SRAM 512 KB のうち 416 KB が残る）。実機測定は C99 コアが出来てから（M-16） |
+| ~~ESP32 のメモリ~~ | **解消済み** | 実機で測った: arena は**静的確保 180,224 B / used 157,360 B**、起動直後の内部 DRAM の空き **132,039 B**（[M-89](../measurements.md#m-89) / [M-90](../measurements.md#m-90)）。⚠️ 当時の見積り「約 96 KB」（M-16）より大きいのは、ストリーミングの窓と int8 の作業領域を含むため |
 | 参照実装をコードとして使えない | 中 | ⚠️ **当初「404」と書いたのは綴り間違い（C-024）。公式実装は実在するが GPL-3.0 で、MIT の本リポジトリには取り込めない。**論文の数値からの clean-room 再実装になる。`λ₂, λ_n, λ_Δ, λ_s` など**論文に書かれていないハイパーパラメータがある** |
-| **G2P の言語誤ルーティング** | **高** | `MultilingualPhonemizer` がかなを文全体で判定するため、かなを含まない行が丸ごと中国語音素になる。コーパスの **5.36% (1,247行)** が該当し、**例外も警告も出ない**。計画書 §2 B-1 |
-| **`prosody_features` の無警告ズレ** | **高** | `PiperEncoder._convert_prosody` が長さを強制的に揃えるため `strict=True` が発火しない。ラテン混じり文で prosody がずれたまま通る。prosody は総フレームを 8〜9% 動かす実効入力。計画書 §2 B-2 |
-| **教師音声の品質ベースラインが低い** | **高** | 短尺 8 文の暫定計測で SCOREQ 2.06 / UTMOS 1.62（論文の教師は 4.68）。クリップ長・パディング・教師品質のどれが原因か未切り分け。**生徒は教師を超えない**ので期待値設定に直結。計画書 §2 B-5 |
+| ~~**G2P の言語誤ルーティング**~~ | **構造的に消えた** | ラベル生成の経路を「漢字文 →[ホスト]→ 中間表現 →[kana_g2p]→ 音素ID」に変えた（[D-014](../decisions.md)）ので、`MultilingualPhonemizer` を通らない。旧 B-1（かな無し行 5.36% が中国語音素になる）は該当が無くなった |
+| ~~**`prosody_features` の無警告ズレ**~~ | **構造的に消えた** | `prosody_features` を**一律ゼロに固定**した（[D-014](../decisions.md)。デバイスが A1/A2/A3 を供給できないので教師と条件を揃える。held-out 24 文の UTMOS に有意差なし p=0.72）。⚠️ **ゼロは「prosody 無し」ではない**（`prosody_proj(0) = bias` が concat される）。旧 B-2 は消えた |
+| ~~**教師音声の品質ベースラインが低い**~~ | **測って決着** | 天井を測った（[M-10](../measurements.md#m-10) / [M-29](../measurements.md#m-29) / [M-50](../measurements.md#m-50)）: **実人間の日本語ですら SCOREQ 2.4983 / UTMOS 2.3047**。日本語では指標が較正されていないだけで、教師/人間比は SCOREQ 0.820 / UTMOS 0.758。**絶対値を英語モデルと比べない**という運用に変えた（[D-013](../decisions.md) / [D-020](../decisions.md)）。生徒の教師比 SCOREQ は **0.6444**（目標 0.55） |
 | stale な `piper_train` の解決 | 中 | `.venv/site-packages/piper_train/` に v1.13.0 相当の古いコピーがあり、`sys.path.insert` を忘れると黙ってそちらが読まれる |
 | ~~教師 ckpt と piper-plus の版の非互換~~ | **解消済み** | 実測の結果 v2.0 HEAD で missing 0 / unexpected 0 でロードでき、決定的推論も bit 一致した。§2.4 参照 |
 | 音素表の世代差 (173 vs 185) と PUA エンコード | 中 | §2.4。ID 173 以上を渡すと範囲外。`ch`/`sh`/`ts` 等は PUA 経由でないと引けない |
-| piper-plus v2.0 と公開 ckpt の非互換 | 中 | Issue #616。`v1.13.0` へ checkout が必要 |
+| piper-plus v2.0 と公開 **base** ckpt の非互換 | 低 | Issue #616。`ayousanz/piper-plus-base` を使うなら `v1.13.0` へ checkout が必要。⚠️ **本プロジェクトの教師 ckpt は該当しない** — v2.0 HEAD に missing 0 / unexpected 0 でロードできる（上の行 / §2.4） |
 | 集約スコアが欠陥を隠す | 中 | 論文が実際に踏んだ。音素クラス別プローブと聴取を最初から入れる（§3.3） |
 | 評価セットの過大評価 | 中 | 論文で 1.35 の過大評価。テンプレート文を使わない（§3.6） |
 | 567 K tier の品質が実用に足りない | 中 | SCOREQ 2.54 は教師 4.68 から大きく劣る。期待値の設定が必要（D1） |
