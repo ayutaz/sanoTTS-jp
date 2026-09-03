@@ -63,7 +63,7 @@ evaluation (see [`MODEL_CARD.md`](MODEL_CARD.md)).
 
 ## Getting started
 
-**Four entry points. A / B / D need neither piper-plus nor the teacher model**
+**Five entry points. A / B / D / E need neither piper-plus nor the teacher model**
 (measured from a fresh clone).
 
 | | What you want | What you need | Time |
@@ -72,6 +72,7 @@ evaluation (see [`MODEL_CARD.md`](MODEL_CARD.md)).
 | **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
 | **C** | **Make an ESP32-S3 speak** | A board (DAC optional). **Flashing alone needs no ESP-IDF** | 15–30 min |
 | **D** | **Run the code gates** | Minimal setup only | 5 min |
+| **E** | **Try it in a browser** (⚠️ **not live yet**) | A browser. **Nothing to install** | 1 min |
 
 ### Minimal setup (B / D)
 
@@ -176,6 +177,52 @@ uv run --no-project python scripts/test_labelpack.py
 ⚠️ **`make -C csrc all-test` will not pass** — comparing against the golden output needs
 `csrc/*.bin` (the exported weights). Export them from the downloaded `.pt` with
 `scripts/export_c_weights.py` and it passes.
+
+### E. Try it in a browser (⚠️ **not live yet — the link does not open**)
+
+**`https://ayutaz.github.io/sanoTTS-jp/`** will host the same C99 core compiled to
+WebAssembly. ⚠️ **As of 2026-09-03 GitHub Pages is not enabled on this repository, so the
+link does not open yet** (enabling it is a manual step in the settings UI).
+
+Once it is up, it needs no install and no setup: type `今日は良い天気ですね。` into the box
+and it speaks. It takes **kanji, katakana and hiragana** directly — no marker character is
+needed, because the C side decides the route (`saan_g2p_classify()`).
+
+- **It runs the same code as the ESP32.** `csrc/` and `esp32/main/saan_kanji.c` are compiled
+  to wasm unchanged, and **the arena is the same 180,224 B as on hardware**
+  (→ [D-050](docs/decisions.md#d-050))
+- The first load pulls the **13,702,320 B dictionary (5,476,122 B with `gzip -9`)**.
+  ⚠️ Expect a wait on a slow link
+- ⚠️ **No browser has been measured, not one** — the timings are from node only
+  ([M-94](docs/measurements.md#m-94))
+- ⚠️ **Nobody has listened to it in a browser.** `AudioContext` resamples the output, so what
+  you hear does **not** match the checksums
+- ⚠️ **The deliverable is still the ESP32.** The web page is a door, not the goal
+  ([D-007](docs/decisions.md#d-007))
+
+To run it locally (needs emcc). ⚠️ **Everything must sit flat next to `index.html`**, the same
+layout `.github/workflows/pages.yml` builds in CI:
+
+```bash
+bash web/build.sh                                   # → web/dist/*.wasm and *.mjs
+mkdir -p /tmp/saan-site
+cp web/index.html web/main.js web/dist/*.mjs web/dist/*.wasm /tmp/saan-site/
+cp csrc/student_i8.bin /tmp/saan-site/              # = saanotts-jp-v3-int8.bin from the release
+gzip -9 -c csrc/k1_dict.bin > /tmp/saan-site/k1_dict.bin.gz   # = k1-dict-438750.bin
+
+# ⚠️ **Stopping here leaves all four footer links 404** (measured; the demo still speaks,
+#    so you only find out when you click): NOTICE.txt / NOTICE-openjtalk.txt /
+#    NOTICE-dictionary.txt / LICENSE-MODEL.md
+cp LICENSE-MODEL.md /tmp/saan-site/                 # the repo copy is fine
+#   (it is SHA-256 identical to the LICENSE-MODEL.md release asset — checked)
+# ⚠️ The three NOTICE*.txt files do **not** exist in the repo under those names, so pull
+#    them from the release. ⚠️ **Needs network** (pages.yml pulls the same three in CI)
+gh release download v0.3.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
+    -p 'NOTICE.txt' -p 'NOTICE-openjtalk.txt' -p 'NOTICE-dictionary.txt'
+
+uv run --no-project python -m http.server -d /tmp/saan-site 8000
+#   ⚠️ `python3 -m http.server` is blocked by the hook (D-012)
+```
 
 ### Full setup (kanji→kana conversion / training / label generation)
 

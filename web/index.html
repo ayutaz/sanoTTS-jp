@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sanoTTS-jp — ブラウザで動くランタイムデモ</title>
+<meta name="description" content="ESP32 向けの C99 推論コアと漢字経路をそのまま WebAssembly にしたデモ。漢字かな交じり文を打つと喋る。">
+<style>
+/* ⚠️ 依存ライブラリを使わない（ビルドステップを増やさないため）。素の HTML/CSS/JS のみ。 */
+:root {
+  color-scheme: light dark;
+  --bg:      #ffffff;
+  --fg:      #1a1a1a;
+  --muted:   #5c6470;
+  --line:    #d8dce2;
+  --panel:   #f6f7f9;
+  --accent:  #2f6f4f;
+  --warn-bg: #fff6e5;
+  --warn-fg: #6b4a00;
+  --err-bg:  #fdecec;
+  --err-fg:  #8a1f1f;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg:      #14171c;
+    --fg:      #e7e9ec;
+    --muted:   #9aa3ae;
+    --line:    #2c323b;
+    --panel:   #1b1f26;
+    --accent:  #6fbf95;
+    --warn-bg: #2e2612;
+    --warn-fg: #f0d69a;
+    --err-bg:  #33191b;
+    --err-fg:  #f3aeae;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  padding: 0 1rem 4rem;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", Meiryo, sans-serif;
+  line-height: 1.75;
+  font-size: 15px;
+}
+main { max-width: 44rem; margin: 0 auto; }
+h1 { font-size: 1.35rem; margin: 2rem 0 0.25rem; }
+h2 { font-size: 1.05rem; margin: 2.5rem 0 0.5rem; padding-top: 0.75rem; border-top: 1px solid var(--line); }
+h3 { font-size: 0.95rem; margin: 1.5rem 0 0.35rem; }
+p  { margin: 0.5rem 0; }
+a  { color: var(--accent); }
+.sub { color: var(--muted); margin-top: 0; }
+.warn {
+  background: var(--warn-bg); color: var(--warn-fg);
+  border: 1px solid rgba(128,128,128,.25); border-radius: 6px;
+  padding: 0.6rem 0.9rem; margin: 1rem 0;
+}
+.err {
+  background: var(--err-bg); color: var(--err-fg);
+  border: 1px solid rgba(128,128,128,.25); border-radius: 6px;
+  padding: 0.6rem 0.9rem; margin: 1rem 0;
+  white-space: pre-wrap;
+}
+.panel {
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 8px; padding: 1rem; margin: 1rem 0;
+}
+textarea {
+  width: 100%; min-height: 5.5rem; resize: vertical;
+  font: inherit; line-height: 1.7;
+  color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px; padding: 0.6rem;
+}
+button {
+  font: inherit; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.35rem 0.8rem; cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: .5; cursor: default; }
+#play {
+  background: var(--accent); color: #fff; border-color: transparent;
+  font-weight: 600; padding: 0.5rem 1.6rem; margin-top: 0.75rem;
+}
+.presets { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.6rem 0; }
+.presets button { font-size: 0.85rem; }
+fieldset { border: 1px solid var(--line); border-radius: 6px; margin: 1rem 0 0; padding: 0.5rem 0.9rem 0.8rem; }
+legend { padding: 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
+fieldset label { display: block; margin: 0.25rem 0; }
+fieldset .note { color: var(--muted); font-size: 0.8rem; margin: 0 0 0 1.55rem; line-height: 1.6; }
+#bar-wrap {
+  height: 8px; background: var(--line); border-radius: 4px;
+  overflow: hidden; margin: 0.5rem 0 0.25rem;
+}
+#bar { height: 100%; width: 0%; background: var(--accent); transition: width .12s linear; }
+#status { color: var(--muted); font-size: 0.85rem; min-height: 1.5em; margin: 0; }
+table.result { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+table.result th, table.result td { border-bottom: 1px solid var(--line); padding: 0.3rem 0.4rem; text-align: left; }
+table.result th { color: var(--muted); font-weight: 400; width: 9rem; }
+table.result td { font-variant-numeric: tabular-nums; }
+/* ⚠️ saan_web_message() は改行を含む（拒否の説明が複数行）。潰さないこと。 */
+#r-msg { white-space: pre-wrap; }
+pre.verbatim {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+  padding: 0.9rem; overflow-x: auto;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.8rem; line-height: 1.65;
+}
+ul { padding-left: 1.3rem; }
+li { margin: 0.15rem 0; }
+footer { color: var(--muted); font-size: 0.85rem; margin-top: 3rem; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.88em; }
+</style>
+</head>
+<body>
+<main>
+
+<h1>sanoTTS-jp — ブラウザで動くランタイムデモ</h1>
+<p class="sub">ESP32 向けに書いた C99 の推論コアと漢字経路を、そのまま WebAssembly にしたものです。
+形態素解析もアクセント推定も音声合成も、全部このページの中で走ります（サーバに文字は送りません）。</p>
+
+<!-- ⚠️ LICENSE-MODEL.md §3.4(c) を踏まないための必須表示。消さないこと。
+     上流 `Ampixa/sanoTTS`（GPL-3.0）も WASM デモを配っているので、混同されると本当に踏む。 -->
+<div class="warn">
+<strong>⚠️ これは arXiv:2608.21378 の独立再実装であり、著者らによる公式実装ではありません。</strong><br>
+公式実装 <a href="https://github.com/Ampixa/sanoTTS" rel="noopener">Ampixa/sanoTTS</a> は GPL-3.0 の別物で、
+本プロジェクトはそのソースコードを一切参照せずに、論文本文の数値と piper-plus の実装から独立に書いています。
+</div>
+
+<div class="panel">
+  <label for="text"><strong>読ませる文</strong></label>
+  <div class="presets" id="presets"></div>
+  <textarea id="text" rows="3" spellcheck="false"
+    placeholder="漢字かな交じり文をそのまま打ってください（例: 今日は良い天気ですね。）"></textarea>
+
+  <fieldset>
+    <legend>レーン</legend>
+    <label><input type="radio" name="lane" value="w8a32" checked> <strong>W8A32</strong>（既定・重み int8 / 活性 float32）</label>
+    <p class="note">held-out 24 文で fp32 経路に対し 平均 28.11 dB / 最小 25.72 dB。受け入れゲートを通っている方。</p>
+    <label><input type="radio" name="lane" value="w8a8"> <strong>W8A8</strong>（重みも活性も int8 = 実機の出荷構成）</label>
+    <p class="note">同じ 24 文で 平均 24.27 dB / 最小 22.00 dB。<strong>受け入れゲートは通っていません</strong>（既知の劣化）。
+      実機 ESP32-S3 で焼いているのはこちらです。</p>
+    <p class="note">⚠️ この SNR は node 上の wasm で測った値で、<strong>ブラウザでは 1 度も測っていません</strong>。</p>
+  </fieldset>
+
+  <button id="play" type="button">再生</button>
+  <div id="bar-wrap" hidden><div id="bar"></div></div>
+  <p id="status">初回の再生で、モデルと辞書（合わせて数 MB）をダウンロードします。</p>
+  <div id="error" class="err" hidden></div>
+</div>
+
+<div class="panel" id="result" hidden>
+  <table class="result">
+    <tbody>
+      <tr><th>レーン</th><td id="r-lane">—</td></tr>
+      <tr><th>経路</th><td id="r-route">—</td></tr>
+      <tr><th>音素 id 数</th><td id="r-ids">—</td></tr>
+      <tr><th>合成にかかった時間</th><td id="r-ms">—</td></tr>
+      <tr><th>音声長</th><td id="r-dur">—</td></tr>
+      <tr><th>arena 使用</th><td id="r-arena">—</td></tr>
+    </tbody>
+  </table>
+  <p id="r-msg" class="sub"></p>
+</div>
+
+<h2>この demo について</h2>
+<ul>
+  <li><strong>経路（かな / 辞書 / 拒否）は wasm の中が決めています。</strong>
+      JavaScript は打たれた文字列をそのまま渡すだけで、「ひらがなだから」のような判定を一切持ちません
+      （ホストと端末で同じ列が出ることを、リポジトリのゲートが守っています）。</li>
+  <li>合成の作業領域は <strong>ESP32 と同じ 180,224 B の arena</strong> に固定してあります。
+      ブラウザなら緩められますが、同じ枠で動くこと自体が「MCU に載る」の証拠になるので緩めていません。</li>
+  <li>成果物は今も ESP32 の 567 K パラメータのモデルです。<strong>Web は触れる入口でしかありません。</strong></li>
+</ul>
+
+<div class="warn">
+<strong>⚠️ 出音は実機と同じ音ではありません。</strong>
+合成した PCM は 22,050 Hz ですが、ブラウザの <code>AudioContext</code> が
+その周波数で鳴らせるとは限らず、多くの環境でリサンプルが挟まります。
+<strong>ブラウザの音はまだ誰も評価していません</strong>（ブラウザでの速度も 1 種類も測っていません）。
+</div>
+
+<h2>ライセンスと帰属</h2>
+
+<h3>モデルの帰属表示（<code>LICENSE-MODEL.md</code> §3.1・必須）</h3>
+<!-- ⚠️ 下のブロックは LICENSE-MODEL.md の 68〜89 行を一字一句そのまま貼ったもの。
+     ⚠️ NOTICE.md:127-145 版は 3 箇所違う（`sanoTTS-jp — URL` 行が無い / JSUT 行が英語 /
+        `教師実装: piper-plus` 行が無い）ので、そちらを写さないこと。
+     ⚠️ 1 行でも欠けると対応する素材の条件に違反する。整形・改行の削除もしないこと。 -->
+<pre class="verbatim">This model was distilled from a piper-plus teacher model.
+sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
+
+つくよみちゃんコーパス
+  本ソフトウェアの音声合成には、フリー素材キャラクター「つくよみちゃん」
+  （© 夢前黎）が無料公開している音声データを使用しています。
+  https://tyc.rei-yumesaki.net/material/corpus/
+
+MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-license
+  著作権法 30 条の 4（情報解析のための利用）に基づき学習に使用。
+
+蒸留に使用したテキストコーパス:
+  - Common Voice ja (Mozilla) — CC0-1.0
+      https://github.com/common-voice/common-voice
+  - ROHAN4600 (森勢将雅) — CC0-1.0
+      https://github.com/mmorise/rohan4600
+  - ITA コーパス — CC0-1.0
+      https://github.com/mmorise/ita-corpus
+  - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
+      https://sites.google.com/site/shinnosuketakamichi/publication/jsut
+
+教師実装: piper-plus (MIT) — https://github.com/ayutaz/piper-plus</pre>
+
+<h3>出力の用途制限（<code>LICENSE-MODEL.md</code> §3.2・必須・伝播します）</h3>
+<p>つくよみちゃんコーパスの条件により、<strong>このページが生成した音声</strong>は次に使えません。</p>
+<ul>
+  <li>❌ 個人・団体への攻撃・批判</li>
+  <li>❌ 政治・宗教上の主張</li>
+  <li>❌ アダルト用途</li>
+  <li>❌ 素材としての再配布（生成音声そのものを「音声素材集」として配布すること）</li>
+</ul>
+<p>一次ソース: <a href="https://tyc.rei-yumesaki.net/material/corpus/" rel="noopener">https://tyc.rei-yumesaki.net/material/corpus/</a>
+（<strong>条件は提供元が更新しうるため、配布・利用の前に一次ソースを確認してください。
+一次ソースと本ページが食い違う場合、一次ソースが優先します。</strong>）</p>
+<p>この 2 つの条件は<strong>第三者にも課す義務があります</strong>（§3.3）。
+音声を再配布する場合は、§3.1 と §3.2 を外さないでください。</p>
+<!-- ⚠️ 生成音声のダウンロード機能は付けない。§3.2 の「素材としての再配布」の線引きを曖昧にする。 -->
+<p class="sub">⚠️ このページに音声のダウンロード機能が無いのは意図的です（上の「素材としての再配布」の線を曖昧にしないため）。</p>
+
+<h3>同梱している第三者のもの</h3>
+<ul>
+  <li><strong>Open JTalk</strong>（NJD / JPCommon 系）— 修正 BSD /
+      Copyright (c) 2008-2016 Nagoya Institute of Technology, HTS Working Group。
+      漢字経路の形態素解析とアクセント規則に使っています。全文は <a href="./NOTICE-openjtalk.txt">NOTICE-openjtalk.txt</a>。</li>
+  <li><strong>辞書</strong>（NAIST / UniDic / 名古屋工業大学）— 権利者と条件は
+      <a href="./NOTICE-dictionary.txt">NOTICE-dictionary.txt</a>。</li>
+  <li><strong>Emscripten</strong> — MIT / NCSA。
+      ⚠️ emcc は生成物にライセンス文を 1 文字も書かないので、こちらで表示しています。
+      <a href="https://github.com/emscripten-core/emscripten/blob/main/LICENSE" rel="noopener">LICENSE</a>。</li>
+  <li>その他の帰属・既知の法的リスクは <a href="./NOTICE.txt">NOTICE.txt</a> にまとめてあります。</li>
+</ul>
+
+<footer>
+<p>ソース: <a href="https://github.com/ayutaz/sanoTTS-jp" rel="noopener">github.com/ayutaz/sanoTTS-jp</a>（コードは MIT / モデルの重みは
+<a href="./LICENSE-MODEL.md">LICENSE-MODEL.md</a> の条件付き。全文はこのページと一緒に置いてあります）。
+⚠️ 本プロジェクトは検証 (PoC) であって製品品質ではありません。</p>
+</footer>
+
+</main>
+<!-- ⚠️ ES module なので file:// では動かない。手元で見るなら `uv run python -m http.server`
+     （`python3 -m http.server` はこのリポジトリの hook が deny する）。 -->
+<script type="module" src="./main.js"></script>
+</body>
+</html>

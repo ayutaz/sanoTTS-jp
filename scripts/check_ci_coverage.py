@@ -4,7 +4,9 @@
 ## なぜ要るのか — **実際にずれていた**
 
 `csrc/Makefile` の `all-test` は 12 個のゲートを持つが、CI（`.github/workflows/ci.yml`）が
-回しているのは 6 個だけ。残りは**重み blob / コーパス / 辞書 / ESP-IDF が要る**ので回せない。
+回しているのは **10 個**。残る 2 個（`stream` / `int8-e2e`）が入らないのは
+**コーパス由来の `ids_heldout.bin` が git にもリリースにも無い**ため。
+`all-test` の外には、さらに**辞書 / pyopenjtalk / ESP-IDF が要る**ので回せないゲートがある。
 それ自体は妥当だが、**その線引きが散文でしか書かれていなかった**ので、
 
   - 新しいゲートを `all-test` に足しても、CI に入れ忘れたことに誰も気づかない
@@ -40,16 +42,26 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 # ⚠️ **「面倒だから」は理由にならない。** 何が無いから回せないのかを書く。
 #    その「無いもの」が CI で手に入るようになったら、ここから外して CI に入れる。
 EXCLUDED_TARGETS: dict[str, str] = {
-    # 重み blob（csrc/student.bin ほか）が要る。git 管理外で、リリースの資産は
-    # ⚠️ **blob v1 のまま**（S4 以降のコアは SAAN_ERR_VERSION で拒む）。
-    # .pt からの再生成も golden の入力テキストの G2P に OpenJTalk が要るのでできない。
-    "int8": "重み blob（student_i8.bin）。同上",
-    "int8-golden": "重み blob（student_i8.bin / golden_i8.bin）。同上",
+    # ⚠️ **訂正（C-057）。** ここには
+    #    「重み blob が要る。しかも **リリースの int8 資産は blob v1 のまま**なので
+    #     S4 以降のコアが SAAN_ERR_VERSION で拒む」という理由で
+    #    `int8` と `int8-golden` が**除外されていた**。**これは v0.2.0 までの話で、今は誤り。**
+    #    v0.3.0 の `saanotts-jp-v3-int8.bin` は **blob v2**（654,032 B。SHA-256 の頭は 2d2b8543）で、
+    #    手元の v2 blob と bit 一致する。→ **2 つとも CI（`golden` job）に入れたのでここから外した。**
+    #    ⚠️ **言い訳を消すだけでは不十分**だったことも記録しておく: この表から外すだけなら
+    #    このゲートは「CI で回っていない」と言って落ちる。**実際に ci.yml で回して初めて外せる。**
+    #
+    # 以下は今も CI で回せないもの。重み blob（csrc/student.bin ほか）は git 管理外だが
+    # **リリースから落とせば手に入る**ので、もう「回せない理由」にはならない。
+    # ⚠️ 残る本当の理由は **ids_heldout.bin がコーパス由来で git にもリリースにも無い**こと。
     "int8-e2e": "重み blob + ids_heldout.bin（コーパス由来。リリースにも無い）",
     "int8-e2e-a8": "同上（W8A8 レーン）",
     "stream": "重み blob + ids_heldout.bin。⚠️ **held-out 24 文 × 3 レーンの bit 一致**という最強のゲートがここに居る",
     "lanes": "重み blob + SCOREQ（評価の依存）",
-    "prof": "重み blob（student_i8.bin）",
+    # ⚠️ これも理由が弱くなった: 重み blob はリリースから落とせる（`golden` job が実際に落としている）。
+    #    手元では `make -C csrc prof` が 1.5 s で通り、見ているのは**時間ではなく回数**なので
+    #    CI に足せるはず。**まだ足していない**ので、ここには「未着手」と書いておく。
+    "prof": "重み blob（student_i8.bin）。⚠️ リリースから落とせるので `golden` job に足せる（未着手）",
     "g2p-corpus": "コーパス本文（data/splits/*.tsv は git 管理外）",
     "kb-parity": "pyopenjtalk と piper-plus（ホスト側 G2P との突き合わせ）",
     # 辞書 13.7 MB（k1_dict.bin）と pyopenjtalk が要る
@@ -63,9 +75,12 @@ EXCLUDED_TARGETS: dict[str, str] = {
     "run-bench": "ベンチ（ゲートではない）",
     "clean": "掃除",
     "golden": "`test` の別名（CI は `make -C csrc test` を回している）",
-    # ⚠️ `all-test` は上のゲートの束。**中の 6 個は CI で回っている**（line / fft / pad / g2p / erf / range）。
-    #    束ごと回すには重み blob が要るので、CI は個別に呼んでいる。
-    "all-test": "束（中の 6 個は CI が個別に回している。残りは重み blob が要る）",
+    # ⚠️ `all-test` は上のゲートの束。**12 個のうち 10 個は CI で回っている**
+    #    （line / fft / pad / g2p / erf / range は `csrc` job、
+    #      test / int8 / int8-golden / arena は `golden` job）。
+    #    残る 2 個は `stream` と `int8-e2e` で、どちらも `ids_heldout.bin` が要る。
+    #    束ごと回すとその 2 個で落ちるので、CI は個別に呼んでいる。
+    "all-test": "束（12 個中 10 個は CI が個別に回している。残り 2 個は ids_heldout.bin が要る）",
 }
 
 EXCLUDED_SCRIPTS: dict[str, str] = {
@@ -110,13 +125,30 @@ def make_targets(makefile: str) -> set[str]:
     return names
 
 
+# YAML のコメント（行頭 `#`）と、`run:` ブロックの中のシェルコメント。
+# ⚠️ **`#` の直前が行頭か空白のときだけ**コメントとみなす（`v0.3.0#frag` のような
+#    文字列を巻き込まないため）。YAML もシェルもこの規則で切る。
+COMMENT = re.compile(r"(?m)(?:^|(?<=\s))#.*$")
+
+
+def strip_comments(ci_text: str) -> str:
+    """⚠️ **コメントは「CI で回っている」の証拠にならない。**
+
+    これを入れる前は、`ci.yml` の**コメントにゲート名を書いただけ**で
+    「CI で回っている」と判定していた。理由の表（EXCLUDED_*）から外すときに
+    「ci.yml のコメントで言及した」だけで通ってしまう = **空虚なゲート**になる。
+    実行行だけを見るために、走らない行を先に落とす。
+    """
+    return COMMENT.sub("", ci_text)
+
+
 def ci_runs(ci_text: str) -> set[str]:
-    return set(re.findall(r"make -C csrc ([a-z0-9-]+)", ci_text))
+    return set(re.findall(r"make -C csrc ([a-z0-9-]+)", strip_comments(ci_text)))
 
 
 def ci_scripts(ci_text: str) -> set[str]:
-    """CI が名前を挙げているスクリプト（basename で見る）。"""
-    return set(re.findall(r"[\w./-]*?([\w-]+\.(?:py|sh))", ci_text))
+    """CI が**実際に実行している**スクリプト（basename で見る）。"""
+    return set(re.findall(r"[\w./-]*?([\w-]+\.(?:py|sh))", strip_comments(ci_text)))
 
 
 def orphan_tests() -> list[str]:
@@ -131,11 +163,14 @@ def orphan_tests() -> list[str]:
     return out
 
 
-def run(fake_target: str | None = None) -> int:
+def run(fake_target: str | None = None, comment_out: str | None = None) -> int:
     mk = MAKEFILE.read_text()
     ci = CI.read_text()
-    if fake_target:                      # 陽性対照: all-test に架空のゲートを足したことにする
+    if fake_target:                      # 陽性対照 1: all-test に架空のゲートを足したことにする
         mk = mk.replace("\nall-test: ", f"\n.PHONY: {fake_target}\nall-test: {fake_target} ", 1)
+    if comment_out:                      # 陽性対照 2: 実行行をコメントに変えたことにする
+        ci = "\n".join("#" + ln if comment_out in ln else ln
+                       for ln in ci.splitlines())
 
     targets = make_targets(mk)
     runs = ci_runs(ci)
@@ -187,18 +222,36 @@ def run(fake_target: str | None = None) -> int:
     return 0
 
 
+# 陽性対照。**2 つとも落ちなければならない。**
+# ⚠️ 1 つ目（架空のゲート）だけでは「コメントに名前を書けば通る」形を捕まえられない。
+#    2 つ目は **CI の実行行をコメントに変えても通ってしまわないか**を見る。
+SELF_TESTS = [
+    ("all-test に架空のゲート `zzz-fake` を足す",
+     {"fake_target": "zzz-fake"}),
+    ("CI の実行行をコメントに変える（コメントは「回っている」ではない）",
+     {"comment_out": "check_doc_counters.py"}),
+]
+
+
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--self-test", action="store_true",
-                    help="陽性対照: 架空のゲートを足して、この検査が落ちることを見る")
+                    help="陽性対照 2 件: わざと壊して、この検査が落ちることを見る")
     a = ap.parse_args()
     if a.self_test:
-        print("== 陽性対照: all-test に架空のゲート `zzz-fake` を足す ==")
-        rc = run(fake_target="zzz-fake")
-        if rc == 0:
-            print("\nNG! 陽性対照が通ってしまった（この検査は空虚）")
+        bad = 0
+        for label, kw in SELF_TESTS:
+            print(f"== 陽性対照: {label} ==")
+            FAILED.clear()
+            if run(**kw) == 0:                      # type: ignore[arg-type]
+                print(f"\nNG! 陽性対照が通ってしまった（{label}）= この検査は空虚\n")
+                bad += 1
+            else:
+                print(f"\nOK  陽性対照は落ちた（{label}）\n")
+        if bad:
+            print(f"NG! 陽性対照 {bad}/{len(SELF_TESTS)} 件が通ってしまった")
             return 1
-        print("\nOK  陽性対照は落ちた（検査は効いている）")
+        print(f"OK  陽性対照 {len(SELF_TESTS)} 件すべて落ちた（検査は効いている）")
         return 0
     return run()
 

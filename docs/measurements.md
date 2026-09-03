@@ -5969,9 +5969,11 @@ INIT: 182793 cyc / 回
 1 step = 454548 cyc（240 MHz なら 1.89 ms）。⚠️ QEMU ではサイクルではない
 ```
 
-⚠️ **リリース資産 `saanotts-jp-v3-int8.bin`（latest）はまだ v1。** S4 以降のコアではそのままでは読めない
+⚠️ ~~**リリース資産 `saanotts-jp-v3-int8.bin`（latest）はまだ v1。** S4 以降のコアではそのままでは読めない
 （起動時に SAAN_ERR_VERSION で止まる）。**v2 に上げ直すのはリリース作業**（D-045 = latest のみ）で、
-このブランチを main に入れるときに行う。手元の `csrc/student_i8.bin` は v2 で再生成済み。
+このブランチを main に入れるときに行う。~~ 手元の `csrc/student_i8.bin` は v2 で再生成済み。
+→ **2026-09-03 訂正（[C-057](decisions.md#c-057)）: v0.3.0 の資産は既に v2。**
+上の記述は v0.2.0 時点のもので、**latest では解消している**（SHA-256 が手元の v2 と bit 一致）。
 
 ### 8. S5a: PIE の内積をロード併合 + ゼロオーバーヘッドループに（**bit 同一**）
 
@@ -6892,3 +6894,320 @@ uv run --no-project --with pyserial python scripts/dev_run.py \
   端末とホストが**揃って同じ誤読**をしている可能性はこの測定では否定できない
 - **n=2 の文**（新しい文は 1 つだけ）。⚠️ 音素の 0.32% がホストと違うという M-77 の
   結論を覆すものではない — **この 2 文がたまたま枝刈りの影響を受けなかった**だけでもありうる
+
+---
+
+<a id="m-94"></a>
+## M-94. **C99 コアと漢字経路が WebAssembly でそのまま動いた** — golden 一致 / held-out 24 文の SNR / 漢字 298/298 / `-msimd128` は波形を変えない。速度は node で **0.008〜0.033 ×RT**（自己実測 / M4 Max）
+
+**2026-09-03。W トラック（[`plan/web-demo-plan.md`](plan/web-demo-plan.md)）の着手前調査。**
+問いは 1 つ: **`csrc/` と `esp32/main/saan_kanji.c` を書き換えずに wasm へ持っていけるか。**
+
+⚠️ **ブラウザは 1 種類も測っていない。** ここの数値はすべて **node v25.2.0** のもので、
+**ブラウザの値ではない**（C-055 の「その形のコードをその環境で測った数字だけ」）。
+⚠️ **音は誰も聴いていない。** 一致は全部 checksum と SNR で、耳ではない。
+
+### 0. 環境（再現の前提）
+
+```bash
+export EMCC=$HOME/emsdk/upstream/emscripten/emcc      # EM_CONFIG=$HOME/emsdk/.emscripten
+$EMCC --version | head -1     # → emcc ... 6.0.9 (4e4223852a0835923411059a3929907d7df1232e)
+node --version                # → v25.2.0
+```
+
+| | |
+|---|---|
+| host | M4 Max（D-027 と同じ機械） |
+| emcc | **6.0.9** |
+| node | **v25.2.0** |
+| 重み | `csrc/student_i8.bin` 654,032 B（blob v2）/ `csrc/student.bin` 2,249,792 B |
+| 辞書 | `csrc/k1_dict.bin` 13,702,320 B（438,750 entries。D-044） |
+| arena | **180,224 B**（`SAAN_ARENA_BYTES` = 176 KB。実機と同じ枠） |
+
+⚠️ **`-std=c99` を渡すと `__STRICT_ANSI__` で `clock_gettime` / `strdup` が隠れる。**
+`-std=gnu99`（または `gnu17`）を使う。⚠️ 漢字経路は **`-DCHARSET_UTF_8`** が無いと
+`csrc/openjtalk/text2mecab.c` が `#error` で止まる。
+
+⚠️ **`csrc/*.bin` は git にもリリースにも無いものがある。** `student*.bin` /
+`golden*.bin` / `k1_dict.bin` は v0.3.0 の資産と **SHA-256 が一致する**（自分で確かめた）が、
+**`ids_heldout.bin`（§2）と `kanji_e2e_vectors.bin`（§5）はコーパス由来で配布していない** →
+この 2 つは**外の人には再現できない**（CI に入れられない理由でもある）。
+
+```bash
+gh release download v0.3.0 -R ayutaz/sanoTTS-jp -p 'SHA256SUMS.txt' -D /tmp   # ⚠️ ネットワークが要る
+shasum -a 256 csrc/student_i8.bin csrc/student.bin csrc/golden_i8.bin csrc/golden.bin csrc/k1_dict.bin
+#   → 5 本とも /tmp/SHA256SUMS.txt の saanotts-jp-v3-* / golden-v3-* / k1-dict-438750.bin と一致
+#   ⚠️ SHA256SUMS.txt は作者が書いた表なので、**int8 blob だけは資産そのものも落として
+#      自分でハッシュした**（C-057）
+```
+
+### 1. 速度（`csrc/bench.c` の「全体（公開 API）」/ `-O2` / n=25 の **min**）
+
+`saan_stream_init` + `saan_stream_pull` だけで 1 発話を最後まで合成した実時間。**段別は見ていない。**
+
+⚠️ **この機械は測定中ずっと別プロセス（Unity）が 200% CPU を使い、load average が 5〜9 あった。**
+最初に取った表は 5 行のうち 2 行が再現せず、**原因はこれだった**。`bench.c` 自身が
+「mean が min の 1.05 倍を超えたら min を見ろ」と警告を出す作りになっている。
+したがってこの表は **5 レーンを連続で回して同じ負荷条件下に揃え、min だけを載せている。**
+
+```bash
+# レーンごとにフラグを変えて 5 本ビルドする（W8A8 は -DSAAN_INT8_ACT=1、SIMD は -msimd128）
+$EMCC -O2 -std=gnu99 -DSAAN_INT8_ACT=1 -msimd128 -Icsrc \
+      -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 \
+      -o /tmp/bench_a8_simd.js \
+      csrc/bench.c csrc/saanotts.c csrc/saanotts_stream.c csrc/saanotts_int8.c csrc/fft.c
+node /tmp/bench_a8_simd.js --weights csrc/student_i8.bin --golden csrc/golden_i8.bin --reps 10
+#   fp32 レーンは --weights csrc/student.bin --golden csrc/golden.bin
+```
+
+5 レーンを 1 本のスクリプトで連続に回す（`--reps 25`、load average を前後で記録する）:
+
+```bash
+# ⚠️ 下の 5 本を**この順で連続に**回す（間に他の作業を挟むと §1b と同じ罠に落ちる）。
+#    重み/golden の組が レーン、js 名がビルド時のフラグに対応する
+node /tmp/bench_a32.js      --weights csrc/student.bin    --golden csrc/golden.bin    --reps 25
+node /tmp/bench_a32.js      --weights csrc/student_i8.bin --golden csrc/golden_i8.bin --reps 25
+node /tmp/bench_a32_simd.js --weights csrc/student_i8.bin --golden csrc/golden_i8.bin --reps 25
+node /tmp/bench_a8.js       --weights csrc/student_i8.bin --golden csrc/golden_i8.bin --reps 25
+node /tmp/bench_a8_simd.js  --weights csrc/student_i8.bin --golden csrc/golden_i8.bin --reps 25
+```
+
+| レーン（short = 53 ids / 106 frames / 音声 1.231 s） | min | ×RT |
+|---|---:|---:|
+| fp32 | 36.01 ms | 0.029 |
+| int8 W8A32 | 40.41 | 0.033 |
+| int8 W8A32 + `-msimd128` | 32.10 | 0.026 |
+| int8 W8A8 | 23.79 | 0.019 |
+| **int8 W8A8 + `-msimd128`** | **10.23** | **0.008** |
+
+（load average は測定の前 6.53 / 後 5.52）
+
+⚠️ **long（350 ids）は載せない。** W8A8 は d̂ が変わってフレーム数が違う（W8A32 785 / W8A8 791）ので、
+**同じ仕事を比べていない**。ms を直接比べられるのは short だけ（106 frames で揃う）。
+
+**言えること:**
+
+- ✅ **どのレーンも 0.033 ×RT 以下**（実時間の 30 分の 1 以下）。測り直しでもこの結論は動かない
+- ✅ **W8A8 は W8A32 より速く、`-msimd128` はどちらのレーンでも速くする**（連続測定で一貫）
+- ✅ 最速（W8A8+simd）と最遅（W8A32）の比は約 **4 倍**
+
+**言えないこと:**
+
+- ❌ ⚠️ **最初に書いた「W8A32 は fp32 と同速」と「`-msimd128` は W8A32 では効かない」は取り下げる。**
+  どちらも CPU 競合の産物で、連続測定では再現しなかった（W8A32+simd 32.10 < W8A32 40.41）
+- ❌ **レーン間の比を 10% の精度で主張しない。** 負荷が変動する機械の壁時計である
+- ❌ **ブラウザの速度ではない。** node の値であって、ブラウザでも実機でもない（C-055）
+
+### 1b. ⚠️ 最初の測定は間違っていた — **C-055 をホストで踏み直した記録**
+
+§1 の表は**取り直したもの**で、最初に取った値は次のように違っていた:
+
+| short のレーン | 最初の値（`--reps 10` の mean） | §1（連続 / n=25 の min） | |
+|---|---:|---:|---|
+| fp32 | 35.18 | 36.01 | 再現 |
+| int8 W8A32 | 36.21 | 40.41 | 再現（負荷ぶん遅い） |
+| int8 W8A8 | 22.93 | 23.79 | 再現 |
+| int8 W8A32 + `-msimd128` | **40.53** | **32.10** | ⚠️ **向きが逆だった** |
+| int8 W8A8 + `-msimd128` | **15.66** | **10.23** | ⚠️ **1.5 倍ずれていた** |
+
+**原因は CPU 競合。** 測定中ずっと無関係のプロセス（Unity）が 200% CPU を使っており、
+最初の測定の W8A8+SIMD の行には `bench.c` 自身が
+**「⚠️ mean が min の 1.05 倍を超えている = 他プロセスと CPU を取り合っている。min を見ること」**
+を印字していた。**それを読まずに mean を表に書いたのが誤りだった。**
+
+この誤りから、実際に**間違った結論を 2 つ**書いた（どちらも §1 で取り下げた）:
+
+1. 「W8A32 は fp32 と速度が同じ」 — 実際は W8A32 の方が遅い
+2. 「`-msimd128` は W8A32 では効かない（むしろ遅い）」 — 実際は 1.26 倍速い
+
+⚠️ **C-055 は「実機以外で速度を主張するな」だったが、これは同じ罠のホスト版である。**
+ホストの壁時計も他プロセスと CPU を取り合う。**ツールが出した警告を読むこと**、
+**レーンを比べるなら連続で回すこと**、**mean ではなく min を見ること**。
+
+⚠️ そもそもブラウザで測っていないのだから、**この表は「wasm で実時間に十分間に合う」以上の意味を持たない。**
+
+### 2. 品質（`csrc/int8_e2e_test.c` / held-out 24 文 / fp32 経路に対する波形 SNR）
+
+```bash
+$EMCC -O2 -std=gnu99 -Icsrc -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 \
+      -o /tmp/e2e_wasm_a32.js \
+      csrc/int8_e2e_test.c csrc/saanotts.c csrc/saanotts_stream.c csrc/saanotts_int8.c csrc/fft.c
+node /tmp/e2e_wasm_a32.js csrc/student.bin csrc/student_i8.bin csrc/golden.bin csrc/ids_heldout.bin
+#   W8A8 は同じビルドに -DSAAN_INT8_ACT=1 を足す。native の対照は cc で同じソースを叩く
+```
+
+| レーン | 平均 | 最小 | d̂ 一致 | 判定 |
+|---|---:|---:|---:|---|
+| wasm W8A32 | **28.11 dB** | **25.72** | 2395/2425 = 98.8% | **OK**（平均 ≥ 27.0 / 最小 ≥ 25.0） |
+| wasm W8A8 | 24.27 | 22.00 | 2367/2425 = 97.6% | **NG**（既知。M-55 と同じ性質） |
+| native W8A8（対照） | 24.23 | 21.94 | 2367/2425 = 97.6% | NG |
+
+**W8A8 の NG は wasm のせいではない** — native も同じところで落ちる（差 0.04 / 0.06 dB）。
+⚠️ **この受け入れ条件は W8A32 用**で、W8A8 は M-55 で「知覚的に無料」と別途判断してある（D-048）。
+
+### 3. golden（`csrc/golden_test.c` / 参照実装との一致）
+
+```bash
+$EMCC -O2 -std=gnu99 -Icsrc -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=536870912 \
+      -o /tmp/golden_a32.js \
+      csrc/golden_test.c csrc/saanotts.c csrc/saanotts_stream.c csrc/saanotts_int8.c csrc/fft.c
+node /tmp/golden_a32.js csrc/student_i8.bin csrc/golden_i8.bin
+```
+
+| | log_d | c | **pcm** | Pearson |
+|---|---:|---:|---:|---:|
+| **wasm W8A32** | 121.32 dB | 127.56 | **115.27** | 1.000000 |
+| native W8A32（対照） | 120.70 | 127.24 | 115.33 | 1.000000 |
+
+`d̂` は **53/53 完全一致**。C-056 で入れた**毎回走る陽性対照**（NaN 1 個 / 振幅 0.5 倍）も
+wasm で落ちることを確認した。⚠️ **wasm と native は bit 一致しない**（§7）。
+
+### 4. `-msimd128` は波形を変えない（24/24 bit 一致・陰性対照つき）
+
+held-out 24 文の WAV を SIMD 有無で出し、**ディレクトリごと `diff -r`** した。
+
+```bash
+# csrc/dump_pcm.c を SIMD 有無 × レーンでビルドし、24 文を WAV に落として並べる
+#   node /tmp/dump_wasm_a8.js      csrc/student_i8.bin csrc/ids_heldout.bin /tmp/pcm_wasm
+#   node /tmp/dump_wasm_a8_simd.js csrc/student_i8.bin csrc/ids_heldout.bin /tmp/pcm_wasm_simd
+diff -r  /tmp/pcm_wasm /tmp/pcm_wasm_simd            # → 差分なし（W8A8）
+diff -r  /tmp/pcm_a32  /tmp/pcm_a32_simd             # → 差分なし（W8A32）
+diff -rq /tmp/pcm_wasm /tmp/pcm_native | wc -l       # → 24（**陰性対照**）
+```
+
+| | 結果 |
+|---|---|
+| W8A8: SIMD 有無 | **24/24 が同一** |
+| W8A32: SIMD 有無 | **24/24 が同一** |
+| **陰性対照** wasm vs native（同じ比較方法） | **24/24 が違う** |
+
+**陰性対照が全件落ちるので、この「一致」は空虚ではない。**
+→ **SIMD は速度だけの選択**で、出力の議論には入らない。
+
+### 5. 漢字経路（K-7 の G25 / G26b を wasm で）
+
+```bash
+$EMCC -O2 -std=gnu99 -DCHARSET_UTF_8 -Icsrc -Icsrc/openjtalk -sNODERAWFS=1 \
+      -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 -o /tmp/labelids_wasm.js \
+      csrc/label_ids_test.c csrc/label_ids.c csrc/accent.c csrc/njd_rules.c csrc/jdict.c \
+      csrc/g2p.c csrc/openjtalk/*.c
+node /tmp/labelids_wasm.js csrc/kanji_e2e_vectors.bin
+```
+
+| | 結果 |
+|---|---|
+| **G25** ラベル → 生徒インデックス | **ホストと 298 / 298 文一致**（食い違い 0） |
+| **陰性対照**（`[` を出さない） | **298 件が食い違う** |
+| **G26b** 音素だけの列の編集距離 | **50 / 15,756 = 0.32%**（記号込みなら 148 / 19,491 = 0.76%） |
+
+⚠️ **0.32% は「ホストと違う音素の割合」であって音の良し悪しではない**（M-77 と同じ量）。
+⚠️ **文単位で数えると 254/298 = 14.77% になる。** 1 音素の差も全崩れも 1 件になるので、
+**判断には編集距離の方を使う**（D-044 と同じ理由）。
+
+### 6. 全経路: **漢字文とかな中間表現から同じ PCM が出た**（wasm）
+
+`saan_g2p_classify()` に経路を決めさせ、**同じ文を漢字とかなで 2 回**通した。
+JS 側には文字集合の判定を 1 行も書いていない。
+
+| レーン | 漢字 `今日は良い天気ですね。` | かな `きょ][おわよ][いて][んきです°ね` | |
+|---|---|---|---|
+| W8A8 | 53 ids / 27,136 sample / `0x49d615bb1f56311b` | 同左 | **bit 一致** |
+| W8A32 | 53 ids / 27,136 sample / `0xd28694953dc74d21` | 同左 | **bit 一致** |
+
+経路は `辞書` / `かな` と正しく分かれ、`a.used = 156,688 B = saan_stream_arena_used(53)` も一致した
+（arena 180,224 B に対しピーク 159,152 B）。
+
+```bash
+# ⚠️ ドライバは使い捨ての spike（web/saan_web.c の前身）。**W-0 が入ったら web/ の成果物で取り直す**
+$EMCC -O2 -std=gnu99 -msimd128 -DSAAN_INT8_ACT=1 -DCHARSET_UTF_8 \
+      -Icsrc -Icsrc/openjtalk -Iesp32/main -sNODERAWFS=1 -sALLOW_MEMORY_GROWTH=1 \
+      -o /tmp/spike_a8.js /tmp/spike_web.c \
+      csrc/saanotts.c csrc/saanotts_stream.c csrc/saanotts_int8.c csrc/fft.c \
+      csrc/g2p.c csrc/jdict.c csrc/accent.c csrc/njd_rules.c csrc/label_ids.c \
+      esp32/main/saan_kanji.c csrc/openjtalk/*.c
+node /tmp/spike_a8.js csrc/student_i8.bin csrc/k1_dict.bin \
+     "今日は良い天気ですね。" "きょ][おわよ][いて][んきです°ね"
+```
+
+⚠️ **この checksum は「その program の float → int16 変換」の値**であって、波形の指紋ではない。
+上の 2 値は `(long)(x*32767 + ±0.5)`（**0.5 を足して切り捨て**）で取ったもので、
+`esp32/main/saan_pcm.c` と同じ **`lrintf`（偶数丸め）**で取り直すと
+**W8A8 は `0x54ba64edf885fa4f` に変わる**（W8A32 は `0xd28694953dc74d21` のまま）。
+**同じバイナリの丸めだけを差し替えて確かめた**ので、**波形は同じで丸め規則だけが違う**
+（`|max|` 9627 は両方同じ。`Σx²` は 74,264,258,436 と 74,264,242,348）。
+→ **checksum を program をまたいで比べないこと。** 端末と比べないこと（C-055 / M-42 の注意と同じ）。
+
+### 7. wasm と native は bit 一致しない（W8A8。⚠️ **私はこの節だけ再検証していない**）
+
+| | 値 |
+|---|---:|
+| 値が違うサンプル | **14.3744%** |
+| `\|max\|` の最大差 | **409** |
+| `Σx²` の相対差の最大 | **7.897e-03** |
+
+⚠️ **丸め差ではない。** `Σx²` の相対差 7.9e-03 は M-42 の「丸め差の水準」（1.6e-7）より
+**4 桁大きい**。W8A8 は量子化の境界で 1 値が変わると下流に伝播するため（S3 で
+基準 checksum が動いたのと同じ形）。**wasm を「ホストと同じ音」と言ってはいけない。**
+
+### 8. サイズ（Pages に置くもの）
+
+```bash
+gzip -9 -c csrc/student_i8.bin | wc -c
+brotli -q 11 -c csrc/k1_dict.bin | wc -c
+```
+
+| | raw | gzip -9 | brotli -q11 |
+|---|---:|---:|---:|
+| `student.bin`（fp32） | 2,249,792 | 2,076,226 | 2,051,219 |
+| **`student_i8.bin`（int8）** | **654,032** | **598,014** | **586,008** |
+| **`k1_dict.bin`（辞書）** | **13,702,320** | **5,476,122** | **4,405,699** |
+
+**辞書は gzip で 40.0%、brotli で 32.2% になる。**
+⚠️ **`.bin` を Pages が転送時に圧縮するかは確かめていない** → `.gz` を自分で置いて
+`DecompressionStream('gzip')` で展開する（計画 §5-14）。
+⚠️ **wasm 自体のサイズはここに書かない** — 出荷する形（W-1 の `web/build.sh`）で測っていない。
+
+### 9. ⚠️ emcc の `malloc()` は 16 B 境界を返さない
+
+```bash
+cat > /tmp/align_probe.c <<'EOF'
+#include <stdio.h>
+#include <stdlib.h>
+#include <stdint.h>
+int main(void) {
+    static const int sz[6] = { 1024, 12384, 180224, 654032, 779584, 13702320 };
+    for (int i = 0; i < 6; i++) {
+        void *m = malloc((size_t)sz[i]);
+        void *a = aligned_alloc(16, (size_t)((sz[i] + 15) & ~15));
+        printf("%9d  malloc mod16=%2d  aligned_alloc mod16=%2d\n",
+               sz[i], (int)((uintptr_t)m & 15u), (int)((uintptr_t)a & 15u));
+        free(m); free(a);
+    }
+    return 0;
+}
+EOF
+$EMCC -O2 -sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=33554432 -o /tmp/align.js /tmp/align_probe.c
+node /tmp/align.js
+```
+
+| 要求サイズ | `malloc` の `ptr & 15` | `aligned_alloc(16, n)` の `ptr & 15` |
+|---:|---:|---:|
+| 1,024 / 12,384 / 180,224 / 654,032 / 779,584 / 13,702,320 | **6 サイズすべて 8** | **6 サイズすべて 0** |
+
+**`malloc` は 8 B 境界しか返さない。** 辞書を素の `malloc` に置くと `jdict` の
+`matrix`（`const int16_t*`）が 8 境界から読まれ、**wasm はアラインメント例外を出さないので
+黙って動いてしまう。** `aligned_alloc(16, n)` を使い、`esp32/main/saan_dict.c:127-130` と
+同じ `((uintptr_t)p & 15u) != 0` の検査を web 側にも置くこと。
+
+### 10. ⚠️ 何を見ていないか
+
+- **ブラウザを 1 種類も測っていない。** ここは全部 node v25.2.0。
+  **JIT も GC もメモリ拡張の挙動も違う**ので、node の ms をブラウザの ms として引用しないこと
+- **モバイルで測っていない**（Safari / Android Chrome / 低電力 CPU のどれも）
+- **ブラウザの音は誰も聴いていない。** G32（実機の聴取）と同じ空白がもう 1 つ増えただけ
+- **`AudioContext` は 22,050 Hz を保証しない。** 出音は端末のサンプルレート（多くは 48,000 Hz）へ
+  **リサンプルされる**ので、**鳴っている音は checksum と一致しない**。
+  一致を主張してよいのは `saan_web_pcm()` が返す float 配列まで
+- **`.bin` に対する Pages の `Content-Encoding` は未確認**（§8）
+- **wasm の転送サイズ・起動時間・初回描画までの時間を測っていない**
+- §7（wasm vs native の差）だけは**受け取った値をそのまま載せてあり、私は回し直していない**

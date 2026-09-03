@@ -29,7 +29,8 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | **このファイル** | 実装時の要点だけ。**コードを書く前に必ず読む** |
 | [`docs/measurements.md`](docs/measurements.md) | **数値の一次ソース**。全項目に再現コマンド付き。食い違ったらここが正 |
 | [`docs/decisions.md`](docs/decisions.md) | 決定の理由と**訂正履歴**（同じ間違いを繰り返さないため） |
-| [`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md) | **いちばん新しい計画**。速度 T1〜T5 / 64 B 行 / M5 への漢字搭載。**残りは聴取だけ** |
+| [`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md) | 速度 T1〜T5 / 64 B 行 / M5 への漢字搭載。**残りは聴取だけ** |
+| [`docs/plan/web-demo-plan.md`](docs/plan/web-demo-plan.md) | **いちばん新しい計画**。W トラック（GitHub Pages のランタイムデモ）。W-0〜W-8 / G-W1〜G-W6。⚠️ **成果物は今も ESP32**（D-050）で Web は入口。実測は M-94 |
 | [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | かなトラックの作業計画。B-0〜B-12 と Phase 0〜D。**ほぼ履歴**（§10 の残りは全部片づいた） |
 | [`README.md`](README.md) の「はじめかた」 | **外の人向けの入口**。セットアップ → 合成 → 実機 |
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **実機を持っている人への依頼**（焼く・喋らせる・報告） |
@@ -74,8 +75,10 @@ warmup 38 フレームが初回 pull に乗るため、文が長いほど 0.5 �
 （|max| 9744 → 9627）、W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
 W8A8 の |max| が動くのは量子化の境界で 1 値が変わると下流に伝播するためで、品質（fp32 比 SNR 24 文）は不変。
 **配布イメージ v0.2.0 までは旧値のまま。**
-**S4 で blob は v2 になった**（int8 conv 重みを `[cout][k][align16(cin)]` で 0 埋め。654,032 B）。⚠️ **リリース資産
-`saanotts-jp-v3-int8.bin` はまだ v1 で、S4 以降のコアは `SAAN_ERR_VERSION` で拒む** → 次のリリースで上げ直す。
+**S4 で blob は v2 になった**（int8 conv 重みを `[cout][k][align16(cin)]` で 0 埋め。654,032 B）。
+✅ **リリース資産 `saanotts-jp-v3-int8.bin`（v0.3.0）も v2**（version フィールド = 2 / SHA-256 が手元の v2 と bit 一致）。
+⚠️ **「まだ v1」と書いてあったのは誤りで、C-057 で訂正した。** v0.2.0 以前の資産は今も v1 なので、
+古い blob を掴んでいる人には `SAAN_ERR_VERSION` が出る。
 
 **(2) 端末で漢字を扱う（K トラック・完了）**
 B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つの根拠が崩れた**（K-1 調査）。
@@ -86,7 +89,7 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 → [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md)（結論）
 ／ [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md)（計画）
 
-設計値は D-016 〜 D-048 として凍結。実行はすべて手元の M4 Max（D-027）、実機はユーザーの M5 CoreS3（D-047）。
+設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約）。実行はすべて手元の M4 Max（D-027）、実機はユーザーの M5 CoreS3（D-047）。
 
 ⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
 `runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
@@ -561,7 +564,8 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（10 節）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べ、足りない arena ではコンパイルが止まることを**陽性対照**で示す |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
-| CI | `.github/workflows/ci.yml` | push / PR で 4 job。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
+| CI | `.github/workflows/ci.yml` | push / PR で **6 job**（docs / golden / csrc / python / release-assets / **web**）。⚠️ **かつて「4 job」と書いてあったが、数えたら違った**（job は増える）。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
+| CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**94 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
@@ -649,6 +653,14 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 
 **ターゲットは ESP32。ブラウザは対象外**（piper-plus の WebAssembly で既に解決済みのため、
 そこを再実装しても価値が無い — 2026-08-26 ユーザー判断）。
+
+⚠️ **2026-09-03、W トラックを足した（D-050）。この行は撤回していない。**
+`csrc/` の C99 コアと `esp32/main/saan_kanji.c` を**書き換えずに** wasm にして、
+GitHub Pages で「漢字文を打つと喋る」デモを配る（[`docs/plan/web-demo-plan.md`](docs/plan/web-demo-plan.md)）。
+**成果物は今も ESP32 の 567 K で、Web は触れる入口**でしかない
+（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 180,224 B）。
+実測は M-94。⚠️ **ブラウザでは 1 種類も測っていない**（node だけ）／ **ブラウザの音は誰も聴いていない**。
+⚠️ 上流も WASM デモを配っているが、**D-032（GPL ソースを読まない）は維持**する。
 
 したがって:
 - **成果物は 567 K の embedded tier**（論文で SCOREQ 2.54 / ESP32-S3 で 0.22× RT）
@@ -828,19 +840,21 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-03 更新。**対照つきの聴取だけ**）
+## 残っているタスク（2026-09-03 更新。**聴取と、Pages の有効化**）
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
-K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-048 として凍結。
+K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約）。
 現在地は [`docs/README.md`](docs/README.md)。
 
 | # | 何 | 種類 | ゲート |
 |---|---|---|---|
 | **1** | **聴取** — このプロジェクトの音を**まだ誰も聴いていない** | **人が要る**（私は音を聞けない） | **G32** |
 | 2 | RTF の分母（満チャンク 1 pull = 0.446 で達成 / 発話全体 = 0.54〜0.71 で未達） | 判断 | **未決。D-049 で決める**（`docs/requirements.md` §6.2） |
-| 3 | リリース資産の blob を v1 → v2 に上げる（S4 以降のコアが `SAAN_ERR_VERSION` で拒む） | 作業 | `scripts/check_release_assets.py` |
+| ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ → ✅ **v0.3.0 で既に v2 だった**（誤りだった。C-057） | — | — |
 | 4 | 配布イメージを USB Serial/JTAG 入力でも配る（v0.2.0 は UART0 のみ = native USB の板で操作不能。M-83） | 作業 | `esp32/TESTING.md` |
 | 5 | K トラックのエントリ数・接続行列（今は 438,750 / int16） | 判断 | D-044 を見直すか |
+| **6** | **GitHub Pages の有効化**（Settings → Pages → Source を「GitHub Actions」に）。⚠️ **手作業。`configure-pages` の `enablement: true` は既定トークンでは効かない** | **人が要る** | `pages.yml` が緑になって URL が開くこと |
+| 7 | ブラウザでの実測と聴取（W トラック。**node しか測っていない / 音は誰も聴いていない**） | **人が要る** | M-94 §10 |
 
 **素材はそろっている。** 端末の ids はホストの生徒モデルにそのまま入るので、
 **端末の音とホストの音は実機なしで直接比べられる**（M-78）:
@@ -858,7 +872,8 @@ checksum が一致しても、M5.Speaker の DMA の実挙動は別（M-90 §5�
 ⚠️ **聴取が決定を覆す可能性がある。** D-044（438,750 entries）は**「音素の 0.32%」だけで決めた**。
 ⚠️ **聴取者は今のところ 1 名**で、v2↔v3 の差は 7 試行で聴き分けられなかった（C-037）。
 
-**実装として書くものは残っていない。** 1〜5 は「聴く」「決める」「上げ直す」。
+**かなトラック / K トラックに実装として書くものは残っていない。** 1〜5 は「聴く」「決める」。
+⚠️ **6 と 7 は W トラック**（D-050）で、**6 はコードでは解決できない**（GitHub の設定画面）。
 
 ⚠️ **これから板を買うなら N16R8。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
 16 MB なら**かなトラックの構成もそのまま焼ける**（`partitions.csv` は 5.06 MB）。
