@@ -94,7 +94,7 @@ one change cut the instruction count and made GELU twice as slow (C-055). The tr
 | When | What |
 |---|---|
 | 2026-08-30 | The shipping firmware **boots → mmaps the weights → runs G2P → synthesizes → converts to int16**. **PIE is bit-identical to the scalar path across all 27,136 samples** (with a negative control, M-62) |
-| 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.2.0 ships a flash-and-go 16 MB image for it** |
+| 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.3.0 ships a flash-and-go 16 MB image for it** |
 
 **Two independent third-party hardware reports exist** (⚠️ **both predate S1** — 2026-09-01/02,
 before the rework above — and **neither has been reproduced here**). The int8 kernel uses the
@@ -113,8 +113,9 @@ of the MACs.
 
 ⚠️ **This repository's `saan_i2s` path (DevKit direct I2S) remains untested on hardware.**
 The only path that has made sound on a board is M5Unified (`esp32/boards/m5unified/`).
-⚠️ The shipped v0.1.1 / v0.2.0 images predate S1 and take console input on UART0, so
-native-USB-only boards (CoreS3 / AtomS3) boot but cannot be driven; build from source there.
+⚠️ The v0.1.1 / v0.2.0 images predate S1 and take console input on UART0, so
+native-USB-only boards (CoreS3 / AtomS3) boot but cannot be driven. **v0.3.0 fixes this**
+and ships a USB Serial/JTAG build.
 ⚠️ The **0.22× real-time** the official implementation reports on the same chip is still ahead of us.
 
 > 🙏 **More ESP32-S3 measurements are welcome — and above all, what it sounds like to you.**
@@ -226,8 +227,12 @@ held-out lines = 1.93%, M-90). The same rule runs host-side as `classify_route()
 
 | | Flash this | Accepted input | Flash size |
 |---|---|---|---|
-| Kana | `esp32s3-firmware-w8a8-pie.bin` | The kana intermediate form only | 8 MB+ |
-| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` | Kanji text too (⚠️ the v0.2.0 image still needs the `!` prefix) | **16 MB required** |
+| Kana | `esp32s3-firmware-w8a8-pie.bin` / `…-usbjtag.bin` | The kana intermediate form only | 8 MB+ |
+| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` / `…-usbjtag.bin` | Kanji text too | **16 MB required** |
+| **M5 CoreS3** | `m5-cores3-firmware-kanji-16mb.bin` | Same, and it **plays through the built-in speaker** (verified on hardware, M-90) | **16 MB required** |
+
+Each image comes in a UART0 and a USB Serial/JTAG variant; a native-USB-only board needs
+the `-usbjtag` one. ⚠️ **Images before v0.3.0 need the `!` prefix and read UART0.**
 
 ✅ **Both the kana and the kanji path run on hardware** (all on a CoreS3, D-047). The kana
 build gives a full-chunk **xRT 0.494** with zero underruns (M-89); the M5 build with the
@@ -236,9 +241,9 @@ dictionary gives **0.446** (M-90), and `今日は良い天気ですね。` and
 The third-party numbers **predate S1**: AtomS3 **1.718** (n=2, I2S disabled) and CoreS3
 **1.558**, the latter covered by 60% preroll with **zero** gaps
 ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)).
-⚠️ **The v0.1.1 / v0.2.0 images predate S1 and read the console on UART0**, so on a
-native-USB-only board they boot but cannot be driven (M-83). **The speed above and the
-`!`-free classification only exist in a build from source.**
+✅ **v0.3.0 ships the speed above and the `!`-free classification**, and the M5 CoreS3
+image was **verified on hardware** (M-90). ⚠️ **v0.1.1 / v0.2.0 predate S1 and read the
+console on UART0**, so a native-USB-only board boots but cannot be driven (M-83).
 ⚠️ On ESP32-S3, **W8A8 + PIE is now the default** (D-048); pass `-DSAAN_ENABLE_PIE=0` to
 measure W8A32.
 
@@ -258,9 +263,11 @@ measure W8A32.
 > dictionary is pruned, so some readings change.
 > ✅ **Confirmed on a CoreS3 on 2026-09-02** (M-83; checksum identical to QEMU, kanji G2P
 > 27.85–66.30 ms), and **on 2026-09-03 it spoke through the M5 speaker** (M-90; xRT 0.446
-> with W8A8+PIE, no `!` needed). ⚠️ **Still not listened to.**
-> ⚠️ **The v0.2.0 image reads the console on UART0**, so a native-USB-only board cannot be
-> driven; build from source. (See [`esp32/README.md`](esp32/README.md), section 漢字対応ビルド.)
+> with W8A8+PIE, no `!` needed). ✅ **It has been listened to** — the user reported the
+> sound was correct (M-91). ⚠️ **One listener, no control, not blind**, so this says no more
+> than "it is not broken".
+> ⚠️ **Images before v0.3.0 read the console on UART0**, so a native-USB-only board cannot
+> be driven; v0.3.0 fixes this. (See [`esp32/README.md`](esp32/README.md), 漢字対応ビルド.)
 
 ### D. Run the code gates
 
@@ -299,10 +306,9 @@ regenerate labels or retrain; kanji→kana conversion works with the piper-plus 
 | | Why |
 |---|---|
 | **Regenerate labels / retrain** | The teacher checkpoint lives in a private repository |
-| **Say whether it sounds good** | ⚠️ **One listener, one session** (the β decision, M-60). **Nobody has listened to what the board produced**, and nobody at all to the kanji path. **This is the biggest gap right now** |
+| **Say whether it sounds good** | ⚠️ **Every listening session so far was one person with no control** (the β decision, M-60; the kanji path on hardware, M-91). It is confirmed **not broken**, but the 12 pairs in `reports/k8_listen/` (where pruning changes a reading) and the minimal pairs in `reports/d4_accent/` are **still unlistened**. **This is the biggest gap right now** |
 | **Fit a whole utterance into real time** | ⚠️ A full-chunk pull is **0.446** and meets the requirement, but the 38-frame warmup lands in the first pull, so **the whole utterance is 0.54–0.71** (M-88–M-90). Which denominator the requirement means is undecided |
-| **Get the current speed by just flashing a release** | ⚠️ The v0.2.0 firmware predates S1 and reads the console on UART0. The speed above and the `!`-free classification only exist in a build from source |
-| **Feed the released int8 blob to a current core** | ⚠️ `saanotts-jp-v3-int8.bin` is still format **v1**; a core built after S4 rejects it with `SAAN_ERR_VERSION`. Build v2 with `scripts/export_c_weights.py --int8` |
+| **Feed the v0.2.0 int8 blob to a current core** | ⚠️ The v0.2.0 `saanotts-jp-v3-int8.bin` is format **v1**; a core built after S4 rejects it with `SAAN_ERR_VERSION`. **Replace it with the v0.3.0 v2 (654,032 B)** |
 
 ## Architecture
 

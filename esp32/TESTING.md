@@ -61,30 +61,42 @@ M5Stack Core2 / Basic はこちら。
 
 ## A. 焼くだけ（ESP-IDF 不要）
 
-**焼けるイメージは 3 種類あります。**
-**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) に入っています。**
+**焼けるイメージは 6 本あります。**
+**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)（v0.3.0）に入っています。**
 
-⚠️ **配布イメージは v0.2.0（2026-08-31）で、いまのソースより古いコアです。**
-S1〜S5b と T1〜T5（速度の作り直し）が入っておらず、**checksum も速度も下の「期待値」の
-旧値の側になります**。最新のコアを試すには **B か M**（ソースからビルド）を選んでください。
+✅ **v0.3.0 の配布イメージは S1〜S5b / T1〜T5 込みの現行コア**です。下の「期待値」の
+**新しい値**の側になります。⚠️ **v0.2.0 以前を焼いてある板は入れ替えてください**
+（`!` の前置が要り、コンソールが UART0 で、int8 blob も現行コアが拒む v1 です）。
 
-| イメージ | flash | 入力 | 何のため |
+⚠️ **コンソールの口が 2 通りあります。** CoreS3 / AtomS3 のように **USB-シリアル変換を
+持たない板（native USB）は `-usbjtag` の方**を焼いてください。UART0 版を焼くと
+**起動はするのに `かな>` に何を打っても届きません**（M-83 §1 で実際に踏みました）。
+
+| イメージ | flash | 入力 | コンソール |
 |---|---|---|---|
-| **`esp32s3-firmware-w8a8-pie.bin`** | 8 MB 以上 | かな | W8A8 + PIE |
-| `esp32s3-firmware-w8a32.bin` | 8 MB 以上 | かな | 比較用（最適化なし） |
-| `esp32s3-firmware-kanji-16mb.bin` | **16 MB 必須** | **漢字も**（`!` を前置） | 漢字経路 |
+| **`m5-cores3-firmware-kanji-16mb.bin`** | **16 MB 必須** | **漢字も** | USB Serial/JTAG。**内蔵スピーカーで鳴ります**（M-90） |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | **16 MB 必須** | **漢字も** | USB Serial/JTAG |
+| `esp32s3-firmware-kanji-16mb.bin` | **16 MB 必須** | **漢字も** | UART0 |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | 8 MB 以上 | かな | USB Serial/JTAG |
+| **`esp32s3-firmware-w8a8-pie.bin`** | 8 MB 以上 | かな | UART0 |
+| `esp32s3-firmware-w8a32.bin` | 8 MB 以上 | かな | UART0。**PIE の比較対照**（遅い） |
 
-**16 MB のボードなら 3 つとも焼いて比べられます**（漢字版でもかな入力は通ります）。
-8 MB なら上の 2 つです。
+**漢字版でもかな入力は通ります**ので、16 MB の板なら漢字版 1 本で足ります。
+⚠️ **`!` の前置は要りません**（v0.3.0 から端末が経路を自分で判定します）。
+残してあるのは辞書経路を強制する試験用です。
 
 ```bash
 pip install esptool
 
-# 8 MB ボード（かな入力）
+# M5Stack CoreS3 / スタックチャン（⚠️ 先に元のファームを退避してください）
+esptool.py --chip esp32s3 -p <ポート> read_flash 0 0x1000000 backup.bin
+esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 m5-cores3-firmware-kanji-16mb.bin
+
+# 8 MB ボード（かな入力・USB-シリアル変換あり）
 esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-w8a8-pie.bin
 
-# 16 MB ボード（漢字も読める）
-esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-16mb.bin
+# 16 MB ボード（漢字も読める・native USB）
+esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-16mb-usbjtag.bin
 ```
 
 いずれも bootloader + パーティション表 + アプリ + **重み blob**（漢字版はさらに**辞書**）が
@@ -451,8 +463,10 @@ W8A8 + PIE が **0.446**（M-90）。**PIE 無しでは実時間に間に合い�
 
 ⚠️ **N16R8 / CoreS3 など 16 MB flash が要ります。** 8 MB のボードでは辞書 13.7 MB が入りません。
 
-ℹ️ **焼くだけで良いなら [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
-`esp32s3-firmware-kanji-16mb.bin` があります**（⚠️ v0.2.0 の古いコア。`!` の前置が要ります）。
+ℹ️ **焼くだけで良いなら [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) に
+現行コードのイメージがあります**（v0.3.0。`!` の前置は要りません）。
+**M5Stack なら `m5-cores3-firmware-kanji-16mb.bin`**、DevKit なら
+`esp32s3-firmware-kanji-16mb-usbjtag.bin`（native USB）か `…-kanji-16mb.bin`（UART0）です。
 
 ```bash
 # リポジトリのルートで辞書を作る（13,702,320 B。数分かかります）
