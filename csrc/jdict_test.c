@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "k1dict.h"
+#include "jdict.h"
 
 #define MAX_TOK  512
 #define ARENA_N  (2u << 20)
@@ -27,7 +27,7 @@ static uint32_t rd32(const uint8_t *p) {
 }
 
 int main(int argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "k2_vectors.bin";
+    const char *path = (argc > 1) ? argv[1] : "jdict_vectors.bin";
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "NG: ベクタが開けない: %s\n", path); return 1; }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -39,9 +39,9 @@ int main(int argc, char **argv) {
     if (memcmp(buf, "K2V1", 4) != 0) { fprintf(stderr, "NG: magic\n"); return 1; }
     uint32_t n_cases = rd32(buf + 4), blob_n = rd32(buf + 8);
 
-    k1_dict_t d;
-    if (k1_open(&d, buf + 12, blob_n) != 0) {
-        fprintf(stderr, "NG: k1_open が失敗\n"); return 1;
+    jdict_t d;
+    if (jdict_open(&d, buf + 12, blob_n) != 0) {
+        fprintf(stderr, "NG: jdict_open が失敗\n"); return 1;
     }
     printf("辞書: %u entries / %u 見出し語 / matrix %ux%u\n",
            d.n_entries, d.n_surfaces, d.lsize, d.rsize);
@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
     int n_ok = 0, n_ng = 0, n_tok = 0;
     int n_nopath = 0, n_unk_case = 0, n_unk_ok = 0;
     static uint8_t key[8192];
-    static k1_token_t got[MAX_TOK];
+    static jdict_token_t got[MAX_TOK];
     /* 陰性対照用に 2 周する: 0=通常, 1=接続コストを無視 */
     int fails_when_zeroed = 0;
 
@@ -65,13 +65,13 @@ int main(int argc, char **argv) {
             q += 12u * nt;
 
             size_t kn = sizeof key;
-            if (k1_encode_key(&d, text, tn, key, &kn) != 0) { ng++; continue; }
+            if (jdict_encode_key(&d, text, tn, key, &kn) != 0) { ng++; continue; }
             int m = (pass == 0)
-                  ? k1_analyze(&d, key, kn, g_arena, ARENA_N, got, MAX_TOK)
-                  : k1_analyze_nocost(&d, key, kn, g_arena, ARENA_N, got, MAX_TOK);
+                  ? jdict_analyze(&d, key, kn, g_arena, ARENA_N, got, MAX_TOK)
+                  : jdict_analyze_nocost(&d, key, kn, g_arena, ARENA_N, got, MAX_TOK);
             int has_unk = 0;
             for (uint32_t i = 0; i < nt; i++)
-                if (ref[3 * i + 2] & K1_UNKNOWN_FLAG) has_unk = 1;
+                if (ref[3 * i + 2] & JDICT_UNKNOWN_FLAG) has_unk = 1;
             if (pass == 0 && m < 0) n_nopath++;
             /* ⚠️ **分母は先に数える。** 失敗したケースを分母から落とすと
              *    「53/53 通過」なのに実際は 6 件落ちている、という空虚な
@@ -117,10 +117,10 @@ int main(int argc, char **argv) {
             0xE3,0x81,0xA7,0xE3,0x81,0x99, 0xE3,0x80,0x82 };  /* 彁が問題です。 */
         size_t kn2 = sizeof key;
         int gm = -1, n_unknown = 0;
-        if (k1_encode_key(&d, probe, sizeof probe, key, &kn2) == 0)
-            gm = k1_analyze(&d, key, kn2, g_arena, ARENA_N, got, MAX_TOK);
+        if (jdict_encode_key(&d, probe, sizeof probe, key, &kn2) == 0)
+            gm = jdict_analyze(&d, key, kn2, g_arena, ARENA_N, got, MAX_TOK);
         for (int i = 0; i < gm; i++)
-            if (got[i].entry & K1_UNKNOWN_FLAG) n_unknown++;
+            if (got[i].entry & JDICT_UNKNOWN_FLAG) n_unknown++;
         printf("  %s 幽霊漢字を含む文 → %d token / 未知語 %d 件\n",
                (gm > 0 && n_unknown > 0) ? "OK " : "NG ", gm, n_unknown);
         if (!(gm > 0 && n_unknown > 0)) n_ng++;

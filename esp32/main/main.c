@@ -58,7 +58,7 @@ static const char *TAG = "saanotts";
 #include "saan_dict.h"
 #include "saan_kanji.h"
 /* ⚠️ **辞書は flash に mmap したまま使う。** RAM には読まない（12 MB ある）。 */
-static k1_dict_t g_dict;
+static jdict_t g_dict;
 static bool g_dict_ok;
 /* ⚠️ **Viterbi は合成用の g_arena を borrow する。** G2P と合成は同時に
  *    走らないので、別に 192 KB 持つと DRAM が足りない（G19 で実測）。 */
@@ -149,7 +149,7 @@ static bool g_dict_ok;
  *    「関数の値 == 実測 a.used」を陽性対照つきで守る。 */
 
 #if SAAN_KANJI
-/* T10 が arena へ移す予定の .bss（k7_label2ids.c の tok[640][16] 10,240 B + saan_kanji.c の
+/* T10 が arena へ移す予定の .bss（label_ids.c の tok[640][16] 10,240 B + saan_kanji.c の
  * s_lab / s_tok / s_key 4,224 B）。計画 T4 のゲート `SAAN_ARENA_BYTES ≥ saan_kanji_workbytes() + 14,464`。
  * C99 には _Static_assert が無いので配列の typedef で検査する（落ちると「負のサイズの配列」でコンパイルが止まる） */
 /* ⚠️ **0 になった**（K-A / T10(a)）。k7 のトークン表 10,240 B と s_key / s_tok / s_lab 4,224 B は

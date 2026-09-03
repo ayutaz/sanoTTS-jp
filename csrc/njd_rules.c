@@ -1,4 +1,4 @@
-/* K-4b: chaining 前の独自ルール。詳細は k4b_njd.h。
+/* K-4b: chaining 前の独自ルール。詳細は njd_rules.h。
  *
  * `pyopenjtalk-plus 0.4.1.post9` の `openjtalk.pyx:1961`
  * `apply_original_rule_before_chaining()` をそのまま写した。
@@ -8,22 +8,22 @@
  * ⚠️ Python 版は list を in-place で書き換えるので、**後の i は前の i の
  *    書き換えを見る**。連結リストを前から 1 回舐めるのは同じ意味になる。
  *
- * ⚠️ **`k4b_rule_hits` は「発火した回数」であって「効いた回数」ではない。**
+ * ⚠️ **`njd_rules_hits` は「発火した回数」であって「効いた回数」ではない。**
  *    実測で規則 1（分数 フン/プン→ブン）は 620 文中 4 回発火するが、
  *    書いた結果は後段の `njd_set_digit` に**丸ごと上書きされて消える**。
  *    出力を "ズズズ" に変えても G14a は 620 / 620 のまま通った。
- *    覆えているかの判定には `k4b_rule_mask` で抜いて落ちるかを見ること。
+ *    覆えているかの判定には `njd_rules_mask` で抜いて落ちるかを見ること。
  */
-#include "k4b_njd.h"
+#include "njd_rules.h"
 
 #include <string.h>
 
 #define BUF 1024
 
-unsigned k4b_rule_hits[K4B_N_RULES];
-unsigned k4b_rule_mask = ~0u;
+unsigned njd_rules_hits[NJD_RULES_N];
+unsigned njd_rules_mask = ~0u;
 
-const char *const k4b_rule_name[K4B_N_RULES] = {
+const char *const njd_rules_name[NJD_RULES_N] = {
     "不足→ブソク", "分数 フン/プン→ブン", "分数 ブ→ブン", "数+分+の+数→ブン",
     "〇〇→マル", "球→ダマ", "サ変スルを 1 句に", "お/御/ご 接頭",
     "動詞+動詞", "連用形の核を 1 つ戻す", "れる/られる+た", "形容詞+なる/する",
@@ -31,7 +31,7 @@ const char *const k4b_rule_name[K4B_N_RULES] = {
 
 /* 条件が真になった時点で数え、マスクが立っているときだけ本体へ進む。
  * ⚠️ **必ず条件の一番最後に置く**（&& の短絡で、条件が真のときだけ数える）。 */
-#define FIRE(k) (k4b_rule_hits[k]++, (k4b_rule_mask >> (k)) & 1u)
+#define FIRE(k) (njd_rules_hits[k]++, (njd_rules_mask >> (k)) & 1u)
 
 /* ------------------------------------------------------------------ UTF-8 */
 
@@ -99,7 +99,7 @@ static const char *const NARU_SURU[] = { "なる", "する" };
 
 #define N_OF(a) ((int)(sizeof(a) / sizeof(*(a))))
 
-void k4b_before_chaining(NJD *njd) {
+void njd_rules_before_chaining(NJD *njd) {
     NJDNode *prev = NULL, *cur = njd ? njd->head : NULL;
     char buf[BUF];
 

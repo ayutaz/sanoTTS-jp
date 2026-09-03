@@ -22,7 +22,7 @@ sys.path.insert(0, str(HERE.parent.parent / "src"))
 
 from dump_entries_lib import load_entries          # noqa: E402
 from k1_paths import TRAIN                         # noqa: E402
-from saanotts_jp.k1_dict import (CharProperty, ConnMatrix,  # noqa: E402
+from saanotts_jp.jdict import (CharProperty, ConnMatrix,  # noqa: E402
                                  DictBlob, Entry, UnkDict)
 
 import k0_freeze_dict                              # noqa: E402

@@ -1,11 +1,11 @@
-/* K-7: ラベル列 → 生徒インデックス列。詳細は k7_label2ids.h。
+/* K-7: ラベル列 → 生徒インデックス列。詳細は label_ids.h。
  *
  * `piper_plus_g2p/japanese.py` の `_phonemize_core()` /
  * `_apply_n_phoneme_rules()` / `_get_question_type()` をそのまま写した。
  * **規則を「改善」しない** — 目的はホストと同じ列を出すこと。
  */
-#include "k7_label2ids.h"
-#include "k7_table.h"
+#include "label_ids.h"
+#include "token_table.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -19,21 +19,21 @@ static int is_skip(const char *t) {
     return 0;
 }
 
-const int k7_n_tokens = K7_N_TOKENS;
-int k7_debug_drop_rise = 0;
+const int label_ids_n_tokens = LABEL_IDS_N_TOKENS;
+int label_ids_debug_drop_rise = 0;
 
-int32_t k7_token_id(const char *name) {
-    for (int i = 0; i < K7_N_TOKENS; i++)
-        if (strcmp(k7_tokens[i].name, name) == 0) return k7_tokens[i].id;
+int32_t label_ids_token_id(const char *name) {
+    for (int i = 0; i < LABEL_IDS_N_TOKENS; i++)
+        if (strcmp(kSaanTokens[i].name, name) == 0) return kSaanTokens[i].id;
     return -1;
 }
 
-const char *k7_strerror(k7_status s) {
+const char *label_ids_strerror(label_ids_status s) {
     switch (s) {
-    case K7_OK:            return "OK";
-    case K7_ERR_OVERFLOW:  return "ids バッファ不足";
-    case K7_ERR_TOKEN:     return "語彙に無い音素";
-    case K7_ERR_ARG:       return "引数が不正";
+    case LABEL_IDS_OK:            return "OK";
+    case LABEL_IDS_ERR_OVERFLOW:  return "ids バッファ不足";
+    case LABEL_IDS_ERR_TOKEN:     return "語彙に無い音素";
+    case LABEL_IDS_ERR_ARG:       return "引数が不正";
     }
     return "不明なエラー";
 }
@@ -114,10 +114,10 @@ static int label_prosody(const char *lab, int *a1, int *a2, int *a3) {
  *    DRAM が 19,304 B 溢れた**（QEMU ビルドは I2S を gc-sections が落とすので
  *    通っていた）。端末は ids 350 個で拒否する（`SAAN_MAX_IDS`）ので、
  *    トークンは高々 175 個。**640 なら 3 倍以上の余裕がある。**
- * ⚠️ 上限（K7_MAX_TOKENS / K7_TOK_MAX）は **k7_label2ids.h** に移した。
- *    呼び出し側が置き場のバイト数（K7_SCRATCH_BYTES）を知る必要があるため。 */
-#define MAX_TOKENS K7_MAX_TOKENS
-#define TOK_MAX    K7_TOK_MAX
+ * ⚠️ 上限（LABEL_IDS_MAX_TOKENS / LABEL_IDS_TOK_MAX）は **label_ids.h** に移した。
+ *    呼び出し側が置き場のバイト数（LABEL_IDS_SCRATCH_BYTES）を知る必要があるため。 */
+#define MAX_TOKENS LABEL_IDS_MAX_TOKENS
+#define TOK_MAX    LABEL_IDS_TOK_MAX
 
 /* --- トークン表の置き場（T10(a)）--------------------------------------------
  *
@@ -125,13 +125,13 @@ static int label_prosody(const char *lab, int *a1, int *a2, int *a3) {
  * 呼び出し側（esp32/main/saan_kanji.c）が合成 arena の一部を渡す。
  * ⚠️ **どちらでも配列の形と上限は同じ**。変わるのは置き場だけなので、
  *    ホストで測った一致（G25）はそのまま端末にも当てはまる。 */
-#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
+#if defined(LABEL_IDS_EXTERNAL_SCRATCH) && LABEL_IDS_EXTERNAL_SCRATCH
 static char (*s_tok_buf)[TOK_MAX];
 
-void k7_set_scratch(void *buf, size_t nbytes) {
+void label_ids_set_scratch(void *buf, size_t nbytes) {
     /* ⚠️ **足りないバッファは受け取らない。** 受けて切り詰めると
      *    「端末とホストで同じ列」が音としては再生できる形で崩れる。 */
-    s_tok_buf = (buf != NULL && nbytes >= K7_SCRATCH_BYTES)
+    s_tok_buf = (buf != NULL && nbytes >= LABEL_IDS_SCRATCH_BYTES)
               ? (char (*)[TOK_MAX])buf : NULL;
 }
 #else
@@ -139,20 +139,20 @@ static char s_tok_storage[MAX_TOKENS][TOK_MAX];
 static char (*const s_tok_buf)[TOK_MAX] = s_tok_storage;
 #endif
 
-k7_status k7_label2ids(const char *const *labels, int n_labels,
+label_ids_status label_ids_convert(const char *const *labels, int n_labels,
                        const char *text,
                        int32_t *ids, int32_t ids_cap, int32_t *n_ids) {
-    if (!labels || !text || !n_ids || (ids_cap > 0 && !ids)) return K7_ERR_ARG;
-    /* ⚠️ 外部置き場のときに k7_set_scratch() を呼び忘れると**ここで止まる**。
+    if (!labels || !text || !n_ids || (ids_cap > 0 && !ids)) return LABEL_IDS_ERR_ARG;
+    /* ⚠️ 外部置き場のときに label_ids_set_scratch() を呼び忘れると**ここで止まる**。
      *    NULL を書きに行って StoreProhibited で黙って再起動、にはしない。 */
-    if (s_tok_buf == NULL) return K7_ERR_ARG;
+    if (s_tok_buf == NULL) return LABEL_IDS_ERR_ARG;
     char (*tok)[TOK_MAX] = s_tok_buf;
     int nt = 0;
     const char *q = question_type(text);
 
     /* ⚠️ **溢れたら切り詰めずにエラーを返す。** 先頭だけ喋ると
      *    「端末とホストで同じ列」が崩れるのに、音としては再生できてしまう。 */
-#define NEED(k) do { if (nt + (k) > MAX_TOKENS) return K7_ERR_OVERFLOW; } while (0)
+#define NEED(k) do { if (nt + (k) > MAX_TOKENS) return LABEL_IDS_ERR_OVERFLOW; } while (0)
     for (int i = 0; i < n_labels; i++) {
         NEED(4);          /* 音素 1 個 + 記号 3 個が最悪 */
         char ph[TOK_MAX];
@@ -183,7 +183,7 @@ k7_status k7_label2ids(const char *const *labels, int n_labels,
             snprintf(tok[nt++], TOK_MAX, "]");
         if (a2 == a3 && a2n == 1)
             snprintf(tok[nt++], TOK_MAX, "#");
-        if (a2 == 1 && a2n == 2 && !k7_debug_drop_rise)
+        if (a2 == 1 && a2n == 2 && !label_ids_debug_drop_rise)
             snprintf(tok[nt++], TOK_MAX, "[");
     }
 #undef NEED
@@ -214,25 +214,25 @@ k7_status k7_label2ids(const char *const *labels, int n_labels,
     }
 
     /* ids へ。**canonical と同じ PAD 規則**（C-007）。 */
-    int32_t pad = k7_token_id("_");
+    int32_t pad = label_ids_token_id("_");
     int32_t n = 0;
     int overflow = 0;
-    k7_status bad = K7_OK;
+    label_ids_status bad = LABEL_IDS_OK;
 
 #define PUSH(v) do { if (n < ids_cap) ids[n] = (v); else overflow = 1; n++; } while (0)
 
-    PUSH(k7_token_id("^"));
+    PUSH(label_ids_token_id("^"));
     PUSH(pad);
     for (int i = 0; i < nt; i++) {
-        int32_t id = k7_token_id(tok[i]);
-        if (id < 0) { bad = K7_ERR_TOKEN; break; }
+        int32_t id = label_ids_token_id(tok[i]);
+        if (id < 0) { bad = LABEL_IDS_ERR_TOKEN; break; }
         PUSH(id);
         if (id != pad) PUSH(pad);
     }
-    PUSH(k7_token_id("$"));
+    PUSH(label_ids_token_id("$"));
 #undef PUSH
 
     *n_ids = n;
-    if (bad != K7_OK) return bad;
-    return overflow ? K7_ERR_OVERFLOW : K7_OK;
+    if (bad != LABEL_IDS_OK) return bad;
+    return overflow ? LABEL_IDS_ERR_OVERFLOW : LABEL_IDS_OK;
 }

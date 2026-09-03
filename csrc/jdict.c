@@ -1,4 +1,4 @@
-/* K-1 辞書バイナリの読み出しと K-2 の Viterbi。詳細は k1dict.h。
+/* K-1 辞書バイナリの読み出しと K-2 の Viterbi。詳細は jdict.h。
  *
  * ⚠️ 実装で必ず踏む落とし穴（K-1 §9-3 / §9-4。全部実際に踏んだ）:
  *   - 遷移コストの索引は flat[rc_prev + lsize*lc_cur]。
@@ -9,7 +9,7 @@
  *     同じ位置で終わるノードでも rc が違えば後続コストが変わるので、
  *     **ノードごと**に最良の前任を持つ
  */
-#include "k1dict.h"
+#include "jdict.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -50,7 +50,7 @@ static int find_sec(const uint8_t *blob, size_t n, const char *name, struct sec 
     return -1;
 }
 
-int k1_open(k1_dict_t *d, const uint8_t *blob, size_t n) {
+int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
     struct sec s;
     memset(d, 0, sizeof *d);
     if (n < 8 || memcmp(blob, "K1D1", 4) != 0) return -1;
@@ -144,7 +144,7 @@ static uint32_t utf8_cp(const uint8_t *p, uint32_t n) {
          | (uint32_t)((p[2] & 0x3F) << 6) | (uint32_t)(p[3] & 0x3F);
 }
 
-int k1_encode_key(const k1_dict_t *d, const uint8_t *u, size_t n,
+int jdict_encode_key(const jdict_t *d, const uint8_t *u, size_t n,
                   uint8_t *out, size_t *out_n) {
     size_t o = 0, i = 0;
     while (i < n) {
@@ -187,7 +187,7 @@ static uint32_t popcnt8(uint8_t x) {
     return (uint32_t)(t[x & 0xF] + t[x >> 4]);
 }
 
-static uint32_t rank1(const k1_dict_t *d, uint32_t i) {
+static uint32_t rank1(const jdict_t *d, uint32_t i) {
     uint32_t r = rd32(d->rank_sup + 4u * (i / SUPER_BITS));
     r += d->rank_blk[i / BLOCK_BITS];
     uint32_t base = i - (i % BLOCK_BITS);
@@ -197,7 +197,7 @@ static uint32_t rank1(const k1_dict_t *d, uint32_t i) {
     return r;
 }
 
-static uint32_t select0(const k1_dict_t *d, uint32_t k) {
+static uint32_t select0(const jdict_t *d, uint32_t k) {
     uint32_t base = k / SELECT_STEP;
     uint32_t pos = rd32(d->sel0 + 4u * base);
     uint32_t need = k - base * SELECT_STEP;
@@ -207,7 +207,7 @@ static uint32_t select0(const k1_dict_t *d, uint32_t k) {
 }
 
 /* node の子のうちラベルが ch のもの。無ければ -1。 */
-static int32_t child_of(const k1_dict_t *d, uint32_t node, uint8_t ch) {
+static int32_t child_of(const jdict_t *d, uint32_t node, uint8_t ch) {
     uint32_t p = select0(d, node) + 1;
     while (p < d->louds_bitlen && bit_at(d->louds_bits, p)) {
         uint32_t c = rank1(d, p);            /* ⚠️ p より前の 1 の数 */
@@ -218,11 +218,11 @@ static int32_t child_of(const k1_dict_t *d, uint32_t node, uint8_t ch) {
 }
 
 /* 前方宣言。実体は K-6 の節（索引を使う）。 */
-static uint32_t term_rank_fast(const k1_dict_t *d, uint32_t node);
+static uint32_t term_rank_fast(const jdict_t *d, uint32_t node);
 #define term_rank(d, node) term_rank_fast((d), (node))
 
-int k1_common_prefix_search(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-                            size_t start, k1_hit_t *out, int max_out) {
+int jdict_prefix_search(const jdict_t *d, const uint8_t *key, size_t key_n,
+                            size_t start, jdict_hit_t *out, int max_out) {
     int n = 0;
     uint32_t node = 0;
     for (size_t k = start; k < key_n; k++) {
@@ -242,7 +242,7 @@ int k1_common_prefix_search(const k1_dict_t *d, const uint8_t *key, size_t key_n
 
 /* ---------------------------------------------------------------- エントリ */
 
-void k1_entry_range(const k1_dict_t *d, uint32_t rank,
+void jdict_entry_range(const jdict_t *d, uint32_t rank,
                     uint32_t *first, uint32_t *count) {
     uint32_t base = rank / CHECKPOINT;
     uint32_t off = rd32(d->surfck + 4u * base);
@@ -251,7 +251,7 @@ void k1_entry_range(const k1_dict_t *d, uint32_t rank,
     *count = d->counts[rank];
 }
 
-void k1_entry_conn(const k1_dict_t *d, uint32_t entry,
+void jdict_entry_conn(const jdict_t *d, uint32_t entry,
                    uint16_t *lc, uint16_t *rc, int16_t *wcost) {
     const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
     uint16_t cid = rd16(r);
@@ -267,7 +267,7 @@ void k1_entry_conn(const k1_dict_t *d, uint32_t entry,
 static size_t cp_to_utf8(uint32_t cp, char *out);
 static const uint8_t *strtab_at(const uint8_t *tab, uint32_t len, int idx,
                                 uint32_t *out_len);
-static uint32_t key_codepoint(const k1_dict_t *d, const uint8_t *key, size_t p,
+static uint32_t key_codepoint(const jdict_t *d, const uint8_t *key, size_t p,
                               uint32_t *sym_bytes);
 
 #define REC_FLAG_ORIG_EQ_SURFACE 0x01u
@@ -275,7 +275,7 @@ static uint32_t key_codepoint(const k1_dict_t *d, const uint8_t *key, size_t p,
 #define TERM_CHECKPOINT 512u
 
 /* node より前の終端の数。⚠️ **索引が無いと O(n) 走査**（K-6 以前の実装）。 */
-static uint32_t term_rank_fast(const k1_dict_t *d, uint32_t node) {
+static uint32_t term_rank_fast(const jdict_t *d, uint32_t node) {
     if (!d->termck) {
         uint32_t r = 0;
         for (uint32_t i = 0; i < node; i++) r += bit_at(d->term_bits, i);
@@ -289,7 +289,7 @@ static uint32_t term_rank_fast(const k1_dict_t *d, uint32_t node) {
 }
 
 /* 終端 rank のノード番号。無ければ 0xFFFFFFFF。 */
-static uint32_t node_of_term_rank(const k1_dict_t *d, uint32_t rank) {
+static uint32_t node_of_term_rank(const jdict_t *d, uint32_t rank) {
     if (!d->termck) return 0xFFFFFFFFu;
     /* 累積が rank 以下である最後のチェックポイントを二分探索 */
     uint32_t lo = 0, hi = d->n_termck;
@@ -308,7 +308,7 @@ static uint32_t node_of_term_rank(const k1_dict_t *d, uint32_t rank) {
 }
 
 /* node 番目の 1 のビット位置（LOUDS の select1）。 */
-static uint32_t select1(const k1_dict_t *d, uint32_t node) {
+static uint32_t select1(const jdict_t *d, uint32_t node) {
     uint32_t lo = 0, hi = d->louds_bitlen;
     while (lo + 1 < hi) {                    /* rank1(x) <= node の最大 x */
         uint32_t mid = (lo + hi) / 2;
@@ -319,9 +319,9 @@ static uint32_t select1(const k1_dict_t *d, uint32_t node) {
 }
 
 /* ビット位置 i より前の 0 の数。 */
-static uint32_t rank0(const k1_dict_t *d, uint32_t i) { return i - rank1(d, i); }
+static uint32_t rank0(const jdict_t *d, uint32_t i) { return i - rank1(d, i); }
 
-int k1_surface_of_rank(const k1_dict_t *d, uint32_t rank, char *out, size_t out_n) {
+int jdict_surface_of_rank(const jdict_t *d, uint32_t rank, char *out, size_t out_n) {
     uint32_t node = node_of_term_rank(d, rank);
     if (node == 0xFFFFFFFFu) return -1;
     /* 親へ遡って鍵バイトを逆順に集める */
@@ -381,7 +381,7 @@ static size_t cp_to_utf8(uint32_t cp, char *out) {
     return 4;
 }
 
-int k1_key_to_utf8(const k1_dict_t *d, const uint8_t *key, size_t from, size_t to,
+int jdict_key_to_utf8(const jdict_t *d, const uint8_t *key, size_t from, size_t to,
                    char *out, size_t out_n) {
     size_t o = 0;
     for (size_t p = from; p < to; ) {
@@ -397,7 +397,7 @@ int k1_key_to_utf8(const k1_dict_t *d, const uint8_t *key, size_t from, size_t t
 }
 
 /* 値プール中の entry のオフセット。 */
-static uint32_t pool_offset(const k1_dict_t *d, uint32_t entry) {
+static uint32_t pool_offset(const jdict_t *d, uint32_t entry) {
     uint32_t base = entry / CHECKPOINT;
     uint32_t off = d->poolck ? rd32(d->poolck + 4u * base) : 0;
     uint32_t from = d->poolck ? base * CHECKPOINT : 0;
@@ -409,7 +409,7 @@ static uint32_t pool_offset(const k1_dict_t *d, uint32_t entry) {
 }
 
 /* モーラ ID 列 → UTF-8。書いたバイト数を返す。 */
-static size_t mora_decode(const k1_dict_t *d, const uint8_t *p, size_t n,
+static size_t mora_decode(const jdict_t *d, const uint8_t *p, size_t n,
                           char *out, size_t out_n) {
     size_t o = 0;
     for (size_t i = 0; i < n; i++) {
@@ -433,7 +433,7 @@ static size_t put(char *out, size_t o, size_t out_n, const char *s) {
     return o + n;
 }
 
-int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
+int jdict_entry_feature(const jdict_t *d, uint32_t entry,
                      const char *surface, char *out, size_t out_n) {
     if (entry >= d->n_entries) return -1;
     const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
@@ -456,7 +456,7 @@ int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
     } else if (ex[j] == 1) {
         uint32_t sid = (uint32_t)ex[j+1] | ((uint32_t)ex[j+2] << 8)
                      | ((uint32_t)ex[j+3] << 16);
-        if (k1_surface_of_rank(d, sid, orig, sizeof orig) < 0) return -3;
+        if (jdict_surface_of_rank(d, sid, orig, sizeof orig) < 0) return -3;
         j += 4;
     } else {
         uint32_t n = ex[j+1];
@@ -511,7 +511,7 @@ int k1_entry_feature(const k1_dict_t *d, uint32_t entry,
     return (int)o;
 }
 
-int16_t k1_trans(const k1_dict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
+int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
     if (!d->matrix) return 0;
     return d->matrix[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
 }
@@ -520,7 +520,7 @@ int16_t k1_trans(const k1_dict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
 
 #define MAX_GROUPING 24u          /* MeCab の MAX_GROUPING_SIZE */
 
-static uint32_t char_raw(const k1_dict_t *d, uint32_t cp) {
+static uint32_t char_raw(const jdict_t *d, uint32_t cp) {
     if (!d->char_info || cp >= d->n_codepoints) return 0;   /* 表の外は DEFAULT */
     return rd32(d->char_info + 4u * cp);
 }
@@ -544,7 +544,7 @@ static const uint8_t *strtab_at(const uint8_t *tab, uint32_t len, int idx,
 }
 
 /* 鍵バイト列の位置 p にある記号のコードポイントと、記号のバイト長。 */
-static uint32_t key_codepoint(const k1_dict_t *d, const uint8_t *key, size_t p,
+static uint32_t key_codepoint(const jdict_t *d, const uint8_t *key, size_t p,
                               uint32_t *sym_bytes) {
     uint8_t c = key[p];
     if (c == 0xFE) { *sym_bytes = 4;
@@ -561,7 +561,7 @@ static uint32_t key_codepoint(const k1_dict_t *d, const uint8_t *key, size_t p,
 }
 
 /* unk エントリ i の (lc, rc, wcost, カテゴリ名)。 */
-static int unk_at(const k1_dict_t *d, uint32_t i, uint16_t *lc, uint16_t *rc,
+static int unk_at(const jdict_t *d, uint32_t i, uint16_t *lc, uint16_t *rc,
                   int16_t *wcost, const uint8_t **cat, uint32_t *cat_len) {
     const uint8_t *p = d->unk;
     const uint8_t *e = d->unk + d->unk_len;
@@ -580,7 +580,7 @@ static int unk_at(const k1_dict_t *d, uint32_t i, uint16_t *lc, uint16_t *rc,
 }
 
 /* カテゴリ番号 cat の unk エントリを列挙する。 */
-static int unk_of_category(const k1_dict_t *d, uint32_t cat,
+static int unk_of_category(const jdict_t *d, uint32_t cat,
                            uint32_t *out, int max_out) {
     if (!d->unk || !d->char_names || cat >= d->n_char_cats) return 0;
     const uint8_t *want = d->char_names + 32u * cat;
@@ -607,17 +607,17 @@ typedef struct {
 /* nodes[k] の前任を選び、終端リストに繋ぐ。既知語と未知語で共有する。 */
 static int link_node(vnode_t *nodes, int32_t *ends_head, int32_t *next_at_end,
                      uint32_t k, size_t i, int16_t wcost, int use_cost,
-                     const k1_dict_t *d) {
+                     const jdict_t *d) {
     vnode_t *v = &nodes[k];
     if (i == 0) {
-        v->cost = (use_cost ? k1_trans(d, BOS_RC, v->lc) : 0) + wcost;
+        v->cost = (use_cost ? jdict_trans(d, BOS_RC, v->lc) : 0) + wcost;
         v->prev = -1;
     } else {
         int32_t best = COST_INF, bp = -2;
         for (int32_t pk = ends_head[i]; pk >= 0; pk = next_at_end[pk]) {
             if (nodes[pk].cost >= COST_INF) continue;
             int32_t c = nodes[pk].cost
-                      + (use_cost ? k1_trans(d, nodes[pk].rc, v->lc) : 0);
+                      + (use_cost ? jdict_trans(d, nodes[pk].rc, v->lc) : 0);
             /* ⚠️ 同点は辞書順で先勝ち（= ノード番号が小さい方）。K-2 で踏んだ。 */
             if (c < best || (c == best && (bp < 0 || pk < bp))) { best = c; bp = pk; }
         }
@@ -630,8 +630,8 @@ static int link_node(vnode_t *nodes, int32_t *ends_head, int32_t *next_at_end,
     return 1;
 }
 
-static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-                        void *arena, size_t arena_n, k1_token_t *out, int max_out,
+static int analyze_impl(const jdict_t *d, const uint8_t *key, size_t key_n,
+                        void *arena, size_t arena_n, jdict_token_t *out, int max_out,
                         int use_cost) {
     size_t cap = arena_n / (sizeof(vnode_t) + sizeof(int32_t) * 2);
     if (cap < 8) return -1;
@@ -643,12 +643,12 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
     for (size_t i = 0; i <= key_n; i++) ends_head[i] = -1;
 
     uint32_t n = 0;
-    k1_hit_t hits[64];
+    jdict_hit_t hits[64];
     for (size_t i = 0; i <= key_n; i++) {
         /* この位置に到達できるか（BOS または既存ノードの終端） */
         if (i > 0 && ends_head[i] < 0) continue;
         if (i == key_n) continue;
-        int nh = k1_common_prefix_search(d, key, key_n, i, hits, 64);
+        int nh = jdict_prefix_search(d, key, key_n, i, hits, 64);
 
         /* --- 未知語ノード（K-3）--------------------------------------
          * MeCab の規則: 辞書に当たらなかったか、その文字カテゴリが invoke なら
@@ -704,7 +704,7 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
                         vnode_t *v = &nodes[n];
                         v->begin = (uint32_t)i;
                         v->end   = (uint32_t)(i + unk_len_list[z]);
-                        v->entry = K1_UNKNOWN_FLAG | ids[y];
+                        v->entry = JDICT_UNKNOWN_FLAG | ids[y];
                         v->lc = lc; v->rc = rc;
                         v->cost = COST_INF; v->prev = -2;
                         if (link_node(nodes, ends_head, next_at_end, n, i, w, use_cost, d))
@@ -717,11 +717,11 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
 
         for (int h = 0; h < nh; h++) {
             uint32_t first, cnt;
-            k1_entry_range(d, hits[h].rank, &first, &cnt);
+            jdict_entry_range(d, hits[h].rank, &first, &cnt);
             for (uint32_t e = 0; e < cnt; e++) {
                 if (n >= cap) return -1;
                 uint16_t lc, rc; int16_t w;
-                k1_entry_conn(d, first + e, &lc, &rc, &w);
+                jdict_entry_conn(d, first + e, &lc, &rc, &w);
                 vnode_t *v = &nodes[n];
                 v->begin = (uint32_t)i;
                 v->end   = (uint32_t)(i + hits[h].len);
@@ -739,7 +739,7 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
     int32_t best = COST_INF, bk = -2;
     for (int32_t pk = ends_head[key_n]; pk >= 0; pk = next_at_end[pk]) {
         if (nodes[pk].cost >= COST_INF) continue;
-        int32_t c = nodes[pk].cost + (use_cost ? k1_trans(d, nodes[pk].rc, EOS_LC) : 0);
+        int32_t c = nodes[pk].cost + (use_cost ? jdict_trans(d, nodes[pk].rc, EOS_LC) : 0);
         if (c < best || (c == best && (bk < 0 || pk < bk))) { best = c; bk = pk; }
     }
     if (bk == -2) return -1;
@@ -759,10 +759,10 @@ static int analyze_impl(const k1_dict_t *d, const uint8_t *key, size_t key_n,
 
 /* 未知語の feature。⚠️ **8 列しか無い**（読み/発音/acc/結合規則が無い）。
  * これが「未知語は無音で消える」の入口（B-0 / M-73）。 */
-int k1_unk_feature(const k1_dict_t *d, uint32_t entry,
+int jdict_unk_feature(const jdict_t *d, uint32_t entry,
                    const char *surface, char *out, size_t out_n) {
-    if (!(entry & K1_UNKNOWN_FLAG)) return -1;
-    uint32_t i = entry & ~K1_UNKNOWN_FLAG;
+    if (!(entry & JDICT_UNKNOWN_FLAG)) return -1;
+    uint32_t i = entry & ~JDICT_UNKNOWN_FLAG;
     const uint8_t *p = d->unk;
     const uint8_t *e = d->unk + d->unk_len;
     for (uint32_t k = 0; k < d->n_unk; k++) {
@@ -844,10 +844,10 @@ static int field_at(const char *feat, int idx, char *out, size_t out_n) {
     }
 }
 
-int k1_unk_guess(const k1_dict_t *d, uint32_t entry,
+int jdict_unk_guess(const jdict_t *d, uint32_t entry,
                  const char *surface, char *out, size_t out_n) {
     char base[512];
-    if (k1_unk_feature(d, entry, surface, base, sizeof base) < 0) return -1;
+    if (jdict_unk_feature(d, entry, surface, base, sizeof base) < 0) return -1;
 
     char read[512];
     size_t ro = 0;
@@ -873,24 +873,24 @@ int k1_unk_guess(const k1_dict_t *d, uint32_t entry,
             char ch[8];
             memcpy(ch, p, (size_t)l); ch[l] = 0;
             uint8_t key[32]; size_t kn = sizeof key;
-            if (k1_encode_key(d, (const uint8_t *)ch, (size_t)l, key, &kn) != 0)
+            if (jdict_encode_key(d, (const uint8_t *)ch, (size_t)l, key, &kn) != 0)
                 return -3;
-            k1_hit_t hit[8];
-            int nh = k1_common_prefix_search(d, key, kn, 0, hit, 8);
+            jdict_hit_t hit[8];
+            int nh = jdict_prefix_search(d, key, kn, 0, hit, 8);
             int best = -1; int16_t bw = 0;
             for (int i = 0; i < nh; i++) {
                 if (hit[i].len != kn) continue;
                 uint32_t first, cnt;
-                k1_entry_range(d, hit[i].rank, &first, &cnt);
+                jdict_entry_range(d, hit[i].rank, &first, &cnt);
                 for (uint32_t e = 0; e < cnt; e++) {
                     uint16_t lc, rc; int16_t w;
-                    k1_entry_conn(d, first + e, &lc, &rc, &w);
+                    jdict_entry_conn(d, first + e, &lc, &rc, &w);
                     if (best < 0 || w < bw) { best = (int)(first + e); bw = w; }
                 }
             }
             if (best < 0) return -4;
             char f[512], pron[256];
-            if (k1_entry_feature(d, (uint32_t)best, ch, f, sizeof f) < 0) return -5;
+            if (jdict_entry_feature(d, (uint32_t)best, ch, f, sizeof f) < 0) return -5;
             if (field_at(f, 9, pron, sizeof pron) != 0) return -6;
             size_t pn = strlen(pron);
             if (ro + pn >= sizeof read) return -7;
@@ -914,12 +914,12 @@ int k1_unk_guess(const k1_dict_t *d, uint32_t entry,
     return n;
 }
 
-int k1_analyze(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-               void *arena, size_t arena_n, k1_token_t *out, int max_out) {
+int jdict_analyze(const jdict_t *d, const uint8_t *key, size_t key_n,
+               void *arena, size_t arena_n, jdict_token_t *out, int max_out) {
     return analyze_impl(d, key, key_n, arena, arena_n, out, max_out, 1);
 }
 
-int k1_analyze_nocost(const k1_dict_t *d, const uint8_t *key, size_t key_n,
-                      void *arena, size_t arena_n, k1_token_t *out, int max_out) {
+int jdict_analyze_nocost(const jdict_t *d, const uint8_t *key, size_t key_n,
+                      void *arena, size_t arena_n, jdict_token_t *out, int max_out) {
     return analyze_impl(d, key, key_n, arena, arena_n, out, max_out, 0);
 }

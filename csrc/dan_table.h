@@ -1,18 +1,18 @@
 /* 自動生成 — 手で編集しない。
  *
- *   uv run python scripts/gen_k7_dan.py
+ *   uv run python scripts/gen_dan_table.py
  *
  * 出典: pyopenjtalk-plus の `utils._DAN_MAP`。**手で書き写さない**（C-002）。
  * K-4 の `suppress_u_long` が使う唯一の外部資源（かな 76 件）。
  */
-#ifndef SAAN_K7_DAN_H
-#define SAAN_K7_DAN_H
+#ifndef SAAN_DAN_TABLE_H
+#define SAAN_DAN_TABLE_H
 
-#include "k4_accent.h"
+#include "accent.h"
 
 #define K7_N_DAN 76
 
-static const k4_dan_t k7_dan_table[K7_N_DAN] = {
+static const accent_dan_t k7_dan_table[K7_N_DAN] = {
     { "ァ", 'a' },
     { "ア", 'a' },
     { "ィ", 'i' },
@@ -91,4 +91,4 @@ static const k4_dan_t k7_dan_table[K7_N_DAN] = {
     { "ヴ", 'u' },
 };
 
-#endif /* SAAN_K7_DAN_H */
+#endif /* SAAN_DAN_TABLE_H */

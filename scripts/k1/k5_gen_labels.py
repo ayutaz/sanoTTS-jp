@@ -1,15 +1,15 @@
 """K-5: ホストのフルコンテキストラベルを basis として書き出す。
 
-`k5_mem_test` が出す `k5_labels*.txt` と**そのまま `diff` できる形**にする。
+`oj_heap_test` が出す `oj_labels*.txt` と**そのまま `diff` できる形**にする。
 これで「ラベルバッファを詰めても出力が変わらない」を、
 **自分の前後比較ではなくホストとの一致**で言える。
 
-⚠️ **経路は `k5_mem_test` と同じにする** — `make_label(run_njd_from_mecab(...))`。
+⚠️ **経路は `oj_heap_test` と同じにする** — `make_label(run_njd_from_mecab(...))`。
 K-4 の 4 段は通さない（あれは K-6 で繋ぐ）。ここで `run_frontend(t)` を使うと
 経路が 2 本になって、差が「詰めたせい」なのか「経路違い」なのか切り分けられない。
 
-    uv run python scripts/k1/k5_gen_labels.py --vectors csrc/k4b_vectors.bin \\
-        --out csrc/k5_labels_host.txt
+    uv run python scripts/k1/k5_gen_labels.py --vectors csrc/njd_rules_vectors.bin \\
+        --out csrc/oj_labels_host.txt
 """
 from __future__ import annotations
 

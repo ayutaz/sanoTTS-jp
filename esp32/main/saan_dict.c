@@ -60,7 +60,7 @@ static esp_partition_mmap_handle_t s_handle;
 #endif
 static bool s_mapped;
 
-bool saan_dict_open(k1_dict_t *d) {
+bool saan_dict_open(jdict_t *d) {
     const esp_partition_t *part = esp_partition_find_first(
         ESP_PARTITION_TYPE_DATA, SAAN_DICT_PART_SUBTYPE, SAAN_DICT_PART_LABEL);
     if (part == NULL) {
@@ -128,9 +128,9 @@ bool saan_dict_open(k1_dict_t *d) {
         ESP_LOGE(TAG, "辞書が 16 バイト境界に無い (ptr=%p)", ptr);
         return false;
     }
-    int r = k1_open(d, (const uint8_t *)ptr, part->size);
+    int r = jdict_open(d, (const uint8_t *)ptr, part->size);
     if (r != 0) {
-        ESP_LOGE(TAG, "k1_open: %d（辞書 blob を焼いていないか、別物を焼いた）", r);
+        ESP_LOGE(TAG, "jdict_open: %d（辞書 blob を焼いていないか、別物を焼いた）", r);
         return false;
     }
     ESP_LOGI(TAG, "辞書 OK: 見出し語 %" PRIu32 " / エントリ %" PRIu32
