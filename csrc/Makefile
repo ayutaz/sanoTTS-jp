@@ -254,6 +254,7 @@ erf: erf_test erf_test_linear erf_test_clamp
 # T3（S6）: TOKEN 4 / step（= 9 群 × 8 トークン ÷ 18 step。各トークンを 1 回だけ計算）/ MAC ≤ 4,200,628
 # （実測。T2 の 4,619,188 から −418,560 = TOKEN の 764,160 → 345,600）。T3 前のコアは TOKEN 22 / step で落ちる
 # （同じく HEAD~ のコアで NG を確認）。⚠️ MAC の上限は実測値そのものなので、増える変更は必ずここで止まる
+.PHONY: prof
 prof: prof_test student_i8.bin
 	./prof_test student_i8.bin --reps 20 --expect-no-lookup
 	@./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 \

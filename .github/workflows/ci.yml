@@ -27,6 +27,11 @@ jobs:
       - uses: astral-sh/setup-uv@v5
         with: { enable-cache: true }
 
+      - name: ゲートが CI で回るか、回らないなら理由が書いてあるか（陽性対照つき）
+        run: |
+          uv run --no-project --python 3.12 python scripts/check_ci_coverage.py
+          uv run --no-project --python 3.12 python scripts/check_ci_coverage.py --self-test
+
       - name: 索引の M/D/C 番号・引用アンカー・件数
         run: uv run --no-project --python 3.12 python scripts/check_doc_counters.py
 
@@ -42,9 +47,48 @@ jobs:
       - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 
+  # ------------------------------------------------- 参照実装との一致（重みを落とす）
+  # リリースの **fp32** 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）で
+  # ゴールデンテストと arena ストレスを回す。**C コアの数値が参照実装と合うか**を PR ごとに見る。
+  #
+  # ⚠️ **int8 レーンは入れられない。** リリースの `saanotts-jp-v3-int8.bin` は **blob v1** で、
+  #    S4 以降のコアが `SAAN_ERR_VERSION` で拒む。v2 を配ったらここに足すこと。
+  # ⚠️ **held-out 24 文の多文 G2 も入れられない。** `ids_heldout.bin` はコーパス由来で
+  #    git にもリリースにも無い（`scripts/check_ci_coverage.py` の EXCLUDED_TARGETS に理由がある）。
+  golden:
+    name: 参照実装との一致（fp32・重みはリリースから）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: 重みと参照出力を落とす
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download -R ${{ github.repository }} \
+            --pattern 'saanotts-jp-v3-fp32.bin' --pattern 'golden-v3-fp32.bin' \
+            --dir csrc --clobber
+          mv csrc/saanotts-jp-v3-fp32.bin csrc/student.bin
+          mv csrc/golden-v3-fp32.bin      csrc/golden.bin
+          ls -l csrc/student.bin csrc/golden.bin
+      - name: ゴールデンテスト（参照実装との一致）
+        run: make -C csrc test
+      - name: arena ストレス（黙った確保失敗の検出）
+        run: make -C csrc arena
+      # ⚠️ **陽性対照。** 重みを壊した blob でゲートが**落ちる**ことを見る。
+      #    これが無いと「通った」が何も測っていないことを意味しうる（C-056 で実際に踏んだ:
+      #    NaN が Pearson 1.0 / SNR inf に化けて PASS していた）。
+      - name: 陽性対照（重みを壊すとゴールデンテストが落ちる）
+        run: |
+          cp csrc/student.bin csrc/broken.bin
+          printf '\x7f\x7f\x7f\x7f' | dd of=csrc/broken.bin bs=1 seek=1200000 conv=notrunc
+          if (cd csrc && ./golden_test broken.bin golden.bin); then
+            echo "NG! 壊した重みでゴールデンテストが通った（ゲートが空虚）"; exit 1
+          fi
+          echo "OK  壊した重みでは落ちる"
+
   # ------------------------------------------------------------------- C99 コア
-  # ⚠️ **重みが要るもの（golden / stream / int8 / arena）は入れられない。**
-  #    `csrc/*.bin` は git 管理外で、リリースから落とさないと存在しない。
+  # ⚠️ **重みが要るもの（int8 / stream の多文レーン）はここには入れられない。**
+  #    `csrc/*.bin` は git 管理外。fp32 で回せるものは上の `golden` job が見ている。
   csrc:
     name: csrc（重み不要のゲート）
     runs-on: ubuntu-latest
