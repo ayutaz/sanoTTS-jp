@@ -2,7 +2,7 @@
 
 `csrc/` の作法にならい、**自己完結したバイナリ**にして C 側が読む。
 
-出力（既定 `csrc/k2_vectors.bin`）:
+出力（既定 `csrc/jdict_vectors.bin`）:
 
     magic "K2V1" u32 / n_cases u32 / blob_bytes u32
     <辞書 blob（K-1 の形式。matrix セクション込み）>
@@ -33,7 +33,7 @@ sys.path.insert(0, str(HERE.parent.parent / "src"))
 
 from dump_entries_lib import load_entries                       # noqa: E402
 from k1_paths import HELDOUT, TRAIN                             # noqa: E402
-from saanotts_jp.k1_dict import (CharProperty, ConnMatrix, DictBlob,  # noqa: E402
+from saanotts_jp.jdict import (CharProperty, ConnMatrix, DictBlob,  # noqa: E402
                                  Entry, UnkDict)
 
 
@@ -44,7 +44,7 @@ def main() -> int:
     ap.add_argument("--entries", type=int, default=120_000,
                     help="ベクタ用は小さめで良い（C の正しさを見るのが目的）")
     ap.add_argument("--cases", type=int, default=300)
-    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/k2_vectors.bin"))
+    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/jdict_vectors.bin"))
     a = ap.parse_args()
 
     import k0_freeze_dict

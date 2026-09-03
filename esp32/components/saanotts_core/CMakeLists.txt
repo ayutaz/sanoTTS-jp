@@ -36,27 +36,27 @@ endif()
 #
 # --- T10(b): 取り込んだ Open JTalk の一時ヒープを PSRAM に向ける -------------
 #
-# ⚠️ **ソースは 1 バイトも変えない。** `-include saan_oj_alloc.h` を
+# ⚠️ **ソースは 1 バイトも変えない。** `-include oj_heap_psram.h` を
 #    `csrc/openjtalk/*.c` **だけ**に当てて calloc/strdup/free を差し替える
-#    （K-5 の `-include k5_alloc.h` と同じ手口。`k4b_vendor.py --check` は通る）。
-# ⚠️ **実装ファイル `saan_oj_alloc.c` には当てない**（当てると無限再帰）。
-# ⚠️ **k7_label2ids.c にも当てない** — あれは malloc を 1 つも使わない。
+#    （K-5 の `-include oj_heap_probe.h` と同じ手口。`k4b_vendor.py --check` は通る）。
+# ⚠️ **実装ファイル `oj_heap_psram.c` には当てない**（当てると無限再帰）。
+# ⚠️ **label_ids.c にも当てない** — あれは malloc を 1 つも使わない。
 #
 #     idf.py -DSAAN_OJ_PSRAM=0 ...    ← 陽性対照（内部 DRAM が減るのを見る）
 set(SAAN_K_SRCS "")
 if(SAAN_KANJI)
     file(GLOB SAAN_OJT "${SAAN_CSRC}/openjtalk/*.c")
     set(SAAN_K_SRCS
-        "${SAAN_CSRC}/k1dict.c"
-        "${SAAN_CSRC}/k4_accent.c"
-        "${SAAN_CSRC}/k4b_njd.c"
-        "${SAAN_CSRC}/k7_label2ids.c"
+        "${SAAN_CSRC}/jdict.c"
+        "${SAAN_CSRC}/accent.c"
+        "${SAAN_CSRC}/njd_rules.c"
+        "${SAAN_CSRC}/label_ids.c"
         ${SAAN_OJT})
     if(NOT DEFINED SAAN_OJ_PSRAM)
         set(SAAN_OJ_PSRAM 1)
     endif()
     if(SAAN_OJ_PSRAM)
-        list(APPEND SAAN_K_SRCS "${CMAKE_CURRENT_LIST_DIR}/saan_oj_alloc.c")
+        list(APPEND SAAN_K_SRCS "${CMAKE_CURRENT_LIST_DIR}/oj_heap_psram.c")
     endif()
 endif()
 
@@ -76,22 +76,22 @@ if(SAAN_KANJI)
     target_compile_definitions(${COMPONENT_LIB} PUBLIC CHARSET_UTF_8 SAAN_KANJI=1)
     message(STATUS "sanoTTS: **漢字対応を有効**（辞書 13.7 MB のパーティションが要る）")
 
-    # ⚠️ **絶対パスで当てる。** `-include saan_oj_alloc.h` だとヘッダ探索順に
+    # ⚠️ **絶対パスで当てる。** `-include oj_heap_psram.h` だとヘッダ探索順に
     #    依存して、見つからなくても **警告なしで素の calloc のまま**になる
     #    （= 効いていないのに気づけない）。
     if(SAAN_OJ_PSRAM)
         set_source_files_properties(${SAAN_OJT} PROPERTIES
-            COMPILE_OPTIONS "-include;${SAAN_CSRC}/saan_oj_alloc.h")
+            COMPILE_OPTIONS "-include;${SAAN_CSRC}/oj_heap_psram.h")
         message(STATUS "sanoTTS: Open JTalk の一時ヒープを **PSRAM 優先**に"
-                       "（-include saan_oj_alloc.h）。陽性対照は -DSAAN_OJ_PSRAM=0")
+                       "（-include oj_heap_psram.h）。陽性対照は -DSAAN_OJ_PSRAM=0")
     else()
         message(STATUS "sanoTTS: Open JTalk の一時ヒープは素の calloc（**陽性対照**）")
     endif()
 
     # K-7 のトークン表を .bss ではなく合成 arena から借りる（T10(a)）。
-    # ⚠️ **saan_kanji.c が k7_set_scratch() を必ず呼ぶ前提**。呼ばずに
-    #    k7_label2ids() を叩くと K7_ERR_ARG で**止まる**（黙って動かない）。
-    target_compile_definitions(${COMPONENT_LIB} PUBLIC K7_EXTERNAL_SCRATCH=1)
+    # ⚠️ **saan_kanji.c が label_ids_set_scratch() を必ず呼ぶ前提**。呼ばずに
+    #    label_ids_convert() を叩くと LABEL_IDS_ERR_ARG で**止まる**（黙って動かない）。
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC LABEL_IDS_EXTERNAL_SCRATCH=1)
 endif()
 
 # ℹ️ **かつて「-std=c99 を足すな」と書いていたが、もう地雷ではない。**

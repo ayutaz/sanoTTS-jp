@@ -1,20 +1,20 @@
 /* 自動生成 — 手で編集しない。
  *
- *   uv run python scripts/gen_k7_table.py
+ *   uv run python scripts/gen_token_table.py
  *
  * 出典: src/saanotts_jp/vocab.py の TOKENS。**手で書き写さない**（C-002）。
  * ⚠️ 語彙が変わったら再生成すること。`make -C csrc k7` が SHA-256 で検出する。
  */
-#ifndef SAAN_K7_TABLE_H
-#define SAAN_K7_TABLE_H
+#ifndef SAAN_TOKEN_TABLE_H
+#define SAAN_TOKEN_TABLE_H
 
 #include <stdint.h>
 
-#define K7_N_TOKENS 57
+#define LABEL_IDS_N_TOKENS 57
 
-typedef struct { const char *name; int32_t id; } k7_token_t;
+typedef struct { const char *name; int32_t id; } saan_token_t;
 
-static const k7_token_t k7_tokens[K7_N_TOKENS] = {
+static const saan_token_t kSaanTokens[LABEL_IDS_N_TOKENS] = {
     { "_", 0 },
     { "^", 1 },
     { "$", 2 },
@@ -75,8 +75,8 @@ static const k7_token_t k7_tokens[K7_N_TOKENS] = {
 };
 
 /* "\n" で連結した TOKENS の SHA-256。ホスト側とずれたら再生成し忘れ。 */
-static const uint8_t k7_tokens_sha256[32] = {
+static const uint8_t kSaanTokensSha256[32] = {
     0xac, 0x6a, 0xc3, 0xef, 0x2c, 0x85, 0x93, 0x22, 0xc9, 0x87, 0x23, 0x27, 0xfe, 0x1c, 0x3c, 0x90, 0x1f, 0xe9, 0xd1, 0xd0, 0x21, 0xc9, 0x73, 0xe3, 0x2d, 0xd8, 0xc0, 0x2d, 0xc0, 0xed, 0x29, 0xbc
 };
 
-#endif /* SAAN_K7_TABLE_H */
+#endif /* SAAN_TOKEN_TABLE_H */

@@ -1,6 +1,6 @@
 /* T10(b): 取り込んだ Open JTalk の一時ヒープを PSRAM に向ける（ESP32 側の実装）。
  *
- * ⚠️ **このファイルには `-include saan_oj_alloc.h` を当てない。**
+ * ⚠️ **このファイルには `-include oj_heap_psram.h` を当てない。**
  *    当てると calloc/free がここでも置き換わって無限再帰になる。
  *    当てるのは `csrc/openjtalk の .c 全部` だけ（component の CMakeLists で
  *    set_source_files_properties していて、このファイルは対象外）。

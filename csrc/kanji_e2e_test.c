@@ -2,12 +2,12 @@
  *
  * 端末の全段を 1 本に繋いでホストと比べる:
  *
- *   漢字文 → k1_encode_key → k1_analyze（K-2/K-3）
- *          → k1_entry_feature → mecab2njd
- *          → njd_set_pronunciation → k4b_before_chaining → njd_set_digit
+ *   漢字文 → jdict_encode_key → jdict_analyze（K-2/K-3）
+ *          → jdict_entry_feature → mecab2njd
+ *          → njd_set_pronunciation → njd_rules_before_chaining → njd_set_digit
  *          → njd_set_accent_phrase → njd_set_accent_type
  *          → njd_set_unvoiced_vowel → njd_set_long_vowel        （K-4b）
- *          → k4_apply（K-4 の 4 段）
+ *          → accent_apply（K-4 の 4 段）
  *          → njd2jpcommon → JPCommon_make_label
  *
  * G17   ホストの**端末に載る段だけ**の結果と、フルコンテキストラベルが一致する
@@ -22,9 +22,9 @@
 #include <stdlib.h>
 #include <string.h>
 
-#include "k1dict.h"
-#include "k4_accent.h"
-#include "k4b_njd.h"
+#include "jdict.h"
+#include "accent.h"
+#include "njd_rules.h"
 #include "openjtalk/njd.h"
 #include "openjtalk/jpcommon.h"
 #include "openjtalk/mecab2njd.h"
@@ -67,16 +67,16 @@ static int field_of(const char *feat, int idx, char *out, size_t out_n) {
     }
 }
 
-/* NJD ↔ k4_node_t の橋渡し。K-4 は NJD を知らない構造体で書いてある。 */
-static int njd_to_k4(NJD *njd, k4_node_t *out, int max_out) {
+/* NJD ↔ accent_node_t の橋渡し。K-4 は NJD を知らない構造体で書いてある。 */
+static int njd_to_k4(NJD *njd, accent_node_t *out, int max_out) {
     int n = 0;
     for (NJDNode *p = njd->head; p && n < max_out; p = p->next, n++) {
-        snprintf(out[n].pos,   K4_STR_MAX,  "%s", NJDNode_get_pos(p));
-        snprintf(out[n].ctype, K4_STR_MAX,  "%s", NJDNode_get_ctype(p));
-        snprintf(out[n].cform, K4_STR_MAX,  "%s", NJDNode_get_cform(p));
-        snprintf(out[n].orig,  K4_STR_MAX,  "%s", NJDNode_get_orig(p));
-        snprintf(out[n].pron,  K4_PRON_MAX, "%s", NJDNode_get_pron(p));
-        snprintf(out[n].read,  K4_PRON_MAX, "%s", NJDNode_get_read(p));
+        snprintf(out[n].pos,   ACCENT_STR_MAX,  "%s", NJDNode_get_pos(p));
+        snprintf(out[n].ctype, ACCENT_STR_MAX,  "%s", NJDNode_get_ctype(p));
+        snprintf(out[n].cform, ACCENT_STR_MAX,  "%s", NJDNode_get_cform(p));
+        snprintf(out[n].orig,  ACCENT_STR_MAX,  "%s", NJDNode_get_orig(p));
+        snprintf(out[n].pron,  ACCENT_PRON_MAX, "%s", NJDNode_get_pron(p));
+        snprintf(out[n].read,  ACCENT_PRON_MAX, "%s", NJDNode_get_read(p));
         out[n].acc        = NJDNode_get_acc(p);
         out[n].mora_size  = NJDNode_get_mora_size(p);
         out[n].chain_flag = NJDNode_get_chain_flag(p);
@@ -84,7 +84,7 @@ static int njd_to_k4(NJD *njd, k4_node_t *out, int max_out) {
     return n;
 }
 
-static void k4_to_njd(NJD *njd, const k4_node_t *in, int n) {
+static void k4_to_njd(NJD *njd, const accent_node_t *in, int n) {
     int i = 0;
     for (NJDNode *p = njd->head; p && i < n; p = p->next, i++) {
         NJDNode_set_pron(p, in[i].pron);
@@ -94,7 +94,7 @@ static void k4_to_njd(NJD *njd, const k4_node_t *in, int n) {
 }
 
 int main(int argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "k6_vectors.bin";
+    const char *path = (argc > 1) ? argv[1] : "kanji_e2e_vectors.bin";
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "NG: ベクタが開けない: %s\n", path); return 1; }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -106,7 +106,7 @@ int main(int argc, char **argv) {
     uint32_t n_cases = rd32();
 
     /* _DAN_MAP（K-4 の suppress_u が使う唯一の外部資源。かな 76 件） */
-    static k4_dan_t dan[256];
+    static accent_dan_t dan[256];
     static char dan_kana[256][8];
     uint32_t n_dan_u = rd32();
     int n_dan = (int)(n_dan_u < 256 ? n_dan_u : 256);
@@ -124,14 +124,14 @@ int main(int argc, char **argv) {
     uint32_t blob_len = rd32();
     const uint8_t *blob = g; g += blob_len;
 
-    k1_dict_t d;
-    if (k1_open(&d, blob, blob_len) != 0) { fprintf(stderr, "NG: k1_open\n"); return 1; }
+    jdict_t d;
+    if (jdict_open(&d, blob, blob_len) != 0) { fprintf(stderr, "NG: jdict_open\n"); return 1; }
 
     void *arena = malloc(ARENA_N);
     static char text[4096], key[8192], feat_buf[MAX_TOK][512];
     static char *feat[MAX_TOK];
-    static k1_token_t tok[MAX_TOK];
-    static k4_node_t k4n[MAX_TOK];
+    static jdict_token_t tok[MAX_TOK];
+    static accent_node_t k4n[MAX_TOK];
 
     int ok_dev = 0, ng_dev = 0, ok_full = 0, err = 0;
     int n_len_diff = 0, n_tok_fail = 0, n_unk_sent = 0;
@@ -180,24 +180,24 @@ int main(int argc, char **argv) {
 
         /* --- 端末側を走らせる ------------------------------------------- */
         size_t key_n = sizeof key;
-        if (k1_encode_key(&d, (const uint8_t *)text, strlen(text),
+        if (jdict_encode_key(&d, (const uint8_t *)text, strlen(text),
                           (uint8_t *)key, &key_n) != 0) { if (pass == 0) err++; continue; }
-        int nt = k1_analyze(&d, (const uint8_t *)key, key_n,
+        int nt = jdict_analyze(&d, (const uint8_t *)key, key_n,
                             arena, ARENA_N, tok, MAX_TOK);
         if (nt <= 0) { if (pass == 0) { n_tok_fail++; ng_dev++; } continue; }
 
         int nf = 0, has_unk = 0, bad = 0;
         for (int i = 0; i < nt && nf < MAX_TOK; i++) {
             char surf[256];
-            if (k1_key_to_utf8(&d, (const uint8_t *)key, tok[i].begin, tok[i].end,
+            if (jdict_key_to_utf8(&d, (const uint8_t *)key, tok[i].begin, tok[i].end,
                                surf, sizeof surf) < 0) { bad = 1; break; }
             int r;
-            if (tok[i].entry & K1_UNKNOWN_FLAG) {
+            if (tok[i].entry & JDICT_UNKNOWN_FLAG) {
                 has_unk = 1;
                 n_unk_tok_pass++;
                 r = -1;
                 if (fallback) {
-                    r = k1_unk_guess(&d, tok[i].entry, surf,
+                    r = jdict_unk_guess(&d, tok[i].entry, surf,
                                      feat_buf[nf], sizeof feat_buf[0]);
                     if (r >= 0) {
                         n_guessed_pass++;
@@ -226,11 +226,11 @@ int main(int argc, char **argv) {
                         printf("  推測できず（%d）: %s\n", r, surf);
                         shown_unk++;
                     }
-                    r = k1_unk_feature(&d, tok[i].entry, surf,
+                    r = jdict_unk_feature(&d, tok[i].entry, surf,
                                        feat_buf[nf], sizeof feat_buf[0]);
                 }
             } else {
-                r = k1_entry_feature(&d, tok[i].entry, surf,
+                r = jdict_entry_feature(&d, tok[i].entry, surf,
                                      feat_buf[nf], sizeof feat_buf[0]);
             }
             if (r < 0) { bad = 1; break; }
@@ -270,14 +270,14 @@ int main(int argc, char **argv) {
         NJD_initialize(&njd); JPCommon_initialize(&jp);
         mecab2njd(&njd, feat, nf);
         njd_set_pronunciation(&njd);
-        k4b_before_chaining(&njd);
+        njd_rules_before_chaining(&njd);
         njd_set_digit(&njd);
         njd_set_accent_phrase(&njd);
         njd_set_accent_type(&njd);
         njd_set_unvoiced_vowel(&njd);
         njd_set_long_vowel(&njd);
         int nk = njd_to_k4(&njd, k4n, MAX_TOK);
-        k4_apply(k4n, nk, no_k4 ? 0u : K4_ALL, dan, n_dan);
+        accent_apply(k4n, nk, no_k4 ? 0u : ACCENT_ALL, dan, n_dan);
         k4_to_njd(&njd, k4n, nk);
         njd2jpcommon(&jp, &njd);
         JPCommon_make_label(&jp);

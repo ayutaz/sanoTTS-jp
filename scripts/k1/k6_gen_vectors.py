@@ -17,7 +17,7 @@
 ⚠️ **辞書は枝刈りしたものを使う。** ホストはフル辞書（789,388 entries）なので、
 枝刈りで落ちた語の分は必ず食い違う。それが D-043 で許容した 0.60% の正体。
 
-出力（既定 `csrc/k6_vectors.bin`）:
+出力（既定 `csrc/kanji_e2e_vectors.bin`）:
 
     magic "K6V2" u32 / n_cases u32
     _DAN_MAP: n u32 →（かな 1 文字 UTF-8 / 母音 1 B）× n
@@ -46,8 +46,8 @@ sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent.parent / "src"))
 
 from dump_entries_lib import load_entries                       # noqa: E402
-from k1_paths import HELDOUT, TRAIN                             # noqa: E402
-from saanotts_jp.k1_dict import (CharProperty, ConnMatrix, DictBlob,  # noqa: E402
+from k1_paths import HELDOUT, TARGET_ENTRIES, TRAIN  # noqa: E402
+from saanotts_jp.jdict import (CharProperty, ConnMatrix, DictBlob,  # noqa: E402
                                  Entry, UnkDict)
 
 
@@ -58,9 +58,13 @@ def _s(x: str) -> bytes:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--entries", type=int, default=370_863)   # D-042
-    ap.add_argument("--cases", type=int, default=2000)
-    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/k6_vectors.bin"))
+    # ⚠️ **既定は凍結した動作点**（k1_paths.TARGET_ENTRIES = D-044 の 438,750）。
+    #    かつて既定が D-042 の 370,863 のままで、ベクタを作り直すと**別の動作点**を測った
+    #    （「音素の 1.44%」が出る。凍結物での正しい値は 0.32% = M-77）。
+    #    委託してある csrc/kanji_e2e_vectors.bin は 298 ケース / 438,750 entries。
+    ap.add_argument("--entries", type=int, default=TARGET_ENTRIES)
+    ap.add_argument("--cases", type=int, default=300)
+    ap.add_argument("--out", default=str(HERE.parent.parent / "csrc/kanji_e2e_vectors.bin"))
     ap.add_argument("--skip-verify-dict", action="store_true")
     ap.add_argument("--matrix-int8", choices=["sym", "affine"], default=None,
                     help="接続行列を 1 B に丸める（判断 D の材料。M-72）。"

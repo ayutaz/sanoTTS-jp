@@ -276,35 +276,35 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range
 
 clean:
-	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
+	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress jdict_test accent_test \
 	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
-	      g2p_test line_test route_tool k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
-	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
-	rm -rf k5_ctrl
+	      g2p_test line_test route_tool njd_rules_test njd_rules_stderr.log oj_heap_test oj_heap_stderr.log kanji_e2e_test kanji_e2e_stderr.log label_ids_test label_ids_stderr.log \
+	      oj_labels*.txt oj_heap_ctrl oj_worst.bin *.o openjtalk/*.o
+	rm -rf oj_heap_ctrl_src
 
 
 # ---------------------------------------------------------------- K-2
 # 辞書リーダ + Viterbi。参照は MeCab そのもの（未知語を含む文は除く = K-3）。
 # ベクタは大きい（blob 込みで数 MB）ので **生成物**。リポジトリには入れない。
-k2_vectors.bin:
+jdict_vectors.bin:
 	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --out $@
 
-k2_test: k2_test.c k1dict.c k1dict.h
-	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ k2_test.c k1dict.c $(LDLIBS)
+jdict_test: jdict_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ jdict_test.c jdict.c $(LDLIBS)
 
-.PHONY: k2
-k2: k2_test k2_vectors.bin
-	./k2_test k2_vectors.bin
+.PHONY: jdict
+jdict: jdict_test jdict_vectors.bin
+	./jdict_test jdict_vectors.bin
 
-k4_vectors.bin:
+accent_vectors.bin:
 	$(PYTHON) ../scripts/k1/k4_gen_vectors.py --out $@
 
-k4_test: k4_test.c k4_accent.c k4_accent.h
-	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ k4_test.c k4_accent.c $(LDLIBS)
+accent_test: accent_test.c accent.c accent.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ accent_test.c accent.c $(LDLIBS)
 
-.PHONY: k4
-k4: k4_test k4_vectors.bin
-	./k4_test k4_vectors.bin
+.PHONY: accent
+accent: accent_test accent_vectors.bin
+	./accent_test accent_vectors.bin
 
 # ---------------------------------------------------------------- K-4b
 # NJD チェーン（mecab2njd + 取り込んだ Open JTalk + chaining 前の独自ルール）。
@@ -314,85 +314,85 @@ k4: k4_test k4_vectors.bin
 # ⚠️ **k2 / k4 と同じく all-test には入れない**（ベクタ生成に pyopenjtalk が要る）。
 OJT_SRC := $(wildcard openjtalk/*.c)
 
-k4b_vectors.bin:
+njd_rules_vectors.bin:
 	$(PYTHON) ../scripts/k1/k4b_gen_vectors.py --out $@
 
-k4b_test: k4b_test.c k4b_njd.c k4b_njd.h $(OJT_SRC)
+njd_rules_test: njd_rules_test.c njd_rules.c njd_rules.h $(OJT_SRC)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
-	    -o $@ k4b_test.c k4b_njd.c $(OJT_SRC) $(LDLIBS)
+	    -o $@ njd_rules_test.c njd_rules.c $(OJT_SRC) $(LDLIBS)
 
-.PHONY: k4b
+.PHONY: njd-rules
 # ⚠️ stderr を別ファイルに逃がす。**本番の 1 周では警告は 0 件**（ホストと一致）。
 #    出るのは陰性対照の周回だけ（段を抜いた状態で njd_set_unvoiced_vowel を
-#    通すため）。本番だけ回すなら `./k4b_test k4b_vectors.bin --solo`。
-k4b: k4b_test k4b_vectors.bin
-	@./k4b_test k4b_vectors.bin 2>k4b_stderr.log; rc=$$?; \
-	 [ $$rc -eq 0 ] || { echo "--- stderr ---"; cat k4b_stderr.log; exit 1; }
+#    通すため）。本番だけ回すなら `./njd_rules_test njd_rules_vectors.bin --solo`。
+njd-rules: njd_rules_test njd_rules_vectors.bin
+	@./njd_rules_test njd_rules_vectors.bin 2>njd_rules_stderr.log; rc=$$?; \
+	 [ $$rc -eq 0 ] || { echo "--- stderr ---"; cat njd_rules_stderr.log; exit 1; }
 
 # ---------------------------------------------------------------- K-5
 # 1 文あたりのピーク RAM。**取り込んだ C は改変しない** —
-# ヒープは `-include k5_alloc.h` のマクロ差し替え、スタックは自前スタックの
+# ヒープは `-include oj_heap_probe.h` のマクロ差し替え、スタックは自前スタックの
 # 塗り潰しで測る。
 # ⚠️ **MAXBUFLEN は 2 か所に書かない。** 取り込んだソースから読む
 #    （ここに 1024 と直書きすると、詰めた後に必ずずれる = C-042 の形）。
-K5_MAXBUFLEN := $(shell awk '/define MAXBUFLEN/{print $$3; exit}' openjtalk/jpcommon_label.c)
+OJ_MAXBUFLEN := $(shell awk '/define MAXBUFLEN/{print $$3; exit}' openjtalk/jpcommon_label.c)
 
-k5_mem_test: k5_mem_test.c k5_alloc.c k5_alloc.h k4b_njd.c k4b_njd.h $(OJT_SRC)
+oj_heap_test: oj_heap_test.c oj_heap_probe.c oj_heap_probe.h njd_rules.c njd_rules.h $(OJT_SRC)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
-	    -DK5_MAXBUFLEN=$(K5_MAXBUFLEN) -c k5_mem_test.c -o k5_mem_test.o
+	    -DOJ_MAXBUFLEN=$(OJ_MAXBUFLEN) -c oj_heap_test.c -o oj_heap_test.o
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
-	    -c k5_alloc.c -o k5_alloc.o
+	    -c oj_heap_probe.c -o oj_heap_probe.o
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
-	    -c k4b_njd.c -o k4b_njd.o
+	    -c njd_rules.c -o njd_rules.o
 	@for f in $(OJT_SRC); do \
 	   $(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk -I. \
-	       -include k5_alloc.h -c $$f -o $${f%.c}.o || exit 1; \
+	       -include oj_heap_probe.h -c $$f -o $${f%.c}.o || exit 1; \
 	 done
-	$(CC) -o $@ k5_mem_test.o k5_alloc.o k4b_njd.o $(OJT_SRC:.c=.o) $(LDLIBS)
+	$(CC) -o $@ oj_heap_test.o oj_heap_probe.o njd_rules.o $(OJT_SRC:.c=.o) $(LDLIBS)
 
 # ⚠️ **ここに古い `k5:` があったが消した。** 下の 293 行目あたりの定義に
 #    黙って上書きされていて（`make` が overriding commands の warning を出す）、
-#    残っていたのは**陽性対照 `k5_mem_ctrl` も G22/G24 も無い弱い版**だった。
+#    残っていたのは**陽性対照 `oj_heap_ctrl` も G22/G24 も無い弱い版**だった。
 #    ⚠️ 二重定義は「直したつもりで死んだ recipe を直す」事故になる。
-# ホストのラベル（basis）。**経路は k5_mem_test と同じ** = make_label(run_njd_from_mecab)
-k5_labels_host.txt: k4b_vectors.bin
+# ホストのラベル（basis）。**経路は oj_heap_test と同じ** = make_label(run_njd_from_mecab)
+oj_labels_host.txt: njd_rules_vectors.bin
 	cd .. && $(PYTHON) scripts/k1/k5_gen_labels.py \
-	    --vectors csrc/k4b_vectors.bin --out csrc/k5_labels_host.txt
+	    --vectors csrc/njd_rules_vectors.bin --out csrc/oj_labels_host.txt
 
 # ⚠️ **陽性対照。** `MAXBUFLEN` を 64 に落とした版を別に作り、
 #    G24 の diff が本当に差を捕まえられることを先に示す。
 #    これが無いと「一致した」は「diff が効いていない」と区別できない。
-k5_ctrl/jpcommon_label.c: openjtalk/jpcommon_label.c
-	@mkdir -p k5_ctrl
-	sed 's/#define MAXBUFLEN $(K5_MAXBUFLEN)/#define MAXBUFLEN 64/' $< > $@
+oj_heap_ctrl_src/jpcommon_label.c: openjtalk/jpcommon_label.c
+	@mkdir -p oj_heap_ctrl_src
+	sed 's/#define MAXBUFLEN $(OJ_MAXBUFLEN)/#define MAXBUFLEN 64/' $< > $@
 	@grep -q 'define MAXBUFLEN 64' $@ || { echo "NG: 陽性対照の置換が空振り"; exit 1; }
 
-k5_mem_ctrl: k5_mem_test.c k5_alloc.c k4b_njd.c k5_ctrl/jpcommon_label.c $(OJT_SRC)
-	@mkdir -p k5_ctrl
+oj_heap_ctrl: oj_heap_test.c oj_heap_probe.c njd_rules.c oj_heap_ctrl_src/jpcommon_label.c $(OJT_SRC)
+	@mkdir -p oj_heap_ctrl_src
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk -I. \
-	    -DK5_MAXBUFLEN=64 -o $@ k5_mem_test.c k5_alloc.c k4b_njd.c \
-	    k5_ctrl/jpcommon_label.c \
+	    -DOJ_MAXBUFLEN=64 -o $@ oj_heap_test.c oj_heap_probe.c njd_rules.c \
+	    oj_heap_ctrl_src/jpcommon_label.c \
 	    $(filter-out openjtalk/jpcommon_label.c,$(OJT_SRC)) $(LDLIBS)
 
-.PHONY: k5
-k5: k5_mem_test k5_mem_ctrl k4b_vectors.bin k5_worst.bin k5_labels_host.txt
-	@./k5_mem_test k4b_vectors.bin k5_labels.txt 2>k5_stderr.log || \
-	  { echo "--- stderr ---"; cat k5_stderr.log; exit 1; }
+.PHONY: oj-heap
+oj-heap: oj_heap_test oj_heap_ctrl njd_rules_vectors.bin oj_worst.bin oj_labels_host.txt
+	@./oj_heap_test njd_rules_vectors.bin oj_labels.txt 2>oj_heap_stderr.log || \
+	  { echo "--- stderr ---"; cat oj_heap_stderr.log; exit 1; }
 	@echo ""
 	@echo "=== G22（最長文 100 文）==="
-	@./k5_mem_test k5_worst.bin k5_labels_worst.txt 2>>k5_stderr.log | \
+	@./oj_heap_test oj_worst.bin oj_labels_worst.txt 2>>oj_heap_stderr.log | \
 	   sed -n '/ヒープ/,/占める分/p'
 	@echo ""
 	@echo "=== G24: ラベルがホストと bit 一致するか ==="
-	@if diff -q k5_labels_host.txt k5_labels.txt >/dev/null; then \
-	   echo "  OK  ホストと完全一致（$$(grep -c '^# case' k5_labels.txt) 文 / $$(grep -vc '^# case' k5_labels.txt) 本）"; \
-	 else echo "  NG  ホストと食い違う"; diff k5_labels_host.txt k5_labels.txt | head -6; exit 1; fi
-	@./k5_mem_ctrl k4b_vectors.bin k5_labels_ctrl.txt 2>/dev/null >/dev/null || true
-	@if diff -q k5_labels_host.txt k5_labels_ctrl.txt >/dev/null; then \
+	@if diff -q oj_labels_host.txt oj_labels.txt >/dev/null; then \
+	   echo "  OK  ホストと完全一致（$$(grep -c '^# case' oj_labels.txt) 文 / $$(grep -vc '^# case' oj_labels.txt) 本）"; \
+	 else echo "  NG  ホストと食い違う"; diff oj_labels_host.txt oj_labels.txt | head -6; exit 1; fi
+	@./oj_heap_ctrl njd_rules_vectors.bin oj_labels_ctrl.txt 2>/dev/null >/dev/null || true
+	@if diff -q oj_labels_host.txt oj_labels_ctrl.txt >/dev/null; then \
 	   echo "  NG  **陽性対照が落ちない**。MAXBUFLEN=64 でも一致した = diff が効いていない"; exit 1; \
-	 else echo "  OK  陽性対照: MAXBUFLEN=64 だと $$(diff k5_labels_host.txt k5_labels_ctrl.txt | grep -c '^<') 行が食い違う"; fi
+	 else echo "  OK  陽性対照: MAXBUFLEN=64 だと $$(diff oj_labels_host.txt oj_labels_ctrl.txt | grep -c '^<') 行が食い違う"; fi
 	@echo ""
-	@echo "  打ち切り警告（本番）: $$(grep -c 'Label buffer exceeded' k5_stderr.log) 件"
+	@echo "  打ち切り警告（本番）: $$(grep -c 'Label buffer exceeded' oj_heap_stderr.log) 件"
 	@echo ""
 	@echo "OK  G22 / G23 / G24 通過"
 
@@ -402,47 +402,47 @@ k5: k5_mem_test k5_mem_ctrl k4b_vectors.bin k5_worst.bin k5_labels_host.txt
 #    辞書の枝刈りの代償は**測って出すだけで、閾値は置かない** —
 #    D-043 の 0.60% は同形異音語 14 文から出た数で、枝刈りの話ではない（C-050）。
 # ⚠️ k2 / k4 / k4b と同じく all-test には入れない（辞書と pyopenjtalk が要る）。
-k6_vectors.bin:
-	cd .. && $(PYTHON) scripts/k1/k6_gen_vectors.py --out csrc/k6_vectors.bin
+kanji_e2e_vectors.bin:
+	cd .. && $(PYTHON) scripts/k1/k6_gen_vectors.py --out csrc/kanji_e2e_vectors.bin
 
-k6_test: k6_test.c k1dict.c k4_accent.c k4b_njd.c $(OJT_SRC)
+kanji_e2e_test: kanji_e2e_test.c jdict.c accent.c njd_rules.c $(OJT_SRC)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
-	    -o $@ k6_test.c k1dict.c k4_accent.c k4b_njd.c $(OJT_SRC) $(LDLIBS)
+	    -o $@ kanji_e2e_test.c jdict.c accent.c njd_rules.c $(OJT_SRC) $(LDLIBS)
 
-.PHONY: k6
-k6: k6_test k6_vectors.bin
-	@./k6_test k6_vectors.bin 2>k6_stderr.log || \
-	  { echo "--- stderr ---"; cat k6_stderr.log; exit 1; }
+.PHONY: kanji-e2e
+kanji-e2e: kanji_e2e_test kanji_e2e_vectors.bin
+	@./kanji_e2e_test kanji_e2e_vectors.bin 2>kanji_e2e_stderr.log || \
+	  { echo "--- stderr ---"; cat kanji_e2e_stderr.log; exit 1; }
 
 # ---------------------------------------------------------------- K-7
-# ラベル → 生徒インデックス（`k7_label2ids.c`）。K-6 のベクタをそのまま使う。
+# ラベル → 生徒インデックス（`label_ids.c`）。K-6 のベクタをそのまま使う。
 # ⚠️ **合否は G25（移植の正しさ）だけ**。通しの一致（G26）は枝刈りの分だけ
 #    必ず食い違うので**数を出すだけ**（C-050 と同じ扱い）。
-k7_table.h:
-	cd .. && $(PYTHON) scripts/gen_k7_table.py
+token_table.h:
+	cd .. && $(PYTHON) scripts/gen_token_table.py
 
-k7_test: k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c k7_table.h $(OJT_SRC)
+label_ids_test: label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c token_table.h $(OJT_SRC)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -Iopenjtalk \
-	    -o $@ k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c \
+	    -o $@ label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c \
 	    $(OJT_SRC) $(LDLIBS)
 
 # T10(a): トークン表を **.bss ではなく呼び出し側の領域**に置いた構成
 # （ESP32 は合成 arena から切り出す）。**同じ列が出ること**を示すためだけの版。
 # ⚠️ これが無いと「端末では置き場が違う」経路がホストで一度も走らない。
-k7_test_ext: k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c k7_table.h $(OJT_SRC)
+label_ids_test_ext: label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c token_table.h $(OJT_SRC)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -DK7_EXTERNAL_SCRATCH=1 -Iopenjtalk \
-	    -o $@ k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c \
+	    -o $@ label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c \
 	    $(OJT_SRC) $(LDLIBS)
 
-.PHONY: k7
-k7: k7_test k7_test_ext k6_vectors.bin
-	@./k7_test k6_vectors.bin 2>k7_stderr.log || \
-	  { echo "--- stderr ---"; cat k7_stderr.log; exit 1; }
+.PHONY: label-ids
+label-ids: label_ids_test label_ids_test_ext kanji_e2e_vectors.bin
+	@./label_ids_test kanji_e2e_vectors.bin 2>label_ids_stderr.log || \
+	  { echo "--- stderr ---"; cat label_ids_stderr.log; exit 1; }
 	@echo ""
 	@echo "=== G25b: トークン表を arena に置いた構成でも同じ列か（T10(a)）==="
-	@./k7_test k6_vectors.bin --dump-ids k7_ids_bss.txt >/dev/null 2>>k7_stderr.log
-	@./k7_test_ext k6_vectors.bin --dump-ids k7_ids_ext.txt >/dev/null 2>>k7_stderr.log || \
-	  { echo "  NG  外部置き場の版が落ちた"; cat k7_stderr.log; exit 1; }
+	@./label_ids_test kanji_e2e_vectors.bin --dump-ids k7_ids_bss.txt >/dev/null 2>>label_ids_stderr.log
+	@./label_ids_test_ext kanji_e2e_vectors.bin --dump-ids k7_ids_ext.txt >/dev/null 2>>label_ids_stderr.log || \
+	  { echo "  NG  外部置き場の版が落ちた"; cat label_ids_stderr.log; exit 1; }
 	@if diff -q k7_ids_bss.txt k7_ids_ext.txt >/dev/null; then \
 	   echo "  OK  .bss 版と arena 版の ids が完全一致（$$(wc -l < k7_ids_bss.txt) 文）"; \
 	 else echo "  NG  置き場を変えたら列が変わった"; \

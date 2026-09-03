@@ -200,7 +200,7 @@ int main(void) { printf("%zu\n", (size_t)SAAN_KANJI_WORKBYTES); return 0; }
 C
 if [ -n "$ARENA_EXPR" ] && [ -n "$T10_EXPR" ] \
    && cc -std=gnu17 -DK7_EXTERNAL_SCRATCH=1 -I csrc -I esp32/main -o "$TMP/wb" "$TMP/wb.c" 2>"$TMP/wbw"; then
-    # ⚠️ K7_EXTERNAL_SCRATCH=1 は component の CMakeLists が PUBLIC で定義するのと同じ（K-A / T10(a)）。
+    # ⚠️ LABEL_IDS_EXTERNAL_SCRATCH=1 は component の CMakeLists が PUBLIC で定義するのと同じ（K-A / T10(a)）。
     #    付けないと k7 のトークン表 10,240 B が式から落ちて、境界を甘く見る。
     # ⚠️ **ホストの sizeof で評価している。** ターゲット（32 bit ポインタ）とは値が違う
     #    （ホスト 136,448 B / 実機 144,640 B。QEMU の起動ログで実測）。余裕がこの差より大きいことを見る検査。

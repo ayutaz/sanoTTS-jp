@@ -125,7 +125,7 @@ def measure_cost(all_texts: list[str], table) -> dict:
 
     ⚠️ **末尾の半角 `?` だけがマークの行**を別に数える。`?` は中間表現では
     疑問 EOS だが、日本語の平文でも普通に使われる。端末の漢字経路は
-    `csrc/k7_label2ids.c` の `question_type()` が半角 `?` を疑問 EOS として
+    `csrc/label_ids.c` の `question_type()` が半角 `?` を疑問 EOS として
     扱うので、**辞書経路に回せば読める行**が拒否されていることになる。
     """
     n = {"kana": 0, "dict": 0, "reject": 0}
@@ -257,7 +257,7 @@ def main() -> int:
     if cost["reject_q_only"]:
         print(f"⚠️ **規則の代償が測れた**: held-out の {cost['reject']} 行が拒否になり、"
               f"うち {cost['reject_q_only']} 行は末尾が半角 `?` のごく普通の疑問文。"
-              f"端末の漢字経路は `csrc/k7_label2ids.c` の question_type() が"
+              f"端末の漢字経路は `csrc/label_ids.c` の question_type() が"
               f"半角 `?` を疑問 EOS として扱うので、**辞書経路に回せば読める**。"
               f"`?` をマーク集合から外すかは**判断が要る**（外すと「かな + `?` の"
               f"中間表現の打ち間違い」が辞書経路に回る）。")

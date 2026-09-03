@@ -5,14 +5,14 @@
  * G24  陽性対照つき: 詰める前後で**ラベル文字列が bit 一致**する
  *
  * 測る対象は端末が実際に走らせる経路の全部:
- *   mecab2njd → njd_set_pronunciation → k4b_before_chaining → njd_set_digit
+ *   mecab2njd → njd_set_pronunciation → njd_rules_before_chaining → njd_set_digit
  *   → njd_set_accent_phrase → njd_set_accent_type → njd_set_unvoiced_vowel
  *   → njd_set_long_vowel → **njd2jpcommon → JPCommon_make_label**
  * （K-2 / K-3 の辞書引きと Viterbi は入っていない。あちらは別途 K-2 で測る）
  *
  * ⚠️ **ホストでの実測であって ESP32 の値ではない。** ポインタ幅もアロケータの
  *    丸めも違う。ここで測るのは要求バイト数と、実際に踏んだスタックの深さ。
- * ⚠️ **取り込んだ C は改変していない。** ヒープは `-include k5_alloc.h` の
+ * ⚠️ **取り込んだ C は改変していない。** ヒープは `-include oj_heap_probe.h` の
  *    マクロで、スタックは自前スタックの塗り潰しで測る。
  */
 #include <stdio.h>
@@ -26,8 +26,8 @@
 #include "openjtalk/jpcommon.h"
 #include "openjtalk/mecab2njd.h"
 #include "openjtalk/njd2jpcommon.h"
-#include "k4b_njd.h"
-#include "k5_alloc.h"
+#include "njd_rules.h"
+#include "oj_heap_probe.h"
 #include "openjtalk/njd_set_pronunciation.h"
 #include "openjtalk/njd_set_digit.h"
 #include "openjtalk/njd_set_accent_phrase.h"
@@ -70,7 +70,7 @@ static void run_one(void) {
 
     mecab2njd(&njd, feat, n_feat);
     njd_set_pronunciation(&njd);
-    k4b_before_chaining(&njd);
+    njd_rules_before_chaining(&njd);
     njd_set_digit(&njd);
     njd_set_accent_phrase(&njd);
     njd_set_accent_type(&njd);
@@ -118,9 +118,9 @@ static size_t run_on_painted_stack(uint8_t *stack) {
 }
 
 int main(int argc, char **argv) {
-    const char *path = (argc > 1) ? argv[1] : "k4b_vectors.bin";
+    const char *path = (argc > 1) ? argv[1] : "njd_rules_vectors.bin";
     /* ラベルの出力先。詰める前後の 2 本を作って `diff` するのが G24。 */
-    const char *out_path = (argc > 2) ? argv[2] : "k5_labels.txt";
+    const char *out_path = (argc > 2) ? argv[2] : "oj_labels.txt";
     FILE *f = fopen(path, "rb");
     if (!f) { fprintf(stderr, "NG: ベクタが開けない: %s\n", path); return 1; }
     fseek(f, 0, SEEK_END); long sz = ftell(f); fseek(f, 0, SEEK_SET);
@@ -155,11 +155,11 @@ int main(int argc, char **argv) {
             rd32(); rd32(); rd32();
         }
 
-        k5_reset();
+        oj_heap_reset();
         size_t st = run_on_painted_stack(stack);
-        size_t hp = k5_peak();
-        leaked += k5_live();
-        unknown += k5_n_unknown();
+        size_t hp = oj_heap_peak();
+        leaked += oj_heap_live();
+        unknown += oj_heap_n_unknown();
 
         sum_heap += hp;
         if (hp > max_heap) { max_heap = hp; worst_heap_case = c; }
@@ -177,10 +177,10 @@ int main(int argc, char **argv) {
     printf("  スタック 最大 %8zu B（case %u）\n", max_stack, worst_stack_case);
     printf("  合計    最大 %8zu B\n", max_heap + max_stack);
     printf("  ラベル最大 %d 本 / 形態素最大 %d 個 / MAXBUFLEN = %d\n",
-           max_labels, max_feats, K5_MAXBUFLEN);
+           max_labels, max_feats, OJ_MAXBUFLEN);
     printf("  ラベルバッファの占める分 = %d × %d = %d B（ヒープ最大の %.1f%%）\n",
-           max_labels, K5_MAXBUFLEN, max_labels * K5_MAXBUFLEN,
-           100.0 * max_labels * K5_MAXBUFLEN / (double)max_heap);
+           max_labels, OJ_MAXBUFLEN, max_labels * OJ_MAXBUFLEN,
+           100.0 * max_labels * OJ_MAXBUFLEN / (double)max_heap);
 
     int bad = 0;
     printf("\n=== 健全性 ===\n");

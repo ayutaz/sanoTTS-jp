@@ -3,10 +3,10 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "k4_accent.h"
-#include "k4b_njd.h"
-#include "k7_label2ids.h"
-#include "k7_dan.h"
+#include "accent.h"
+#include "njd_rules.h"
+#include "label_ids.h"
+#include "dan_table.h"
 #include "openjtalk/njd.h"
 #include "openjtalk/jpcommon.h"
 #include "openjtalk/mecab2njd.h"
@@ -42,9 +42,9 @@ static char *s_feat[KJ_MAX_TOK];
 
 /* arena から切り出す */
 static char *s_feat_flat;
-static k4_node_t *s_k4;
+static accent_node_t *s_k4;
 static char *s_key;
-static k1_token_t *s_tok;
+static jdict_token_t *s_tok;
 static const char **s_lab;
 
 /* 16 バイト境界に切り上げる（PIE の SOC_SIMD_PREFERRED_DATA_ALIGNMENT と同じ）。
@@ -57,9 +57,9 @@ static const char **s_lab;
 static size_t kj_prefix_bytes(void) {
     size_t n = 0;
     n  = KJ_ALIGN16((size_t)KJ_MAX_TOK * KJ_FEAT_MAX);
-    n += KJ_ALIGN16(sizeof(k4_node_t) * KJ_MAX_TOK);
+    n += KJ_ALIGN16(sizeof(accent_node_t) * KJ_MAX_TOK);
     n += KJ_ALIGN16((size_t)KJ_KEY_MAX);
-    n += KJ_ALIGN16(sizeof(k1_token_t) * KJ_MAX_TOK);
+    n += KJ_ALIGN16(sizeof(jdict_token_t) * KJ_MAX_TOK);
     n += KJ_ALIGN16(sizeof(const char *) * KJ_MAX_LABEL);
     n += KJ_ALIGN16(KJ_K7_SCRATCH);
     return n;
@@ -85,15 +85,15 @@ static void *layout(void *arena, size_t arena_n, size_t *vit_n) {
     unsigned char *p = (unsigned char *)arena;
     if (arena_n < saan_kanji_workbytes()) { *vit_n = 0; return NULL; }
     s_feat_flat = (char *)p;       p += KJ_ALIGN16((size_t)KJ_MAX_TOK * KJ_FEAT_MAX);
-    s_k4 = (k4_node_t *)(void *)p; p += KJ_ALIGN16(sizeof(k4_node_t) * KJ_MAX_TOK);
+    s_k4 = (accent_node_t *)(void *)p; p += KJ_ALIGN16(sizeof(accent_node_t) * KJ_MAX_TOK);
     s_key = (char *)p;             p += KJ_ALIGN16((size_t)KJ_KEY_MAX);
-    s_tok = (k1_token_t *)(void *)p;
-                                   p += KJ_ALIGN16(sizeof(k1_token_t) * KJ_MAX_TOK);
+    s_tok = (jdict_token_t *)(void *)p;
+                                   p += KJ_ALIGN16(sizeof(jdict_token_t) * KJ_MAX_TOK);
     s_lab = (const char **)(void *)p;
                                    p += KJ_ALIGN16(sizeof(const char *) * KJ_MAX_LABEL);
     /* K-7 のトークン表（`static char tok[640][16]` だったもの）。 */
-#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
-    k7_set_scratch(p, K7_SCRATCH_BYTES);
+#if defined(LABEL_IDS_EXTERNAL_SCRATCH) && LABEL_IDS_EXTERNAL_SCRATCH
+    label_ids_set_scratch(p, LABEL_IDS_SCRATCH_BYTES);
 #endif
                                    p += KJ_ALIGN16(KJ_K7_SCRATCH);
     for (int i = 0; i < KJ_MAX_TOK; i++) s_feat[i] = s_feat_flat + (size_t)i * KJ_FEAT_MAX;
@@ -113,7 +113,7 @@ const char *saan_kanji_strerror(saan_kanji_status s) {
     return "不明なエラー";
 }
 
-saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,
+saan_kanji_status saan_kanji_to_ids(const jdict_t *d,
                                     const char *text, size_t nbytes,
                                     void *arena, size_t arena_n,
                                     int32_t *ids, int32_t ids_cap,
@@ -124,11 +124,11 @@ saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,
     void *vit = layout(arena, arena_n, &vit_n);
     if (!vit || vit_n < 16u * 1024u) return SAAN_KANJI_ERR_TOO_LONG;
     size_t key_n = KJ_KEY_MAX;
-    if (k1_encode_key(d, (const uint8_t *)text, nbytes,
+    if (jdict_encode_key(d, (const uint8_t *)text, nbytes,
                       (uint8_t *)s_key, &key_n) != 0)
         return SAAN_KANJI_ERR_KEY;
 
-    int nt = k1_analyze(d, (const uint8_t *)s_key, key_n, vit, vit_n,
+    int nt = jdict_analyze(d, (const uint8_t *)s_key, key_n, vit, vit_n,
                         s_tok, KJ_MAX_TOK);
     if (nt <= 0) return SAAN_KANJI_ERR_ANALYZE;
     if (n_tokens) *n_tokens = nt;
@@ -136,19 +136,19 @@ saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,
     int nf = 0;
     for (int i = 0; i < nt && nf < KJ_MAX_TOK; i++) {
         char surf[128];
-        if (k1_key_to_utf8(d, (const uint8_t *)s_key, s_tok[i].begin,
+        if (jdict_key_to_utf8(d, (const uint8_t *)s_key, s_tok[i].begin,
                            s_tok[i].end, surf, sizeof surf) < 0)
             return SAAN_KANJI_ERR_FEATURE;
         int r = -1;
-        if (s_tok[i].entry & K1_UNKNOWN_FLAG) {
+        if (s_tok[i].entry & JDICT_UNKNOWN_FLAG) {
             /* ⚠️ **まず読みを推測する**（M-75）。落とすと語が無音で消える。 */
-            r = k1_unk_guess(d, s_tok[i].entry, surf, s_feat[nf],
+            r = jdict_unk_guess(d, s_tok[i].entry, surf, s_feat[nf],
                              KJ_FEAT_MAX);
             if (r < 0)
-                r = k1_unk_feature(d, s_tok[i].entry, surf, s_feat[nf],
+                r = jdict_unk_feature(d, s_tok[i].entry, surf, s_feat[nf],
                                    KJ_FEAT_MAX);
         } else {
-            r = k1_entry_feature(d, s_tok[i].entry, surf, s_feat[nf],
+            r = jdict_entry_feature(d, s_tok[i].entry, surf, s_feat[nf],
                                  KJ_FEAT_MAX);
         }
         if (r < 0) return SAAN_KANJI_ERR_FEATURE;
@@ -161,7 +161,7 @@ saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,
     JPCommon_initialize(&jp);
     mecab2njd(&njd, s_feat, nf);
     njd_set_pronunciation(&njd);
-    k4b_before_chaining(&njd);
+    njd_rules_before_chaining(&njd);
     njd_set_digit(&njd);
     njd_set_accent_phrase(&njd);
     njd_set_accent_type(&njd);
@@ -170,17 +170,17 @@ saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,
 
     int nk = 0;
     for (NJDNode *p = njd.head; p && nk < KJ_MAX_TOK; p = p->next, nk++) {
-        snprintf(s_k4[nk].pos,   K4_STR_MAX,  "%s", NJDNode_get_pos(p));
-        snprintf(s_k4[nk].ctype, K4_STR_MAX,  "%s", NJDNode_get_ctype(p));
-        snprintf(s_k4[nk].cform, K4_STR_MAX,  "%s", NJDNode_get_cform(p));
-        snprintf(s_k4[nk].orig,  K4_STR_MAX,  "%s", NJDNode_get_orig(p));
-        snprintf(s_k4[nk].pron,  K4_PRON_MAX, "%s", NJDNode_get_pron(p));
-        snprintf(s_k4[nk].read,  K4_PRON_MAX, "%s", NJDNode_get_read(p));
+        snprintf(s_k4[nk].pos,   ACCENT_STR_MAX,  "%s", NJDNode_get_pos(p));
+        snprintf(s_k4[nk].ctype, ACCENT_STR_MAX,  "%s", NJDNode_get_ctype(p));
+        snprintf(s_k4[nk].cform, ACCENT_STR_MAX,  "%s", NJDNode_get_cform(p));
+        snprintf(s_k4[nk].orig,  ACCENT_STR_MAX,  "%s", NJDNode_get_orig(p));
+        snprintf(s_k4[nk].pron,  ACCENT_PRON_MAX, "%s", NJDNode_get_pron(p));
+        snprintf(s_k4[nk].read,  ACCENT_PRON_MAX, "%s", NJDNode_get_read(p));
         s_k4[nk].acc = NJDNode_get_acc(p);
         s_k4[nk].mora_size = NJDNode_get_mora_size(p);
         s_k4[nk].chain_flag = NJDNode_get_chain_flag(p);
     }
-    k4_apply(s_k4, nk, K4_ALL, k7_dan_table, K7_N_DAN);
+    accent_apply(s_k4, nk, ACCENT_ALL, k7_dan_table, K7_N_DAN);
     {
         int i = 0;
         for (NJDNode *p = njd.head; p && i < nk; p = p->next, i++) {
@@ -197,9 +197,9 @@ saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,
     if (nl > KJ_MAX_LABEL) nl = KJ_MAX_LABEL;
     for (int i = 0; i < nl; i++) s_lab[i] = ls[i];
 
-    k7_status ks = k7_label2ids(s_lab, nl, text, ids, ids_cap, n_ids);
+    label_ids_status ks = label_ids_convert(s_lab, nl, text, ids, ids_cap, n_ids);
 
     JPCommon_clear(&jp);
     NJD_clear(&njd);
-    return (ks == K7_OK) ? SAAN_KANJI_OK : SAAN_KANJI_ERR_IDS;
+    return (ks == LABEL_IDS_OK) ? SAAN_KANJI_OK : SAAN_KANJI_ERR_IDS;
 }

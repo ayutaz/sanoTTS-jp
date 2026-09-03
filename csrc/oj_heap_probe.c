@@ -1,4 +1,4 @@
-/* K-5: 追跡アロケータ。詳細は k5_alloc.h。
+/* K-5: 追跡アロケータ。詳細は oj_heap_probe.h。
  *
  * ⚠️ **このファイルはマクロを当てずにビルドする**（自分自身が calloc を呼ぶため）。
  */
@@ -6,7 +6,7 @@
 #include <string.h>
 #include <stdio.h>
 
-#include "k5_alloc.h"
+#include "oj_heap_probe.h"
 #undef calloc
 #undef malloc
 #undef strdup
@@ -67,25 +67,25 @@ static size_t take(void *p) {
     return (size_t)-1;
 }
 
-void *k5_calloc(size_t n, size_t s) {
+void *oj_heap_calloc(size_t n, size_t s) {
     void *p = calloc(n, s);
     put(p, n * s);
     return p;
 }
 
-void *k5_malloc(size_t n) {
+void *oj_heap_malloc(size_t n) {
     void *p = malloc(n);
     put(p, n);
     return p;
 }
 
-char *k5_strdup(const char *s) {
+char *oj_heap_strdup(const char *s) {
     char *p = strdup(s);
     put(p, strlen(s) + 1);
     return p;
 }
 
-void k5_free(void *p) {
+void oj_heap_free(void *p) {
     if (!p) return;
     size_t n = take(p);
     if (n == (size_t)-1) n_unknown++;
@@ -93,13 +93,13 @@ void k5_free(void *p) {
     free(p);
 }
 
-void k5_reset(void) {
+void oj_heap_reset(void) {
     memset(tab, 0, sizeof tab);
     n_used = peak = live = total = n_alloc = n_unknown = 0;
 }
 
-size_t k5_peak(void)      { return peak; }
-size_t k5_live(void)      { return live; }
-size_t k5_total(void)     { return total; }
-size_t k5_n_alloc(void)   { return n_alloc; }
-size_t k5_n_unknown(void) { return n_unknown; }
+size_t oj_heap_peak(void)      { return peak; }
+size_t oj_heap_live(void)      { return live; }
+size_t oj_heap_total(void)     { return total; }
+size_t oj_heap_n_alloc(void)   { return n_alloc; }
+size_t oj_heap_n_unknown(void) { return n_unknown; }
