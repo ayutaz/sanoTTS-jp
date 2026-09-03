@@ -65,6 +65,9 @@ jobs:
       - name: GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。重み不要）
         run: make -C csrc erf
 
+      - name: S9 範囲版カーネル vs [0,T) 版（ランダム形状 bit 一致 + LN の T 非依存。陽性対照つき。重み不要）
+        run: make -C csrc range
+
       - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
         run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
 

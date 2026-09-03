@@ -64,6 +64,25 @@ void *saan_alloc(saan_arena *a, size_t n);
 void saan_conv1d(float *y, const float *x, const float *W, const float *b,
                  int cin, int cout, int ksz, int T);
 
+/* --- 出力範囲つき（S9 / T2）-----------------------------------------------------------
+ *
+ * 同じ conv を **出力の時刻 [t0, t1) だけ**計算する版。x は従来どおり [cin][T]（両端ゼロパディング）、
+ * **y は圧縮した [cout][t1 - t0]**（y[o*(t1-t0) + (t - t0)] = 従来の y[o*T + t]）。
+ * ストリーミングは窓 W（= 2·pad + CH）に conv を掛けて中央 CH しか下流へ渡さないので、
+ * 捨てられる列（AC の 8/16、DEC の 6/14、TOKEN の (6n−84)/6n）を計算しないためのもの。
+ *
+ * ⚠️ **bit 同一の根拠**: 出力要素 (o, t) ごとの積和の順序（bias → i 外側 → k 内側、
+ *    ゼロ重みの枝刈り、パディングの判定）は [0, T) 版と 1 つも変わらない。
+ *    範囲は最内ループの上下限を [t0, t1) と交わすだけで、要素の中の順序には触れない。
+ *    W8A8 の活性化量子化は per-frame（時刻ごとに独立）なので、[t0−pad, t1+pad) ∩ [0, T) の
+ *    フレームだけ量子化しても各フレームの scale と int8 値は同じ。
+ * ⚠️ **LayerNorm / GELU / ReLU に範囲版は要らない。** 出力が圧縮されているので、下流の
+ *    要素演算はその圧縮バッファ全体（= 必要な範囲ちょうど）に従来の関数をそのまま掛ける。
+ * ⚠️ 従来の `saan_conv1d(...)` は `saan_conv1d_r(..., 0, T)` の薄いラッパ（2 回書かない）。
+ *    fp32 ゴールデン経路も一括版 `saan_synthesize` もこの関数を [0, T) で通る。 */
+void saan_conv1d_r(float *y, const float *x, const float *W, const float *b,
+                   int cin, int cout, int ksz, int T, int t0, int t1);
+
 /* 左右のコンテキストを外から与える版。`left`/`right` は [cin * pad]
  * （NULL ならゼロ = 発話の端）。**これが bit 一致の要**:
  * 一括版の「両端ゼロパディング」を、チャンク境界では実データで置き換える。
@@ -74,6 +93,9 @@ void saan_conv1d_ctx(float *y, const float *x, const float *left,
                      int cin, int cout, int ksz, int T, float *scratch);
 
 void saan_dwconv1d(float *y, const float *x, const float *W, int ch, int ksz, int T);
+/* depthwise の出力範囲つき版（y は圧縮 [ch][t1 - t0]。上の saan_conv1d_r と同じ規則） */
+void saan_dwconv1d_r(float *y, const float *x, const float *W, int ch, int ksz, int T,
+                     int t0, int t1);
 void saan_dwconv1d_ctx(float *y, const float *x, const float *left,
                        const float *right, const float *W,
                        int ch, int ksz, int T, float *scratch);
@@ -134,6 +156,14 @@ saan_status saan_conv1d_w(float *y, const float *x, saan_wref W, const float *b,
                           int cin, int cout, int ksz, int T, saan_arena *a);
 saan_status saan_dwconv1d_w(float *y, const float *x, saan_wref W,
                             int ch, int ksz, int T, saan_arena *a);
+
+/* 出力範囲つき（S9 / T2）。y は圧縮 [cout][t1 - t0]。fp32 / W8A32 / W8A8 のどの経路でも
+ * 対応する `*_r` カーネルを呼ぶ。`saan_conv1d_w(...)` は `saan_conv1d_wr(..., 0, T, a)` のラッパ */
+saan_status saan_conv1d_wr(float *y, const float *x, saan_wref W, const float *b,
+                           int cin, int cout, int ksz, int T, int t0, int t1,
+                           saan_arena *a);
+saan_status saan_dwconv1d_wr(float *y, const float *x, saan_wref W,
+                             int ch, int ksz, int T, int t0, int t1, saan_arena *a);
 
 /* ⚠️ **失敗すると呼び出し元から return する。** W8A8 の arena 不足を
  * 黙って握りつぶさないため。名前の TRY がその意味 */

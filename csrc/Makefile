@@ -7,8 +7,10 @@
 #   make int8-e2e  int8 経路の end-to-end（fp32 経路との波形 SNR。D-3c'-2）
 #   make arena     arena ストレス（ESP32 の静的 arena を決める・c'-4）
 #   make bench     レイテンシ測定（段別の内訳）
-#   make prof      段別プロファイラ（回数・要素数。ゲートは --expect-no-lookup = S1 と
-#                  --expect-steps 54 = T1 の 2 つ。時間の行はゲートではない）
+#   make prof      段別プロファイラ（回数・要素数。ゲートは --expect-no-lookup = S1 /
+#                  --expect-steps 54 = T1 / --expect-gelu・--expect-dw・--expect-mac-le = T2 の
+#                  要素数。時間の行はゲートではない）
+#   make range     S9 の出力範囲版カーネルが [0,T) 版と bit 一致（陽性対照つき。T2）
 #   make erf       GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
 #   make line      端末の行編集ステートマシン（**陽性対照つき**）
@@ -19,7 +21,7 @@
 #   make k6        K-6 端末の全段をホストと突き合わせる（移植の正しさ + 枝刈りの代償）
 #   make k7        K-7 ラベル → 生徒インデックス（陰性対照つき）
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
-#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line + erf
+#   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line + erf + range
 #
 # ⚠️ **k2 は all-test に入れていない。** 辞書（pyopenjtalk / piper-plus）と
 #    数 MB の生成ベクタが要るので、g2p-corpus と同じ扱いにしてある。
@@ -100,6 +102,11 @@ arena_stress: arena_stress.c $(CORE) $(HDRS)
 bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)
 
+# S9（T2）: 出力範囲版カーネル vs [0,T) 版のランダム形状 bit 一致 + LayerNorm の T 非依存。
+# ⚠️ 陽性対照つき（1 列ずらした比較が必ず不一致になる）。stream G2 は held-out の形しか通らない
+range_test: range_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ range_test.c $(CORE) $(LDLIBS)
+
 # 段別プロファイラ（saan_prof.h）。**ゲートではない**。W8A8 で回す（実機の構成に合わせる）。
 # ⚠️ ホストの時間の内訳は実機の内訳ではない。回数と要素数だけが共通（prof_test.c の冒頭）
 prof_test: prof_test.c $(CORE) $(HDRS) ../esp32/main/demo_ids.h
@@ -135,7 +142,7 @@ g2p_vectors_corpus.bin:
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
 .PHONY: test stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \
-        line all-test clean
+        line range all-test clean
 test: golden_test
 	./golden_test student.bin golden.bin
 
@@ -165,8 +172,14 @@ int8-e2e: int8_e2e_test student_i8.bin ids_heldout.bin
 	./int8_e2e_test student.bin student_i8.bin golden.bin ids_heldout.bin \
 	    ../reports/d3c2_int8_e2e.json
 
+# T2: §5 で「init 後の a.used == saan_stream_arena_used(n_ids)」を複数の n_ids で検査する。
+# 雛形（esp32/main/main.c）はこの関数で init 後の a.used を検査するので、確保を変えて関数を
+# 直し忘れると実機は 1 発話も喋らない（T2 で a.used が −16,512 B 動き、旧定数 192,960 では拒否された）
 arena: arena_stress
 	./arena_stress student.bin golden.bin
+
+range: range_test
+	./range_test
 
 # G-1: W8A8 のパディング部のゼロ埋め（**陽性対照つき**）。
 # ⚠️ 4 通りのビルドを比べる検査なので、単一バイナリでは書けない。
@@ -213,12 +226,16 @@ erf: erf_test erf_test_linear erf_test_clamp
 	./erf_test_linear --expect-fail
 	./erf_test_clamp --expect-grid-fail
 
-# 2 行目がゲート（T1）: demo_ids.h の 106 frames は 3 発話で step_chunk 54 回（18/発話）。
-# T1 前は 63 で落ちる（全フレームが obuf に出そろった後に 3 step 余分に回っていた）
+# 2 行目がゲート（T1 / T2）: demo_ids.h の 106 frames は 3 発話で step_chunk 54 回（18/発話）。
+# T1 前は 63 で落ちる（全フレームが obuf に出そろった後に 3 step 余分に回っていた）。
+# T2（S9）の要素数/step: GELU 12,544 = 5×304×8 + 48×8 / DW 21,280 = 5×76×7×8 / MAC ≤ 4,619,188
+# （実測。18 step/発話の平均）。T2 前は 21,664 / 37,240 / 7,509,268 で 3 つとも落ちる（陽性対照は
+# HEAD~ のコアに同じ prof_test.c を掛けて確認した）
 prof: prof_test student_i8.bin
 	./prof_test student_i8.bin --reps 20 --expect-no-lookup
-	@./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 > prof_gate.log \
-	    || { tail -n 6 prof_gate.log; rm -f prof_gate.log; false; }
+	@./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 \
+	    --expect-gelu 12544 --expect-dw 21280 --expect-mac-le 4619188 > prof_gate.log \
+	    || { tail -n 8 prof_gate.log; rm -f prof_gate.log; false; }
 	@grep -E '^  (OK|NG)' prof_gate.log; rm -f prof_gate.log
 
 run-bench: bench
@@ -241,11 +258,11 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
-	      erf_test erf_test_linear erf_test_clamp prof_test \
+	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
 	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
 	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
 	rm -rf k5_ctrl

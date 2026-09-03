@@ -126,23 +126,25 @@ static bool g_dict_ok;
 #define SAAN_ARENA_BYTES (208 * 1024)
 #endif
 
-/* ⚠️ **黙って確保に失敗したのを検出するための下限。**
+/* ⚠️ **黙って確保に失敗したのを検出する二重防御**（init 後の `a.used` の検査）。
  *
- * `saan_alloc` は失敗しても `used` を進めずに NULL を返す。`saan_stream_init` は
- * 25 回の確保のうち各グループの**最後の 1 個しか NULL 検査していない**ので、
+ * `saan_alloc` は失敗しても `used` を進めずに NULL を返す。かつて `saan_stream_init` は
+ * 25 回の確保のうち各グループの**最後の 1 個しか NULL 検査していなかった**ので、
  * 途中の大きい確保だけが落ちると **init が SAAN_OK を返したまま壊れた状態**になり、
- * その後 `saan_stream_pull` の中で NULL 書き込みになる。
+ * その後 `saan_stream_pull` の中で NULL 書き込みになった。
  * 手元では SEGV、ESP32 では StoreProhibited パニック = **ログも出ずに再起動**。
+ * 今は saan_arena の粘着フラグ `failed` と全確保の NULL 検査で「黙って失敗」は起きないが、
+ * 保険として init 後の `a.used` を **コアが計算する期待値 `saan_stream_arena_used(n_ids)`** と
+ * 突き合わせる（下の run_utterance）。
  *
- * 実測（`make -C csrc arena` / /tmp の probe、n_ids=350）:
- *   正しく init できたときの `a.used`  194,640 B (n_ids=1) 〜 198,768 B (n_ids=520)
- *   黙って失敗したときの `a.used`      178,992 / 185,136 / 191,280 B（最大 191,280）
- * → 191,280 < 閾値 <= 194,640 なら誤検知も見逃しも無い。中点を採る。
- *
- * ⚠️ **arena を 208 KB にしていればそもそも踏まない**（クラッシュ帯は 175〜191 KB）。
- *    これは二重防御。**コアの確保順が変わったら再測すること** —
- *    `make -C csrc arena` が正しい値を出す。 */
-#define SAAN_ARENA_USED_FLOOR 192960u
+ * ⚠️ **以前はここに定数 `SAAN_ARENA_USED_FLOOR 192960u` があった**（ホストで測った
+ *    「正しい a.used の最小 194,640 と黙って失敗した最大 191,280 の中点」）。T2 = S9 で作業領域が
+ *    圧縮形になり a.used が 16,512 B 下がったので据え置けず、ホストで測り直した 180,064 B を
+ *    置いたら **QEMU で「a.used が 179,296 B しかない」と拒否された**（2026-09-03）。
+ *    差 768 B は `sizeof(struct saan_stream_impl)` のポインタ幅（ホスト 64 bit / Xtensa 32 bit）。
+ *    **ホストで測った定数はターゲットの a.used と一致しない**ので、定数をやめて各ターゲットが
+ *    自分の sizeof から計算する関数にした。ホスト側は `make -C csrc arena` の §5 が
+ *    「関数の値 == 実測 a.used」を陽性対照つきで守る。 */
 
 /* 受け付ける ids の上限。**arena の限界 (520) ではなく学習分布の上限を採る。**
  *
@@ -295,15 +297,20 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         return false;
     }
 
-    /* ⚠️ 上に書いた二重防御。init が OK でも黙って確保に失敗していることがある */
-    if (a.used < SAAN_ARENA_USED_FLOOR) {
-        ESP_LOGE(TAG, "saan_stream_init は OK を返したが a.used が %u B しかない "
-                      "(下限 %u B)。**確保が黙って失敗している** — "
-                      "このまま pull すると NULL 書き込みで再起動する",
-                 (unsigned)a.used, (unsigned)SAAN_ARENA_USED_FLOOR);
-        ESP_LOGE(TAG, "arena を増やすか、csrc の確保順が変わったなら "
-                      "`make -C csrc arena` で下限を測り直すこと");
-        return false;
+    /* ⚠️ 上に書いた二重防御。init が OK でも黙って確保に失敗していることがある。
+     *    期待値はコアが同じ確保一覧から計算する（ポインタ幅の差もターゲット側の sizeof で吸収） */
+    {
+        const size_t used_expect = saan_stream_arena_used(n_ids);
+        if (a.used != used_expect) {
+            ESP_LOGE(TAG, "saan_stream_init は OK を返したが a.used が %u B（期待 %u B）。"
+                          "**確保が黙って失敗しているか、コアの確保一覧と "
+                          "saan_stream_arena_used() がずれている** — "
+                          "このまま pull すると NULL 書き込みで再起動しうる",
+                     (unsigned)a.used, (unsigned)used_expect);
+            ESP_LOGE(TAG, "csrc の確保を変えたなら saan_stream_arena_used() も直し、"
+                          "`make -C csrc arena` の §5 で突き合わせること");
+            return false;
+        }
     }
 
     const double audio_s = (double)st.n_frames * SAAN_HOP / SAAN_SR;

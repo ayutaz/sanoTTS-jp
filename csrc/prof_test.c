@@ -18,8 +18,9 @@
  *   cc -std=c99 -O2 -DSAAN_INT8_ACT=1 -DSAAN_PROFILE=1 -o prof_test prof_test.c \
  *      saanotts.c saanotts_stream.c saanotts_int8.c fft.c -lm
  *   ./prof_test student_i8.bin [--reps 20] [--expect-no-lookup] [--expect-steps N]
+ *                              [--expect-gelu N] [--expect-dw N] [--expect-mac-le N]
  *
- * ゲートは 2 つだけ（どちらも指定したときだけ効く）:
+ * ゲートは 5 つ（どれも指定したときだけ効く）:
  *   `--expect-no-lookup`  **pull の中でテンソル検索（LOOKUP）が 1 回でも走ったら exit 1**。
  *                         S1（検索を init で 1 回に）の受け入れ条件。S1 前は 102 回/step で落ちる（陰性対照）。
  *   `--expect-steps N`    **step_chunk の総回数（reps 発話の合計）が N と違ったら exit 1**。
@@ -27,6 +28,15 @@
  *                         3 発話で **54**（18/発話）。T1 前は 63（21/発話。全フレームが obuf に
  *                         出そろった後に 3 step 余分に回っていた）で落ちる（陰性対照）。
  *                         ⚠️ 回数は reps に比例するので、`--reps` と組で指定すること。
+ *   `--expect-gelu N`     **GELU の要素数 / step が N とぴったり違ったら exit 1**（T2 = S9）。
+ *                         S9 後は 12,544 = 5 × 304 × 8（dec の pw1 出力、中央 CH だけ）+ 48 × 8（HEAD）。
+ *                         S9 前は 21,664（5 × 304 × 14。窓全部）で落ちる（陽性対照）。
+ *   `--expect-dw N`       **depthwise の要素数 / step**（ch × k × 出力列）。S9 後は 21,280 = 5 × 76 × 7 × 8、
+ *                         S9 前は 37,240（× 14）で落ちる。
+ *   `--expect-mac-le N`   **MAC の要素数 / step が N を超えたら exit 1**。S9 後の実測 4,619,188（18 step/発話の
+ *                         平均。TOKEN の列数がチャンクごとに違うので exact ではなく上限）。S9 前は 7,509,268。
+ *                         ⚠️ 計画の見込み 4.56 M / 7.28 M は T1 前の 21 step 平均の値で、分母が違う。
+ *   ⚠️ どれも「要素数」= ホストと実機で同じ量。時間は見ない（時間はゲートにならない。冒頭参照）。
  */
 #define _POSIX_C_SOURCE 199309L
 
@@ -79,10 +89,14 @@ int main(int argc, char **argv) {
     int reps = REPS_DEFAULT;
     int expect_no_lookup = 0;
     long expect_steps = -1;   /* < 0 = 検査しない */
+    long expect_gelu = -1, expect_dw = -1, expect_mac_le = -1;   /* 要素数 / step（T2） */
     for (int i = 2; i < argc; ++i) {
         if (strcmp(argv[i], "--reps") == 0 && i + 1 < argc) reps = atoi(argv[++i]);
         else if (strcmp(argv[i], "--expect-no-lookup") == 0) expect_no_lookup = 1;
         else if (strcmp(argv[i], "--expect-steps") == 0 && i + 1 < argc) expect_steps = atol(argv[++i]);
+        else if (strcmp(argv[i], "--expect-gelu") == 0 && i + 1 < argc) expect_gelu = atol(argv[++i]);
+        else if (strcmp(argv[i], "--expect-dw") == 0 && i + 1 < argc) expect_dw = atol(argv[++i]);
+        else if (strcmp(argv[i], "--expect-mac-le") == 0 && i + 1 < argc) expect_mac_le = atol(argv[++i]);
     }
     if (reps < 1) reps = 1;
 
@@ -168,6 +182,39 @@ int main(int argc, char **argv) {
         }
         printf("  OK  step_chunk %u 回（期待 %ld。%d 発話 × %u）\n",
                (unsigned)steps, expect_steps, reps, (unsigned)(steps / (uint32_t)reps));
+    }
+    /* T2（S9）: 要素数 / step。GELU と DW は毎 step 同じ数（5 段 + HEAD）なので exact、
+     * MAC は TOKEN の列数がチャンクごとに違うので上限で見る。合計 == N × steps で判定する
+     * （割り算の丸めで exact が緩まないように） */
+    if (expect_gelu >= 0) {
+        const uint64_t got = saan_prof_n[SAAN_PROF_GELU];
+        if (got != (uint64_t)expect_gelu * steps) {
+            printf("  NG! GELU の要素数 %.0f / step（期待 %ld。S9 前は 21,664）\n",
+                   (double)got / steps, expect_gelu);
+            free(abuf); free(wbuf);
+            return 1;
+        }
+        printf("  OK  GELU の要素数 %ld / step（S9: dec の pw1 出力は中央 CH だけ）\n", expect_gelu);
+    }
+    if (expect_dw >= 0) {
+        const uint64_t got = saan_prof_n[SAAN_PROF_DW];
+        if (got != (uint64_t)expect_dw * steps) {
+            printf("  NG! DW の要素数 %.0f / step（期待 %ld。S9 前は 37,240）\n",
+                   (double)got / steps, expect_dw);
+            free(abuf); free(wbuf);
+            return 1;
+        }
+        printf("  OK  DW の要素数 %ld / step（S9: dw の出力は中央 CH だけ）\n", expect_dw);
+    }
+    if (expect_mac_le >= 0) {
+        const uint64_t got = saan_prof_n[SAAN_PROF_MAC];
+        if (got > (uint64_t)expect_mac_le * steps) {
+            printf("  NG! MAC の要素数 %.0f / step（上限 %ld。S9 前は 7,509,268）\n",
+                   (double)got / steps, expect_mac_le);
+            free(abuf); free(wbuf);
+            return 1;
+        }
+        printf("  OK  MAC の要素数 %.0f / step ≤ %ld\n", (double)got / steps, expect_mac_le);
     }
     free(abuf);
     free(wbuf);

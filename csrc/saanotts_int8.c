@@ -152,10 +152,11 @@ void saan_quantize_w_i8(int8_t *q, float *scale, const float *W,
     }
 }
 
-void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
-                           int P) {
+void saan_quantize_act_i8pr(int8_t *q, float *sx, const float *x, int C, int T,
+                            int P, int u0, int u1) {
     SAAN_PROF_BEGIN(SAAN_PROF_QUANT);
-    for (int t = 0; t < T; ++t) {
+    /* S9: フレーム [u0, u1) だけ。per-frame なので他のフレームの有無は値に影響しない */
+    for (int t = u0; t < u1; ++t) {
         float amax = 0.0f;
         for (int c = 0; c < C; ++c) {
             const float v = fabsf(x[(size_t)c * T + t]);
@@ -193,7 +194,12 @@ void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
         }
     }
     SAAN_PROF_END(SAAN_PROF_QUANT);
-    SAAN_PROF_ADD(SAAN_PROF_QUANT, (size_t)C * T);
+    SAAN_PROF_ADD(SAAN_PROF_QUANT, (size_t)C * (u1 - u0));
+}
+
+void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
+                           int P) {
+    saan_quantize_act_i8pr(q, sx, x, C, T, P, 0, T);
 }
 
 void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T) {
@@ -209,15 +215,17 @@ size_t saan_act_scratch_bytes(int C, int T) {
 
 /* --- W8A32 --------------------------------------------------------------- */
 
-void saan_conv1d_i8(float *y, const float *x, const int8_t *W, const float *scale,
-                    const float *b, int cin, int cout, int ksz, int T) {
+void saan_conv1d_i8_r(float *y, const float *x, const int8_t *W, const float *scale,
+                      const float *b, int cin, int cout, int ksz, int T, int t0, int t1) {
     const int pad = ksz / 2;
     const int cinp = SAAN_W_STRIDE(cin);   /* blob v2: W[(o*ksz + k)*cinp + i] */
+    const int Ty = t1 - t0;                /* S9: 出力は圧縮 [cout][Ty] */
     for (int o = 0; o < cout; ++o) {
-        float *yo = y + (size_t)o * T;
-        for (int t = 0; t < T; ++t) yo[t] = 0.0f;
+        float *yo = y + (size_t)o * Ty;
+        for (int t = 0; t < Ty; ++t) yo[t] = 0.0f;
         /* ⚠️ **ループの順序（i 外 / k 内 / t 最内）は v1 のまま。** float の加算順が変わると
-         *    出力が bit 一致しなくなる。変えたのは W の添字だけ */
+         *    出力が bit 一致しなくなる。S9 で変えたのは最内ループの上下限を [t0, t1) と
+         *    交わすことだけ（要素ごとの積和順序は同じ） */
         for (int i = 0; i < cin; ++i) {
             const float *xi = x + (size_t)i * T;
             const int8_t *wo = W + (size_t)o * ksz * cinp;
@@ -226,59 +234,83 @@ void saan_conv1d_i8(float *y, const float *x, const int8_t *W, const float *scal
                 if (qv == 0) continue;           /* fp32 版と同じくゼロ枝刈り */
                 const float wv = (float)qv;
                 const int sh = k - pad;
-                const int t0 = sh < 0 ? -sh : 0;
-                const int t1 = sh > 0 ? T - sh : T;
-                for (int t = t0; t < t1; ++t) yo[t] += wv * xi[t + sh];
+                int ta = sh < 0 ? -sh : 0;
+                int tb = sh > 0 ? T - sh : T;
+                if (ta < t0) ta = t0;
+                if (tb > t1) tb = t1;
+                for (int t = ta; t < tb; ++t) yo[t - t0] += wv * xi[t + sh];
             }
         }
         const float s = scale[o];
         const float bias = b ? b[o] : 0.0f;
-        for (int t = 0; t < T; ++t) yo[t] = yo[t] * s + bias;
+        for (int t = 0; t < Ty; ++t) yo[t] = yo[t] * s + bias;
+    }
+}
+
+void saan_conv1d_i8(float *y, const float *x, const int8_t *W, const float *scale,
+                    const float *b, int cin, int cout, int ksz, int T) {
+    saan_conv1d_i8_r(y, x, W, scale, b, cin, cout, ksz, T, 0, T);
+}
+
+void saan_dwconv1d_i8_r(float *y, const float *x, const int8_t *W, const float *scale,
+                        int ch, int ksz, int T, int t0, int t1) {
+    const int pad = ksz / 2;
+    const int Ty = t1 - t0;
+    for (int o = 0; o < ch; ++o) {
+        float *yo = y + (size_t)o * Ty;
+        const float *xi = x + (size_t)o * T;
+        const int8_t *wk = W + (size_t)o * ksz;
+        for (int t = 0; t < Ty; ++t) yo[t] = 0.0f;
+        for (int k = 0; k < ksz; ++k) {
+            const float wv = (float)wk[k];
+            const int sh = k - pad;
+            int ta = sh < 0 ? -sh : 0;
+            int tb = sh > 0 ? T - sh : T;
+            if (ta < t0) ta = t0;
+            if (tb > t1) tb = t1;
+            for (int t = ta; t < tb; ++t) yo[t - t0] += wv * xi[t + sh];
+        }
+        const float s = scale[o];
+        for (int t = 0; t < Ty; ++t) yo[t] *= s;
     }
 }
 
 void saan_dwconv1d_i8(float *y, const float *x, const int8_t *W, const float *scale,
                       int ch, int ksz, int T) {
-    const int pad = ksz / 2;
-    for (int o = 0; o < ch; ++o) {
-        float *yo = y + (size_t)o * T;
-        const float *xi = x + (size_t)o * T;
-        const int8_t *wk = W + (size_t)o * ksz;
-        for (int t = 0; t < T; ++t) yo[t] = 0.0f;
-        for (int k = 0; k < ksz; ++k) {
-            const float wv = (float)wk[k];
-            const int sh = k - pad;
-            const int t0 = sh < 0 ? -sh : 0;
-            const int t1 = sh > 0 ? T - sh : T;
-            for (int t = t0; t < t1; ++t) yo[t] += wv * xi[t + sh];
-        }
-        const float s = scale[o];
-        for (int t = 0; t < T; ++t) yo[t] *= s;
-    }
+    saan_dwconv1d_i8_r(y, x, W, scale, ch, ksz, T, 0, T);
 }
 
 /* --- W8A8 ---------------------------------------------------------------- */
 
-void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
-                     const float *b, int cin, int cout, int ksz, int T,
-                     int8_t *qx, float *sx) {
+void saan_conv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *scale,
+                       const float *b, int cin, int cout, int ksz, int T, int t0, int t1,
+                       int8_t *qx, float *sx) {
     const int pad = ksz / 2;
     /* 活性化も重みも **`cinp = SAAN_W_STRIDE(cin)` のストライド**（blob v2。S4）。
      * パディング部は 0 なので積和に寄与せず、端数処理が要らない。
      * 重みは blob の中で最初から [cout][k][cinp] に並んでいるので、以前あった
      * スタック `wt` への転置コピー（1 step に 489 KB。M-80 の WCOPY）は無い。 */
     const int cinp = SAAN_W_STRIDE(cin);
+    const int Ty = t1 - t0;                /* S9: 出力は圧縮 [cout][Ty] */
     const int pie = saan_pie_ok(cin, W);
     (void)pie;   /* PIE 無しのビルドでは未使用 */
 
-    saan_quantize_act_i8p(qx, sx, x, cin, T, cinp);
+    /* S9: 量子化するのは出力 [t0, t1) が参照するフレーム [t0−pad, t1+pad) ∩ [0, T) だけ。
+     * per-frame（時刻ごとに amax）なので、量子化するフレームを絞っても各フレームの値は同じ。
+     * 範囲外の qx の行 / sx は前の conv の残骸のままだが、下の積和は u ∈ [t−pad, t+pad] しか読まない */
+    {
+        int u0 = t0 - pad, u1 = t1 + pad;
+        if (u0 < 0) u0 = 0;
+        if (u1 > T) u1 = T;
+        saan_quantize_act_i8pr(qx, sx, x, cin, T, cinp, u0, u1);
+    }
     for (int o = 0; o < cout; ++o) {
-        float *yo = y + (size_t)o * T;
+        float *yo = y + (size_t)o * Ty;
         const float s = scale[o];
         const float bias = b ? b[o] : 0.0f;
         const int8_t *wo = W + (size_t)o * ksz * cinp;   /* [k][cinp] */
         SAAN_PROF_BEGIN(SAAN_PROF_MAC);
-        for (int t = 0; t < T; ++t) {
+        for (int t = t0; t < t1; ++t) {
             float acc = 0.0f;
             for (int k = 0; k < ksz; ++k) {
                 const int u = t + k - pad;
@@ -301,28 +333,40 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
                 }
                 acc += (float)a32 * sx[u];
             }
-            yo[t] = acc * s + bias;
+            yo[t - t0] = acc * s + bias;
         }
         SAAN_PROF_END(SAAN_PROF_MAC);
-        SAAN_PROF_ADD(SAAN_PROF_MAC, (size_t)cin * ksz * T);
+        SAAN_PROF_ADD(SAAN_PROF_MAC, (size_t)cin * ksz * Ty);
     }
 }
 
-void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
-                       int ch, int ksz, int T, int8_t *qx, float *sx) {
+void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
+                     const float *b, int cin, int cout, int ksz, int T,
+                     int8_t *qx, float *sx) {
+    saan_conv1d_i8a_r(y, x, W, scale, b, cin, cout, ksz, T, 0, T, qx, sx);
+}
+
+void saan_dwconv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *scale,
+                         int ch, int ksz, int T, int t0, int t1, int8_t *qx, float *sx) {
     const int pad = ksz / 2;
+    const int Ty = t1 - t0;
     SAAN_PROF_BEGIN(SAAN_PROF_DW);
     /* ⚠️ **depthwise は PIE に載らない**（チャネル方向のギャザーで、
      * `ee.vmulas.s8.accx` の内積では表現できない。C-035）。
-     * それでも `saan_quantize_act_i8p` を共有するので**ストライドは追従する**。
+     * それでも `saan_quantize_act_i8pr` を共有するので**ストライドは追従する**。
      * ここを `ch` のままにすると読み位置がずれて黙って壊れる。 */
     const int chp = (int)SAAN_ALIGN16((size_t)ch);
-    saan_quantize_act_i8p(qx, sx, x, ch, T, chp);
+    {
+        int u0 = t0 - pad, u1 = t1 + pad;   /* S9: 参照するフレームだけ量子化（上の conv と同じ） */
+        if (u0 < 0) u0 = 0;
+        if (u1 > T) u1 = T;
+        saan_quantize_act_i8pr(qx, sx, x, ch, T, chp, u0, u1);
+    }
     for (int o = 0; o < ch; ++o) {
-        float *yo = y + (size_t)o * T;
+        float *yo = y + (size_t)o * Ty;
         const int8_t *wk = W + (size_t)o * ksz;
         const float s = scale[o];
-        for (int t = 0; t < T; ++t) {
+        for (int t = t0; t < t1; ++t) {
             float acc = 0.0f;
             for (int k = 0; k < ksz; ++k) {
                 const int u = t + k - pad;
@@ -330,11 +374,16 @@ void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *s
                 const int32_t p = (int32_t)wk[k] * (int32_t)qx[(size_t)u * chp + o];
                 acc += (float)p * sx[u];
             }
-            yo[t] = acc * s;
+            yo[t - t0] = acc * s;
         }
     }
     SAAN_PROF_END(SAAN_PROF_DW);
-    SAAN_PROF_ADD(SAAN_PROF_DW, (size_t)ch * ksz * T);
+    SAAN_PROF_ADD(SAAN_PROF_DW, (size_t)ch * ksz * Ty);
+}
+
+void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
+                       int ch, int ksz, int T, int8_t *qx, float *sx) {
+    saan_dwconv1d_i8a_r(y, x, W, scale, ch, ksz, T, 0, T, qx, sx);
 }
 
 /* --- ブロブ -------------------------------------------------------------- */
@@ -426,34 +475,43 @@ size_t saan_act_scratch_needed(int cin, int T) {
 #endif
 }
 
-saan_status saan_conv1d_w(float *y, const float *x, saan_wref W, const float *b,
-                          int cin, int cout, int ksz, int T, saan_arena *a) {
+saan_status saan_conv1d_wr(float *y, const float *x, saan_wref W, const float *b,
+                           int cin, int cout, int ksz, int T, int t0, int t1,
+                           saan_arena *a) {
+    if (t0 < 0 || t1 > T || t0 > t1) return SAAN_ERR_SHAPE;   /* 圧縮出力の範囲が窓の外 */
     if (W.f32) {                            /* fp32 ブロブ: 既存カーネルそのもの */
-        saan_conv1d(y, x, W.f32, b, cin, cout, ksz, T);
+        saan_conv1d_r(y, x, W.f32, b, cin, cout, ksz, T, t0, t1);
         return SAAN_OK;
     }
     if (!W.q || !W.scale) return SAAN_ERR_MISSING;
 #if SAAN_INT8_ACT
     if (!a) return SAAN_ERR_ARENA;
     {
+        /* 作業領域は [T] ぶん（範囲版も添字は絶対時刻のまま。T ≤ 32 なので詰めない） */
         const size_t mark = a->used;
         int8_t *qx = (int8_t *)saan_alloc(a, SAAN_ALIGN16((size_t)cin) * (size_t)T);
         float *sx = (float *)saan_alloc(a, sizeof(float) * (size_t)T);
         if (!qx || !sx) { a->used = mark; return SAAN_ERR_ARENA; }
-        saan_conv1d_i8a(y, x, W.q, W.scale, b, cin, cout, ksz, T, qx, sx);
+        saan_conv1d_i8a_r(y, x, W.q, W.scale, b, cin, cout, ksz, T, t0, t1, qx, sx);
         a->used = mark;
     }
 #else
     (void)a;
-    saan_conv1d_i8(y, x, W.q, W.scale, b, cin, cout, ksz, T);
+    saan_conv1d_i8_r(y, x, W.q, W.scale, b, cin, cout, ksz, T, t0, t1);
 #endif
     return SAAN_OK;
 }
 
-saan_status saan_dwconv1d_w(float *y, const float *x, saan_wref W,
-                            int ch, int ksz, int T, saan_arena *a) {
+saan_status saan_conv1d_w(float *y, const float *x, saan_wref W, const float *b,
+                          int cin, int cout, int ksz, int T, saan_arena *a) {
+    return saan_conv1d_wr(y, x, W, b, cin, cout, ksz, T, 0, T, a);
+}
+
+saan_status saan_dwconv1d_wr(float *y, const float *x, saan_wref W,
+                             int ch, int ksz, int T, int t0, int t1, saan_arena *a) {
+    if (t0 < 0 || t1 > T || t0 > t1) return SAAN_ERR_SHAPE;
     if (W.f32) {
-        saan_dwconv1d(y, x, W.f32, ch, ksz, T);
+        saan_dwconv1d_r(y, x, W.f32, ch, ksz, T, t0, t1);
         return SAAN_OK;
     }
     if (!W.q || !W.scale) return SAAN_ERR_MISSING;
@@ -464,12 +522,17 @@ saan_status saan_dwconv1d_w(float *y, const float *x, saan_wref W,
         int8_t *qx = (int8_t *)saan_alloc(a, SAAN_ALIGN16((size_t)ch) * (size_t)T);
         float *sx = (float *)saan_alloc(a, sizeof(float) * (size_t)T);
         if (!qx || !sx) { a->used = mark; return SAAN_ERR_ARENA; }
-        saan_dwconv1d_i8a(y, x, W.q, W.scale, ch, ksz, T, qx, sx);
+        saan_dwconv1d_i8a_r(y, x, W.q, W.scale, ch, ksz, T, t0, t1, qx, sx);
         a->used = mark;
     }
 #else
     (void)a;
-    saan_dwconv1d_i8(y, x, W.q, W.scale, ch, ksz, T);
+    saan_dwconv1d_i8_r(y, x, W.q, W.scale, ch, ksz, T, t0, t1);
 #endif
     return SAAN_OK;
+}
+
+saan_status saan_dwconv1d_w(float *y, const float *x, saan_wref W,
+                            int ch, int ksz, int T, saan_arena *a) {
+    return saan_dwconv1d_wr(y, x, W, ch, ksz, T, 0, T, a);
 }

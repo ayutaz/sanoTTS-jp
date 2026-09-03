@@ -90,4 +90,17 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out);
  * ids に比例する部分の合計）。G3 の確認に使う */
 size_t saan_stream_arena_needed(int32_t n_ids);
 
+/* `saan_stream_init` が **成功したときの `a->used` の値そのもの**（T2 / S9 で導入）。
+ * init が確保する全バッファ（log_d / d_hat / impl / パイプ / 作業領域 / iSTFT / obuf / token）の
+ * ALIGN16 和で、duration の一時領域（init の中で返す）は含まない。
+ *
+ * 用途は雛形の二重防御（esp32/main/main.c）: init が SAAN_OK を返した後に `a.used` がこれと
+ * **一致しなければ**確保が黙って抜けている。以前は定数 SAAN_ARENA_USED_FLOOR（ホストで測った
+ * 値）を置いていたが、`sizeof(struct saan_stream_impl)` がポインタ幅で変わる（ホスト 64 bit /
+ * Xtensa 32 bit で 768 B 違う。T2 の QEMU で実際に「a.used が 179,296 B しかない」と拒否された）ので、
+ * 各ターゲットで自分の sizeof から計算する関数にした。
+ * ⚠️ **確保の一覧を 2 回書いている**（stream_init_body とこの関数）。片方だけ変えると
+ *    `make -C csrc arena` の §5（実測 a.used との bit 一致、陽性対照つき）が落ちる。 */
+size_t saan_stream_arena_used(int32_t n_ids);
+
 #endif /* SAANOTTS_STREAM_H */

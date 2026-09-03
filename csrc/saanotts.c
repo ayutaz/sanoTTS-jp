@@ -140,15 +140,22 @@ size_t saan_arena_needed(int32_t n_ids) {
 
 /* --- 基本カーネル -------------------------------------------------------- */
 
-/* y[o,t] = b[o] + Σ_i Σ_k W[o,i,k] · x[i, t + k - pad]  （ゼロパディング） */
-void saan_conv1d(float *y, const float *x, const float *W, const float *b,
-                   int cin, int cout, int ksz, int T) {
+/* y[o,t] = b[o] + Σ_i Σ_k W[o,i,k] · x[i, t + k - pad]  （ゼロパディング）
+ *
+ * S9（T2）: 出力の時刻 [t0, t1) だけを計算し、y は圧縮した [cout][t1 - t0] に書く。
+ * ⚠️ **ループの順序（o / t を bias で初期化 / i 外側 / k 内側 / t 最内）と、各タップの
+ *    有効範囲の取り方は [0, T) 版から 1 文字も変えていない。** 範囲は最内ループの上下限を
+ *    [t0, t1) と交わすだけなので、出力要素ごとの積和順序は同じ = bit 同一
+ *    （stream G2 多文が一括版との memcmp で守る。saanotts_internal.h の説明）。 */
+void saan_conv1d_r(float *y, const float *x, const float *W, const float *b,
+                   int cin, int cout, int ksz, int T, int t0, int t1) {
     const int pad = ksz / 2;
+    const int Ty = t1 - t0;
     SAAN_PROF_BEGIN(SAAN_PROF_CONV32);
     for (int o = 0; o < cout; ++o) {
-        float *yo = y + (size_t)o * T;
+        float *yo = y + (size_t)o * Ty;
         const float bias = b ? b[o] : 0.0f;
-        for (int t = 0; t < T; ++t) yo[t] = bias;
+        for (int t = 0; t < Ty; ++t) yo[t] = bias;
         for (int i = 0; i < cin; ++i) {
             const float *xi = x + (size_t)i * T;
             const float *wk = W + ((size_t)o * cin + i) * ksz;
@@ -156,59 +163,91 @@ void saan_conv1d(float *y, const float *x, const float *W, const float *b,
                 const float wv = wk[k];
                 if (wv == 0.0f) continue;
                 const int sh = k - pad;
-                const int t0 = sh < 0 ? -sh : 0;
-                const int t1 = sh > 0 ? T - sh : T;
-                for (int t = t0; t < t1; ++t) yo[t] += wv * xi[t + sh];
+                int ta = sh < 0 ? -sh : 0;      /* このタップが [0, T) の中で有効な t */
+                int tb = sh > 0 ? T - sh : T;
+                if (ta < t0) ta = t0;           /* 出力範囲 [t0, t1) と交わす */
+                if (tb > t1) tb = t1;
+                for (int t = ta; t < tb; ++t) yo[t - t0] += wv * xi[t + sh];
             }
         }
     }
     SAAN_PROF_END(SAAN_PROF_CONV32);
-    SAAN_PROF_ADD(SAAN_PROF_CONV32, (size_t)cout * cin * ksz * T);
+    SAAN_PROF_ADD(SAAN_PROF_CONV32, (size_t)cout * cin * ksz * Ty);
 }
 
-/* depthwise: 出力チャネル o は入力チャネル o だけを見る */
-void saan_dwconv1d(float *y, const float *x, const float *W,
-                     int ch, int ksz, int T) {
+void saan_conv1d(float *y, const float *x, const float *W, const float *b,
+                   int cin, int cout, int ksz, int T) {
+    saan_conv1d_r(y, x, W, b, cin, cout, ksz, T, 0, T);
+}
+
+/* depthwise: 出力チャネル o は入力チャネル o だけを見る（範囲の規則は saan_conv1d_r と同じ） */
+void saan_dwconv1d_r(float *y, const float *x, const float *W,
+                     int ch, int ksz, int T, int t0, int t1) {
     const int pad = ksz / 2;
+    const int Ty = t1 - t0;
     SAAN_PROF_BEGIN(SAAN_PROF_CONV32);
     for (int o = 0; o < ch; ++o) {
-        float *yo = y + (size_t)o * T;
+        float *yo = y + (size_t)o * Ty;
         const float *xi = x + (size_t)o * T;
         const float *wk = W + (size_t)o * ksz;
-        for (int t = 0; t < T; ++t) yo[t] = 0.0f;
+        for (int t = 0; t < Ty; ++t) yo[t] = 0.0f;
         for (int k = 0; k < ksz; ++k) {
             const float wv = wk[k];
             const int sh = k - pad;
-            const int t0 = sh < 0 ? -sh : 0;
-            const int t1 = sh > 0 ? T - sh : T;
-            for (int t = t0; t < t1; ++t) yo[t] += wv * xi[t + sh];
+            int ta = sh < 0 ? -sh : 0;
+            int tb = sh > 0 ? T - sh : T;
+            if (ta < t0) ta = t0;
+            if (tb > t1) tb = t1;
+            for (int t = ta; t < tb; ++t) yo[t - t0] += wv * xi[t + sh];
         }
     }
     SAAN_PROF_END(SAAN_PROF_CONV32);
-    SAAN_PROF_ADD(SAAN_PROF_CONV32, (size_t)ch * ksz * T);
+    SAAN_PROF_ADD(SAAN_PROF_CONV32, (size_t)ch * ksz * Ty);
+}
+
+void saan_dwconv1d(float *y, const float *x, const float *W,
+                     int ch, int ksz, int T) {
+    saan_dwconv1d_r(y, x, W, ch, ksz, T, 0, T);
 }
 
 /* PyTorch の LayerNorm は **チャネル方向**に正規化する（[B,T,C] の C）。
  * ここは [C,T] レイアウトなので、時刻ごとに C 本を見る。**軸を間違えると
- * 数値は出るが別物になる**（参照実装は h.transpose(1,2) して LayerNorm） */
+ * 数値は出るが別物になる**（参照実装は h.transpose(1,2) して LayerNorm）
+ *
+ * ⚠️ **列を連続メモリに写してから計算する（T2 / S9 で入れた）。** 理由は「結果が T に
+ *    依存してはいけない」から。以前は x[c*T + t] をストライド T で直接舐めていたが、
+ *    clang（macOS / -O2）はこの c ループを **T == 1 のときだけ**ベクトル化し、その経路では
+ *    `var += d*d` が fmul.4s + fadd（融合なし）、ストライド経路（T > 1）では fmadd（融合あり）
+ *    になる。つまり**同じ列でも T=1 と T>1 で最終ビットが違った**（実測: 500 試行中 71 で 1 ulp）。
+ *    S9 で token block の最終段が n2 = 1 列（1 チャンクが 1 トークンに収まるとき）になり、
+ *    held-out 24 文中 2 文（#11 / #18。トークン長 13〜18 フレーム）だけ stream G2 が落ちた。
+ *    連続の局所配列 `col` に写せばループの形が C だけで決まり、T（一括 n_frames / stream CH /
+ *    token 1〜24）に依らず同じコード経路 = 同じ丸めになる。
+ *    Xtensa（gcc、ベクトル化なし）では算術の並びが変わらないので QEMU の checksum は不変。
+ *    `make -C csrc range` の G-LN がこの T 非依存を陽性対照つきで守る。
+ * ⚠️ C は SAAN_LN_MAXC 以下（呼び出し側は SAAN_DUR_W = 32 / SAAN_AC_W = 48。下で静的に検査） */
+#define SAAN_LN_MAXC 64
+typedef char saan_ln_maxc_check[(SAAN_DUR_W <= SAAN_LN_MAXC && SAAN_AC_W <= SAAN_LN_MAXC) ? 1 : -1];
+
 void saan_layernorm_c(float *x, const float *g, const float *b, int C, int T) {
     const float eps = 1e-5f;
+    float col[SAAN_LN_MAXC];
     SAAN_PROF_BEGIN(SAAN_PROF_LN);
+    if (C > SAAN_LN_MAXC) C = SAAN_LN_MAXC;   /* 上の静的検査で到達しない。黙って越えないための保険 */
     for (int t = 0; t < T; ++t) {
+        for (int c = 0; c < C; ++c) col[c] = x[(size_t)c * T + t];
         float mean = 0.0f;
-        for (int c = 0; c < C; ++c) mean += x[(size_t)c * T + t];
+        for (int c = 0; c < C; ++c) mean += col[c];
         mean /= (float)C;
         float var = 0.0f;
         for (int c = 0; c < C; ++c) {
-            const float d = x[(size_t)c * T + t] - mean;
+            const float d = col[c] - mean;
             var += d * d;
         }
         var /= (float)C;
         const float inv = 1.0f / sqrtf(var + eps);
-        for (int c = 0; c < C; ++c) {
-            float *p = &x[(size_t)c * T + t];
-            *p = (*p - mean) * inv * g[c] + b[c];
-        }
+        for (int c = 0; c < C; ++c)
+            x[(size_t)c * T + t] = (col[c] - mean) * inv * g[c] + b[c];
     }
     SAAN_PROF_END(SAAN_PROF_LN);
     SAAN_PROF_ADD(SAAN_PROF_LN, (size_t)C * T);

@@ -101,9 +101,15 @@ static const char *verdict(run_t r) {
     }
 }
 
+/* `saan_stream_arena_used(n)`（コアが確保一覧から計算する「init 後の a.used」）と実測の判定。
+ * 雛形（esp32/main/main.c）はこの関数の値と a.used が一致しないと発話を拒否するので、
+ * 関数と実際の確保がずれていれば**実機は 1 発話も喋らない**。判定関数を分けてあるのは
+ * 下で陽性対照（±16 B = saan_alloc の最小粒度）を通すため。戻り値 0 = OK / 1 = NG */
+static int used_verdict(size_t measured, size_t expected) { return measured != expected; }
+
 int main(int argc, char **argv) {
     if (argc < 3) {
-        fprintf(stderr, "usage: %s student.bin golden.bin [out.json]\n", argv[0]);
+        fprintf(stderr, "usage: %s student.bin golden.bin\n", argv[0]);
         return 2;
     }
     size_t wsz, gsz;
@@ -241,14 +247,44 @@ int main(int argc, char **argv) {
                    " 使わないのに、\n", A.peak, (double)A.peak / 1024.0);
             printf("     init が通る最小 arena は %zu B。ALIGN16 の切り上げと"
                    " 確保順の差でずれる。\n", min_ok);
-            /* ⚠️ 雛形 (esp32/main/main.c) の下限ガードはこの高水位そのものではなく、
-             * 「正しく init できたときの a.used の最小」と「黙って失敗したときの
-             * a.used の最大」の**中点**を使う。n_ids で a.used が動くため。 */
-            printf("  雛形 (esp32/main/main.c) の SAAN_ARENA_USED_FLOOR は\n");
-            printf("  正しい a.used の最小 194640 B と、黙って失敗したときの最大\n");
-            printf("  191280 B の中点 192960 B。**確保順を変えたらここを測り直す**\n");
         }
         free(buf); free(ids);
+    }
+
+    /* ---- 5. init 後の a.used == saan_stream_arena_used(n_ids)（T2 で機械化） ----
+     * 以前はここに「正しい a.used の最小 194,640 B / 黙って失敗した最大 191,280 B / 中点 192,960 B」を
+     * **文字列で直書き**し、雛形はその定数を下限にしていた。T2a（obuf +2 hop）で既に 196,576 B に
+     * ずれ、T2（S9）で 180,064 B まで下がったのに文字列は誰も更新しない。しかも定数はホストで
+     * 測った値で、ターゲット（32 bit ポインタ）では impl 構造体が 768 B 小さく **一致しない**
+     * （QEMU で実際に拒否された）。そこで雛形は定数をやめてコアの `saan_stream_arena_used()` と
+     * 突き合わせる形にし、ここではその関数が**実際の確保と bit で一致する**ことを複数の n_ids で
+     * 確かめる（確保を変えて関数を直し忘れると、実機は 1 発話も喋らない）。 */
+    printf("== 5. init 後の a.used が saan_stream_arena_used(n_ids) と一致するか（雛形の二重防御の前提） ==\n");
+    {
+        static const int nn[] = {1, 8, 53, 350, 520};
+        int n_ng = 0, ctl_ok = 1;
+        for (int i = 0; i < (int)(sizeof nn / sizeof nn[0]); ++i) {
+            int32_t *ids = make_ids(nn[i]);
+            void *buf = malloc(ARENA);
+            saan_arena A; saan_arena_init(&A, buf, ARENA);
+            saan_stream st;
+            saan_status s = saan_stream_init(&st, &W, &A, ids, nn[i], SAAN_S_V);
+            if (s != SAAN_OK) { printf("  NG! init(n_ids=%d): %s\n", nn[i], saan_strerror(s)); ++n_ng; }
+            else {
+                const size_t expect = saan_stream_arena_used(nn[i]);
+                const int ng = used_verdict(A.used, expect);
+                printf("  %s n_ids %4d : a.used %zu B / saan_stream_arena_used %zu B%s\n",
+                       ng ? "NG!" : "OK ", nn[i], A.used, expect,
+                       ng ? "  ← 確保一覧と関数がずれている。実機は init 後に拒否する" : "");
+                n_ng += ng;
+                /* 陽性対照: ±16 B（saan_alloc の最小粒度）ずらすと必ず NG */
+                if (!(used_verdict(A.used, expect + 16) && used_verdict(A.used, expect - 16))) ctl_ok = 0;
+            }
+            free(buf); free(ids);
+        }
+        printf("  %s 陽性対照: 期待値を ±16 B ずらすと NG になる\n", ctl_ok ? "OK " : "NG!");
+        printf("  ⚠️ この値はホストのもの。ターゲットは sizeof(impl) がポインタ幅で変わるので同じ式で自分で計算する\n");
+        bad += n_ng + !ctl_ok;
     }
 
     if (c3) {

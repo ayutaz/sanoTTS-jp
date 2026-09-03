@@ -116,6 +116,12 @@ void saan_quantize_act_i8(int8_t *q, float *sx, const float *x, int C, int T);
 void saan_quantize_act_i8p(int8_t *q, float *sx, const float *x, int C, int T,
                            int P);
 
+/* 同上だが **フレーム [u0, u1) だけ**量子化する（S9 / T2）。範囲外の `q` の行と `sx` は触らない
+ * （呼び出し側はその行を読まない）。per-frame なので、量子化するフレームを絞っても各フレームの
+ * scale と int8 値は [0, T) 版と同じ。`saan_quantize_act_i8p` は (0, T) のラッパ */
+void saan_quantize_act_i8pr(int8_t *q, float *sx, const float *x, int C, int T,
+                            int P, int u0, int u1);
+
 /* W8A8 の作業領域バイト数（q [T][C] + sx [T]） */
 size_t saan_act_scratch_bytes(int C, int T);
 
@@ -133,6 +139,14 @@ void saan_conv1d_i8(float *y, const float *x, const int8_t *W, const float *scal
 void saan_dwconv1d_i8(float *y, const float *x, const int8_t *W, const float *scale,
                       int ch, int ksz, int T);
 
+/* 出力範囲つき（S9 / T2）。出力の時刻 [t0, t1) だけを計算し、y は **圧縮した [cout][t1 - t0]**。
+ * 積和の順序は [0, T) 版と同じ（最内ループの上下限を交わすだけ）= bit 同一。
+ * 上の 2 つは (0, T) のラッパ。規則は saanotts_internal.h の saan_conv1d_r と同じ */
+void saan_conv1d_i8_r(float *y, const float *x, const int8_t *W, const float *scale,
+                      const float *b, int cin, int cout, int ksz, int T, int t0, int t1);
+void saan_dwconv1d_i8_r(float *y, const float *x, const int8_t *W, const float *scale,
+                        int ch, int ksz, int T, int t0, int t1);
+
 /* --- W8A8（activation も int8、int32 で積和） ---------------------------- */
 
 /* `W` は **v2 レイアウト [cout][ksz][SAAN_W_STRIDE(cin)]**（上記）。PIE は `W` を直接読むので
@@ -149,6 +163,16 @@ void saan_conv1d_i8a(float *y, const float *x, const int8_t *W, const float *sca
 
 void saan_dwconv1d_i8a(float *y, const float *x, const int8_t *W, const float *scale,
                        int ch, int ksz, int T, int8_t *qx, float *sx);
+
+/* 出力範囲つき（S9 / T2）。y は圧縮 [cout][t1 - t0]。活性化の量子化は出力が参照する
+ * フレーム [t0 − pad, t1 + pad) ∩ [0, T) だけ（per-frame なので値は同じ）。`qx` / `sx` は
+ * 従来どおり [T] ぶん確保すること（範囲外の行は触らないが添字は絶対時刻のまま）。
+ * 上の 2 つは (0, T) のラッパ */
+void saan_conv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *scale,
+                       const float *b, int cin, int cout, int ksz, int T, int t0, int t1,
+                       int8_t *qx, float *sx);
+void saan_dwconv1d_i8a_r(float *y, const float *x, const int8_t *W, const float *scale,
+                         int ch, int ksz, int T, int t0, int t1, int8_t *qx, float *sx);
 
 /* --- ブロブから int8 テンソルを引く -------------------------------------- */
 

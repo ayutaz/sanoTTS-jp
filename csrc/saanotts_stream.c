@@ -3,16 +3,23 @@
  * **方式: ステート保持型パイプライン。**
  *
  * 各段は入力を `[C][2*pad + CHUNK]` のバッファに溜める。左 pad は前チャンクの
- * 実データ、右 pad は次チャンクの実データ。**バッファ全体に conv を掛け、
- * 中央 CHUNK フレームだけを下流へ渡す。**
+ * 実データ、右 pad は次チャンクの実データ。**バッファを入力にして、下流へ渡す
+ * 中央 CHUNK フレーム（とその計算に要る範囲）だけを出力する。**
  *
  * ⚠️ **これが bit 一致（D-029 の G2）の根拠**: 中央フレーム t の計算に必要な
  * 入力は `[t-pad, t+pad]` だけで、それは全部バッファの中にある。バッファの外を
  * ゼロとみなす既存カーネルの挙動は、**中央 CHUNK フレームには影響しない**。
  * だから一括版とまったく同じ積和になる。カーネルも一括版と共有する。
  *
- * 計算量は各段 `(2*pad + CHUNK) / CHUNK` 倍（pad=3, CHUNK=8 で 1.75 倍）。
- * ハロー再計算方式（全体で 10 倍）よりはるかに軽い。
+ * S9（T2、2026-09-03）: 以前は**バッファ全体**に conv / LN / GELU を掛けて中央だけ取り出して
+ * いたが、捨てられる列（AC の 8/16、DEC の 6/14、TOKEN の (6n−84)/6n）の計算が MAC の 37%・
+ * GELU の 42% だった（maps / 計画 §1）。今は各カーネルの出力範囲版（`saan_conv1d_wr` /
+ * `saan_dwconv1d_wr`。出力は圧縮 [C][t1−t0]）で**要る列だけ**を計算する。
+ * 出力要素ごとの積和順序・per-frame の量子化・per-frame の LN は変わらないので bit 同一
+ * （stream G2 多文 3 レーン + QEMU の checksum で確認）。
+ *
+ * 計算量は k=5 / k=7 の conv だけが `(CHUNK + 2*pad) / CHUNK` 倍で、1×1 conv / LN / GELU /
+ * 残差は CHUNK ぶんちょうど。ハロー再計算方式（全体で 10 倍）よりはるかに軽い。
  *
  * ⚠️ **代償はレイテンシ。** 出力は受容野ぶん 36 フレーム = 0.42 秒遅れる。
  */
@@ -106,13 +113,16 @@ struct saan_stream_impl {
     pipe_t dblk[5];      /* dw ブロック。pad=3 */
     pipe_t cdel[6];      /* 各 decoder 段に同期させる c（conv しないので遅延だけ） */
 
-    float *w_full;       /* [max(C) * max(W)] 段内の一時（conv 出力） */
-    float *w_full2;
+    /* S9 で作業領域は「要る列だけ」の圧縮形になった（arena −11 KB。CH=8）。
+     * w_full: AC では c1 の出力 [AC_W][W_AC − 4]、DEC では dw の出力 + g [DEC_W][CH]、
+     *         step_chunk では decoder の h [DEC_W][CH]（同じ領域を段ごとに使い回す） */
+    float *w_full;       /* [max(AC_W * (W_AC − 4), DEC_W * CH)] */
+    float *w_c;          /* [CD * CH] step_chunk の c_sync（旧 w_full2 [maxC][maxW]） */
     float *w_ch;         /* [max(C) * CH] 中央の取り出し */
     float *w_ch2;
-    float *w_e;          /* [E * maxW] pw1 の出力 */
-    float *w_r;          /* [R * maxW] */
-    float *w_g;          /* [DEC_W * maxW] */
+    float *w_e;          /* [E * CH] pw1 の出力（旧 [E][W_DEC]） */
+    float *w_r;          /* [R * CH]（旧 [R][W_DEC]） */
+    float *w_g;          /* [DEC_W * CH]（旧 [DEC_W][W_DEC]） */
     float *o1539;        /* [1539] decoder の生出力 **1 フレーム分**（mag/cos/sin のビュー） */
     float *hr;           /* [DEC_HEAD * CH] */
 
@@ -124,7 +134,9 @@ struct saan_stream_impl {
     float *obuf;         /* [SAAN_OBUF_HOPS * HOP] 出力の詰め替え。
                           * 深さは 2·CH − (SAAN_LATENCY mod CH) = CH+4（saanotts_stream.h） */
     int32_t ofill;
-    float *tok_buf, *tok_w1, *tok_w2, *tok_out;   /* token チャンクの作業領域 */
+    /* token チャンクの作業領域。S9 で段ごとに 8 列ずつ縮む（compute_tokens_body）:
+     * 容量は tok_buf [AC_W][TOK_MAXW] / tok_w1 [AC_W][TOK_MAXW−4] / tok_w2 [AC_W][TOK_MAXW−8] */
+    float *tok_buf, *tok_w1, *tok_w2, *tok_out;
 
     /* S1: 解決済みの重み。init の resolve_weights() が埋める */
     saan_acblk_w  tokw[3];   /* acoustic.token.%d */
@@ -184,45 +196,63 @@ static saan_status resolve_weights(saan_stream *st) {
     return SAAN_OK;
 }
 
-size_t saan_stream_arena_needed(int32_t n_ids) {
+/* init が成功したときの a->used そのもの。**stream_init_body の確保と 1:1**（順序は和なので不問）。
+ * ⚠️ 2 回書いている。arena_stress の §5 が実測と bit 一致で突き合わせる（ずれたら NG） */
+size_t saan_stream_arena_used(int32_t n_ids) {
     const int maxC = DEC_W > AC_W ? DEC_W : AC_W;
+    const int W_AC = 2 * 4 + CH;
+    const size_t full_n = (size_t)AC_W * (W_AC - 4) > (size_t)DEC_W * CH
+                        ? (size_t)AC_W * (W_AC - 4) : (size_t)DEC_W * CH;
     size_t s = 0;
-    /* --- 発話長（ids 数）に比例する分 --- */
+    /* --- 発話長（ids 数）に比例する分（8 B/id） --- */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)n_ids);            /* log_d */
     s += SAAN_ALIGN16(sizeof(int32_t) * (size_t)n_ids);          /* d_hat */
-    /* duration と token block の一時領域（run 後に返すが、確保は要る） */
-    s += SAAN_ALIGN16(sizeof(float) * SAAN_DUR_W * (size_t)n_ids) * 3;
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * TOK_MAXW) * 3;
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * CH);
     /* --- 発話長に依存しない分（G3 の対象） --- */
-    s += SAAN_ALIGN16(sizeof(struct saan_stream_impl));
+    s += SAAN_ALIGN16(sizeof(struct saan_stream_impl));          /* ⚠️ ポインタ幅で変わる */
     s += SAAN_ALIGN16(sizeof(float) * AC_W * (2 * 4 + CH)) * 5;   /* ac */
     s += SAAN_ALIGN16(sizeof(float) * CD * (2 * 1 + CH));         /* dinp */
     s += SAAN_ALIGN16(sizeof(float) * DEC_W * (2 * 3 + CH)) * 5;  /* dblk */
     s += SAAN_ALIGN16(sizeof(float) * CD * (2 * 1 + CH));         /* cdel[0] */
     s += SAAN_ALIGN16(sizeof(float) * CD * (2 * 3 + CH)) * 5;     /* cdel[1..5] */
-    {
-        const int W_AC = 2 * 4 + CH, W_DEC = 2 * 3 + CH;
-        const size_t full_n = (size_t)AC_W * W_AC > (size_t)DEC_W * W_DEC
-                            ? (size_t)AC_W * W_AC : (size_t)DEC_W * W_DEC;
-        s += SAAN_ALIGN16(sizeof(float) * full_n) * 2;            /* w_full/2 */
-        s += SAAN_ALIGN16(sizeof(float) * (size_t)maxC * CH) * 2; /* w_ch/2 */
-        s += SAAN_ALIGN16(sizeof(float) * (size_t)E * W_DEC);
-        s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_R * W_DEC);
-        s += SAAN_ALIGN16(sizeof(float) * (size_t)DEC_W * W_DEC);
-    }
-    s += SAAN_ALIGN16(sizeof(float) * 1539 * CH);
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)(SAAN_NFFT + 2 * SAAN_HOP)) * 2;
+    /* S9: 作業領域は圧縮形 */
+    s += SAAN_ALIGN16(sizeof(float) * full_n);                    /* w_full */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)CD * CH);           /* w_c */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)maxC * CH) * 2;     /* w_ch/2 */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)E * CH);            /* w_e */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_R * CH);   /* w_r */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)DEC_W * CH);        /* w_g */
+    s += SAAN_ALIGN16(sizeof(float) * 1539 * CH);                 /* o1539 */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);/* hr */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)(SAAN_NFFT + 2 * SAAN_HOP)) * 2;   /* ola / olw */
+    s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT);                 /* win */
+    s += SAAN_ALIGN16(sizeof(float) * NB) * 2;                    /* re / im */
+    s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT);                 /* frm */
     /* obuf: 2·CH − (SAAN_LATENCY mod CH) hop（= CH+4。saanotts_stream.h の導出） */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
-    s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT) * 2;
-    s += SAAN_ALIGN16(sizeof(float) * NB) * 2;
+    s += SAAN_ALIGN16(sizeof(float) * AC_W * TOK_MAXW);          /* tok_buf */
+    s += SAAN_ALIGN16(sizeof(float) * AC_W * (TOK_MAXW - 4));    /* tok_w1（S9） */
+    s += SAAN_ALIGN16(sizeof(float) * AC_W * (TOK_MAXW - 8));    /* tok_w2（S9） */
+    s += SAAN_ALIGN16(sizeof(float) * AC_W * CH);                /* tok_out */
+    return s;
+}
+
+size_t saan_stream_arena_needed(int32_t n_ids) {
+    /* 確保の一覧は saan_stream_arena_used に 1 つだけ持つ。ここは緩い上限:
+     * duration の一時領域（init の中で確保して返す。3 × DUR_W × n_ids）を**和で**足す */
+    size_t s = saan_stream_arena_used(n_ids);
+    s += SAAN_ALIGN16(sizeof(float) * SAAN_DUR_W * (size_t)n_ids) * 3;
     /* W8A8（`-DSAAN_INT8_ACT=1`）のとき conv 1 本ぶんの activation 作業領域。
-     * conv の中で確保してすぐ返すので**同時に 1 本ぶん**。最大は
-     * `decoder.pw2`（cin=E=304）を AcBlock の窓幅 2*4+CH で見た上限。
+     * conv の中で確保してすぐ返すので**同時に 1 本ぶん**。S9 で 1×1 conv は T=CH になった
+     * ので、候補の最大を取る: pw2（cin=E, T=CH）/ token の c1（cin=AC_W, T ≤ TOK_MAXW）/
+     * dw（ch=DEC_W, T=W_DEC）/ AC の c1（cin=AC_W, T=W_AC）。
      * W8A32（既定）では 0 が返るので G1/G3 の実測値は変わらない */
-    s += saan_act_scratch_needed(E, 2 * 4 + CH);
+    {
+        size_t m = saan_act_scratch_needed(E, CH), v;
+        v = saan_act_scratch_needed(AC_W, TOK_MAXW);   if (v > m) m = v;
+        v = saan_act_scratch_needed(DEC_W, 2 * 3 + CH); if (v > m) m = v;
+        v = saan_act_scratch_needed(AC_W, 2 * 4 + CH);  if (v > m) m = v;
+        s += m;
+    }
     return s + 8192;
 }
 
@@ -247,8 +277,17 @@ static void zero_outside(float *x, int C, int32_t t0, int32_t n_frames) {
     zero_outside_n(x, C, CH, CH, t0, n_frames);
 }
 
-/* AcBlock 1 段。buf 全体に conv を掛け、中央 CH を out へ。
- * 参照実装 `AcBlock.forward`: `x + LN(c2(relu(c1(x))))` */
+/* AcBlock 1 段。buf（窓 W = 2·pad + CH）を入力に、中央 CH を out へ。
+ * 参照実装 `AcBlock.forward`: `x + LN(c2(relu(c1(x))))`
+ *
+ * S9: 計算するのは要る列だけ。
+ *   c1（k=5, pad 2）: c2 が中央 [pad, pad+CH) を出すのに要る列 [pad−2, pad+CH+2) = [2, W−2)
+ *                    を圧縮して w_full [AC_W][W−4] に置く
+ *   c2 / LN / 残差   : 中央 CH だけ。c2 の出力は `out` [AC_W][CH] に直接書く
+ *                    （以前の w_full2 [AC_W][W] と pipe_center は要らない）
+ * ⚠️ 陽性対照（計画 T2）: c1 の範囲を [3, W−2) に 1 列狭める（下の c1_lo を pad−1 にし、
+ *    c2 の範囲を pad−c1_lo で追従させる）と、各チャンクの中央先頭フレームが c1 の 1 列を
+ *    ゼロパディングで代用してしまい、stream G2 が落ちる（2026-09-03 に実際に落ちるのを見て戻した） */
 static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
                                 float *out, int32_t t_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
@@ -261,18 +300,25 @@ static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
     const int W = p->W;
     /* buf の先頭が対応する絶対時刻。中央の先頭 t_out から pad 引いた位置 */
     const int32_t t_buf = t_out - p->pad;
+    const int c1_lo = p->pad - 2, c1_hi = p->pad + CH + 2;   /* c1 の要る列 [2, W−2) */
+    const int T1 = c1_hi - c1_lo;                            /* = W − 4 */
 
-    SAAN_TRY(saan_conv1d_w(im->w_full, p->buf, c1w, c1b, AC_W, AC_W, 5, W, st->a));
-    saan_relu(im->w_full, (size_t)AC_W * W);
+    SAAN_TRY(saan_conv1d_wr(im->w_full, p->buf, c1w, c1b, AC_W, AC_W, 5, W,
+                            c1_lo, c1_hi, st->a));
+    saan_relu(im->w_full, (size_t)AC_W * T1);
     /* ⚠️ **c1 の出力にもゼロクリアが要る。** 一括版では c1 の配列は [0,T) しかなく、
      * c2（k=5）がその外を参照するとゼロになる。ストリーミングは c1 を窓幅で
      * 計算するので、発話外にも **bias 由来の非ゼロ**が残る。
-     * 実測: これが無いと先頭 pad フレームが max|Δ| 0.49 ずれた */
-    zero_outside_n(im->w_full, AC_W, W, W, t_buf, st->n_frames);
-    SAAN_TRY(saan_conv1d_w(im->w_full2, im->w_full, c2w, c2b, AC_W, AC_W, 5, W, st->a));
-    saan_layernorm_c(im->w_full2, ng, nb, AC_W, W);
-    for (size_t i = 0; i < (size_t)AC_W * W; ++i) im->w_full2[i] += p->buf[i];
-    pipe_center(p, im->w_full2, out);
+     * 実測: これが無いと先頭 pad フレームが max|Δ| 0.49 ずれた
+     * （圧縮座標なので先頭の絶対時刻は t_buf + c1_lo） */
+    zero_outside_n(im->w_full, AC_W, T1, T1, t_buf + c1_lo, st->n_frames);
+    /* c2: 中央 [pad, pad+CH) = c1 の圧縮座標 [pad − c1_lo, pad − c1_lo + CH) = [2, 10) */
+    SAAN_TRY(saan_conv1d_wr(out, im->w_full, c2w, c2b, AC_W, AC_W, 5, T1,
+                            p->pad - c1_lo, p->pad - c1_lo + CH, st->a));
+    saan_layernorm_c(out, ng, nb, AC_W, CH);
+    for (int c = 0; c < AC_W; ++c)
+        for (int m = 0; m < CH; ++m)
+            out[(size_t)c * CH + m] += p->buf[(size_t)c * W + p->pad + m];
     zero_outside(out, AC_W, t_out, st->n_frames);
     return SAAN_OK;
 }
@@ -295,15 +341,12 @@ static saan_status dec_inp_step_body(saan_stream *st, const float *c_in,
 
     pipe_push(p, c_in);           /* inp の入力は c そのもの（C=CD） */
     pipe_push(pc, c_in);          /* 下流の条件付け用に同じ c を同期させる */
-    /* ⚠️ **作業バッファに `w_full` を使わない。** 呼び出し側は `h_out` に
-     * `w_full` を渡してくるので、同じ領域に conv 出力を書くと
-     * ストライドの違い（W=10 vs CH=8）で**自分の読み込み元を壊す**。
-     * 実測で ch=3 以降が壊れ、全サンプルが不一致になった */
-    SAAN_TRY(saan_conv1d_w(im->w_g, p->buf, iw, ib, CD, DEC_W, 3, p->W, st->a));
-    /* h は [DEC_W][W]。中央を取る（pipe_center は p->C を使うので手で書く） */
-    for (int ch = 0; ch < DEC_W; ++ch)
-        memcpy(h_out + (size_t)ch * CH,
-               im->w_g + (size_t)ch * p->W + p->pad, sizeof(float) * CH);
+    /* S9: 中央 [pad, pad+CH) だけを `h_out` [DEC_W][CH] に直接書く。入力は p->buf なので
+     * 呼び出し側が `h_out` に `w_full` を渡してきても重ならない
+     * （以前は w_g に [DEC_W][W] で出してから中央を memcpy していた。w_g が
+     * [DEC_W][CH] に縮んだのでそこには入らない） */
+    SAAN_TRY(saan_conv1d_wr(h_out, p->buf, iw, ib, CD, DEC_W, 3, p->W,
+                            p->pad, p->pad + CH, st->a));
     pipe_center(pc, pc->buf, c_out);
     zero_outside(h_out, DEC_W, t_out, st->n_frames);
     zero_outside(c_out, CD, t_out, st->n_frames);
@@ -320,7 +363,15 @@ static saan_status dec_inp_step(saan_stream *st, const float *c_in, float *h_out
 
 /* dw ブロック 1 段。参照実装:
  *   g = cup(cdown(c));  h = h + gamma * pw2(gelu(pw1(dw(h) + g)))
- * ⚠️ **c は毎段とも元の入力**（h ではない）。時刻を h と揃えるため遅延させる */
+ * ⚠️ **c は毎段とも元の入力**（h ではない）。時刻を h と揃えるため遅延させる
+ *
+ * S9（計画 §9 の訂正どおり）: **dw の入力（p->buf）だけ窓全部**で、dw の出力・cdown / cup・
+ * pw1 / GELU / pw2・残差はすべて中央 CH だけ。1×1 conv と GELU はフレーム独立、
+ * W8A8 の量子化も per-frame なので、中央だけ計算しても各要素の値は同じ。
+ *   - c は先に中央を取り出し（c_out [CD][CH]）、cdown / cup をそこに T=CH で掛ける
+ *   - dw は範囲版で中央 [pad, pad+CH) だけを w_full [DEC_W][CH] に出す（DW −43%）
+ *   - pw2 の出力は h_out [DEC_W][CH] に直接書き、残差もそこで取る
+ * 以前は dw / cdown / cup / pw1 / GELU / pw2 を窓 W=14 全部に掛けて 6 列を捨てていた */
 static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
                                  const float *c_in, float *h_out, float *c_out,
                                  int32_t t_out) {
@@ -333,20 +384,24 @@ static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
     pipe_push(p, h_in);
     pipe_push(pc, c_in);
     const int W = p->W;
-    /* 条件付けは 1x1 なので pad 不要。**pc の buf 全体**に掛けて h と同じ幅にする */
-    SAAN_TRY(saan_conv1d_w(im->w_r, pc->buf, cdw, cdb, CD, SAAN_DEC_R, 1, W, st->a));
-    SAAN_TRY(saan_conv1d_w(im->w_g, im->w_r, cuw, cub, SAAN_DEC_R, DEC_W, 1, W, st->a));
-
-    SAAN_TRY(saan_dwconv1d_w(im->w_full, p->buf, dw, DEC_W, 7, W, st->a));
-    for (size_t k = 0; k < (size_t)DEC_W * W; ++k) im->w_full[k] += im->w_g[k];
-    SAAN_TRY(saan_conv1d_w(im->w_e, im->w_full, p1w, p1b, DEC_W, E, 1, W, st->a));
-    saan_gelu(im->w_e, (size_t)E * W);
-    SAAN_TRY(saan_conv1d_w(im->w_full2, im->w_e, p2w, p2b, E, DEC_W, 1, W, st->a));
-    for (size_t k = 0; k < (size_t)DEC_W * W; ++k)
-        im->w_full2[k] = p->buf[k] + gm[0] * im->w_full2[k];
-
-    pipe_center(p, im->w_full2, h_out);
+    /* 条件付けは 1x1 なので pad 不要。**c の中央 CH だけ**に掛ける（値は窓全部に掛けた
+     * ときの中央列と同じ = per-frame） */
     pipe_center(pc, pc->buf, c_out);
+    SAAN_TRY(saan_conv1d_w(im->w_r, c_out, cdw, cdb, CD, SAAN_DEC_R, 1, CH, st->a));
+    SAAN_TRY(saan_conv1d_w(im->w_g, im->w_r, cuw, cub, SAAN_DEC_R, DEC_W, 1, CH, st->a));
+
+    /* dw: 入力は窓全部（p->buf [DEC_W][W]）、出力は中央だけ圧縮して w_full [DEC_W][CH] */
+    SAAN_TRY(saan_dwconv1d_wr(im->w_full, p->buf, dw, DEC_W, 7, W,
+                              p->pad, p->pad + CH, st->a));
+    for (size_t k = 0; k < (size_t)DEC_W * CH; ++k) im->w_full[k] += im->w_g[k];
+    SAAN_TRY(saan_conv1d_w(im->w_e, im->w_full, p1w, p1b, DEC_W, E, 1, CH, st->a));
+    saan_gelu(im->w_e, (size_t)E * CH);
+    SAAN_TRY(saan_conv1d_w(h_out, im->w_e, p2w, p2b, E, DEC_W, 1, CH, st->a));
+    for (int c = 0; c < DEC_W; ++c)
+        for (int m = 0; m < CH; ++m)
+            h_out[(size_t)c * CH + m] =
+                p->buf[(size_t)c * W + p->pad + m] + gm[0] * h_out[(size_t)c * CH + m];
+
     zero_outside(h_out, DEC_W, t_out, st->n_frames);
     zero_outside(c_out, CD, t_out, st->n_frames);
     return SAAN_OK;
@@ -477,19 +532,22 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
 
     /* ⚠️ **作業領域は段ごとの実寸で取る。** 以前は maxC(76) × maxW(16) を
      * 一律に確保していたが、acoustic は C=48/W=16、decoder は C=76/W=14 で、
-     * 76×16 は**どちらにも要らない上限**だった。E×W も decoder でしか使わない */
+     * 76×16 は**どちらにも要らない上限**だった。
+     * S9 でさらに圧縮形になった（要る列だけ）。**saan_stream_arena_needed と 1:1**:
+     *   w_full  max(AC_W × (W_AC − 4), DEC_W × CH)   c1 の出力 / dw の出力 + g / h
+     *   w_c     CD × CH                              step_chunk の c_sync
+     *   w_e / w_r / w_g   E × CH / R × CH / DEC_W × CH（旧 W_DEC 幅から −9.4 KB） */
     const int W_AC = 2 * 4 + CH;    /* AcBlock の窓 */
-    const int W_DEC = 2 * 3 + CH;   /* dw ブロックの窓 */
-    const size_t full_n = (size_t)AC_W * W_AC > (size_t)DEC_W * W_DEC
-                        ? (size_t)AC_W * W_AC : (size_t)DEC_W * W_DEC;
+    const size_t full_n = (size_t)AC_W * (W_AC - 4) > (size_t)DEC_W * CH
+                        ? (size_t)AC_W * (W_AC - 4) : (size_t)DEC_W * CH;
     const int maxC = DEC_W > AC_W ? DEC_W : AC_W;
     im->w_full  = (float *)saan_alloc(a, sizeof(float) * full_n);
-    im->w_full2 = (float *)saan_alloc(a, sizeof(float) * full_n);
+    im->w_c     = (float *)saan_alloc(a, sizeof(float) * (size_t)CD * CH);
     im->w_ch    = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * CH);
     im->w_ch2   = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * CH);
-    im->w_e     = (float *)saan_alloc(a, sizeof(float) * (size_t)E * W_DEC);
-    im->w_r     = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_R * W_DEC);
-    im->w_g     = (float *)saan_alloc(a, sizeof(float) * (size_t)DEC_W * W_DEC);
+    im->w_e     = (float *)saan_alloc(a, sizeof(float) * (size_t)E * CH);
+    im->w_r     = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_R * CH);
+    im->w_g     = (float *)saan_alloc(a, sizeof(float) * (size_t)DEC_W * CH);
     im->o1539   = (float *)saan_alloc(a, sizeof(float) * 1539 * CH);
     im->hr      = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);
     im->ola_len = SAAN_NFFT + 2 * SAAN_HOP;   /* out_pos が N/2 先行する分 */
@@ -506,7 +564,7 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
      * 以前ここが `if (!im->frm)` だけだったため、arena 175〜191 KB の
      * 15 サイズで **init が SAAN_OK を返したまま NULL を抱えて**
      * あとから落ちていた（検証で発覚）。 */
-    if (!im->w_full || !im->w_full2 || !im->w_ch || !im->w_ch2 ||
+    if (!im->w_full || !im->w_c || !im->w_ch || !im->w_ch2 ||
         !im->w_e || !im->w_r || !im->w_g || !im->o1539 || !im->hr ||
         !im->ola || !im->olw || !im->win || !im->re || !im->im || !im->frm)
         return SAAN_ERR_ARENA;
@@ -524,11 +582,14 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
     im->out_pos = 0;
     im->skip_hops = SAAN_NFFT / 2 / SAAN_HOP;
     im->obuf = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
+    /* S9: token 段は 8 列ずつ縮むので、tok_w1 / tok_w2 は 4 / 8 列少なくて足りる
+     * （compute_tokens_body の回転を参照。saan_stream_arena_needed と 1:1） */
     im->tok_buf = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
-    im->tok_w1  = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
-    im->tok_w2  = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
+    im->tok_w1  = (float *)saan_alloc(a, sizeof(float) * AC_W * (TOK_MAXW - 4));
+    im->tok_w2  = (float *)saan_alloc(a, sizeof(float) * AC_W * (TOK_MAXW - 8));
     im->tok_out = (float *)saan_alloc(a, sizeof(float) * AC_W * CH);
-    if (!im->obuf || !im->tok_out) return SAAN_ERR_ARENA;
+    if (!im->obuf || !im->tok_buf || !im->tok_w1 || !im->tok_w2 || !im->tok_out)
+        return SAAN_ERR_ARENA;
     im->ofill = 0;
     st->ofill_max = 0;
     st->peak_used = a->peak;
@@ -559,10 +620,17 @@ static saan_status compute_tokens_body(saan_stream *st, int32_t i0, int32_t i1,
     const float *emb = im->emb;   /* init で解決済み（S1） */
 
     const int32_t lo = i0 - TOK_HALO, hi = i1 + TOK_HALO;
-    const int n = (int)(hi - lo);
+    int n = (int)(hi - lo);       /* 今の h の列数。段ごとに 8 ずつ縮む（S9） */
+    int32_t l = lo;               /* h の先頭列の絶対トークン番号。段ごとに 4 ずつ進む */
     if (n > TOK_MAXW) return SAAN_ERR_SHAPE;
 
-    float *h = im->tok_buf;
+    /* S9: 各 conv（k=5, pad 2）で有効範囲が両側 2 ずつ縮むので、段 bi の出力は
+     * 入力の [4, n−4) だけ計算すればよい（受容野 ±12 = 3 段 × 4 の逆算）。出力は圧縮形。
+     * 3 本のバッファを回す: c1 の出力は常に B（容量 TOK_MAXW−4）、段の入出力は A と C を交互
+     * （A: TOK_MAXW、C: TOK_MAXW−8。段 0 の入力は A、出力は C、段 1 は C → A、段 2 は A → C）。
+     * memcpy で h を戻す必要が無く、最後の h（C）の先頭がそのまま [i0, i1) になる */
+    float *A = im->tok_buf, *B = im->tok_w1, *C = im->tok_w2;
+    float *h = A;
     for (int k = 0; k < n; ++k) {
         const int32_t i = lo + k;
         if (i < 0 || i >= st->n_ids) {        /* 発話外はゼロ（一括版と同じ） */
@@ -578,19 +646,26 @@ static saan_status compute_tokens_body(saan_stream *st, int32_t i0, int32_t i1,
         const saan_acblk_w *k = &im->tokw[bi];   /* init で解決済み（S1） */
         const saan_wref c1w = k->c1w, c2w = k->c2w;
         const float *c1b = k->c1b, *c2b = k->c2b, *ng = k->ng, *nb = k->nb;
-        SAAN_TRY(saan_conv1d_w(im->tok_w1, h, c1w, c1b, AC_W, AC_W, 5, n, st->a));
-        saan_relu(im->tok_w1, (size_t)AC_W * n);
+        float *t1 = B;
+        float *o  = (h == A) ? C : A;
+        const int n1 = n - 4, n2 = n - 8;
+        /* c1: 出力 [2, n−2) を圧縮して t1 [AC_W][n−4]（先頭は絶対 l+2） */
+        SAAN_TRY(saan_conv1d_wr(t1, h, c1w, c1b, AC_W, AC_W, 5, n, 2, n - 2, st->a));
+        saan_relu(t1, (size_t)AC_W * n1);
         /* ⚠️ c1 の出力の発話外もゼロに（一括版では配列外＝ゼロ、frame 側と同じ理由） */
-        zero_outside_n(im->tok_w1, AC_W, n, n, lo, st->n_ids);
-        SAAN_TRY(saan_conv1d_w(im->tok_w2, im->tok_w1, c2w, c2b, AC_W, AC_W, 5, n, st->a));
-        saan_layernorm_c(im->tok_w2, ng, nb, AC_W, n);
-        for (size_t x = 0; x < (size_t)AC_W * n; ++x) im->tok_w2[x] += h[x];
-        zero_outside_n(im->tok_w2, AC_W, n, n, lo, st->n_ids);
-        memcpy(h, im->tok_w2, sizeof(float) * (size_t)AC_W * n);
+        zero_outside_n(t1, AC_W, n1, n1, l + 2, st->n_ids);
+        /* c2: 出力 [4, n−4)（h の座標）= t1 の座標 [2, n−6) を圧縮して o [AC_W][n−8]（先頭は l+4） */
+        SAAN_TRY(saan_conv1d_wr(o, t1, c2w, c2b, AC_W, AC_W, 5, n1, 2, n1 - 2, st->a));
+        saan_layernorm_c(o, ng, nb, AC_W, n2);
+        for (int c = 0; c < AC_W; ++c)
+            for (int j = 0; j < n2; ++j)
+                o[(size_t)c * n2 + j] += h[(size_t)c * n + j + 4];
+        zero_outside_n(o, AC_W, n2, n2, l + 4, st->n_ids);
+        h = o; n = n2; l += 4;
     }
-    for (int c = 0; c < AC_W; ++c)
-        memcpy(out + (size_t)c * (i1 - i0), h + (size_t)c * n + TOK_HALO,
-               sizeof(float) * (size_t)(i1 - i0));
+    /* ここで n == i1 − i0、l == i0（3 段 × 4 = TOK_HALO） */
+    if (n != (int)(i1 - i0) || l != i0) return SAAN_ERR_SHAPE;
+    memcpy(out, h, sizeof(float) * (size_t)AC_W * (size_t)n);
     return SAAN_OK;
 }
 
@@ -688,7 +763,7 @@ static saan_status step_chunk_body(saan_stream *st, float *pcm) {
     }
 
     float *h = im->w_full;      /* [DEC_W][CH] として使い回す */
-    float *c_sync = im->w_full2;
+    float *c_sync = im->w_c;
     t -= im->dinp.pad;
     saan_status s = dec_inp_step(st, c_cur, h, c_sync, t);
     if (s != SAAN_OK) return s;
