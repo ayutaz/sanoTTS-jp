@@ -450,11 +450,23 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
 }
 #endif
 
-/* --- 入力 1 行 → 合成 -----------------------------------------------------
+/* --- 拒否の理由を「どの文字か」まで出す -----------------------------------
  *
- * ⚠️ **拒否する理由を必ず「どの文字か」まで出す。** 未知語や記号は
- *    「黙って無音になる」のがこの入力仕様の一番危ない壊れ方なので、
+ * ⚠️ 未知語や記号は「黙って無音になる」のがこの入力仕様の一番危ない壊れ方なので、
  *    端末側では**必ずエラーにして位置を示す**（`err_byte`）。 */
+static void log_reject(const char *text, size_t nbytes, int32_t err_byte) {
+    if (err_byte < 0 || (size_t)err_byte >= nbytes) return;
+    /* err_byte から先の 1 文字（最大 4 B）を見せる。**何を消せばよいか分かるように。** */
+    char ch[8] = {0};
+    size_t k = 0;
+    for (size_t i = (size_t)err_byte; i < nbytes && k < 4; ++i, ++k) {
+        ch[k] = text[i];
+        if (k > 0 && ((unsigned char)text[i] & 0xC0u) != 0x80u) { ch[k] = '\0'; break; }
+    }
+    ESP_LOGE(TAG, "  受け付けない文字: \"%s\"（%d バイト目）", ch, (int)err_byte);
+}
+
+/* --- 入力 1 行 → 合成（かな経路）------------------------------------------ */
 static bool speak_line(const saan_weights *w, const char *text, size_t nbytes) {
     g_last_n_ids = 0;   /* 失敗したら「もう一度」も無効にする（g_last_n_ids の ⚠️） */
     if (nbytes == 0) {
@@ -474,22 +486,10 @@ static bool speak_line(const saan_weights *w, const char *text, size_t nbytes) {
     t_g2p = esp_timer_get_time() - t_g2p;
 
     if (gs != SAAN_G2P_OK) {
+        /* ⚠️ **ここには来ないはず** — 呼び出す前に saan_g2p_classify() が同じ
+         *    トークナイザで「かな経路」と判定している。来たら 2 つがずれた印。 */
         ESP_LOGE(TAG, "G2P 失敗: %s（%d バイト目）", saan_g2p_strerror(gs), (int)gi.err_byte);
-        if (gs == SAAN_G2P_ERR_UNKNOWN && gi.err_byte >= 0
-            && (size_t)gi.err_byte < nbytes) {
-            /* err_byte から先の 1 文字（最大 4 B）を見せる。**何を消せばよいか分かるように。** */
-            char ch[8] = {0};
-            size_t k = 0;
-            for (size_t i = (size_t)gi.err_byte; i < nbytes && k < 4; ++i, ++k) {
-                ch[k] = text[i];
-                if (k > 0 && ((unsigned char)text[i] & 0xC0u) != 0x80u) { ch[k] = '\0'; break; }
-            }
-            ESP_LOGE(TAG, "  受け付けない文字: \"%s\"", ch);
-            ESP_LOGE(TAG, "  使えるのは **ひらがな** と [ ] # ° ー っ ん と ? ?! ?. ?~ だけ。"
-                          "漢字・カタカナ・句読点 (。、) は端末では扱わない");
-            ESP_LOGE(TAG, "  漢字混じり文からの変換は**ホスト側**で: "
-                          "uv run python scripts/to_intermediate.py \"文\"");
-        }
+        if (gs == SAAN_G2P_ERR_UNKNOWN) log_reject(text, nbytes, gi.err_byte);
         return false;
     }
 
@@ -520,6 +520,65 @@ static bool speak_line(const saan_weights *w, const char *text, size_t nbytes) {
     g_last_text[nbytes] = '\0';
     saan_ui_show(NULL, g_last_text);
     return synth_once(w, g_ids, n_ids);
+}
+
+/* --- 入力 1 行 → 経路を選んで合成（K-B / T11）------------------------------
+ *
+ * **`!` は要らない。** 1 本のプロンプトで「かな中間表現」と
+ * 「漢字かな交じり文」の両方を受け、`saan_g2p_classify()` が経路を決める。
+ *
+ * ⚠️ **経路を必ずログに出す。** どちらで読まれたかが分からないと、
+ *    読み違いを見ても「辞書が悪いのか判定が悪いのか」を切り分けられない。
+ * ⚠️ **拒否をそのまま残す**（`csrc/g2p.h` の `saan_g2p_classify` を読むこと）。
+ *    「中間表現 + `。`」を黙って辞書経路に回すと**それらしい音が出てしまう**。
+ * ⚠️ **判定は手書きの文字集合ではない** — 凍結テーブルのトークナイザが
+ *    行末まで通るかそのもの。ホスト側 `kana_g2p.classify_route()` と同じ規則で、
+ *    一致は `uv run python scripts/k1/kb_route_parity.py` が測る。 */
+static bool speak_auto(const saan_weights *w, const char *text, size_t nbytes) {
+    if (nbytes == 0) {
+        ESP_LOGW(TAG, "空行。かな中間表現か漢字かな交じり文を入力すること"
+                      "（例: きょ][おわよ][いて][んきです°ね / 今日は良い天気ですね。）");
+        g_last_n_ids = 0;
+        return false;
+    }
+
+    saan_g2p_status why = SAAN_G2P_OK;
+    int32_t err_byte = -1;
+    const saan_g2p_route route = saan_g2p_classify(text, nbytes, &why, &err_byte);
+    ESP_LOGI(TAG, "経路: %s", saan_g2p_route_name(route));
+
+    if (route == SAAN_G2P_ROUTE_KANA) return speak_line(w, text, nbytes);
+
+    if (route == SAAN_G2P_ROUTE_DICT) {
+#if SAAN_KANJI
+        return speak_kanji(w, text, nbytes);
+#else
+        /* ⚠️ **喋らずに理由を出す。** 辞書を持たないビルドでこの行を
+         *    かな経路に無理やり通すと、読めない文字が黙って落ちる。 */
+        g_last_n_ids = 0;
+        ESP_LOGE(TAG, "この構成は辞書を持たないので、漢字・カタカナ・句読点は扱えない"
+                      "（-DSAAN_KANJI=1 でビルドすると端末で読める）");
+        log_reject(text, nbytes, err_byte);
+        ESP_LOGE(TAG, "  漢字混じり文からの変換は**ホスト側**で: "
+                      "uv run python scripts/to_intermediate.py \"文\"");
+        return false;
+#endif
+    }
+
+    /* 拒否 */
+    g_last_n_ids = 0;
+    if (why == SAAN_G2P_ERR_UTF8) {
+        ESP_LOGE(TAG, "不正な UTF-8（%d バイト目）。端末は UTF-8 しか受けない",
+                 (int)err_byte);
+        return false;
+    }
+    ESP_LOGE(TAG, "かな中間表現として読めないのに、中間表現の記号"
+                  "（[ ] # ° _ ^ $ ? ?! ?. ?~）が混じっている。**喋らない**");
+    log_reject(text, nbytes, err_byte);
+    ESP_LOGE(TAG, "  かな中間表現なら: **ひらがな** と [ ] # ° ー っ ん と ? ?! ?. ?~ だけ"
+                  "（句読点 。、 は入れない）");
+    ESP_LOGE(TAG, "  漢字かな交じり文なら: 中間表現の記号を消してから入力すること");
+    return false;
 }
 
 /* --- 起動セルフテスト -----------------------------------------------------
@@ -574,20 +633,24 @@ static void print_usage(void) {
     /* ⚠️ ESP_LOG ではなく素の行で出す。**貼り付けて使う手順書**なので、
      *    ログレベルで消えたりタイムスタンプが混ざったりすると読みにくい。 */
     ESP_LOGI(TAG, "==================== 対話モード ====================");
-    ESP_LOGI(TAG, "かな中間表現を 1 行入力して Enter で喋る。");
-    ESP_LOGI(TAG, "  例:  きょ][おわよ][いて][んきです°ね     （今日は良い天気ですね。）");
-    ESP_LOGI(TAG, "  例:  こんにちわ");
+    ESP_LOGI(TAG, "1 行入力して Enter で喋る。**経路は自動で決まる**（`!` は要らない）。");
+    ESP_LOGI(TAG, "  かな中間表現:  きょ][おわよ][いて][んきです°ね");
+    ESP_LOGI(TAG, "  ひらがなだけ:  こんにちわ");
     ESP_LOGI(TAG, "記号:  [ 上昇 / ] 下降核 / # 句境界 / ° 無声化 / ? ?! ?. ?~ 疑問");
 #if SAAN_KANJI
-    ESP_LOGI(TAG, "**漢字対応ビルド**: `!` で始めると漢字かな交じり文として扱う。");
-    ESP_LOGI(TAG, "  例:  !今日は良い天気ですね。");
-    ESP_LOGI(TAG, "⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 17.79%% の文で"
-                  "読みが変わる**（M-74）。⚠️ 音は誰も聞いていない。");
+    ESP_LOGI(TAG, "**漢字対応ビルド**: 漢字・カタカナの文はそのまま入力する。");
+    ESP_LOGI(TAG, "  例:  今日は良い天気ですね。");
+    ESP_LOGI(TAG, "  （`!` を前置すると辞書経路に強制する。**試験用**）");
+    ESP_LOGI(TAG, "⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 15.44%% の文で"
+                  "読みが変わる**（音素では 0.32%%。M-77）。⚠️ 音は誰も聞いていない。");
 #else
-    ESP_LOGI(TAG, "⚠️ **漢字・カタカナ・句読点は受け付けない**（端末に辞書が無い）。");
-    ESP_LOGI(TAG, "   漢字混じり文からは**ホスト側**で作る:");
+    ESP_LOGI(TAG, "⚠️ **この構成は辞書を持たない**ので、漢字・カタカナ・句読点は喋れない。");
+    ESP_LOGI(TAG, "   端末で読ませるなら -DSAAN_KANJI=1 でビルドする。");
+    ESP_LOGI(TAG, "   そうでなければ**ホスト側**で中間表現に直す:");
     ESP_LOGI(TAG, "     uv run python scripts/to_intermediate.py \"今日は良い天気ですね。\"");
 #endif
+    ESP_LOGI(TAG, "⚠️ **中間表現の記号が混じったまま読めない行は拒否する**"
+                  "（例: きょ][おわ…です°ね。）。黙って漢字経路に回さない。");
     ESP_LOGI(TAG, "⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**");
     ESP_LOGI(TAG, "編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 %d ids",
              (int)SAAN_MAX_IDS);
@@ -708,22 +771,25 @@ static void tts_task(void *arg) {
             continue;
         }
 #if SAAN_KANJI
-        /* ⚠️ **`!` を前置したときだけ漢字経路。** 既定をかなのままにするのは、
-         *    「同じ 1 行が構成で違う音になる」のを避けるため。 */
+        /* ⚠️ **`!` は試験用の辞書強制だけに残してある**（K-B）。既定は
+         *    speak_auto() が自動で決めるので、普段は前置しなくてよい。
+         *    「同じ行を無理やり辞書経路に流したらどうなるか」を測るのに要る。 */
         if (n > 0 && line[0] == '!') {
+            ESP_LOGI(TAG, "経路: 辞書（`!` による強制）");
             (void)speak_kanji(&w, line + 1, (size_t)n - 1);
             saan_console_prompt();
             continue;
         }
 #endif
-        (void)speak_line(&w, line, (size_t)n);
+        (void)speak_auto(&w, line, (size_t)n);
         saan_console_prompt();
     }
 #else
     /* ⚠️ **未使用警告よけに捨てるのではなく、コンパイル対象に残すために参照する。**
      *    ホスト stub のゲート（scripts/check_esp32_template.sh の 8）は
-     *    -Werror で main.c を通すので、#if で囲うと speak_line だけ検査されなくなる。 */
-    (void)&speak_line;
+     *    -Werror で main.c を通すので、#if で囲うと speak_auto / speak_line だけ
+     *    検査されなくなる。 */
+    (void)&speak_auto;
     ESP_LOGI(TAG, "SAAN_INTERACTIVE=0 でビルドされている（ホスト stub）。対話ループには入らない");
 #endif
 

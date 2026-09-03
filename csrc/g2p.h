@@ -72,6 +72,53 @@ int32_t saan_g2p_capacity(size_t nbytes);
 
 const char *saan_g2p_strerror(saan_g2p_status s);
 
+/* --- 入力を 1 経路にする（K-B / T11）------------------------------------
+ *
+ * 端末のプロンプトは「かな中間表現」と「漢字かな交じり文」の両方を受ける。
+ * どちらの経路に回すかを**この関数だけ**が決める。
+ *
+ * ⚠️ **手書きの文字集合で判定しない。** 「ひらがなならかな経路」は凍結テーブルと
+ *    ずれる: `ぁぃぇぉゃゅょゎゐゑゕゖ` は**単独ではモーラになれない**（表に無い）し、
+ *    `_ ^ $` はひらがなではないがマーク側にある。判定は
+ *    **`saan_g2p()` と同じトークナイザ（パス 0 + パス 1）が行末まで通るか**そのもの。
+ *
+ * 3 値:
+ *   KANA   トークン化が最後まで通った            → `saan_g2p()` に渡す
+ *   DICT   通らず、行に**マークが 1 つも無い**    → 漢字経路（辞書 + Viterbi）に渡す
+ *   REJECT 通らず、行に**マークがある**          → 拒否。位置を見せる
+ *
+ * ⚠️ **REJECT を残すのが要点。** 「中間表現 + `。`」のような打ち間違いは、
+ *    マークを含むのでかな経路には乗らない。これを黙って辞書経路に回すと、
+ *    `[` `]` `#` が記号として読み上げられたり落とされたりして
+ *    **それらしい音が出てしまう**（気づけない壊れ方）。
+ *
+ * ⚠️ **不正な UTF-8 も REJECT。** 辞書経路に回すと MeCab の文字種判定が
+ *    化けるだけなので、経路を選ぶ前に落とす（`why` に `ERR_UTF8` が入る）。
+ *
+ * ⚠️ **空入力は KANA。** `saan_g2p("")` が成功する規約に合わせてある。
+ *    「空行です」の案内は呼び出し側の仕事。
+ *
+ * マークの集合は `kSaanG2pMarks` と `°` から導く（**手書きしない**）。
+ * ASCII のマーク文字は UTF-8 の多バイト列の中には現れないので、生バイト走査で厳密。
+ *
+ * `why` / `err_byte` は NULL 可。KANA のとき `*why = SAAN_G2P_OK` / `*err_byte = -1`。
+ * DICT / REJECT のときは**トークン化が止まったバイト位置**が入る。
+ *
+ * ⚠️ ホスト側 `scripts/kana_g2p.py` の `classify_route()` が同じ 3 値を返す。
+ *    一致は `uv run python scripts/k1/kb_route_parity.py`（held-out 298 文 +
+ *    その中間表現 298 行）で検査する。**片方だけ直すとそこが落ちる。**
+ */
+typedef enum {
+    SAAN_G2P_ROUTE_KANA   = 0,
+    SAAN_G2P_ROUTE_DICT   = 1,
+    SAAN_G2P_ROUTE_REJECT = 2
+} saan_g2p_route;
+
+saan_g2p_route saan_g2p_classify(const char *text, size_t nbytes,
+                                 saan_g2p_status *why, int32_t *err_byte);
+
+const char *saan_g2p_route_name(saan_g2p_route r);
+
 /* --- テーブルのドリフト検出 ---------------------------------------------
  *
  * `scripts/gen_g2p_vectors.py` が同じ正準シリアライズから計算した SHA-256 と

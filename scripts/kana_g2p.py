@@ -58,6 +58,20 @@ DEVOICED_MARK = "°"
 (`docs/measurements.md` M-14)。ホスト側で確定させて入力に持たせる。
 """
 
+
+class IntermediateError(KeyError):
+    """中間表現として解釈できない文字。**位置を機械的に取れるようにするためだけ**の型。
+
+    ⚠️ `KeyError` の派生なので、既存の `except KeyError` はそのまま通る
+    （`str()` も従来と同じ文言）。端末側 `saan_g2p()` の `err_byte` と
+    突き合わせるのに文字位置が要るので、`index` を属性で持たせてある。
+    """
+
+    def __init__(self, char: str, index: int) -> None:
+        super().__init__(f"解釈できない文字: {char!r} (位置 {index})")
+        self.char = char
+        self.index = index
+
 DEVOICE = {"I": "i", "U": "u", "A": "a", "E": "e", "O": "o"}
 REVOICE = {v: k for k, v in DEVOICE.items()}
 
@@ -316,8 +330,52 @@ def intermediate_to_tokens(text: str, table: dict[str, list[str]]) -> list[str]:
                 tokens.append(mora)
                 break
         else:
-            raise KeyError(f"解釈できない文字: {text[i]!r} (位置 {i})")
+            raise IntermediateError(text[i], i)
     return tokens
+
+
+# --- 行の経路判定（K-B / 端末の csrc/g2p.c と同じ 3 値）----------------------
+
+MARK_CHARS = frozenset(m[0] for m in MARKS) | {DEVOICED_MARK}
+"""「行にマークがあるか」を見るための 1 文字集合。
+
+⚠️ **手書きしない。** `MARKS` の先頭 1 文字（`?!` `?.` `?~` は `?` に潰れる）と
+`°` から導く。端末側 `csrc/g2p.c` の `has_mark()` が `kSaanG2pMarks[].b0` から
+同じ集合を導いており、**表を更新すれば両方が同時に動く**。
+"""
+
+
+def classify_route(text: str, table: dict[str, list[str]]) -> tuple[str, int]:
+    """行を 3 値に分ける。**端末の `saan_g2p_classify()` と同じ規則。**
+
+    戻り値は `(経路, err_byte)`。経路は `"kana"` / `"dict"` / `"reject"`。
+    `err_byte` は**トークン化が止まった UTF-8 バイト位置**（かな経路では -1）。
+
+    規則:
+      kana    `intermediate_to_tokens()` が行末まで通る          → 端末は `saan_g2p()`
+      dict    通らず、行に**マークが 1 つも無い**                → 端末は漢字経路
+      reject  通らず、行に**マークがある**                      → 端末は拒否
+
+    ⚠️ **判定を別に書き下さない。** 「ひらがなならかな経路」は凍結テーブルとずれる
+    （`ぁぃぇぉゃゅょゎゐゑゕゖ` は単独ではモーラになれず、`_ ^ $` はマーク側）。
+    判定は**トークナイザが通るかそのもの**にしてある。
+
+    ⚠️ **拒否を残すのが要点。** 「中間表現 + `。`」を黙って辞書経路に回すと、
+    `[` `]` `#` が読み上げられたり落とされたりして**それらしい音が出てしまう**。
+
+    ⚠️ **不正な UTF-8 はここでは扱えない**（Python の `str` は復号済み）。
+    端末側は `SAAN_G2P_ERR_UTF8` を `reject` に倒す。**一致検査は `str` に
+    できる入力だけで行う**（`scripts/k1/kb_route_parity.py`）。
+    """
+    try:
+        intermediate_to_tokens(text, table)
+    except IntermediateError as exc:
+        err_byte = len(text[: exc.index].encode("utf-8"))
+    else:
+        return ("kana", -1)
+    if any(ch in MARK_CHARS for ch in text):
+        return ("reject", err_byte)
+    return ("dict", err_byte)
 
 
 # --- ホスト側の変換（オフラインで一度だけ）----------------------------------

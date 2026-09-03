@@ -214,6 +214,51 @@ static void emit(out_t *o, int32_t id) {
     if (id >= SAAN_G2P_VOWEL_LO && id <= SAAN_G2P_VOWEL_HI) o->last_vowel = id;
 }
 
+/* --- 検証（パス 0 + パス 1）------------------------------------------------
+ *
+ * ⚠️ **トークナイザを 2 回書かない。** `saan_g2p()` も `saan_g2p_classify()` も
+ *    「行末まで読めるか」の判定はここ 1 か所に寄せてある。判定だけを別に
+ *    書き下すと、凍結テーブルの更新で片方だけがずれる（C-002 と同型）。 */
+static saan_g2p_status validate(const unsigned char *t, size_t n, int32_t *err_byte) {
+    size_t i;
+
+    *err_byte = -1;
+    /* パス 0: UTF-8 */
+    for (i = 0; i < n; ) {
+        uint32_t cp = 0;
+        const int l = utf8_decode(t, n, i, &cp);
+        if (l <= 0) { *err_byte = (int32_t)i; return SAAN_G2P_ERR_UTF8; }
+        i += (size_t)l;
+    }
+    /* パス 1: トークン化できるか */
+    for (i = 0; i < n; ) {
+        tok_t tk;
+        if (!next_token(t, n, i, &tk)) {
+            *err_byte = (int32_t)i;              /* 引けない**文字**の先頭バイト */
+            return SAAN_G2P_ERR_UNKNOWN;
+        }
+        i = tk.next;
+    }
+    return SAAN_G2P_OK;
+}
+
+/* 行にマークが 1 つでもあるか（`[ ] # _ ^ $ ?` と `°`）。
+ *
+ * ⚠️ **集合を手書きしない。** `kSaanG2pMarks` の先頭バイトと `°` の 2 バイトから
+ *    導く。マークはすべて ASCII か U+00B0 で、UTF-8 は自己同期するので
+ *    「多バイト文字の一部がたまたま `[` に見える」ことは起きない（生バイト走査で厳密）。 */
+static int has_mark(const unsigned char *t, size_t n) {
+    size_t i;
+    for (i = 0; i < n; ++i) {
+        int k;
+        for (k = 0; k < SAAN_G2P_N_MARKS; ++k)
+            if (t[i] == kSaanG2pMarks[k].b0) return 1;
+        if (t[i] == SAAN_G2P_DEVOICE_B0 && i + 1u < n
+            && t[i + 1] == SAAN_G2P_DEVOICE_B1) return 1;
+    }
+    return 0;
+}
+
 /* --- 公開 API ------------------------------------------------------------- */
 
 int32_t saan_g2p_capacity(size_t nbytes) {
@@ -254,25 +299,14 @@ saan_g2p_status saan_g2p(const char *text, size_t nbytes,
     if (ids_cap > 0 && ids == NULL) return SAAN_G2P_ERR_ARG;
     if (nbytes > 0u && text == NULL) return SAAN_G2P_ERR_ARG;
 
-    /* --- パス 0: UTF-8 --------------------------------------------------- */
-    for (i = 0; i < nbytes; ) {
-        uint32_t cp = 0;
-        const int l = utf8_decode(t, nbytes, i, &cp);
-        if (l <= 0) {
-            if (info) info->err_byte = (int32_t)i;
-            return SAAN_G2P_ERR_UTF8;
+    /* --- パス 0 + パス 1: UTF-8 とトークン化（validate に一本化）--------- */
+    {
+        int32_t eb = -1;
+        const saan_g2p_status vs = validate(t, nbytes, &eb);
+        if (vs != SAAN_G2P_OK) {
+            if (info) info->err_byte = eb;
+            return vs;
         }
-        i += (size_t)l;
-    }
-
-    /* --- パス 1: トークン化できるか -------------------------------------- */
-    for (i = 0; i < nbytes; ) {
-        tok_t tk;
-        if (!next_token(t, nbytes, i, &tk)) {
-            if (info) info->err_byte = (int32_t)i;   /* 引けない**文字**の先頭バイト */
-            return SAAN_G2P_ERR_UNKNOWN;
-        }
-        i = tk.next;
     }
 
     /* --- パス 2: 音素化 + intersperse ------------------------------------ */
@@ -334,4 +368,40 @@ saan_g2p_status saan_g2p(const char *text, size_t nbytes,
     }
     if (n_ids) *n_ids = o.n;      /* 溢れたときは**必要な総数**が入る */
     return o.overflow ? SAAN_G2P_ERR_OVERFLOW : SAAN_G2P_OK;
+}
+
+/* --- 経路の判定（K-B / T11）------------------------------------------------
+ *
+ * 規約は `csrc/g2p.h` の宣言のところに全部書いてある。**先にそれを読むこと。** */
+saan_g2p_route saan_g2p_classify(const char *text, size_t nbytes,
+                                 saan_g2p_status *why, int32_t *err_byte) {
+    const unsigned char *t = (const unsigned char *)text;
+    int32_t eb = -1;
+    saan_g2p_status vs;
+
+    if (why) *why = SAAN_G2P_OK;
+    if (err_byte) *err_byte = -1;
+    if (nbytes > 0u && text == NULL) {
+        if (why) *why = SAAN_G2P_ERR_ARG;
+        return SAAN_G2P_ROUTE_REJECT;
+    }
+
+    vs = validate(t, nbytes, &eb);
+    if (why) *why = vs;
+    if (err_byte) *err_byte = eb;
+
+    if (vs == SAAN_G2P_OK) return SAAN_G2P_ROUTE_KANA;
+    /* ⚠️ 不正な UTF-8 は辞書経路にも回さない（MeCab の文字種判定が化けるだけ） */
+    if (vs != SAAN_G2P_ERR_UNKNOWN) return SAAN_G2P_ROUTE_REJECT;
+    /* ⚠️ マークが混じったまま辞書経路に回すと**それらしい音が出てしまう** */
+    return has_mark(t, nbytes) ? SAAN_G2P_ROUTE_REJECT : SAAN_G2P_ROUTE_DICT;
+}
+
+const char *saan_g2p_route_name(saan_g2p_route r) {
+    switch (r) {
+    case SAAN_G2P_ROUTE_KANA:   return "かな";
+    case SAAN_G2P_ROUTE_DICT:   return "辞書";
+    case SAAN_G2P_ROUTE_REJECT: return "拒否";
+    }
+    return "不明";
 }
