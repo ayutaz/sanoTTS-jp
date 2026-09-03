@@ -1,0 +1,8 @@
+# QEMU 用の上書き（esp32/CMakeLists.txt が -DSAAN_QEMU=1 のとき自動で SDKCONFIG_DEFAULTS の末尾に足す）。
+#
+# ⚠️ QEMU（esp_develop_9.0.0）の flash モデルは QIO を受け付けない: `qio_mode: Failed to set QIE bit,
+#    not enabling QIO mode` のあと spi_flash の初期化で assert → ブートループ（pie_probe の T6 で実際に踏んだ）。
+#    既定（sdkconfig.defaults）は実機向けに QIO なので、QEMU だけ DIO に戻す。
+# ⚠️ 速度には効くが値には効かない（checksum は QIO / DIO で同一。M-86）。
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=n
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y

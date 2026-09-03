@@ -32,6 +32,20 @@ CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
 #    実機で最初に触るつまみがこれ。
 CONFIG_ESP32S3_DATA_CACHE_64KB=y
 CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+# D-cache の行を 64 B に（IDF 既定は 32 B）。重み 545 KB/step の行フィル回数が半分になり、
+# CoreS3 で定常 xRT 0.922 → 0.858（M-86。M5 構成でも 0.926 → 0.861 = M-84）。checksum は不変。
+CONFIG_ESP32S3_DATA_CACHE_LINE_64B=y
+
+# --- flash ---
+# ⚠️ IDF 既定の DIO（2 bit 幅）だと重みの行フィルが遅く、同じコードで xRT 1.090（M-86）。
+#    QIO（4 bit 幅）で 0.922。ESP32-S3-WROOM-1 / CoreS3 の flash は QIO 対応（実測）。
+# ⚠️ **QEMU は QIO を受け付けない**（`qio_mode: Failed to set QIE bit` → ブートループ）。
+#    `-DSAAN_QEMU=1` のビルドは CMakeLists.txt が sdkconfig.qemu（DIO）を自動で重ねる。
+# ⚠️ **`esptool.py write_flash` に `--flash_mode qio` を渡してはいけない**（ヘッダが QIO になり
+#    ROM ローダが読めずブートループ。M-86 で踏んだ）。`@flash_args`（dio）のまま焼けば
+#    bootloader が起動後に QIO へ切り替える（`qio_mode: Enabling default flash chip QIO`）。
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
 
 # --- 無効にしておくもの ---
 # ⚠️ WiFi / BT を有効にすると内部 DRAM が数十 KB 消える。arena は 208 KB を

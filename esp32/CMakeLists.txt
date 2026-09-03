@@ -44,6 +44,17 @@ set(SAAN_MODEL_BLOB "${SAAN_MODEL_BLOB}" CACHE INTERNAL "重み blob の絶対�
 file(SIZE "${SAAN_MODEL_BLOB}" SAAN_MODEL_BLOB_SIZE)
 message(STATUS "sanoTTS: model blob ${SAAN_MODEL_BLOB} (${SAAN_MODEL_BLOB_SIZE} B)")
 
+# --- QEMU は QIO flash を受け付けない → -DSAAN_QEMU=1 のときだけ sdkconfig.qemu（DIO）を重ねる ---
+# ⚠️ project() より前でないと効かない（IDF は project() の中で SDKCONFIG_DEFAULTS を読む）。
+# ⚠️ 「既定の DIO で速度を測る」事故を防ぐため、実機向けビルドでは何もしない（既定 = QIO。M-86）。
+if(SAAN_QEMU)
+    if(NOT DEFINED SDKCONFIG_DEFAULTS OR SDKCONFIG_DEFAULTS STREQUAL "")
+        set(SDKCONFIG_DEFAULTS "sdkconfig.defaults")
+    endif()
+    set(SDKCONFIG_DEFAULTS "${SDKCONFIG_DEFAULTS};sdkconfig.qemu")
+    message(STATUS "sanoTTS: SAAN_QEMU=1 → sdkconfig.qemu（flash DIO）を重ねる: ${SDKCONFIG_DEFAULTS}")
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(saanotts_jp)
 
