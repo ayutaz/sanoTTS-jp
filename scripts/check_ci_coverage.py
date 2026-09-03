@@ -77,6 +77,8 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     "scripts/k1/k0_verify_dict.py": "凍結した sys.dic（103 MB。git 管理外）",
     "scripts/k1/k4b_vendor.py": "上流の sdist（pyopenjtalk-plus の tar.gz）",
     "scripts/k1/kb_route_parity.py": "pyopenjtalk と piper-plus",
+    "scripts/test_text_route_parity.py":
+        "OpenJTalk（漢字→かな）と教師 ckpt（private。**外した側**を再現して突き合わせるため）",
 }
 
 # ゲートとして数えるスクリプト

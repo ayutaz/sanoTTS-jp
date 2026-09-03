@@ -102,16 +102,26 @@ uv run --no-project python scripts/synthesize_student.py \
 [ accent rise / ] accent nucleus / # phrase boundary / ° devoicing
 ```
 
-Producing that form from kanji needs OpenJTalk (full setup below); writing kana directly does not:
+**You can also pass kanji directly** — this needs the full setup below, because
+kanji→kana goes through OpenJTalk:
 
 ```bash
-uv run python scripts/to_intermediate.py "電源を入れてください。"   # ← full setup
-#   → で[んげんおい[れてくださ]い
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+    --text "今日は良い天気ですね。" --out out/
 ```
 
-⚠️ `--text "kanji text"` also synthesizes, but **that path needs the teacher checkpoint (private)**.
-`--intermediate` calls neither the teacher nor OpenJTalk, and **the WAV is byte-identical
-for the same input**.
+⚠️ **Both routes produce a byte-identical WAV** (measured in M-92; student indices also
+agree 300/300 across 300 held-out sentences). The only difference is whether OpenJTalk is
+needed for kanji→kana.
+
+| How you write it | What you need |
+|---|---|
+| `--intermediate "きょ][おわよ…"` | **The minimal setup only** (torch / numpy / soundfile) |
+| `--text "今日は良い天気ですね。"` | + the **full setup** (piper-plus, i.e. OpenJTalk) |
+
+⚠️ **The device (`-DSAAN_KANJI=1`) has no such constraint** — a board with the dictionary
+takes kanji as it comes. OpenJTalk is needed on the host because the host uses the **full**
+dictionary, which differs from the device's pruned one by 0.32% of phonemes.
 
 ⚠️ **The model weights are not MIT.** Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) first.
 
@@ -230,15 +240,15 @@ training sentences and cannot read new ones.
 
 All of it on one M5Stack CoreS3 (W8A8 + PIE, the default on ESP32-S3).
 
+(Only what the table at the top does not already carry.)
+
 | Axis | Value |
 |---|---|
-| **Quality** | **64%** of the teacher (SCOREQ synthetic/nr ratio 0.644), above the 0.5427 the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
-| **Memory** | arena **157 KB** used, 176 KB reserved; **132 KB** of internal DRAM still free with the dictionary and kanji loaded |
-| **Speed** | **xRT 0.446** for a full-chunk pull, **zero** underruns, **384 ms** to first sound |
 | **Kanji G2P** | 5.51–66.30 ms for 15–84 B of input; **1,977/1,977** sentences agree with MeCab |
-| **The two routes** | The same sentence written either way produces **bit-identical PCM** |
+| **The two routes** | The same sentence written either way produces **bit-identical PCM**, on the device and on the host alike |
 | **The kanji path** | QEMU synthesizes from kanji end to end (M-76); a CoreS3 reproduces the same checksum |
+| **Underruns** | **Zero** across every sentence; **384 ms** to first sound |
 
 **Speed was rebuilt until it met the RTF ≤ 0.5 requirement.** The first measurement was
 0.926, and a per-step breakdown showed **MACs were only about a third** of it — activation
@@ -253,29 +263,18 @@ never changed by a single bit** (identical checksums). The trail is in the timel
 
 | | |
 |---|---|
-| **Whether it sounds good** | ⚠️ **Human listening amounts to one session, one listener, no control, not blind.** It says no more than "not broken". Every quality number comes from a **predictor** (SCOREQ / UTMOS / DNSMOS), and none is calibrated for Japanese — **real human speech scores only SCOREQ 2.50 / UTMOS 2.30**. **Do not compare the absolute values against English papers** |
-| **What "0.644 of the teacher" means** | Not "64 where the teacher is 100". It is a **ratio between scores of an uncalibrated predictor**, n=24 |
+| **Whether it sounds good** | ⚠️ **Human listening amounts to one session, one listener, no control, not blind.** It says no more than "not broken". Every quality number comes from a **predictor** (SCOREQ / UTMOS / DNSMOS), and none is calibrated for Japanese — **real human speech scores only SCOREQ 2.50 / UTMOS 2.30**. So **"0.644 of the teacher" is not "64 where the teacher is 100"** but a ratio between scores of an uncalibrated predictor (n=24). **Do not compare the absolute values against English papers** |
 | **Real time over a whole utterance** | ⚠️ A full-chunk pull is 0.446, but the 38-frame warmup lands in the first pull, so **a whole utterance is 0.54–0.71**. Which denominator the requirement means is undecided |
 | **The cost of pruning the dictionary** | ⚠️ 0.32% of phonemes differ from the host (n=298, M-77). A dropped word is not silent — it is **re-segmented and misread** (`上毛` → `上` + `毛`) |
 | **I2S output on a DevKit** | ⚠️ `saan_i2s` (direct I2S) is **untested on hardware**. The only path that has made sound is M5Unified |
 | **Other boards** | ⚠️ Only **one CoreS3** was measured here. Two independent third-party reports exist ([AtomS3 1.718](https://github.com/magatsux2019/sanotts-atoms3-results) / [CoreS3 1.558](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)), but **both predate the speed work** and neither has been reproduced here |
 | **Distance to the official implementation** | ⚠️ It reports **0.22× real time** on the same chip; this is not there yet |
 
+The full list, and how each was measured, is in [`MODEL_CARD.md`](MODEL_CARD.md) §4.
+
 > 🙏 **The most valuable contribution is telling us what it sounds like.** No board needed —
 > just play [`saanotts-jp-v3-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
 > **"It sounds wrong" can carry more information than a number with n=24.**
-
-## Possibly useful elsewhere
-
-- **`csrc/`** — a dependency-free C99 inference core, readable on its own as a TTS decoder for an MCU
-- **`csrc/g2p.c` + `scripts/kana_g2p.py`** — the design and C implementation of the kana
-  intermediate form: **one answer to the G2P problem for embedded Japanese TTS**
-- **`csrc/line.c`** — 369 B of UTF-8-aware line editing. Let anyone type Japanese over an
-  MCU serial port and you will hit both **arrow keys inserting symbols** and **backspace splitting a UTF-8 sequence**
-- **`esp32/components/saanotts_core/saan_dict.c`** — **mmapping a flash partition larger than 8 MB**.
-  With `CONFIG_SPI_FLASH_ROM_IMPL=y`, `esp_partition_mmap` falls through to the ROM
-  implementation, which can map only **128 pages = 8 MB**, and fails with `ESP_ERR_NO_MEM`.
-  `esp_mmu_map` works
 
 ## Relationship to the official implementation
 
