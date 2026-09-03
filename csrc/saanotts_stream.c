@@ -46,9 +46,37 @@
 #define CH    SAAN_CHUNK
 #define NB    SAAN_NBINS
 
-/* token block の受容野。(c1 k=5 + c2 k=5) × 3 段 = ±12 トークン */
-#define TOK_HALO 12
-#define TOK_MAXW (CH + 2 * TOK_HALO)   /* 1 チャンクが跨ぐトークンは最大 CH */
+/* --- token block をトークン単位のパイプに（S6 / T3、2026-09-03）------------
+ *
+ * 旧: 毎 step「チャンクが跨ぐトークン範囲 ± 12」を 3 段まるごと再計算していた
+ *     （±12 のハローが窓の 84%。TOKEN は実機 1 step の 11.3%。M-82 / 計画 §1）。
+ * 今: フレーム側と**同じ**ステート保持型パイプ（同じ pipe_t / 同じ acblk_step）。3 段それぞれが
+ *     [AC_W][2·TOK_PAD + TOK_K] の窓を持ち、TOK_K トークンずつ押し込んで中央 TOK_K だけを
+ *     次段へ渡す。各トークンは段ごとに **1 回だけ**計算される。最終段の出力は TOK_G 群の
+ *     リング tok_ring [TOK_G][AC_W][TOK_K] に置き、make_hf はそこから引く（tok_pipe_advance）。
+ *
+ * 受容野: (c1 k=5 + c2 k=5) × 3 段 = ±12 トークン = TOK_PAD 4 × 3 段。段を通るごとに TOK_PAD
+ * ずつ過去にずれるので、g 回押した後に出そろっている出力トークンは [−TOK_HALO, g·K − TOK_HALO)。
+ *
+ * bit 同一の根拠はフレーム側（M-42 の G2）と同じ: 中央トークン t の計算に要る入力は
+ * [t − pad, t + pad] だけで、それは全部窓の中にある。発話外（< 0 / ≥ n_ids）は
+ * zero_outside_n でゼロにする（一括版では配列外 = ゼロ）。token block の出力はトークン位置に
+ * 依存しない（積和順序は T に依らず、LN は per-token、W8A8 の量子化も per-token）。
+ *
+ * リングの深さ: 1 チャンク CH フレームが跨ぐトークンは最大 CH（各フレームは 1 トークンに
+ * 属し d̂ ≥ SAAN_CLIP_LO = 1）。押した直後の出そろい末尾（exclusive）P = g·K − TOK_HALO に対し
+ * i1 ∈ [P − K, P) なので i0 ≥ i1 − (CH − 1) ≥ P − K − CH + 1。リングは K + CH − 1 トークンを
+ * 持てばよく、K 単位の群で TOK_G = ceil((K + CH − 1) / K) 群（K = CH = 8 で 2 群 = 16 トークン）。
+ * ⚠️ 足りなければ make_hf が SAAN_ERR_SHAPE で止まる（黙って古い群を読まない）。
+ *
+ * ⚠️ 陽性対照（計画 T3）: TOK_PAD を 3 にすると受容野が ±9 に縮み、各段の中央先頭 / 末尾の列が
+ *    ゼロパディングを実データの代わりに読むので stream G2（多文）が落ちる
+ *    （2026-09-03 に実際に落ちるのを見て戻した。TOK_HALO も 9 になるので簿記は崩れず、
+ *    崩れるのは値だけ = 受容野の仮定そのものを検査している）。 */
+#define TOK_PAD  4
+#define TOK_HALO (3 * TOK_PAD)   /* パイプ全体の遅延 = 受容野 ±12 */
+#define TOK_K    CH              /* 1 回に進めるトークン数。⚠️ pipe_push が CH 単位なので CH に固定 */
+#define TOK_G    ((TOK_K + CH - 1 + TOK_K - 1) / TOK_K)   /* リングの群数 = ceil((K+CH−1)/K) = 2 */
 
 /* --- パイプ段 ------------------------------------------------------------- */
 
@@ -134,9 +162,12 @@ struct saan_stream_impl {
     float *obuf;         /* [SAAN_OBUF_HOPS * HOP] 出力の詰め替え。
                           * 深さは 2·CH − (SAAN_LATENCY mod CH) = CH+4（saanotts_stream.h） */
     int32_t ofill;
-    /* token チャンクの作業領域。S9 で段ごとに 8 列ずつ縮む（compute_tokens_body）:
-     * 容量は tok_buf [AC_W][TOK_MAXW] / tok_w1 [AC_W][TOK_MAXW−4] / tok_w2 [AC_W][TOK_MAXW−8] */
-    float *tok_buf, *tok_w1, *tok_w2, *tok_out;
+    /* S6（T3）: token block のパイプ 3 段（pad=TOK_PAD、幅 2·TOK_PAD + TOK_K）と出力リング
+     * tok_ring [TOK_G][AC_W][TOK_K]。tok_pushed は押し込んだ群の数（出そろい末尾は
+     * tok_pushed·TOK_K − TOK_HALO）。段の作業領域は w_full / w_ch2 を借りる（tok_pipe_advance_body） */
+    pipe_t tok[3];
+    float *tok_ring;
+    int32_t tok_pushed;
 
     /* S1: 解決済みの重み。init の resolve_weights() が埋める */
     saan_acblk_w  tokw[3];   /* acoustic.token.%d */
@@ -229,10 +260,9 @@ size_t saan_stream_arena_used(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT);                 /* frm */
     /* obuf: 2·CH − (SAAN_LATENCY mod CH) hop（= CH+4。saanotts_stream.h の導出） */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * TOK_MAXW);          /* tok_buf */
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * (TOK_MAXW - 4));    /* tok_w1（S9） */
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * (TOK_MAXW - 8));    /* tok_w2（S9） */
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * CH);                /* tok_out */
+    /* S6（T3）: token パイプ 3 段 + リング（旧 tok_buf / tok_w1 / tok_w2 / tok_out 17,664 B → 12,288 B） */
+    s += SAAN_ALIGN16(sizeof(float) * AC_W * (2 * TOK_PAD + TOK_K)) * 3;   /* tok[0..2] */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)TOK_G * AC_W * TOK_K);       /* tok_ring */
     return s;
 }
 
@@ -243,12 +273,12 @@ size_t saan_stream_arena_needed(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(float) * SAAN_DUR_W * (size_t)n_ids) * 3;
     /* W8A8（`-DSAAN_INT8_ACT=1`）のとき conv 1 本ぶんの activation 作業領域。
      * conv の中で確保してすぐ返すので**同時に 1 本ぶん**。S9 で 1×1 conv は T=CH になった
-     * ので、候補の最大を取る: pw2（cin=E, T=CH）/ token の c1（cin=AC_W, T ≤ TOK_MAXW）/
-     * dw（ch=DEC_W, T=W_DEC）/ AC の c1（cin=AC_W, T=W_AC）。
+     * ので、候補の最大を取る: pw2（cin=E, T=CH）/ token の c1（cin=AC_W, T = 2·TOK_PAD + TOK_K。
+     * S6 で AC の c1 と同じ窓幅になった）/ dw（ch=DEC_W, T=W_DEC）/ AC の c1（cin=AC_W, T=W_AC）。
      * W8A32（既定）では 0 が返るので G1/G3 の実測値は変わらない */
     {
         size_t m = saan_act_scratch_needed(E, CH), v;
-        v = saan_act_scratch_needed(AC_W, TOK_MAXW);   if (v > m) m = v;
+        v = saan_act_scratch_needed(AC_W, 2 * TOK_PAD + TOK_K); if (v > m) m = v;
         v = saan_act_scratch_needed(DEC_W, 2 * 3 + CH); if (v > m) m = v;
         v = saan_act_scratch_needed(AC_W, 2 * 4 + CH);  if (v > m) m = v;
         s += m;
@@ -277,8 +307,15 @@ static void zero_outside(float *x, int C, int32_t t0, int32_t n_frames) {
     zero_outside_n(x, C, CH, CH, t0, n_frames);
 }
 
-/* AcBlock 1 段。buf（窓 W = 2·pad + CH）を入力に、中央 CH を out へ。
+/* AcBlock 1 段（**frame 側と token 側で共有**。S6 / T3）。in [AC_W][CH] を p の窓
+ * （W = 2·pad + CH）に押し込み、中央 CH を out へ。
  * 参照実装 `AcBlock.forward`: `x + LN(c2(relu(c1(x))))`
+ * `k` は段の重み（acw[bi] か tokw[bi]）、`n_valid` は発話の長さ（frame 側 n_frames / token 側
+ * n_ids）、`t_out` は中央先頭の絶対時刻（フレーム番号 / トークン番号）。
+ * ⚠️ in と out は**同じ領域でもよい**（token パイプがそうする）: 先頭の pipe_push で窓に写した後、
+ *    in は読まない（c1 も残差も p->buf を読む）。
+ * ⚠️ c1 の作業領域は im->w_full [AC_W][W − 4]。frame 側は ac_step の中、token 側は make_hf の中で
+ *    使い、同時には走らない（step_chunk_body の順序）。
  *
  * S9: 計算するのは要る列だけ。
  *   c1（k=5, pad 2）: c2 が中央 [pad, pad+CH) を出すのに要る列 [pad−2, pad+CH+2) = [2, W−2)
@@ -288,12 +325,11 @@ static void zero_outside(float *x, int C, int32_t t0, int32_t n_frames) {
  * ⚠️ 陽性対照（計画 T2）: c1 の範囲を [3, W−2) に 1 列狭める（下の c1_lo を pad−1 にし、
  *    c2 の範囲を pad−c1_lo で追従させる）と、各チャンクの中央先頭フレームが c1 の 1 列を
  *    ゼロパディングで代用してしまい、stream G2 が落ちる（2026-09-03 に実際に落ちるのを見て戻した） */
-static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
-                                float *out, int32_t t_out) {
+static saan_status acblk_step(saan_stream *st, pipe_t *p, const saan_acblk_w *k,
+                              const float *in, float *out, int32_t t_out,
+                              int32_t n_valid) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
-    pipe_t *p = &im->ac[bi];
-    const saan_acblk_w *k = &im->acw[bi];   /* init で解決済み（S1） */
-    const saan_wref c1w = k->c1w, c2w = k->c2w;
+    const saan_wref c1w = k->c1w, c2w = k->c2w;   /* init で解決済み（S1） */
     const float *c1b = k->c1b, *c2b = k->c2b, *ng = k->ng, *nb = k->nb;
 
     pipe_push(p, in);
@@ -311,7 +347,7 @@ static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
      * 計算するので、発話外にも **bias 由来の非ゼロ**が残る。
      * 実測: これが無いと先頭 pad フレームが max|Δ| 0.49 ずれた
      * （圧縮座標なので先頭の絶対時刻は t_buf + c1_lo） */
-    zero_outside_n(im->w_full, AC_W, T1, T1, t_buf + c1_lo, st->n_frames);
+    zero_outside_n(im->w_full, AC_W, T1, T1, t_buf + c1_lo, n_valid);
     /* c2: 中央 [pad, pad+CH) = c1 の圧縮座標 [pad − c1_lo, pad − c1_lo + CH) = [2, 10) */
     SAAN_TRY(saan_conv1d_wr(out, im->w_full, c2w, c2b, AC_W, AC_W, 5, T1,
                             p->pad - c1_lo, p->pad - c1_lo + CH, st->a));
@@ -319,14 +355,17 @@ static saan_status ac_step_body(saan_stream *st, int bi, const float *in,
     for (int c = 0; c < AC_W; ++c)
         for (int m = 0; m < CH; ++m)
             out[(size_t)c * CH + m] += p->buf[(size_t)c * W + p->pad + m];
-    zero_outside(out, AC_W, t_out, st->n_frames);
+    zero_outside(out, AC_W, t_out, n_valid);
     return SAAN_OK;
 }
 
+/* frame 側の AcBlock（acoustic.frame.%d）。窓の外は n_frames で切る */
 static saan_status ac_step(saan_stream *st, int bi, const float *in,
                            float *out, int32_t t_out) {
+    struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     SAAN_PROF_BEGIN(SAAN_PROF_AC);
-    const saan_status s = ac_step_body(st, bi, in, out, t_out);
+    const saan_status s = acblk_step(st, &im->ac[bi], &im->acw[bi], in, out, t_out,
+                                     st->n_frames);
     SAAN_PROF_END(SAAN_PROF_AC);
     return s;
 }
@@ -582,14 +621,12 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
     im->out_pos = 0;
     im->skip_hops = SAAN_NFFT / 2 / SAAN_HOP;
     im->obuf = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
-    /* S9: token 段は 8 列ずつ縮むので、tok_w1 / tok_w2 は 4 / 8 列少なくて足りる
-     * （compute_tokens_body の回転を参照。saan_stream_arena_needed と 1:1） */
-    im->tok_buf = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
-    im->tok_w1  = (float *)saan_alloc(a, sizeof(float) * AC_W * (TOK_MAXW - 4));
-    im->tok_w2  = (float *)saan_alloc(a, sizeof(float) * AC_W * (TOK_MAXW - 8));
-    im->tok_out = (float *)saan_alloc(a, sizeof(float) * AC_W * CH);
-    if (!im->obuf || !im->tok_buf || !im->tok_w1 || !im->tok_w2 || !im->tok_out)
-        return SAAN_ERR_ARENA;
+    /* S6（T3）: token パイプ 3 段（frame 側の ac[] と同じ pipe_init。先頭はゼロパディング）と
+     * 出力リング（saan_stream_arena_used と 1:1） */
+    for (int i = 0; i < 3; ++i) if (!pipe_init(&im->tok[i], a, AC_W, TOK_PAD)) return SAAN_ERR_ARENA;
+    im->tok_ring = (float *)saan_alloc(a, sizeof(float) * (size_t)TOK_G * AC_W * TOK_K);
+    im->tok_pushed = 0;
+    if (!im->obuf || !im->tok_ring) return SAAN_ERR_ARENA;
     im->ofill = 0;
     st->ofill_max = 0;
     st->peak_used = a->peak;
@@ -605,76 +642,57 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
     return s;
 }
 
-/* --- token レートのチャンク化 --------------------------------------------
+/* --- token レートのパイプ（S6 / T3）----------------------------------------
  *
  * ⚠️ **`tok_h` を発話全体で持つと ids に比例して RAM が増える**（実測 192 B/id、
- * 350 ids で 68 KB）。G1（200 KB）を満たすため、必要なトークン範囲だけ都度計算する。
+ * 350 ids で 68 KB）。G1（200 KB）を満たすため、発話全体は持たない。
+ * 旧 compute_tokens は「必要なトークン範囲 ± 12 を都度まるごと再計算」だった（TOK_HALO の
+ * 説明を参照）。今はフレーム側と同じパイプで、1 回の advance が TOK_K トークンを 3 段通し、
+ * 出力群をリングの (tok_pushed mod TOK_G) 番目に置く。
  *
- * token block の受容野は (c1 k=5 + c2 k=5) × 3 段 = **±12 トークン**。
- * `[i0-12, i1+12]` を入力すれば `[i0, i1)` が一括版と一致する。
- * 再計算は入るが token レートは frame レートの 1/2.3 なので軽い。
+ * 群 g（0 始まり）の入力はトークン [g·K, g·K + K)、出力は [g·K − TOK_HALO, g·K − TOK_HALO + K)。
+ * 発話外の入力はゼロ（一括版では配列が無い = ゼロ）。ids は全部既知なので先読みに制約は無い。
  */
-static saan_status compute_tokens_body(saan_stream *st, int32_t i0, int32_t i1,
-                                       float *out) {
+static saan_status tok_pipe_advance_body(saan_stream *st) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     const float *emb = im->emb;   /* init で解決済み（S1） */
+    /* 段の入出力 [AC_W][TOK_K]。w_ch2 は make_hf の間は空いている（step_chunk_body は
+     * make_hf の**後**で b = w_ch2 に ac_step の出力を書く）。in == out で回せる（acblk_step） */
+    float *tmp = im->w_ch2;
+    const int32_t g = im->tok_pushed;
+    const int32_t i_in = g * TOK_K;
 
-    const int32_t lo = i0 - TOK_HALO, hi = i1 + TOK_HALO;
-    int n = (int)(hi - lo);       /* 今の h の列数。段ごとに 8 ずつ縮む（S9） */
-    int32_t l = lo;               /* h の先頭列の絶対トークン番号。段ごとに 4 ずつ進む */
-    if (n > TOK_MAXW) return SAAN_ERR_SHAPE;
-
-    /* S9: 各 conv（k=5, pad 2）で有効範囲が両側 2 ずつ縮むので、段 bi の出力は
-     * 入力の [4, n−4) だけ計算すればよい（受容野 ±12 = 3 段 × 4 の逆算）。出力は圧縮形。
-     * 3 本のバッファを回す: c1 の出力は常に B（容量 TOK_MAXW−4）、段の入出力は A と C を交互
-     * （A: TOK_MAXW、C: TOK_MAXW−8。段 0 の入力は A、出力は C、段 1 は C → A、段 2 は A → C）。
-     * memcpy で h を戻す必要が無く、最後の h（C）の先頭がそのまま [i0, i1) になる */
-    float *A = im->tok_buf, *B = im->tok_w1, *C = im->tok_w2;
-    float *h = A;
-    for (int k = 0; k < n; ++k) {
-        const int32_t i = lo + k;
-        if (i < 0 || i >= st->n_ids) {        /* 発話外はゼロ（一括版と同じ） */
-            for (int c = 0; c < AC_W; ++c) h[(size_t)c * n + k] = 0.0f;
+    for (int m = 0; m < TOK_K; ++m) {
+        const int32_t i = i_in + m;
+        if (i >= st->n_ids) {                  /* 発話外はゼロ（一括版と同じ） */
+            for (int c = 0; c < AC_W; ++c) tmp[(size_t)c * TOK_K + m] = 0.0f;
             continue;
         }
         if (st->ids[i] < 0 || st->ids[i] >= SAAN_VOCAB) return SAAN_ERR_RANGE;
         for (int c = 0; c < AC_W; ++c)
-            h[(size_t)c * n + k] = emb[(size_t)st->ids[i] * AC_W + c];
+            tmp[(size_t)c * TOK_K + m] = emb[(size_t)st->ids[i] * AC_W + c];
     }
 
+    /* 3 段。段を通るごとに TOK_PAD ずつ過去にずれる（frame 側の step_chunk_body と同じ簿記）。
+     * 最終段の出力はリングの群 g の枠に直接書く（圧縮 [AC_W][TOK_K] がそのまま枠の形） */
+    float *slot = im->tok_ring + (size_t)(g % TOK_G) * AC_W * TOK_K;
+    int32_t t = i_in;
     for (int bi = 0; bi < 3; ++bi) {
-        const saan_acblk_w *k = &im->tokw[bi];   /* init で解決済み（S1） */
-        const saan_wref c1w = k->c1w, c2w = k->c2w;
-        const float *c1b = k->c1b, *c2b = k->c2b, *ng = k->ng, *nb = k->nb;
-        float *t1 = B;
-        float *o  = (h == A) ? C : A;
-        const int n1 = n - 4, n2 = n - 8;
-        /* c1: 出力 [2, n−2) を圧縮して t1 [AC_W][n−4]（先頭は絶対 l+2） */
-        SAAN_TRY(saan_conv1d_wr(t1, h, c1w, c1b, AC_W, AC_W, 5, n, 2, n - 2, st->a));
-        saan_relu(t1, (size_t)AC_W * n1);
-        /* ⚠️ c1 の出力の発話外もゼロに（一括版では配列外＝ゼロ、frame 側と同じ理由） */
-        zero_outside_n(t1, AC_W, n1, n1, l + 2, st->n_ids);
-        /* c2: 出力 [4, n−4)（h の座標）= t1 の座標 [2, n−6) を圧縮して o [AC_W][n−8]（先頭は l+4） */
-        SAAN_TRY(saan_conv1d_wr(o, t1, c2w, c2b, AC_W, AC_W, 5, n1, 2, n1 - 2, st->a));
-        saan_layernorm_c(o, ng, nb, AC_W, n2);
-        for (int c = 0; c < AC_W; ++c)
-            for (int j = 0; j < n2; ++j)
-                o[(size_t)c * n2 + j] += h[(size_t)c * n + j + 4];
-        zero_outside_n(o, AC_W, n2, n2, l + 4, st->n_ids);
-        h = o; n = n2; l += 4;
+        t -= im->tok[bi].pad;
+        SAAN_TRY(acblk_step(st, &im->tok[bi], &im->tokw[bi], tmp,
+                            bi == 2 ? slot : tmp, t, st->n_ids));
     }
-    /* ここで n == i1 − i0、l == i0（3 段 × 4 = TOK_HALO） */
-    if (n != (int)(i1 - i0) || l != i0) return SAAN_ERR_SHAPE;
-    memcpy(out, h, sizeof(float) * (size_t)AC_W * (size_t)n);
+    if (t != i_in - TOK_HALO) return SAAN_ERR_SHAPE;   /* 3 段 × TOK_PAD = TOK_HALO */
+    im->tok_pushed = g + 1;
     return SAAN_OK;
 }
 
-static saan_status compute_tokens(saan_stream *st, int32_t i0, int32_t i1,
-                                  float *out) {
+static saan_status tok_pipe_advance(saan_stream *st) {
     SAAN_PROF_BEGIN(SAAN_PROF_TOKEN);
-    const saan_status s = compute_tokens_body(st, i0, i1, out);
+    const saan_status s = tok_pipe_advance_body(st);
     SAAN_PROF_END(SAAN_PROF_TOKEN);
-    SAAN_PROF_ADD(SAAN_PROF_TOKEN, (size_t)(i1 - i0 + 2 * TOK_HALO));
+    /* 要素 = 新しく計算した出力トークン数（旧: 再計算した窓の列数 i1 − i0 + 24） */
+    SAAN_PROF_ADD(SAAN_PROF_TOKEN, (size_t)TOK_K);
     return s;
 }
 
@@ -702,21 +720,26 @@ static saan_status make_hf_body(saan_stream *st, int32_t f0, float *out) {
         memset(out, 0, sizeof(float) * (size_t)AC_W * CH);
         return SAAN_OK;
     }
-    saan_status s = compute_tokens(st, i0, i1 + 1, im->tok_out);
-    if (s != SAAN_OK) return s;
+    /* S6: [i0, i1] が出そろうまで token パイプを進める。出そろい末尾（exclusive）は
+     * tok_pushed·K − TOK_HALO。初回（i0 = 0）は 2 群（トークン −12〜3）を押すことになる */
+    while (im->tok_pushed * TOK_K - TOK_HALO <= i1) SAAN_TRY(tok_pipe_advance(st));
+    /* リングに残っている群は [tok_pushed − TOK_G, tok_pushed)。i0 がそれより古ければ
+     * 設計（TOK_G の導出）が破れている。黙って別のトークンを読まない */
+    if (i0 + TOK_HALO < (im->tok_pushed - TOK_G) * TOK_K) return SAAN_ERR_SHAPE;
 
-    const int32_t span = i1 + 1 - i0;
     for (int k = 0; k < CH; ++k) {
         if (tok_of[k] < 0) {
             for (int c = 0; c < AC_W; ++c) out[(size_t)c * CH + k] = 0.0f;
             continue;
         }
-        const int32_t j = tok_of[k] - i0;
+        const int32_t u = tok_of[k] + TOK_HALO;           /* ≥ 0。群 u / K、列 u mod K */
+        const float *slot = im->tok_ring + (size_t)((u / TOK_K) % TOK_G) * AC_W * TOK_K;
+        const int col = (int)(u % TOK_K);
         const int pi = within_of[k] < SAAN_POS_MAX ? (int)within_of[k]
                                                    : SAAN_POS_MAX - 1;
         for (int c = 0; c < AC_W; ++c)
             out[(size_t)c * CH + k] =
-                im->tok_out[(size_t)c * span + j] + pos[(size_t)pi * AC_W + c];
+                slot[(size_t)c * TOK_K + col] + pos[(size_t)pi * AC_W + c];
     }
     return SAAN_OK;
 }
@@ -738,6 +761,8 @@ static saan_status step_chunk_body(saan_stream *st, float *pcm) {
     /* 今回入力するフレームの先頭時刻。**段を通るごとに pad ぶん過去にずれる** */
     int32_t t = st->pushed;
     {
+        /* ⚠️ make_hf の中で token パイプが w_ch2（= b）と w_full を作業領域に借りる（S6）。
+         *    どちらもここから先で上書きされるので、make_hf は **b に触る前**に呼ぶこと */
         saan_status sh = make_hf(st, st->pushed, a);
         if (sh != SAAN_OK) return sh;
     }

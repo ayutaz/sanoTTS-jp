@@ -35,7 +35,9 @@ enum {
     /* --- 段（互いに重ならない。合計 ≒ STEP） --- */
     SAAN_PROF_STEP = 0,   /* step_chunk 全体（1 チャンク = CH フレーム） */
     SAAN_PROF_HF,         /* make_hf（TOKEN を含む） */
-    SAAN_PROF_TOKEN,      /* compute_tokens（token block 3 段。毎チャンク再計算） */
+    SAAN_PROF_TOKEN,      /* tok_pipe_advance（token block 3 段のパイプ。S6 / T3 で「毎チャンク
+                           * ±12 幅を再計算」から「TOK_K トークンずつ 1 回だけ」になった。
+                           * 要素 = 新しく計算した出力トークン数） */
     SAAN_PROF_AC,         /* ac_step × 5 */
     SAAN_PROF_DINP,       /* dec_inp_step */
     SAAN_PROF_DEC,        /* dec_step × 5 */

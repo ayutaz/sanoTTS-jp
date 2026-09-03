@@ -9,7 +9,7 @@
 #   make bench     レイテンシ測定（段別の内訳）
 #   make prof      段別プロファイラ（回数・要素数。ゲートは --expect-no-lookup = S1 /
 #                  --expect-steps 54 = T1 / --expect-gelu・--expect-dw・--expect-mac-le = T2 の
-#                  要素数。時間の行はゲートではない）
+#                  要素数 / --expect-token = T3。時間の行はゲートではない）
 #   make range     S9 の出力範囲版カーネルが [0,T) 版と bit 一致（陽性対照つき。T2）
 #   make erf       GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
@@ -226,15 +226,17 @@ erf: erf_test erf_test_linear erf_test_clamp
 	./erf_test_linear --expect-fail
 	./erf_test_clamp --expect-grid-fail
 
-# 2 行目がゲート（T1 / T2）: demo_ids.h の 106 frames は 3 発話で step_chunk 54 回（18/発話）。
+# 2 行目がゲート（T1 / T2 / T3）: demo_ids.h の 106 frames は 3 発話で step_chunk 54 回（18/発話）。
 # T1 前は 63 で落ちる（全フレームが obuf に出そろった後に 3 step 余分に回っていた）。
-# T2（S9）の要素数/step: GELU 12,544 = 5×304×8 + 48×8 / DW 21,280 = 5×76×7×8 / MAC ≤ 4,619,188
-# （実測。18 step/発話の平均）。T2 前は 21,664 / 37,240 / 7,509,268 で 3 つとも落ちる（陽性対照は
-# HEAD~ のコアに同じ prof_test.c を掛けて確認した）
+# T2（S9）の要素数/step: GELU 12,544 = 5×304×8 + 48×8 / DW 21,280 = 5×76×7×8。T2 前は 21,664 / 37,240
+# で落ちる（陽性対照は HEAD~ のコアに同じ prof_test.c を掛けて確認した）。
+# T3（S6）: TOKEN 4 / step（= 9 群 × 8 トークン ÷ 18 step。各トークンを 1 回だけ計算）/ MAC ≤ 4,200,628
+# （実測。T2 の 4,619,188 から −418,560 = TOKEN の 764,160 → 345,600）。T3 前のコアは TOKEN 22 / step で落ちる
+# （同じく HEAD~ のコアで NG を確認）。⚠️ MAC の上限は実測値そのものなので、増える変更は必ずここで止まる
 prof: prof_test student_i8.bin
 	./prof_test student_i8.bin --reps 20 --expect-no-lookup
 	@./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 \
-	    --expect-gelu 12544 --expect-dw 21280 --expect-mac-le 4619188 > prof_gate.log \
+	    --expect-gelu 12544 --expect-dw 21280 --expect-mac-le 4200628 --expect-token 4 > prof_gate.log \
 	    || { tail -n 8 prof_gate.log; rm -f prof_gate.log; false; }
 	@grep -E '^  (OK|NG)' prof_gate.log; rm -f prof_gate.log
 

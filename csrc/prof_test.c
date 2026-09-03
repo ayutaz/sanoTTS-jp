@@ -19,8 +19,9 @@
  *      saanotts.c saanotts_stream.c saanotts_int8.c fft.c -lm
  *   ./prof_test student_i8.bin [--reps 20] [--expect-no-lookup] [--expect-steps N]
  *                              [--expect-gelu N] [--expect-dw N] [--expect-mac-le N]
+ *                              [--expect-token N]
  *
- * ゲートは 5 つ（どれも指定したときだけ効く）:
+ * ゲートは 6 つ（どれも指定したときだけ効く）:
  *   `--expect-no-lookup`  **pull の中でテンソル検索（LOOKUP）が 1 回でも走ったら exit 1**。
  *                         S1（検索を init で 1 回に）の受け入れ条件。S1 前は 102 回/step で落ちる（陰性対照）。
  *   `--expect-steps N`    **step_chunk の総回数（reps 発話の合計）が N と違ったら exit 1**。
@@ -33,9 +34,16 @@
  *                         S9 前は 21,664（5 × 304 × 14。窓全部）で落ちる（陽性対照）。
  *   `--expect-dw N`       **depthwise の要素数 / step**（ch × k × 出力列）。S9 後は 21,280 = 5 × 76 × 7 × 8、
  *                         S9 前は 37,240（× 14）で落ちる。
- *   `--expect-mac-le N`   **MAC の要素数 / step が N を超えたら exit 1**。S9 後の実測 4,619,188（18 step/発話の
- *                         平均。TOKEN の列数がチャンクごとに違うので exact ではなく上限）。S9 前は 7,509,268。
+ *   `--expect-mac-le N`   **MAC の要素数 / step が N を超えたら exit 1**。S9 後の実測 4,619,188、S6（T3）後
+ *                         4,200,628（18 step/発話の平均。TOKEN の押し込み回数が発話長で決まるので exact
+ *                         ではなく上限）。S9 前は 7,509,268。
  *                         ⚠️ 計画の見込み 4.56 M / 7.28 M は T1 前の 21 step 平均の値で、分母が違う。
+ *   `--expect-token N`    **TOKEN の要素数 / step（= 新しく計算した出力トークン数）が N とぴったり違ったら
+ *                         exit 1**（T3 = S6）。demo_ids.h の 53 ids は 1 発話で ceil((53 + 12) / 8) = 9 群 × 8 =
+ *                         72 トークン、18 step で **4 / step**。S6 前の要素は「再計算した窓の列数
+ *                         i1 − i0 + 24」で 22 / step だったので落ちる（陽性対照: HEAD~ のコアに同じ
+ *                         prof_test.c を掛けて NG を確認）。
+ *                         ⚠️ 意味が変わっている: S6 前は入力窓の列数、S6 後は出力トークン数。
  *   ⚠️ どれも「要素数」= ホストと実機で同じ量。時間は見ない（時間はゲートにならない。冒頭参照）。
  */
 #define _POSIX_C_SOURCE 199309L
@@ -90,6 +98,7 @@ int main(int argc, char **argv) {
     int expect_no_lookup = 0;
     long expect_steps = -1;   /* < 0 = 検査しない */
     long expect_gelu = -1, expect_dw = -1, expect_mac_le = -1;   /* 要素数 / step（T2） */
+    long expect_token = -1;                                       /* 出力トークン数 / step（T3） */
     for (int i = 2; i < argc; ++i) {
         if (strcmp(argv[i], "--reps") == 0 && i + 1 < argc) reps = atoi(argv[++i]);
         else if (strcmp(argv[i], "--expect-no-lookup") == 0) expect_no_lookup = 1;
@@ -97,6 +106,7 @@ int main(int argc, char **argv) {
         else if (strcmp(argv[i], "--expect-gelu") == 0 && i + 1 < argc) expect_gelu = atol(argv[++i]);
         else if (strcmp(argv[i], "--expect-dw") == 0 && i + 1 < argc) expect_dw = atol(argv[++i]);
         else if (strcmp(argv[i], "--expect-mac-le") == 0 && i + 1 < argc) expect_mac_le = atol(argv[++i]);
+        else if (strcmp(argv[i], "--expect-token") == 0 && i + 1 < argc) expect_token = atol(argv[++i]);
     }
     if (reps < 1) reps = 1;
 
@@ -215,6 +225,20 @@ int main(int argc, char **argv) {
             return 1;
         }
         printf("  OK  MAC の要素数 %.0f / step ≤ %ld\n", (double)got / steps, expect_mac_le);
+    }
+    /* T3（S6）: TOKEN の要素 = 押し込んだ群 × TOK_K。発話ごとに ceil((n_ids + 12) / 8) 群で、
+     * 同じ 1 文を reps 回回すので合計 == N × steps で exact に判定できる */
+    if (expect_token >= 0) {
+        const uint64_t got = saan_prof_n[SAAN_PROF_TOKEN];
+        if (got != (uint64_t)expect_token * steps) {
+            printf("  NG! TOKEN の要素数 %.2f / step（期待 %ld。S6 前は 22 = 再計算した窓の列数、"
+                   "S6 後は新しく計算した出力トークン数）\n",
+                   (double)got / steps, expect_token);
+            free(abuf); free(wbuf);
+            return 1;
+        }
+        printf("  OK  TOKEN の要素数 %ld / step（S6: 各トークンを 1 回だけ計算、%.2f 回 / step）\n",
+               expect_token, (double)saan_prof_cnt[SAAN_PROF_TOKEN] / steps);
     }
     free(abuf);
     free(wbuf);
