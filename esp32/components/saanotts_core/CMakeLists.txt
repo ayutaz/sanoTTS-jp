@@ -74,6 +74,18 @@ endif()
 #    出ないことを手元で確認済み）。定義するとソフト浮動小数に落ちる。
 target_compile_options(${COMPONENT_LIB} PRIVATE -Wall -Wextra)
 
+# --- プラットフォームの注入点（T5-G2）------------------------------------------
+#
+# csrc/saanotts_internal.h は `SAAN_PORT_HEADER` が定義されていればそれを include する。
+# ここでは saan_port_esp32.h（このディレクトリ）を渡し、SAAN_HOT_DATA → DRAM_ATTR /
+# SAAN_HOT_CODE → IRAM_ATTR にする。erf 表 1,032 B（csrc/erf_table.h）が内部 DRAM に載る。
+# ⚠️ esp_attr.h は esp_common（IDF の共通依存）から解決されるので REQUIRES は増やさない。
+# ⚠️ **ホストのビルドは無変更**（未定義 → 空。csrc/Makefile と check_esp32_template.sh はこの構成）。
+# ⚠️ 配置だけの変更なので QEMU checksum は不変（T5-G2 で確認）。.map の kSaanErf* が
+#    `.dram1.*` に入っていれば効いている。
+target_include_directories(${COMPONENT_LIB} PRIVATE "${CMAKE_CURRENT_LIST_DIR}")
+target_compile_definitions(${COMPONENT_LIB} PRIVATE "SAAN_PORT_HEADER=\"saan_port_esp32.h\"")
+
 # --- 段別プロファイラ（csrc/saan_prof.h）-------------------------------------
 #
 #     idf.py -DSAAN_PROFILE=1 build

@@ -226,8 +226,8 @@ void saan_relu(float *x, size_t n) {
  * なぜ: GELU は要素ごとに `erff()` を呼び、1 step に 21,664 回（M-80）。newlib の erff は
  * 多項式 + `expf` の関数呼び出しで、QEMU の命令数比で 1 step の 14〜25% を使っていた。
  *
- * 方式: x ∈ [0, 4] を h = 1/32 の 128 区間に割り、節点の erf と erf' を表に持ち（erf_table.h）、
- * 区間内は 3 次 Hermite。奇関数なので |x| で計算して符号を戻す。|x| ≥ 4 は ±1
+ * 方式: x ∈ [0, 4] を h = 1/32 の 128 区間に割り、節点の erf と erf'·h を表に持ち（erf_table.h。
+ * 導関数は T5-G4 で h を掛けた値で持つ）、区間内は 3 次 Hermite。奇関数なので |x| で計算して符号を戻す。|x| ≥ 4 は ±1
  * （erf(4) = 1 − 1.5e-8 は float で 1.0）。理論誤差 h⁴/384 · max|erf⁗| ≈ 1.1e-8 で、
  * float 演算の丸めの方が大きい。**libm の erff との max|Δ| ≤ 2e-7** を `make -C csrc erf` が守る。
  *
@@ -240,19 +240,34 @@ void saan_relu(float *x, size_t n) {
 #define SAAN_ERF_TEST_LINEAR 0
 #endif
 
-float saan_erf_approx(float x) {
-    const float ax = fabsf(x);
-    if (ax >= SAAN_ERF_XMAX) return x < 0.0f ? -1.0f : 1.0f;
+/* ⚠️ **陽性対照のためのフック（2 つ目。T5-G3）。** `-DSAAN_ERF_TEST_CLAMP=3.9f` はクランプの
+ *    上限をずらす。erf_test の「S3 実装との全格子 bit 一致」がこれで**落ちること**で、
+ *    その比較が効いていると言える。本番では定義しない（既定 = SAAN_ERF_XMAX）。 */
+#ifndef SAAN_ERF_TEST_CLAMP
+#define SAAN_ERF_TEST_CLAMP SAAN_ERF_XMAX
+#endif
+
+SAAN_INLINE float saan_erf_approx_inl(float x) {
+    /* T5-G3: FP の分岐を 2 つ消した（Xtensa は分岐予測を持たない）。**Hermite の式は S3 と
+     * 1 文字も変えていない。** S3 実装との bit 一致は erf_test.c の全格子チェックが守る。
+     *  (1) `|x| ≥ 4 なら ±1 を return` → ax を 4.0 にクランプして表を引く。u = 128.0 → i = 127,
+     *      t = 1.0 で Hermite 基底は (0, 0, 1, 0) を float で正確に出し、y = kSaanErfV[128]
+     *      （0.999999985 は float で 1.0f）。±1e30 も同じ経路で ±1.0f になる
+     *  (2) `x < 0 ? -y : y` → y の符号ビットに x の符号ビットを OR（y ≥ 0 なので全有限値で一致。
+     *      x = −0.0 だけ S3 の +0.0 に対し −0.0 を返すが、GELU は 1.0f + (∓0.0f) = 1.0f で同一） */
+    float ax = fabsf(x);
+    ax = (ax < (float)SAAN_ERF_TEST_CLAMP) ? ax : (float)SAAN_ERF_TEST_CLAMP;
     const float u = ax * (float)SAAN_ERF_H_INV;    /* 区間座標。整数部が区間番号 */
-    int i = (int)u;                                /* 0 .. N-1（ax < XMAX なので N 未満） */
-    if (i >= SAAN_ERF_N) i = SAAN_ERF_N - 1;       /* 丸めで u == N になったときの保険 */
-    const float t = u - (float)i;                  /* [0, 1) */
+    int i = (int)u;                                /* 0 .. N（ax == XMAX のとき N） */
+    if (i >= SAAN_ERF_N) i = SAAN_ERF_N - 1;       /* 整数の min。ax == XMAX なら i = N−1, t = 1 */
+    const float t = u - (float)i;                  /* [0, 1] */
     const float f0 = kSaanErfV[i], f1 = kSaanErfV[i + 1];
 #if SAAN_ERF_TEST_LINEAR
     const float y = f0 + t * (f1 - f0);
 #else
-    const float h = 1.0f / (float)SAAN_ERF_H_INV;
-    const float d0 = kSaanErfD[i] * h, d1 = kSaanErfD[i + 1] * h;   /* 導関数 × h */
+    /* 導関数 × h。T5-G4 で表に事前に掛けてある（2^-5 倍は float で正確なので旧 kSaanErfD[i] * h と
+     * bit 一致。erf_test.c §3 が全 129 節点で検査する）。要素あたり乗算 2 回と定数 1 個の l32r が消える */
+    const float d0 = kSaanErfDh[i], d1 = kSaanErfDh[i + 1];
     const float t2 = t * t, t3 = t2 * t;
     /* Hermite 基底: h00 = 2t³−3t²+1, h10 = t³−2t²+t, h01 = −2t³+3t², h11 = t³−t² */
     const float y = f0 * (2.0f * t3 - 3.0f * t2 + 1.0f)
@@ -260,14 +275,26 @@ float saan_erf_approx(float x) {
                   + f1 * (-2.0f * t3 + 3.0f * t2)
                   + d1 * (t3 - t2);
 #endif
-    return x < 0.0f ? -y : y;
+    uint32_t yb, xb;
+    memcpy(&yb, &y, sizeof yb);
+    memcpy(&xb, &x, sizeof xb);
+    yb |= xb & 0x80000000u;                        /* 奇関数: 符号を x から戻す（分岐なし） */
+    float r;
+    memcpy(&r, &yb, sizeof r);
+    return r;
 }
 
-/* PyTorch の既定は tanh 近似ではなく erf 版。erf は saan_erf_approx（S3。丸め水準で erff と一致） */
+/* erf_test.c 向けの外部ラッパ（T5-G1）。ゲートはこれを呼び、本番の GELU は上のインライン版を展開する。
+ * ⚠️ ホストではこのラッパとインライン展開が同じ bit になるかは「同じコンパイラなら」の話で、
+ *    Xtensa 側の縮約は QEMU の checksum でしか判定できない */
+float saan_erf_approx(float x) { return saan_erf_approx_inl(x); }
+
+/* PyTorch の既定は tanh 近似ではなく erf 版。erf は saan_erf_approx_inl（S3。丸め水準で erff と一致。
+ * T5-G1 でループにインライン展開 — call8 / entry / retw と wfr / rfr、定数の再ロードが消える） */
 void saan_gelu(float *x, size_t n) {
     SAAN_PROF_BEGIN(SAAN_PROF_GELU);
     for (size_t i = 0; i < n; ++i)
-        x[i] = 0.5f * x[i] * (1.0f + saan_erf_approx(x[i] * 0.70710678f));
+        x[i] = 0.5f * x[i] * (1.0f + saan_erf_approx_inl(x[i] * 0.70710678f));
     SAAN_PROF_END(SAAN_PROF_GELU);
     SAAN_PROF_ADD(SAAN_PROF_GELU, n);
 }

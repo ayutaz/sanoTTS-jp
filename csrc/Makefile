@@ -199,9 +199,19 @@ erf_test: erf_test.c $(CORE) $(HDRS)
 erf_test_linear: erf_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_ERF_TEST_LINEAR=1 -o $@ erf_test.c $(CORE) $(LDLIBS)
 
-erf: erf_test erf_test_linear
+# T5-G3: 「S3 実装（erf_test.c 内の凍結コピー）との全格子 bit 一致」の**陽性対照**。
+# クランプの上限を 4.0 からずらすと |x| ≥ 4 の値が 1.0f から動いて落ちる。
+# ⚠️ 3.9999f では落ちない（erf(3.9999) は float でまだ 1.0f。計画の値は実測で外れた）ので 3.9f
+# ⚠️ T5 検証で §2a（[-4,4] の float 全走査）/ §2b（本番 saan_gelu() のインライン経路）を足した。
+#    --expect-grid-fail は **3 本すべてが落ちる**ことを要求する（1 本でも 0 なら効いていない）。
+#    erf_test / erf_test_clamp は全走査で各 12 s 程度（M4 Max）
+erf_test_clamp: erf_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_ERF_TEST_CLAMP=3.9f -o $@ erf_test.c $(CORE) $(LDLIBS)
+
+erf: erf_test erf_test_linear erf_test_clamp
 	./erf_test
 	./erf_test_linear --expect-fail
+	./erf_test_clamp --expect-grid-fail
 
 # 2 行目がゲート（T1）: demo_ids.h の 106 frames は 3 発話で step_chunk 54 回（18/発話）。
 # T1 前は 63 で落ちる（全フレームが obuf に出そろった後に 3 step 余分に回っていた）
@@ -235,6 +245,7 @@ all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
+	      erf_test erf_test_linear erf_test_clamp prof_test \
 	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
 	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
 	rm -rf k5_ctrl

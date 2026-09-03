@@ -12,11 +12,20 @@ erff は多項式 + expf の関数呼び出しで、QEMU の命令数比で 1 st
 
 ⚠️ 表は double で計算して float リテラルに落とす（gen_fft_tables.py と同じ流儀）。
 ⚠️ ゲートは `make -C csrc erf`（erff との max|Δ|。線形補間に落とした陽性対照つき）。
+
+T5-G4（2026-09-03）: 導関数表は **h = 2^-5 を掛けた値**（kSaanErfDh = erf'(x)·h）で出す。
+使う側の `kSaanErfD[i] * h` の乗算が 1 要素あたり 2 回消える。2^-5 倍は float で正確
+（指数が 5 減るだけ。最小値 1.27e-7·2^-5 ≈ 4e-9 は正規数）なので、**旧表の float 値 × h と
+bit 一致する** — それを崩さないために、`%.9g` で 9 桁に丸めた旧リテラルを float32 に落として
+から 2^-5 を掛け、その float32 を `%.9g` で出す（float32 は 9 桁で往復する）。
+double の erf'(x) に直接 2^-5 を掛けて丸めると、二重丸めで旧表と 1 ulp ずれうる。
+⚠️ 旧表との bit 一致は erf_test.c が検査する（凍結コピー kRefErfD × h と全 129 節点で比較）。
 """
 from __future__ import annotations
 
 import hashlib
 import math
+import struct
 import sys
 
 H_INV = 32          # 1/h
@@ -31,8 +40,21 @@ def fmt(v: float) -> str:
     return s + "f"
 
 
+def f32(v: float) -> float:
+    """double → 最も近い float32（C コンパイラが float リテラルにするのと同じ丸め）。"""
+    return struct.unpack("<f", struct.pack("<f", v))[0]
+
+
+def prescale_h(d: float) -> float:
+    """erf'(x) → erf'(x)·h を、**旧表の float 値 × h と bit 一致するように**作る（T5-G4）。
+    旧表のリテラル（%.9g の 9 桁）を float32 に落とし、2^-5 を掛ける（float32 で正確）。"""
+    lit = float(fmt(d)[:-1])          # 旧表と同じリテラル文字列 → double
+    return f32(lit) * (1.0 / H_INV)   # float32 × 2^-5 は float32 のまま正確
+
+
 def table(name: str, vals: list[float], per: int = 4) -> str:
-    lines = [f"static const float {name}[{len(vals)}] = {{"]
+    # SAAN_HOT_DATA: ESP32 では DRAM_ATTR（内部 DRAM）、ホストでは空（csrc/saanotts_internal.h。T5-G2）
+    lines = [f"static const SAAN_HOT_DATA float {name}[{len(vals)}] = {{"]
     for i in range(0, len(vals), per):
         chunk = ", ".join(fmt(v) for v in vals[i:i + per])
         lines.append("    " + chunk + ("," if i + per < len(vals) else ""))
@@ -44,21 +66,31 @@ def main() -> int:
     xs = [i / H_INV for i in range(N + 1)]
     v = [math.erf(x) for x in xs]
     d = [2.0 / math.sqrt(math.pi) * math.exp(-x * x) for x in xs]
-    body = table("kSaanErfV", v) + "\n\n" + table("kSaanErfD", d) + "\n"
+    dh = [prescale_h(x) for x in d]   # T5-G4: erf'(x)·h（h = 1/32）
+    assert all(f32(v) == v for v in dh), "事前スケール後の値が float32 で表せない"
+    assert H_INV & (H_INV - 1) == 0, "h は 2 の冪でないと float で正確に掛けられない"
+    body = table("kSaanErfV", v) + "\n\n" + table("kSaanErfDh", dh) + "\n"
     sha = hashlib.sha256(body.encode()).hexdigest()[:16]
     out = f'''/* 自動生成 — 編集しない（scripts/gen_erf_table.py。本文 sha256 {sha}…）
  *
  *   uv run --no-project python scripts/gen_erf_table.py > csrc/erf_table.h
  *
  * erf の 3 次 Hermite 補間表（S3）。x = i / {H_INV}（i = 0..{N}、[0, {X_MAX:g}]）の
- * erf(x)（kSaanErfV）と erf'(x) = 2/√π · exp(−x²)（kSaanErfD）。
- * 使う側は csrc/saanotts.c の saan_erf_approx()。ゲートは `make -C csrc erf`。 */
+ * erf(x)（kSaanErfV）と **erf'(x) · h**（kSaanErfDh。erf'(x) = 2/√π · exp(−x²)、h = 1/{H_INV}。
+ * T5-G4 で h を掛けた値にした。旧 kSaanErfD[i] * h と bit 一致 — erf_test.c が検査する）。
+ * 使う側は csrc/saanotts.c の saan_erf_approx()。ゲートは `make -C csrc erf`。
+ * 表は SAAN_HOT_DATA 付き（ESP32 では内部 DRAM。ホストでは空。T5-G2）。 */
 #ifndef SAAN_ERF_TABLE_H
 #define SAAN_ERF_TABLE_H
 
 #define SAAN_ERF_H_INV {H_INV}
 #define SAAN_ERF_N     {N}          /* 区間数。節点は N + 1 */
 #define SAAN_ERF_XMAX  {fmt(X_MAX)}
+
+/* 配置属性（T5-G2）。saanotts_internal.h を先に include していれば定義済み。単独で include しても通るように */
+#ifndef SAAN_HOT_DATA
+#define SAAN_HOT_DATA
+#endif
 
 {body}
 #endif /* SAAN_ERF_TABLE_H */

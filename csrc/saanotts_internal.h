@@ -9,6 +9,29 @@
 
 #include "saanotts.h"
 
+/* --- プラットフォームの注入点（T5-G2）--------------------------------------------------
+ *
+ * コアは移植可能 C99 のまま（依存は libm のみ）。配置属性だけを外から受ける:
+ *   -DSAAN_PORT_HEADER='"saan_port_esp32.h"' を渡すと、そのヘッダをここで include する。
+ *   ESP32 は esp32/components/saanotts_core/saan_port_esp32.h が esp_attr.h を include し、
+ *   SAAN_HOT_DATA → DRAM_ATTR（内部 DRAM）/ SAAN_HOT_CODE → IRAM_ATTR に定義する。
+ * ホスト（csrc/Makefile、CI、scripts/check_esp32_template.sh、esp32/pie_probe）は未定義 →
+ * 空に展開されて**コードは 1 バイトも変わらない**。
+ *
+ * 使う先: erf 表（csrc/erf_table.h、129 節点 × 2 = 1,032 B）に SAAN_HOT_DATA。flash の .rodata に
+ * あると、1 step に 584 KB 流れる重みのストリームと D-cache を争う（M-82 §4 / maps [2]）。
+ * SAAN_HOT_CODE は**今は使っていない**（定義だけ置く。IRAM は M5 構成で余裕を測ってから）。
+ * ⚠️ 配置を変えても値は変わらないので bit 同一（QEMU の checksum で確認。T5 の手順）。 */
+#ifdef SAAN_PORT_HEADER
+#include SAAN_PORT_HEADER
+#endif
+#ifndef SAAN_HOT_DATA
+#define SAAN_HOT_DATA
+#endif
+#ifndef SAAN_HOT_CODE
+#define SAAN_HOT_CODE
+#endif
+
 /* ⚠️ `M_PI` は **C99 標準ではない**（POSIX 拡張）。macOS の clang では
  * `-std=c99` でも見えるが、**xtensa-esp32s3-elf の newlib では見えない**。
  * 実際に ESP32-S3 向けにクロスコンパイルして初めて出た（M-54）:
@@ -22,6 +45,18 @@
 #endif
 
 #define SAAN_ALIGN16(x) (((x) + 15u) & ~(size_t)15u)
+
+/* ホットな小関数を呼び出し側に展開する（T5-G1）。C99 の `inline` はヒントなので GCC には
+ * always_inline も付ける。動機は Xtensa の呼び出し規約: FP レジスタが全部 caller-saved なので、
+ * 要素ごとの call8 の往復で FP 定数（13 個）を毎回 l32r + wfr で再ロードし、引数と戻り値も
+ * wfr / rfr とスタック経由で往復していた（M-82 の GELU 118 cyc/要素の主因。maps [2]）。
+ * ⚠️ 式は 1 文字も変えない。IDF（gnu17、-ffp-contract=fast）が展開後に madd.s への縮約を
+ *    変えると丸め水準で動きうる → QEMU の checksum で判定する（T5 の手順） */
+#if defined(__GNUC__)
+#define SAAN_INLINE static inline __attribute__((always_inline))
+#else
+#define SAAN_INLINE static inline
+#endif
 
 void *saan_alloc(saan_arena *a, size_t n);
 
@@ -49,6 +84,8 @@ void saan_gelu(float *x, size_t n);
 
 /* erf の近似（S3）。x ∈ [0, 4] を h = 1/32 の 3 次 Hermite（csrc/erf_table.h）、|x| ≥ 4 は ±1。
  * libm の erff との max|Δ| は 2e-7 以下（`make -C csrc erf`。線形補間に落とした陽性対照つき）。
+ * ⚠️ **これは erf_test.c 向けの外部ラッパ**（T5-G1）。本番の saan_gelu は saanotts.c 内の
+ *    インライン版 saan_erf_approx_inl() を直接展開する（同じ本体。2 回書いていない）。
  * ⚠️ **丸め水準の変更。** これを入れた時点で fp32 / W8A32 / W8A8 すべての出力 checksum が
  *    変わる（GELU が全経路で使われる）。新しい基準値は docs/measurements.md の M-81。 */
 float saan_erf_approx(float x);
