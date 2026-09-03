@@ -3,7 +3,7 @@
  *   uv run python scripts/gen_token_table.py
  *
  * 出典: src/saanotts_jp/vocab.py の TOKENS。**手で書き写さない**（C-002）。
- * ⚠️ 語彙が変わったら再生成すること。`make -C csrc k7` が SHA-256 で検出する。
+ * ⚠️ 語彙が変わったら再生成すること。`make -C csrc label-ids` が SHA-256 で検出する。
  */
 #ifndef SAAN_TOKEN_TABLE_H
 #define SAAN_TOKEN_TABLE_H

@@ -39,7 +39,7 @@
 - **不正な UTF-8**。Python の `str` は復号済みなので対にできない
   （端末は `reject` に倒す。`make -C csrc line` の G11 が見ている）。
 - **辞書経路に回った先の読み**。ここは「どちらの経路に行くか」だけ。
-  読みの一致は `make -C csrc k6` / `k7`。
+  読みの一致は `make -C csrc kanji-e2e` / `label-ids`。
   ⚠️ 辞書経路の参照値は「`jt.run_frontend(text)`（**生の NJD**）+ 端末に載っている
   4 段」であって `run_frontend(..., predict_nani=False, use_sudachi_kanji_yomi=False)`
   ではない。後者は `process_odori_features` が**無条件に**入るので
@@ -262,7 +262,7 @@ def main() -> int:
               f"`?` をマーク集合から外すかは**判断が要る**（外すと「かな + `?` の"
               f"中間表現の打ち間違い」が辞書経路に回る）。")
     print("⚠️ 見ていないもの: 不正な UTF-8（str にできない）/ 辞書経路に回った先の読み"
-          "（`make -C csrc k6` / `k7`）/ text2mecab の有無")
+          "（`make -C csrc kanji-e2e` / `label-ids`）/ text2mecab の有無")
     return 0 if ok else 1
 
 

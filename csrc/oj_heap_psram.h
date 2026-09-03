@@ -20,7 +20,7 @@
  *
  * 実装（`saan_oj_alloc()` など）は **ターゲット側**が出す:
  *   ESP32 … esp32/components/saanotts_core/oj_heap_psram.c（heap_caps、PSRAM 優先）
- * ホストのゲート（`make -C csrc k5/k6/k7`）はこのヘッダを当てないので、
+ * ホストのゲート（`make -C csrc oj-heap/kanji-e2e/label-ids`）はこのヘッダを当てないので、
  * csrc は移植可能 C99 のまま。
  */
 #ifndef SAAN_OJ_ALLOC_H

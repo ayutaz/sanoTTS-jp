@@ -45,7 +45,7 @@ AtomS3 **1.718** / CoreS3 **1.558** でリアルタイム未達だった
 | **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
 | **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
 | **メモリ** | **157 KB**（実機の arena used。静的確保は 176 KB = 180,224 B）— ESP32-S3 の SRAM 512 KB の 34%。実機の内部 DRAM の空きは **136,407 B**（かな構成 / M-89）・**132,039 B**（辞書込みの漢字構成 / M-90）。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
-| **速度** | ✅ **要件を満たした。** 手元の CoreS3（W8A8 + PIE。**S3 では既定** = D-048）で**満チャンク 1 pull の xRT 0.446**（漢字構成 4 文とも。M-90）。かな構成は 0.494（M-89）/ 0.497（M-88）。アンダーラン **0**、鳴らし始めまで 432〜434 ms、1 step は 18.38 M → **11.66 M cyc**。⚠️ **発話全体で見ると 0.54〜0.71** でまだ 0.5 超（warmup 38 フレーム分。要件の分母は未定）。第三者の報告値は **S1 前**のもの（AtomS3 **1.718** / CoreS3 **1.558**。[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
+| **速度** | ✅ **要件を満たした。** 手元の CoreS3（W8A8 + PIE。**S3 では既定** = D-048）で**満チャンク 1 pull の xRT 0.446**（漢字構成 4 文とも。M-90）。かな構成は 0.494（M-89）/ 0.497（M-88）。アンダーラン **0**、鳴らし始めまで **384 ms**（M-90 の出荷構成。かな構成は 432〜434 ms = M-88 / M-89）、1 step は 18.38 M → **11.66 M cyc**。⚠️ **発話全体で見ると 0.54〜0.71** でまだ 0.5 超（warmup 38 フレーム分。要件の分母は未定）。第三者の報告値は **S1 前**のもの（AtomS3 **1.718** / CoreS3 **1.558**。[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
 | **実機の音声出力** | ✅ **[`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) が CoreS3 のスピーカーで喋る**（M-90。画面つき）。先に第三者が M5Unified 経路で成功しており、60% を先読みして発話開始まで **1,781 ms** / 追い越し **0 回**だった（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。⚠️ **音は誰も聴いていない** |
 | **漢字を端末で読む** | ✅ **CoreS3 で実機確認**（M-83: checksum が QEMU と一致 / 漢字 G2P 27.85〜66.30 ms）。✅ **M5 のスピーカー構成にも載った**（M-90。辞書 13.7 MB を `esp_mmu_map`、W8A8+PIE で xRT 0.446）。**`!` は要らない** — 端末が経路を 3 値で判定する。⚠️ 音は未聴取 |
 
@@ -78,8 +78,8 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | いつ | 何 |
 |---|---|
 | 2026-09-02 | **漢字経路が動いた**（M-83。K-8 の G28〜G31）。`!今日は良い天気ですね。` → 53 ids → checksum が QEMU と一致。漢字 G2P **27.85〜66.30 ms** |
-| 2026-09-03 | **要件 RTF ≤ 0.5 を満たした**（M-88 / M-89）。アンダーラン **0**、鳴らし始めまで 434 → 432 ms、内部 DRAM の空き **136,407 B** |
-| 2026-09-03 | **スタックチャンが漢字・カタカナ・ひらがなを喋った**（M-90）。辞書 13.7 MB を `esp_mmu_map` で貼り、xRT **0.446**、内部 DRAM の空き **132,039 B**。`今日は良い天気ですね。` と `きょ][おわよ][いて][んきです°ね` が**同じ PCM** になる |
+| 2026-09-03 | **要件 RTF ≤ 0.5 を満たした**（M-88 / M-89。かな構成）。アンダーラン **0**、鳴らし始めまで 434 → 432 ms、内部 DRAM の空き **136,407 B** |
+| 2026-09-03 | **スタックチャンが漢字・カタカナ・ひらがなを喋った**（M-90）。辞書 13.7 MB を `esp_mmu_map` で貼り、xRT **0.446**、鳴らし始めまで **384 ms**、内部 DRAM の空き **132,039 B**。`今日は良い天気ですね。` と `きょ][おわよ][いて][んきです°ね` が**同じ PCM** になる |
 
 **QEMU で先に通してあること:**
 
@@ -129,8 +129,8 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch の重み（2,744,874 B） |
 | `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | C99 コア用の int8 blob（643,936 B、**形式 v1**）。⚠️ **S4（2026-09-02）以降のコアは v2（654,032 B）が要る**。v1 を渡すと起動時に `SAAN_ERR_VERSION` で止まる。v2 の資産は次のリリースで上げる。それまでは `scripts/export_c_weights.py --int8` で作る |
 | `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 参照・デバッグ用の fp32 blob |
-| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc golden` 用の参照出力 |
-| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 同（fp32） |
+| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc int8-golden` 用の参照出力（`csrc/golden_i8.bin` に置く） |
+| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc golden`（= `test`）用（`csrc/golden.bin` に置く） |
 | `esp32s3-firmware-w8a8-pie.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **かな入力**のファーム（8 MB 以上・焼くだけ） |
 | `esp32s3-firmware-w8a32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 同・最適化なし（**PIE の比較対照**） |
 | `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **漢字入力**のイメージ（**16 MB 必須**・焼くだけ） |

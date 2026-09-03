@@ -49,7 +49,7 @@ a counterpart.
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
 | **Memory** | **157 KB** of arena used on hardware (176 KB = 180,224 B reserved statically) — 34 % of the ESP32-S3's 512 KB SRAM. Free internal DRAM on the board: **136,407 B** (kana build, M-89) / **132,039 B** (kanji build with the dictionary, M-90). Weights are 654,032 B in int8 (flash; blob v2 with pre-aligned rows, +10,096 B over v1's 643,936 B) |
-| **Speed** | ✅ **Requirement met.** On our own CoreS3 (W8A8 + PIE, **now the default on S3** — D-048) a full-chunk pull runs at **xRT 0.446** (kanji build, all four sentences, M-90); the kana build gives 0.494 (M-89) / 0.497 (M-88). Zero underruns, 434 ms to first sound, one step down from 18.38 M to **11.66 M cycles**. ⚠️ **Over a whole utterance it is 0.54–0.71**, still above 0.5 (the 38-frame warmup; which denominator the requirement means is undecided). The third-party numbers **predate S1**: AtomS3 **1.718** / CoreS3 **1.558** ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)) |
+| **Speed** | ✅ **Requirement met.** On our own CoreS3 (W8A8 + PIE, **now the default on S3** — D-048) a full-chunk pull runs at **xRT 0.446** (kanji build, all four sentences, M-90); the kana build gives 0.494 (M-89) / 0.497 (M-88). Zero underruns, **384 ms to first sound** (the M-90 shipping build; the kana build is 432–434 ms = M-88 / M-89), one step down from 18.38 M to **11.66 M cycles**. ⚠️ **Over a whole utterance it is 0.54–0.71**, still above 0.5 (the 38-frame warmup; which denominator the requirement means is undecided). The third-party numbers **predate S1**: AtomS3 **1.718** / CoreS3 **1.558** ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)) |
 | **Hardware audio output** | ✅ **[`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) speaks through the CoreS3's built-in speaker** (M-90, with the display). A third party got there first via M5Unified: 60% preroll gave **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)). ⚠️ **Nobody has listened to it** |
 | **Kanji on the device** | ✅ **Confirmed on a CoreS3** (M-83: checksum identical to QEMU, kanji G2P 27.85–66.30 ms). ✅ **Also loaded into the M5 speaker build** (M-90: the 13.7 MB dictionary via `esp_mmu_map`, xRT 0.446 with W8A8+PIE). **No `!` needed** — the device classifies each line three ways. ⚠️ Not listened to |
 
@@ -86,8 +86,8 @@ one change cut the instruction count and made GELU twice as slow (C-055). The tr
 | When | What |
 |---|---|
 | 2026-09-02 | **The kanji path ran** (M-83; gates G28–G31). `!今日は良い天気ですね。` → 53 ids → checksum identical to QEMU. Kanji G2P **27.85–66.30 ms** |
-| 2026-09-03 | **RTF ≤ 0.5 met** (M-88 / M-89). Zero underruns, 434 ms to first sound, 136,407 B of internal DRAM free |
-| 2026-09-03 | **A Stack-chan spoke kanji, katakana and hiragana** (M-90). The 13.7 MB dictionary is mapped with `esp_mmu_map`; xRT **0.446**, 132,039 B of internal DRAM free. `今日は良い天気ですね。` and `きょ][おわよ][いて][んきです°ね` produce **the same PCM** |
+| 2026-09-03 | **RTF ≤ 0.5 met** (M-88 / M-89, the kana build). Zero underruns, 434 ms to first sound, 136,407 B of internal DRAM free |
+| 2026-09-03 | **A Stack-chan spoke kanji, katakana and hiragana** (M-90). The 13.7 MB dictionary is mapped with `esp_mmu_map`; xRT **0.446**, **384 ms to first sound**, 132,039 B of internal DRAM free. `今日は良い天気ですね。` and `きょ][おわよ][いて][んきです°ね` produce **the same PCM** |
 
 **What QEMU verified first:**
 
@@ -143,8 +143,8 @@ native-USB-only boards (CoreS3 / AtomS3) boot but cannot be driven; build from s
 | `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch weights (2,744,874 B) |
 | `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | int8 blob for the C99 core (643,936 B, **format v1**). ⚠️ **The core after S4 (2026-09-02) needs v2 (654,032 B)**; a v1 blob stops at boot with `SAAN_ERR_VERSION`. The v2 asset ships with the next release; until then build it with `scripts/export_c_weights.py --int8` |
 | `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | fp32 blob, for reference and debugging |
-| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Reference output for `make -C csrc golden` |
-| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The same, fp32 |
+| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | Reference output for `make -C csrc int8-golden` (drop it at `csrc/golden_i8.bin`) |
+| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | For `make -C csrc golden` (= `test`); drop it at `csrc/golden.bin` |
 | `esp32s3-firmware-w8a8-pie.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kana** firmware (8 MB+, flash and go) |
 | `esp32s3-firmware-w8a32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | The same without optimization (**the PIE baseline**) |
 | `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **Kanji** image (**16 MB required**, flash and go) |

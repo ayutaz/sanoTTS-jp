@@ -25,7 +25,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
 | 4.5 | [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) | **K-1 の結論レポート**。B-0 の否定的結論のうち 4 つが崩れた。辞書は mmap / TTS 専用バイナリで 1 エントリ 28.29 B / アクセント天井は 126 行。**§0 に「その後どうなったか」**（実装で分かったずれ 3 件） | 固定（§0 だけ追記） |
 | 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K トラックの実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件（G1〜G32。⚠️ G15/G16 は欠番）。**K-8 まで完了**（M-83 / M-90）。残りは **G32 聴取**と、エントリ数・接続行列の判断 | 固定（判断待ち 2 件） |
-| 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現・S1 前）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。⚠️ **§5 の仮説は半分が外れた**（C-054） | 固定 |
+| 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現・S1 前）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。⚠️ **§4 の仮説は半分が外れた**（C-054。§5 は「直し方」で、そちらは全部入った） | 固定 |
 | 4.9 | [`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) | **いちばん新しい計画**。⚠️ **§10 に S-1（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5a）の前史**を畳んである（旧 `plan/s1-speed-implementation-plan.md` は削除）。T1（末尾 pull の早期終了）/ T2（S9）/ T3（S6）/ T4（arena）/ T5（GELU）/ 64 B 行 と、M5 への漢字搭載。**要件 RTF ≤ 0.5 を達成して完了**（M-88 → M-90）。残りは聴取 | 固定 |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
@@ -57,12 +57,14 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [完了] 本学習 v1/v2         **SCOREQ 教師比 0.611（論文の英語比 0.5427 を超過）**（M-36 / M-37）
 [完了] CER                  かな CER 教師 0.135 / 生徒 0.178（M-38）
 [完了] int8 量子化           blob 624,692 B（論文比 −8.1%）（M-39）
-[完了] β スイープ            β=0 と 2 が候補。⚠️ **聴取待ち**（M-40）
+[完了] β スイープ            β=0 と 2 が候補（M-40）→ **聴取で β=0 に確定、式7 は不要**（M-60 / D-038）。
+                            ⚠️ **聴取者 1 名**
 [完了] Phase D-1            C99 コア。Pearson 1.000000 / SNR 117.5 dB（M-41）
 [完了] Phase D-2            **ストリーミング化。1,258→196.9 KB で SRAM に載った**（M-42）
 [完了] Phase D-3a/b/c       FFT 1,435 倍 / 手元 **0.023× RT** / int8 カーネル（M-43）
 [完了] Phase D-3c'-1/2      **int8 end-to-end**。fp32 比 平均 25.88 dB / ブロブ −71.4%（M-45）
-[完了] Phase D-3c'-4        ESP-IDF 雛形。⚠️ **一度もビルドしていない**（M-46。toolchain は M-54 で導入済み）
+[完了] Phase D-3c'-4        ESP-IDF 雛形。M-46 の時点では未ビルド → ✅ **M-56 でビルド成功**（267,968 B）/
+                            **M-62 で QEMU 完走** / **M-82 以降で実機**（CoreS3）
 [完了] D-4                  アクセント型ミニマルペア。符号一致 35/36 で**再現している**（M-44 / v2）
                             ⚠️ v3 では **37/37**（M-59）。下の「v3 に差し替え」を見ること
 [完了] B-12                 教師の事前学習との重複検査。**看板の 24 文は汚染ゼロ**（M-47）
@@ -92,7 +94,8 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             **QEMU で bit 完全一致**（陰性対照つき）（M-57）
 [完了] PIE を全層へ拡張        活性化ストライドを align16(cin) にパディング。**69.0% → 99.40%**（M-58）
                             出力は 24/24 で bit 一致、arena 増加 0 B。⚠️ 0.60%（depthwise）は原理的に不可
-                            ⚠️ **出荷ファームでは未有効**（W8A8 を採る決定が要る）
+                            ✅ **出荷ファームの既定にした**（D-048。ESP32-S3 ではフラグ無しで有効。
+                            W8A32 は xRT 4.28〜4.62 で間に合わない）
                             ✅ 速度は自分で測った: CoreS3 で W8A8+PIE **0.926× RT**（M-82。下の 2026-09-02 の行を見ること）
 [完了] P-2 β の聴取決定      **β=0 で確定。式7 は不要**（M-60 / D-038）。⚠️ 上流（英語）は 6.0
                             ⚠️ **聴取者 1 名**。v2↔v3 も 7 試行で聴き分けられず（C-037）
@@ -137,7 +140,8 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 [完了] S2 計画 T1〜T5          T1（末尾 pull の早期終了）/ T2（S9 = 捨てる出力を計算しない）/ T3（S6 = token のパイプ化）/
                             T4（arena の詰め）/ T5（GELU のコード生成）。**1 step 18.38 M → 11.66 M cyc**
                             ⚠️ T5 で **GELU が 2 倍遅くなったまま通りかけた**（C-055 / M-87）
-[完了] **要件 RTF ≤ 0.5 達成**   満チャンク 1 pull の xRT **0.497**、アンダーラン **0**、鳴らし始め 434 ms（M-88）。
+[完了] **要件 RTF ≤ 0.5 達成**   満チャンク 1 pull の xRT **0.497**、アンダーラン **0**、鳴らし始め 434 ms（M-88。かな構成）。
+                                 ⚠️ **出荷構成（M5 + 漢字 + S5b）は xRT 0.446 / 鳴らし始め 384 ms**（M-90）。
                             T4 で内部 DRAM の空きが **+36,420 B**（M-89）
                             ⚠️ **発話全体で見ると 0.550〜0.693** でまだ 0.5 超（分母は未決 = D-049）
 [完了] D-048                  **ESP32-S3 では W8A8 + PIE を既定にする**（フラグ無しで有効）
@@ -279,11 +283,11 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 ⚠️ **音としては測っていない。** 0.32% は「ホストと違う音素の割合」。
 
 ゲート: `uv run python scripts/test_k1_dict.py` / `uv run python scripts/k1/k0_verify_dict.py`
-／ `make -C csrc jdict`（G6〜G11）／ `k4`（G12/G13）／ `k4b`（G14a〜c）／ `k5`（G22〜G24）
-／ `k6`（G17）／ `k7`（G25〜G27 + **G25b/G25c**: 表を arena に置いても同じ列か）
+／ `make -C csrc jdict`（G6〜G11）／ `accent`（G12/G13）／ `njd-rules`（G14a〜c）／ `oj-heap`（G22〜G24）
+／ `kanji-e2e`（G17）／ `label-ids`（G25〜G27 + **G25b/G25c**: 表を arena に置いても同じ列か）
 ／ `kb-parity`（**K-B の経路判定**がホストと一致するか。596/596）
 ／ `uv run python scripts/k1/k4b_vendor.py --sdist <tgz> --check`（取り込んだ C の同一性）
-⚠️ **k2 / k4 / k4b / k5 / k6 / k7 / kb-parity は `all-test` に入れていない**
+⚠️ **jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids / kb-parity は `all-test` に入れていない**
 （辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
@@ -374,7 +378,7 @@ sanoTTS-jp/
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
 │       ├── k1-kanji-katakana-ondevice.md  K-1 の結論（B-0 を測り直した）
-│       ├── s1-m5-cores3-speed.md          S-1（第三者報告 + 1 step の内訳。⚠️ §5 の仮説は半分外れた）
+│       ├── s1-m5-cores3-speed.md          S-1（第三者報告 + 1 step の内訳。⚠️ §4 の仮説は半分外れた）
 │       └── sanotts-jp-feasibility.md     初期調査
 ├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
 │   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）

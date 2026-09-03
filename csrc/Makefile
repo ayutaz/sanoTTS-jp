@@ -15,19 +15,21 @@
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
 #   make line      端末の行編集ステートマシン + **行の経路判定**（どちらも陽性対照つき）
 #   make kb-parity 経路判定がホスト (kana_g2p.classify_route) と一致するか。⚠️ pyopenjtalk が要る
-#   make k2        K-2/K-3 辞書リーダ + Viterbi + 未知語（MeCab との一致）
-#   make k4        K-4 アクセント規則 4 段（Python 版との一致。陰性対照つき）
-#   make k4b       K-4b NJD チェーン（ホストとの一致。段・規則ごとの陰性対照つき）
-#   make k5        K-5 1 文あたりのピーク RAM（ヒープ + スタックの実測）
-#   make k6        K-6 端末の全段をホストと突き合わせる（移植の正しさ + 枝刈りの代償）
-#   make k7        K-7 ラベル → 生徒インデックス（陰性対照つき）
+#   make jdict     K-2/K-3 辞書リーダ + Viterbi + 未知語（MeCab との一致）
+#   make accent    K-4 アクセント規則 4 段（Python 版との一致。陰性対照つき）
+#   make njd-rules K-4b NJD チェーン（ホストとの一致。段・規則ごとの陰性対照つき）
+#   make oj-heap   K-5 1 文あたりのピーク RAM（ヒープ + スタックの実測）
+#   make kanji-e2e K-6 端末の全段をホストと突き合わせる（移植の正しさ + 枝刈りの代償）
+#   make label-ids K-7 ラベル → 生徒インデックス（陰性対照つき）
+#   ⚠️ この 6 つは 2026-09-03 に k2 / k4 / k4b / k5 / k6 / k7 から改名した
+#      （工程番号ではなく中身で呼ぶ）。旧名は残していない。
 #   make g2p-corpus  同・コーパス全行（data/splits/corpus_*.tsv が要る）
 #   make all-test  test + stream + fft + int8 + int8-golden + int8-e2e + arena + g2p + pad + line + erf + range
 #
-# ⚠️ **k2 は all-test に入れていない。** 辞書（pyopenjtalk / piper-plus）と
+# ⚠️ **jdict は all-test に入れていない。** 辞書（pyopenjtalk / piper-plus）と
 #    数 MB の生成ベクタが要るので、g2p-corpus と同じ扱いにしてある。
-#    辞書がある環境でだけ `make -C csrc k2` を回すこと。
-#    ⚠️ k4 / k4b も同じ（ベクタ生成に pyopenjtalk が要る）。
+#    辞書がある環境でだけ `make -C csrc jdict` を回すこと。
+#    ⚠️ accent / njd-rules も同じ（ベクタ生成に pyopenjtalk が要る）。
 #
 # ⚠️ **naive DFT は消していない。** `make CFLAGS_EXTRA=-DSAAN_USE_NAIVE_DFT test` で
 #    切り替わる。FFT の検証基準として残してある（D-3a）。

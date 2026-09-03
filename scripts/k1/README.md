@@ -3,7 +3,9 @@
 結論は [`../../docs/research/k1-kanji-katakana-ondevice.md`](../../docs/research/k1-kanji-katakana-ondevice.md)、
 実装計画は [`../../docs/plan/k1-kanji-implementation-plan.md`](../../docs/plan/k1-kanji-implementation-plan.md)。
 
-**K-0 〜 K-7 は完了**（QEMU で漢字文から合成まで完走。M-76）。残りは実機（K-8）。
+**K-0 〜 K-8 まで完了**（QEMU で漢字文から合成まで完走 = M-76 → CoreS3 実機 = M-83 →
+M5 のスピーカーで漢字・カタカナ・ひらがなを発話 = M-90）。
+**残りは G32 の聴取だけ**（人が要る。セットは `reports/k8_listen/`）。⚠️ **音は誰も聴いていない。**
 
 ## 本番で使うもの（実装が依存している）
 
@@ -77,7 +79,7 @@ make -C csrc jdict                                  # K-2/K-3 の受け入れ（
 make -C csrc accent                                  # K-4 の受け入れ（G12/G13）
 ```
 
-⚠️ `make -C csrc jdict` / `k4` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
+⚠️ `make -C csrc jdict` / `accent` は **`all-test` に入れていない**。辞書（pyopenjtalk / piper-plus）と
 数 MB の生成ベクタが要るので、`g2p-corpus` と同じ扱い。
 
 エンコーダ本体は `src/saanotts_jp/jdict.py`、その単体テストは

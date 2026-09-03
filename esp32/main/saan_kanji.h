@@ -68,7 +68,7 @@ typedef enum {
 int saan_kanji_init(void);
 
 /* 確保する作業領域のバイト数（**最低限これだけ要る**）。SAAN_KANJI_WORKBYTES と同じ値を返す
- * （マクロは静的検査用、関数は実行時のログ用。`make -C csrc k7` と check_esp32_template.sh §10 が両方を見る）。 */
+ * （マクロは静的検査用、関数は実行時のログ用。`make -C csrc label-ids` と check_esp32_template.sh §10 が両方を見る）。 */
 size_t saan_kanji_workbytes(void);
 
 /* arena が `arena_n` バイトのとき、実際に Viterbi へ渡るバイト数（ログ用）。

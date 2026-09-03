@@ -58,7 +58,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
 |---|---:|---:|
 | 満チャンク 1 pull の xRT | 0.926 ⚠️ 旧定義 | **0.446**（M-90。要件 RTF ≤ 0.5 達成） |
 | 1 step | 18,378,513 cyc | **11,659,500 cyc**（M-89。−36.6%。S5b 前の値） |
-| 鳴らし始めまで | 719 ms | **432 ms**（M-89） |
+| 鳴らし始めまで | 719 ms | **384 ms**（M-90 = 出荷構成。⚠️ かな構成は M-89 で 432 ms / M-88 で 434 ms） |
 | アンダーラン | 1/14 | **0**（全文。M-87 以降） |
 | arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **180,224 / 157,360 B**（M-89） |
 | 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（M-90。辞書 + 漢字込み。最大ブロック 86,016） |
@@ -546,7 +546,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
-| テスト | `make -C csrc njd-rules` / `k5` / `k6` / `k7` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
+| テスト | `make -C csrc njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
