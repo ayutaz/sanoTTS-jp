@@ -1,0 +1,247 @@
+ESP-ROM:esp32s3-20210327
+Build:Mar 27 2021
+rst:0x15 (USB_UART_CHIP_RESET),boot:0x2a (SPI_FAST_FLASH_BOOT)
+Saved PC:0x4037c68e
+SPIWP:0xee
+mode:DIO, clock div:1
+load:0x3fce2820,len:0x1710
+load:0x403c8700,len:0xe1c
+load:0x403cb700,len:0x31e0
+entry 0x403c8938
+I (24) boot: ESP-IDF v5.5 2nd stage bootloader
+I (24) boot: compile time Sep  3 2026 16:41:24
+I (25) boot: Multicore bootloader
+I (25) boot: chip revision: v0.2
+I (25) boot: efuse block revision: v1.3
+I (25) qio_mode: Enabling default flash chip QIO
+I (25) boot.esp32s3: Boot SPI Speed : 80MHz
+I (26) boot.esp32s3: SPI Mode       : QIO
+I (26) boot.esp32s3: SPI Flash Size : 16MB
+I (26) boot: Enabling RNG early entropy source...
+I (26) boot: Partition Table:
+I (26) boot: ## Label            Usage          Type ST Offset   Length
+I (27) boot:  0 nvs              WiFi data        01 02 00009000 00006000
+I (27) boot:  1 phy_init         RF data          01 01 0000f000 00001000
+I (27) boot:  2 factory          factory app      00 00 00010000 002c0000
+I (28) boot:  3 dict             Unknown data     01 41 002d0000 00d30000
+I (28) boot: End of partition table
+I (29) esp_image: segment 0: paddr=00010020 vaddr=3c060020 size=f5138h (1003832) map
+I (178) esp_image: segment 1: paddr=00105160 vaddr=3fc92f00 size=03a74h ( 14964) load
+I (181) esp_image: segment 2: paddr=00108bdc vaddr=40378000 size=0743ch ( 29756) load
+I (187) esp_image: segment 3: paddr=00110020 vaddr=42000020 size=5b1e0h (373216) map
+I (243) esp_image: segment 4: paddr=0016b208 vaddr=4037f43c size=03a44h ( 14916) load
+I (246) esp_image: segment 5: paddr=0016ec54 vaddr=600fe000 size=00020h (    32) load
+I (251) boot: Loaded app from partition at offset 0x10000
+I (251) boot: Disabling RNG early entropy source...
+I (253) esp_psram: Found 8MB PSRAM device
+I (253) esp_psram: Speed: 80MHz
+I (253) cpu_start: Multicore app
+I (1027) esp_psram: SPI SRAM memory test OK
+I (1035) cpu_start: Pro cpu start user code
+I (1035) cpu_start: cpu freq: 240000000 Hz
+I (1036) app_init: Application information:
+I (1036) app_init: Project name:     saanotts_m5
+I (1036) app_init: App version:      v0.2.0-77-g8155cb2
+I (1036) app_init: Compile time:     Sep  3 2026 16:41:06
+I (1036) app_init: ELF file SHA256:  22f8a67f6...
+I (1036) app_init: ESP-IDF:          v5.5
+I (1036) efuse_init: Min chip rev:     v0.0
+I (1037) efuse_init: Max chip rev:     v0.99 
+I (1037) efuse_init: Chip rev:         v0.2
+I (1037) heap_init: Initializing. RAM available for dynamic allocation:
+I (1037) heap_init: At 3FCC7A58 len 00021CB8 (135 KiB): RAM
+I (1037) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM
+I (1037) heap_init: At 600FE020 len 00001FC8 (7 KiB): RTCRAM
+I (1038) esp_psram: Adding pool of 8192K of PSRAM memory to heap allocator
+I (1038) spi_flash: detected chip: generic
+I (1038) spi_flash: flash io: qio
+I (1039) sleep_gpio: Configure to isolate all GPIO pins in sleep state
+I (1039) sleep_gpio: Enable automatic switching of GPIO sleep configuration
+I (1040) main_task: Started on CPU0
+I (1041) esp_psram: Reserving pool of 32K of internal memory for DMA/internal allocations
+I (1041) main_task: Calling app_main()
+I (1041) saanotts: sanoTTS-jp ESP32-S3（**実機未検証** — esp32/README.md を読むこと）
+I (1042) saanotts: 起動直後: 内部 DRAM free 132039 B / 最大ブロック 86016 B
+I (1042) saanotts: arena 180224 B を .bss に静的確保 (0x3fc9a520) / G2P の ids 4108 B
+I (1042) saan_model: 重み: ヘッダ埋め込み (.rodata = flash) 654032 B / dtype int8
+I (1042) saan_model:   sha256 2d2b8543c06b6a749f19c9918de68244409e2bb6ad1d921a90b5c358f96d4d79
+I (1042) saan_model: 重み OK: 183 tensors / base 0x3c073bc0
+I (1043) saanotts: W8A8 + PIE 有効 / int8 blob を確認
+I (1043) saan_dict: dict パーティション: offset 0x002d0000 size 13828096 B
+I (1043) saan_dict: esp_mmu_map を使う（CONFIG_SPI_FLASH_ROM_IMPL の 128 ページ制限を回避） / 連続空き vaddr 23724032 B (ESP_OK)
+I (1043) saan_dict: esp_mmu_map OK: vaddr 0x3c960000
+I (1044) saan_dict: 辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377
+I (1044) saanotts: 漢字経路の作業領域 144640 B（最低限）/ Viterbi に渡る 84736 B （arena 180224 B のうち）
+I (1044) saanotts: 辞書 mmap 後: 内部 DRAM free 131495 B / 最大ブロック 86016 B
+I (1044) saan_spk: リングバッファ (4096 B) を PSRAM に確保
+I (1045) saan_spk: リングバッファ (4096 B) を PSRAM に確保
+I (1045) saan_spk: リングバッファ (4096 B) を PSRAM に確保
+I (1050) M5GFX: [Autodetect] board_M5StackChan
+I (1052) main_task: Returned from app_main()
+I (1174) M5GFX: CoreS3 touch CIPHER:0x64 / FIRMID:0x10 / VENDID:0x11, panel:ILI9342C
+I (1403) saan_spk: M5.Speaker: board 27 / 出力 22050 Hz / 音源 22,050 Hz（リサンプル無し） / volume 128 / バッファ 3 枚 × 2048 sample
+W (1403) saan_spk: ⚠️ 実サンプルレートの誤差は**未測定**
+I (1435) saan_ui: 画面 320 x 240 / フォント lgfxJapanGothic_20
+I (1436) saanotts: G2P セルフテスト: "きょ][おわよ][いて][んきです°ね" (44 B) -> 53 ids / 0.163 ms
+I (1436) saanotts:      OK  53 ids が demo_ids.h の錨と完全一致
+I (1436) saanotts: 起動時の 1 発話: "今日は良い天気ですね。"
+I (1512) saanotts: init 21.57 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (1512) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (1513) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (1898) saanotts: プリロール 4 チャンク完了（初回 pull 245.81 ms / 鳴らし始めまで 385 ms）
+I (1898) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (3041) saanotts: pull 1: n=8 245.81 ms
+I (3041) saanotts: pull 2: n=8 46.40 ms
+I (3041) saanotts: pull 3: n=8 46.39 ms
+I (3041) saanotts: pull 4: n=8 41.62 ms
+I (3041) saanotts: pull 5: n=8 46.47 ms
+I (3041) saanotts: pull 6: n=8 41.66 ms
+I (3041) saanotts: pull 7: n=8 41.69 ms
+I (3041) saanotts: pull 8: n=8 46.18 ms
+I (3041) saanotts: pull 9: n=8 41.59 ms
+I (3042) saanotts: pull 10: n=8 41.44 ms
+I (3042) saanotts: pull 11: n=8 41.23 ms
+I (3042) saanotts: pull 12: n=8 40.98 ms
+I (3042) saanotts: pull 13: n=8 39.67 ms
+I (3042) saanotts: pull 14: n=2 0.01 ms
+I (3042) saanotts: ----- 結果 -----
+I (3042) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (3042) saanotts: 合成合計 761.14 ms（全 pull の dt の和。定義に依らない量 — T1 前後の比較はこれか SAAN_PROFILE=1 の STEP 行で）/ 音声 1.231 s → 合成/音声 0.618
+I (3043) saanotts: 初回 pull 245.81 ms / 2 回目以降 mean 39.64 ms（⚠️ 末尾の端数 pull を含む。参考値）(満チャンク 1 個 = 92.88 ms の音声)
+I (3043) saanotts: 満チャンク pull（n=8、初回を除く 12 回）: 中央値 41.64 ms / 平均 42.94 ms
+I (3044) saanotts: 定常 xRT = 0.448（満チャンク pull の中央値 / 92.88 ms。平均なら 0.462）  ← **1.0 を超えたら実時間に間に合っていない**
+W (3044) saanotts: ⚠️ 「定常 xRT」の定義は T1 で変わった（旧: 2 回目以降の全 pull の平均 = 末尾 pull の出力に寄与しない step 3 回込み）。M-82 / M-84 の値とは直接比べないこと。上の「2 回目以降 mean」も T1 後は末尾の step が消えているので旧値の再現ではない
+I (3045) saanotts: アンダーラン 0 / 14 チャンク（判定は pull ごと。末尾の端数 pull を含む）
+I (3058) saanotts: int16 クリップ 0 sample
+I (3059) saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+I (3059) saanotts:         |max| 9627 / Σx² 74264237672
+I (3059) saanotts: タスクスタック残り 10996 B（16384 B 中）
+I (3059) saanotts: 1 発話後: 内部 DRAM free 129003 B / 最大ブロック 86016 B
+I (3060) saan_con: 入力: USB Serial/JTAG（DevKit の「USB」ポート）/ RX リング 1024 B
+I (3060) saanotts: ==================== 対話モード ====================
+I (3060) saanotts: 1 行入力して Enter で喋る。**経路は自動で決まる**（`!` は要らない）。
+I (3060) saanotts:   かな中間表現:  きょ][おわよ][いて][んきです°ね
+I (3061) saanotts:   ひらがなだけ:  こんにちわ
+I (3061) saanotts: 記号:  [ 上昇 / ] 下降核 / # 句境界 / ° 無声化 / ? ?! ?. ?~ 疑問
+I (3061) saanotts: **漢字対応ビルド**: 漢字・カタカナの文はそのまま入力する。
+I (3061) saanotts:   例:  今日は良い天気ですね。
+I (3061) saanotts:   （`!` を前置すると辞書経路に強制する。**試験用**）
+I (3062) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 15.44% の文で読みが変わる**（音素では 0.32%。M-77）。⚠️ 音は誰も聞いていない。
+I (3062) saanotts: ⚠️ **中間表現の記号が混じったまま読めない行は拒否する**（例: きょ][おわ…です°ね。）。黙って漢字経路に回さない。
+I (3063) saanotts: ⚠️ アクセント記号を省くと平板になる。**音は出るが正しい抑揚ではない。**
+I (3063) saanotts: 編集: BS/DEL 1 文字消す / Ctrl-U 行を消す / 上限 350 ids
+I (3063) saanotts: 画面があればタッチで直前の文をもう一度喋る（saan_ui の実装次第）。
+I (3063) saanotts: ====================================================
+
+かな> 今日は良い天気ですね。
+I (3065) saanotts: 経路: 辞書
+I (3091) saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.75 ms
+I (3159) saanotts: init 21.63 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (3159) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (3159) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (3545) saanotts: プリロール 4 チャンク完了（初回 pull 245.80 ms / 鳴らし始めまで 385 ms）
+I (3545) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (4689) saanotts: pull 1: n=8 245.80 ms
+I (4689) saanotts: pull 2: n=8 46.39 ms
+I (4689) saanotts: pull 3: n=8 46.39 ms
+I (4689) saanotts: pull 4: n=8 41.63 ms
+I (4689) saanotts: pull 5: n=8 46.46 ms
+I (4689) saanotts: pull 6: n=8 41.70 ms
+I (4689) saanotts: pull 7: n=8 41.66 ms
+I (4689) saanotts: pull 8: n=8 46.19 ms
+I (4689) saanotts: pull 9: n=8 41.60 ms
+I (4689) saanotts: pull 10: n=8 41.41 ms
+I (4689) saanotts: pull 11: n=8 41.22 ms
+I (4690) saanotts: pull 12: n=8 41.00 ms
+I (4690) saanotts: pull 13: n=8 39.66 ms
+I (4690) saanotts: pull 14: n=2 0.01 ms
+I (4690) saanotts: ----- 結果 -----
+I (4690) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (4690) saanotts: 合成合計 761.11 ms（全 pull の dt の和。定義に依らない量 — T1 前後の比較はこれか SAAN_PROFILE=1 の STEP 行で）/ 音声 1.231 s → 合成/音声 0.618
+I (4691) saanotts: 初回 pull 245.80 ms / 2 回目以降 mean 39.64 ms（⚠️ 末尾の端数 pull を含む。参考値）(満チャンク 1 個 = 92.88 ms の音声)
+I (4691) saanotts: 満チャンク pull（n=8、初回を除く 12 回）: 中央値 41.64 ms / 平均 42.94 ms
+I (4691) saanotts: 定常 xRT = 0.448（満チャンク pull の中央値 / 92.88 ms。平均なら 0.462）  ← **1.0 を超えたら実時間に間に合っていない**
+W (4692) saanotts: ⚠️ 「定常 xRT」の定義は T1 で変わった（旧: 2 回目以降の全 pull の平均 = 末尾 pull の出力に寄与しない step 3 回込み）。M-82 / M-84 の値とは直接比べないこと。上の「2 回目以降 mean」も T1 後は末尾の step が消えているので旧値の再現ではない
+I (4693) saanotts: アンダーラン 0 / 14 チャンク（判定は pull ごと。末尾の端数 pull を含む）
+I (4706) saanotts: int16 クリップ 0 sample
+I (4706) saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+I (4706) saanotts:         |max| 9627 / Σx² 74264237672
+I (4707) saanotts: タスクスタック残り 9092 B（16384 B 中）
+
+かな> スタックチャンが漢字を読み上げています。
+I (4715) saanotts: 経路: 辞書
+I (4745) saanotts: 漢字 G2P: 60 B -> 形態素 10 個 / ids 77 個 / 30.54 ms
+I (4822) saanotts: init 25.86 ms / 77 ids / 154 frames / 39424 sample / 音声 1.788 s
+I (4823) saanotts: arena used 156880 B / peak 156880 B / 確保 180224 B
+I (4823) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (5208) saanotts: プリロール 4 チャンク完了（初回 pull 245.18 ms / 鳴らし始めまで 385 ms）
+I (5208) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (6907) saanotts: pull 1: n=8 245.18 ms
+I (6907) saanotts: pull 2: n=8 46.39 ms
+I (6907) saanotts: pull 3: n=8 41.62 ms
+I (6907) saanotts: pull 4: n=8 46.42 ms
+I (6907) saanotts: pull 5: n=8 41.75 ms
+I (6907) saanotts: pull 6: n=8 41.68 ms
+I (6907) saanotts: pull 7: n=8 46.47 ms
+I (6907) saanotts: pull 8: n=8 46.48 ms
+I (6907) saanotts: pull 9: n=8 41.65 ms
+I (6907) saanotts: pull 10: n=8 46.47 ms
+I (6908) saanotts: pull 11: n=8 41.69 ms
+I (6908) saanotts: pull 12: n=8 46.31 ms
+I (6908) saanotts: pull 13: n=8 41.67 ms
+I (6908) saanotts: pull 14: n=8 46.17 ms
+I (6908) saanotts: pull 15: n=8 41.59 ms
+I (6908) saanotts: pull 16: n=8 41.42 ms
+I (6908) saanotts: pull 17: n=8 41.24 ms
+I (6908) saanotts: pull 18: n=8 40.98 ms
+I (6908) saanotts: pull 19: n=8 39.66 ms
+I (6908) saanotts: pull 20: n=2 0.01 ms
+I (6909) saanotts: ----- 結果 -----
+I (6909) saanotts: pull 20 回 / 154 frames / 音声 1.788 s（端数チャンク 1 回）
+I (6909) saanotts: 合成合計 1024.87 ms（全 pull の dt の和。定義に依らない量 — T1 前後の比較はこれか SAAN_PROFILE=1 の STEP 行で）/ 音声 1.788 s → 合成/音声 0.573
+I (6909) saanotts: 初回 pull 245.18 ms / 2 回目以降 mean 41.04 ms（⚠️ 末尾の端数 pull を含む。参考値）(満チャンク 1 個 = 92.88 ms の音声)
+I (6910) saanotts: 満チャンク pull（n=8、初回を除く 18 回）: 中央値 41.69 ms / 平均 43.32 ms
+I (6910) saanotts: 定常 xRT = 0.449（満チャンク pull の中央値 / 92.88 ms。平均なら 0.466）  ← **1.0 を超えたら実時間に間に合っていない**
+W (6910) saanotts: ⚠️ 「定常 xRT」の定義は T1 で変わった（旧: 2 回目以降の全 pull の平均 = 末尾 pull の出力に寄与しない step 3 回込み）。M-82 / M-84 の値とは直接比べないこと。上の「2 回目以降 mean」も T1 後は末尾の step が消えているので旧値の再現ではない
+I (6911) saanotts: アンダーラン 0 / 20 チャンク（判定は pull ごと。末尾の端数 pull を含む）
+I (6925) saanotts: int16 クリップ 0 sample
+I (6925) saanotts: 出力 PCM: 39424 sample / FNV-1a 0xe97c102801b01905
+I (6925) saanotts:         |max| 11980 / Σx² 109035031656
+I (6925) saanotts: タスクスタック残り 9092 B（16384 B 中）
+
+かな> きょ][おわよ][いて][んきです°ね
+I (6927) saanotts: 経路: かな
+I (6927) saanotts: G2P: 44 B -> 53 ids / 0.103 ms（音素 25 個・うち PAD 0）
+I (6996) saanotts: init 21.57 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (6997) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (6997) saan_spk: 発話バッファ (16384 B) を PSRAM に確保
+I (7382) saanotts: プリロール 4 チャンク完了（初回 pull 245.83 ms / 鳴らし始めまで 385 ms）
+I (7383) saan_spk: 貯めた 8192 sample (0.372 s) を送出
+I (8532) saanotts: pull 1: n=8 245.83 ms
+I (8532) saanotts: pull 2: n=8 46.40 ms
+I (8532) saanotts: pull 3: n=8 46.38 ms
+I (8532) saanotts: pull 4: n=8 41.60 ms
+I (8532) saanotts: pull 5: n=8 46.48 ms
+I (8532) saanotts: pull 6: n=8 41.64 ms
+I (8532) saanotts: pull 7: n=8 41.69 ms
+I (8532) saanotts: pull 8: n=8 46.18 ms
+I (8532) saanotts: pull 9: n=8 41.58 ms
+I (8532) saanotts: pull 10: n=8 41.43 ms
+I (8533) saanotts: pull 11: n=8 41.22 ms
+I (8533) saanotts: pull 12: n=8 40.99 ms
+I (8533) saanotts: pull 13: n=8 39.67 ms
+I (8533) saanotts: pull 14: n=2 0.01 ms
+I (8533) saanotts: ----- 結果 -----
+I (8533) saanotts: pull 14 回 / 106 frames / 音声 1.231 s（端数チャンク 1 回）
+I (8533) saanotts: 合成合計 761.10 ms（全 pull の dt の和。定義に依らない量 — T1 前後の比較はこれか SAAN_PROFILE=1 の STEP 行で）/ 音声 1.231 s → 合成/音声 0.618
+I (8534) saanotts: 初回 pull 245.83 ms / 2 回目以降 mean 39.64 ms（⚠️ 末尾の端数 pull を含む。参考値）(満チャンク 1 個 = 92.88 ms の音声)
+I (8534) saanotts: 満チャンク pull（n=8、初回を除く 12 回）: 中央値 41.62 ms / 平均 42.94 ms
+I (8535) saanotts: 定常 xRT = 0.448（満チャンク pull の中央値 / 92.88 ms。平均なら 0.462）  ← **1.0 を超えたら実時間に間に合っていない**
+W (8535) saanotts: ⚠️ 「定常 xRT」の定義は T1 で変わった（旧: 2 回目以降の全 pull の平均 = 末尾 pull の出力に寄与しない step 3 回込み）。M-82 / M-84 の値とは直接比べないこと。上の「2 回目以降 mean」も T1 後は末尾の step が消えているので旧値の再現ではない
+I (8536) saanotts: アンダーラン 0 / 14 チャンク（判定は pull ごと。末尾の端数 pull を含む）
+I (8549) saanotts: int16 クリップ 0 sample
+I (8549) saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+I (8550) saanotts:         |max| 9627 / Σx² 74264237672
+I (8550) saanotts: タスクスタック残り 9092 B（16384 B 中）
+
+かな> 
