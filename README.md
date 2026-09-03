@@ -120,21 +120,24 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 
 ### どのリリースに何が入っているか
 
-**最新の [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) に全部入っている**（15 本）。
+**最新の [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) に全部入っている**（14 本）。
 `releases/latest` で足りる。
 
 | 資産 | どこ | 中身 |
 |---|---|---|
-| `saanotts-jp-v3-samples.zip` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 合成音の WAV |
-| `saanotts-jp-v3-stage4.pt` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | PyTorch の重み（2,744,874 B） |
-| `saanotts-jp-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | C99 コア用の int8 blob（643,936 B、**形式 v1**）。⚠️ **S4（2026-09-02）以降のコアは v2（654,032 B）が要る**。v1 を渡すと起動時に `SAAN_ERR_VERSION` で止まる。v2 の資産は次のリリースで上げる。それまでは `scripts/export_c_weights.py --int8` で作る |
-| `saanotts-jp-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 参照・デバッグ用の fp32 blob |
-| `golden-v3-int8.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc int8-golden` 用の参照出力（`csrc/golden_i8.bin` に置く） |
-| `golden-v3-fp32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | `make -C csrc golden`（= `test`）用（`csrc/golden.bin` に置く） |
-| `esp32s3-firmware-w8a8-pie.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **かな入力**のファーム（8 MB 以上・焼くだけ） |
-| `esp32s3-firmware-w8a32.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 同・最適化なし（**PIE の比較対照**） |
-| `esp32s3-firmware-kanji-16mb.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | **漢字入力**のイメージ（**16 MB 必須**・焼くだけ） |
-| `k1-dict-438750.bin` | [v0.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.2.0) | 辞書 blob 単体（13,702,320 B） |
+| `saanotts-jp-v3-samples.zip` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 合成音の WAV |
+| `saanotts-jp-v3-stage4.pt` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | PyTorch の重み（2,744,874 B） |
+| `saanotts-jp-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | C99 コア用の int8 blob（**654,032 B / 形式 v2**）。⚠️ **v0.2.0 の v1（643,936 B）は現行コアが `SAAN_ERR_VERSION` で拒む** |
+| `saanotts-jp-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 参照・デバッグ用の fp32 blob |
+| `golden-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc int8-golden` 用の参照出力（`csrc/golden_i8.bin` に置く） |
+| `golden-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc golden`（= `test`）用（`csrc/golden.bin` に置く） |
+| `esp32s3-firmware-w8a8-pie.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **かな入力**のファーム（8 MB 以上・焼くだけ） |
+| `esp32s3-firmware-w8a32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・最適化なし（**PIE の比較対照**） |
+| `esp32s3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **漢字入力**のイメージ（**16 MB 必須**・焼くだけ） |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**コンソールが USB Serial/JTAG**（native USB だけの板はこちら） |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | かな入力・**USB Serial/JTAG**（8 MB 以上） |
+| `m5-cores3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **M5Stack CoreS3 / スタックチャン**。漢字 + 内蔵スピーカー + 画面（**16 MB 必須**） |
+| `k1-dict-438750.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 辞書 blob 単体（13,702,320 B） |
 
 ⚠️ **モデルの重みは v0.1.0 / v0.1.1 / v0.2.0 で bit 同一**（再学習していない）。
 どのタグから落としても同じ。
