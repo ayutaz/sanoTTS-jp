@@ -6272,3 +6272,56 @@ cd build_probe_dev && esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --ba
 - cinp=48 / k=1 の 1 形状だけ。pw1（cinp 80）/ pw2（cinp 304）は固定費の比率が違う（ベクトル対が 5 / 19 個）。in-situ の 1.45 cyc/MAC（M-84）はこれらの混合。
 - D1 の 78 cyc/dot は「呼び出し固定費 + srs→float→madd の直列チェーン + PIE 発行」の**和**で、内訳は分けていない（審査の指摘どおり cinp ∈ {48, 80, 304} で回帰すれば切片が出る。未実施）。
 - PSRAM（D4）は測っていない（M-84 の F-2 で「SPIRAM_RODATA は 1% しか効かない」を in-situ で確認済み）。
+
+---
+
+## M-86. 漢字ビルド + W8A8+PIE（DevKit 構成、CoreS3）: 漢字経路の checksum が **かな PIE 構成と bit 一致**。xRT は DevKit 既定の **DIO で 1.090 → QIO で 0.922 → QIO + 64 B 行で 0.858**（自己実測）
+
+**2026-09-03。ユーザーの CoreS3（D-047）。** S2 計画の派生（K 計画 (i)「漢字ビルドで PIE を有効にして xRT を測る」）。
+コードは HEAD 253adde（M-83 と同じ csrc + S1〜S5a）。`esp32/`（DevKit 構成）に `sdkconfig.kanji` + `sdkconfig.usb_serial_jtag` を重ね、
+**`-DSAAN_ENABLE_PIE=1` を足しただけ**（M-83 は W8A32）。音声出力は `-DSAAN_QEMU=1`（I2S に書かない）。
+
+```bash
+cd esp32 && idf.py -B build_kpie -DSDKCONFIG=build_kpie/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji;sdkconfig.usb_serial_jtag" \
+    -DSAAN_KANJI=1 -DSAAN_ENABLE_PIE=1 -DSAAN_QEMU=1 -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict.bin build
+cd build_kpie && esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash @flash_args   # dict 13.7 MB 込みで約 2.5 分
+```
+
+### 1. 結果（生ログ `reports/m86_cores3/device_kpie.log`）
+
+| 入力 | 漢字 G2P | ids → frames | 定常 xRT（旧定義） | checksum |
+|---|---:|---|---:|---|
+| `きょ][おわよ][いて][んきです°ね`（かな経路） | — | 53 → 106 | 1.090 | **`0xa69a7ebbb5ccb05f`** / \|max\| 9627 / Σx² 74,264,237,672 |
+| `!今日は良い天気ですね。` | 27.83 ms | 53 → 106 | 1.090 | **`0xa69a7ebbb5ccb05f`**（同値） |
+| `!吾輩は猫である。名前はまだ無い。` | 43.00 ms | 84 → 215 | 1.064 | `0x6ddb9a69f1b18994`（初出） |
+| `!東京特許許可局の局長は今日も許可します。` | 58.21 ms | 107 → 218 | 1.064 | `0x3f0fb6d551db71f5`（初出） |
+| `!明日の天気は晴れのち曇り、ところにより雨が降るでしょう。` | 66.25 ms | 140 → 297 | 1.034 | `0x8a0dbf6e03cdf7e6`（**M-84 のかな行 140 ids と同値** = 漢字経路とかな経路が同じ ids を出し、同じ PCM になった） |
+
+- **G31（PIE 版）**: 漢字経路の checksum が M5 構成のかな PIE（M-82 / M-84）と **bit 一致**。同一ターゲット・同一コア・同一 blob なので bit 一致を要求でき、満たした。**漢字 + W8A8+PIE の組み合わせは初めて動かした**（QEMU でも実機でも今まで無かった）。
+- **漢字 G2P は PIE に無関係**（27.83〜66.25 ms。M-83 の 27.85〜66.30 と同じ）。G2P は CPU 律速で MAC を含まない。
+- 起動直後の内部 DRAM free: **59,044 B**（最大ブロック 45,056）、辞書 mmap 後 58,332 B — **M-83（W8A32）と同じ**（W8A8 の scratch は arena 内で数えるので静的 DRAM は増えない）。arena は 204 KB（`SAAN_KANJI` で 208 → 204）で peak 195,808〜196,480 B（W8A8 の +4.2 KB 込みで収まる。余裕 12 KB）。
+
+### 2. ⚠️ xRT 1.090 は M5 構成の 0.926（32 B 行）より **18% 遅い** — **DevKit 構成の flash モードが DIO だった**
+
+`esp32/sdkconfig.defaults` は flash モードを指定しておらず、IDF の既定 **DIO（2 bit 幅）**でビルドされる（`build_kpie/sdkconfig`: `CONFIG_ESPTOOLPY_FLASHMODE_DIO=y`）。
+M5 構成（`sdkconfig.cores3`）は **QIO（4 bit 幅）**。重みの行フィルは DIO でデータ部が 2 倍かかる（M-85: flash 分は MAC の 38.5%）。
+**M-83 の W8A32 4.28〜4.62 も DIO の値。** 第三者報告（M5、QIO）と DevKit（DIO）を並べるときはこの差を見ること。
+
+A/B（同じ build に sdkconfig の断片を重ねただけ。bootloader / app / 表だけ焼き直し）:
+
+| 構成（漢字 + W8A8+PIE、DevKit 構成） | 53 ids: 2 回目以降 mean / xRT | 140 ids（297 frames）: mean / xRT | 漢字 G2P 33 B / 84 B | checksum（53 ids） |
+|---|---:|---:|---:|---|
+| DIO / 32 B 行（`esp32/sdkconfig.defaults` の既定） | 101.21 ms / **1.090** | 96.07 / 1.034 | 27.83 / 66.25 ms | `0xa69a7ebbb5ccb05f` |
+| **QIO** / 32 B 行（`sdkconfig.qio`） | 85.62 / **0.922** | 81.53 / 0.878 | 25.95 / 63.51 ms | `0xa69a7ebbb5ccb05f` |
+| **QIO / 64 B 行**（`sdkconfig.qio64`） | 79.66 / **0.858** | 76.04 / 0.819 | 25.70 / 63.45 ms | `0xa69a7ebbb5ccb05f`（140 ids は `0x8a0dbf6e03cdf7e6` = M-84 と同値） |
+
+（参考: M5 構成 = QIO / 32 B で 0.926、QIO / 64 B で 0.861。M-82 / M-84。**DevKit 構成でも同じ値が出る** = M5Unified の有無は速度に効かない）
+
+- **DIO → QIO で −15%、さらに 64 B 行で −7%。** 3 構成とも checksum は同一（flash モードとキャッシュ行は値に触れない）。
+- 漢字 G2P も DIO → QIO で 27.83 → 25.95 ms（−7%。辞書 mmap の行フィルが速くなる分。M-85 の「辞書側は CPU 律速」と整合 = 効きは小さい）。
+- 内部 DRAM free は 3 構成とも 59,044 B（起動直後）/ 58,332 B（辞書 mmap 後）。
+- ⚠️ **`esptool.py write_flash --flash_mode qio` を明示的に渡してはいけない。** ヘッダが QIO になり ROM ローダが `mode:QIO` で読もうとして `ets_loader.c 78` → TG0WDT のブートループになる（実際に踏んだ。生ログ `device_kqio.log` の先頭）。IDF の `flash_args` は QIO 設定でも `--flash_mode dio` を書き、bootloader が起動後に `qio_mode: Enabling default flash chip QIO` で切り替える。**`@flash_args` をそのまま使うこと。**
+- **`esp32/sdkconfig.defaults` に QIO と 64 B 行を入れる**（この板の flash は QIO 対応 = M5 構成で実証済み。DevKit の WROOM-1 も QIO 対応。QEMU は QIO を受け付けないので `-DSAAN_QEMU=1` のビルドでは DIO に戻す必要がある → CMake で切り替える）。
+
+⚠️ 表示 xRT は旧定義（末尾 pull 込み。T1 前のコード）。T1 後の値と並べないこと（C-054）。

@@ -309,7 +309,7 @@ uv sync
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-85。全項目に再現コマンド付き |
+| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-86。全項目に再現コマンド付き |
 | [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-047 と**訂正履歴 C-001〜C-054** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
