@@ -3,109 +3,61 @@
 ***日本語** · [English](README.en.md)*
 
 [![CI](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml/badge.svg)](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
+[![Model license](https://img.shields.io/badge/model-not%20MIT-orange.svg)](LICENSE-MODEL.md)
 
 **559 K パラメータの日本語 TTS を、$3 のマイコン（ESP32-S3）で動かす試み。**
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
 Duration / Acoustic / iSTFT Decoder の 3 つの小さな生徒に蒸留する。
+**推論は依存ゼロの C99**（libm のみ・`malloc` を呼ばない）。
 
-✅ **2026-09-03、M5Stack CoreS3（スタックチャン）で漢字かな交じり文をそのまま喋らせた**（M-90）。
-辞書 13.7 MB を載せた 1 本のファームで、シリアルに **`今日は良い天気ですね。` と打つだけ**
-（`!` の前置は要らない。経路は端末が自分で決める）。**満チャンク 1 pull の xRT は 0.446 で、
-要件 RTF ≤ 0.5 を満たす**。⚠️ **音は誰も聴いていない** — 残っているのはそれだけ。
+M5Stack CoreS3（スタックチャン）にファームを 1 本焼くと、シリアルに
+**`今日は良い天気ですね。` と打つだけで喋る**。形態素解析もアクセント推定も端末の中で走る。
 
-**速度は作り直して要件に届いた。** 第三者の実機報告（**どちらも S1 前の値**）は
-AtomS3 **1.718** / CoreS3 **1.558** でリアルタイム未達だった
-（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
-[CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。
-1 step の内訳を取ると積和ではなく量子化・GELU・テンソル検索・重みのコピーが支配的で（M-80）、
-それを削る **S1〜S5a**（M-82: 0.926）→ **T1〜T5 と 64 B キャッシュ行**（M-88: 0.497、アンダーラン 0）→
-**S5b**（M-90: 0.446）と積み上げた。**波形は M-82 以来 1 bit も変わっていない**（checksum が同一）。
-⚠️ **発話全体で見ると 0.54〜0.71 でまだ 0.5 を超える**（warmup 38 フレームが初回 pull に乗るため。
-要件の分母がどちらかは決まっていない）。
+```
+かな> 今日は良い天気ですね。
+saanotts: 経路: 辞書
+saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.69 ms
+saanotts: init 21.56 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+saanotts: プリロール 4 チャンク完了（初回 pull 244.66 ms / 鳴らし始めまで 384 ms）
+  ...
+saanotts: 定常 xRT = 0.446（満チャンク pull の中央値 / 92.88 ms）
+saanotts: アンダーラン 0 / 14 チャンク
+saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+```
 
-## 日本語でやると何が難しいか
+*（実機の生ログ [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log) から、
+タイムスタンプと注記を省いて抜粋。`...` は 14 回の pull）*
 
-英語版をそのまま移すと壊れる。この 3 つが日本語固有の壁だった。
+| | |
+|---|---:|
+| モデル | **559 K params** / int8 で **654,032 B**（flash） |
+| 実行時 RAM | **157 KB**（ESP32-S3 の SRAM 512 KB の 34%） |
+| 速度 | **xRT 0.446**（満チャンク 1 pull。⚠️ 発話全体では 0.54〜0.71） |
+| 品質 | 教師の **64%**（SCOREQ 比 0.644）。⚠️ **予測器のスコアで、人の耳ではない** |
+| 端末の G2P | 漢字あり **13.7 MB 辞書** / かなだけなら **877 B のテーブル** |
 
-| 壁 | どう解いたか |
-|---|---|
-| **G2P が載らない** — 漢字を読むには辞書が要る。NAIST-JDIC は実測 **102 MB** | **入力仕様を変えた。** 端末は「ひらがな + アクセント記号」だけを受け取り、**877 B のテーブル**で音素に変換する。漢字→かなはホスト側でオフラインに行う。⚠️ **後にこの前提を測り直したら崩れ、実装まで通った** — 辞書を TTS 専用の形式にすると 1 エントリ 130 B → **28 B** になり、16 MB ボードに **438,750 entries** が載る（D-044）。**QEMU では漢字文から合成まで完走した**（K-7 / M-76）。✅ **実機でも動いた** — CoreS3 で checksum が QEMU と一致し（M-83）、**M5 のスピーカーで喋った**（M-90） |
-| **ピッチアクセント** — 「箸／橋／端」は音素列が同じで高低だけが違う。集約スコアでは検出できない | ミニマルペア 15 群を評価セットに入れた。教師との**符号一致 37/37** |
-| **無声化母音** — 「です」「した」の `i` `u` が音響的にほぼ摩擦雑音になる | 音素クラス別スペクトル平坦度で分離を確認（AUC 0.847）してから、ノイズ注入の対象集合に入れた |
+⚠️ **これは検証 (PoC) であって製品ではない。** いちばん足りていないのは
+**人が聴いた評価**で、いまのところ 1 名・対照なし・盲検なしが 1 回あるだけ。
 
-**一番効いたのは 1 つ目**で、これは辞書を小さくしたのではなく**問題の切り分け方を変えた**もの。
-論文にも公式実装にも対応物が無い。
+## なぜ日本語版が別に要るのか
 
-## 現在地
+**英語版のレシピをそのまま移すと G2P で詰まる。** 漢字を読むには辞書が要り、
+NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書を小さくするのではなく
+**問題の切り分け方を変えた** — 端末は「ひらがな + アクセント記号」だけを受け取り、
+**877 B のテーブル**で音素に変換する。**論文にも公式実装にも対応物が無い**、
+このリポジトリの中心的な設計判断。
 
-| 軸 | 状態 |
-|---|---|
-| **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
-| **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
-| **メモリ** | **157 KB**（実機の arena used。静的確保は 176 KB = 180,224 B）— ESP32-S3 の SRAM 512 KB の 34%。実機の内部 DRAM の空きは **136,407 B**（かな構成 / M-89）・**132,039 B**（辞書込みの漢字構成 / M-90）。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
-| **速度** | ✅ **要件を満たした。** 手元の CoreS3（W8A8 + PIE。**S3 では既定** = D-048）で**満チャンク 1 pull の xRT 0.446**（漢字構成 4 文とも。M-90）。かな構成は 0.494（M-89）/ 0.497（M-88）。アンダーラン **0**、鳴らし始めまで **384 ms**（M-90 の出荷構成。かな構成は 432〜434 ms = M-88 / M-89）、1 step は 18.38 M → **11.66 M cyc**。⚠️ **発話全体で見ると 0.54〜0.71** でまだ 0.5 超（warmup 38 フレーム分。要件の分母は未定）。第三者の報告値は **S1 前**のもの（AtomS3 **1.718** / CoreS3 **1.558**。[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
-| **実機の音声出力** | ✅ **[`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) が CoreS3 のスピーカーで喋る**（M-90。画面つき）。先に第三者が M5Unified 経路で成功しており、60% を先読みして発話開始まで **1,781 ms** / 追い越し **0 回**だった（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。⚠️ **音は誰も聴いていない** |
-| **漢字を端末で読む** | ✅ **CoreS3 で実機確認**（M-83: checksum が QEMU と一致 / 漢字 G2P 27.85〜66.30 ms）。✅ **M5 のスピーカー構成にも載った**（M-90。辞書 13.7 MB を `esp_mmu_map`、W8A8+PIE で xRT 0.446）。**`!` は要らない** — 端末が経路を 3 値で判定する。⚠️ 音は未聴取 |
+⚠️ **後にこの前提を測り直したら崩れた。** 辞書を TTS 専用の形式にすると
+1 エントリ 130 B → **28 B** になり、16 MB ボードに **438,750 entries** が載る。
+いまは**端末だけで漢字も読める**が、かな中間表現は**両方の経路の共通の中間形式**として
+残っている（同じ文をどちらで書いても PCM が bit 一致する）。
 
-⚠️ **すべて n=24〜200 の予測器スコアで、人が聴いた評価は 1 名 1 回しかない**
-（β の決定。M-60 / D-038）。「教師比 0.644」は「教師の音を 100 としたとき 64」という
-意味ではなく、較正されていない予測器のスコアの比。日本語では**実人間の音声ですら
-SCOREQ 2.50 / UTMOS 2.30** しか出ないので、**絶対値を英語の論文と比べてはいけない**。
-
-**なぜ遅かったかは測った。** 1 step の内訳を取ると **MAC は 3 割で、活性化の量子化（ソフト除算）・
-GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489 KB/step が残りを占めていた**（M-80）。
-以降はすべて**手元の CoreS3 の実測**（D-047。W8A8+PIE、`esp32/boards/m5unified/`）:
-
-| いつ | 入れたもの | 満チャンク xRT | 1 step |
-|---|---|---:|---:|
-| 2026-09-02 | **S1〜S5a**（量子化・GELU・テンソル検索・重みコピーを削る。M-81 / D-046） | 0.926 | 18,378,513 cyc |
-| 2026-09-03 | **64 B キャッシュ行**（M-84） | 0.861 | 17,125,414 |
-| 2026-09-03 | **T1**（末尾 pull の早期終了）+ **T5 修正**（GELU のコード生成。M-87 / C-055） | — | 16,638,110 |
-| 2026-09-03 | **T2**（捨てる出力を計算しない）+ **T3**（token のパイプ化）→ ✅ **要件達成**（M-88） | **0.497** | 11,724,417 |
-| 2026-09-03 | **T4**（arena の詰め。M-89） | 0.494 | 11,659,500 |
-| 2026-09-03 | **S5b**（weight-stationary の PIE）+ 辞書 + 漢字経路（M-90） | **0.446** | — |
-
-**checksum は M-82 以来 3 文とも同一**（W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d`）
-= **T1〜T5 と S5b は波形を 1 bit も変えていない**。
-⚠️ **QEMU の命令数も割合も実機の速度を予測しない** — 命令数が減ったのに GELU が 2 倍遅くなった実例がある（C-055）。
-経緯は [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) と
-[`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md)。
-
-**実機で通してあること**（すべて CoreS3。D-047）:
-
-| いつ | 何 |
-|---|---|
-| 2026-09-02 | **漢字経路が動いた**（M-83。K-8 の G28〜G31）。`!今日は良い天気ですね。` → 53 ids → checksum が QEMU と一致。漢字 G2P **27.85〜66.30 ms** |
-| 2026-09-03 | **要件 RTF ≤ 0.5 を満たした**（M-88 / M-89。かな構成）。アンダーラン **0**、鳴らし始めまで 434 → 432 ms、内部 DRAM の空き **136,407 B** |
-| 2026-09-03 | **スタックチャンが漢字・カタカナ・ひらがなを喋った**（M-90）。辞書 13.7 MB を `esp_mmu_map` で貼り、xRT **0.446**、鳴らし始めまで **384 ms**、内部 DRAM の空き **132,039 B**。`今日は良い天気ですね。` と `きょ][おわよ][いて][んきです°ね` が**同じ PCM** になる |
-
-**QEMU で先に通してあること:**
-
-| いつ | 何 |
-|---|---|
-| 2026-08-30 | 出荷ファームを**起動 → 重み mmap → 端末側 G2P → 合成 → int16 まで完走**。**PIE はスカラ実装と 27,136 sample すべて bit 一致**（陰性対照つき。M-62） |
-| 2026-08-31 | **端末が漢字かな交じり文をそのまま読む経路**も完走（K-7 / M-76）。**焼くだけの 16 MB イメージは v0.3.0 で配布している** |
-
-**第三者の独立した実機報告が 2 件ある**（⚠️ **どちらも S1 前 = 2026-09-01〜02 の値**で、
-上の作り直しは入っていない。**未再現**）。ESP32-S3 の PIE（SIMD）を使った int8 カーネルは
-`ee.vmulas.s8.accx`（16 レーンの int8 積和）で内積を置き換え、MAC の **99.4%** を覆う。
-
-- **AtomS3:** W8A8 + PIE を 2 回測定して定常 xRT **1.718**。I2S は無効だが、
-  27,136 sample の PCM checksum と振幅統計が QEMU 基準に完全一致した
-  （[測定記録](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md)）
-- **CoreS3:** M5Unified の内蔵スピーカー、m5stack-avatar、リップシンクを含む構成で
-  定常 xRT **1.558**。60% を先読みして発話開始まで **1,781 ms**、途切れ **0 回**を確認した
-  （[実装と測定](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
-  [動画](https://x.com/nnn112358/status/2095071771355725970)）
-
-⚠️ **本リポジトリの `saan_i2s`（DevKit の I2S 直叩き）は引き続き実機未検証。**
-実機で音を出しているのは M5Unified 経路（`esp32/boards/m5unified/`）だけ。
-⚠️ 公式実装が同じ ESP32-S3 で申告する **0.22× 実時間**にはまだ届いていない。
-
-> 🙏 **追加の ESP32-S3 実機測定と、何より「聴いた感想」を歓迎します。**
-> 手順は [`esp32/TESTING.md`](esp32/TESTING.md)。**DAC が無くても測れます。**
+ピッチアクセント（箸／橋／端）と無声化母音（「です」「した」の `i` `u`）も英語版には
+無い問題で、どちらも**集約スコアでは検出できない**ため専用の評価を用意した
+（→ [`MODEL_CARD.md`](MODEL_CARD.md)）。
 
 ## はじめかた
 
@@ -118,36 +70,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
 | **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
 
-### どのリリースに何が入っているか
-
-**最新の [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) に全部入っている**（14 本）。
-`releases/latest` で足りる。
-
-| 資産 | どこ | 中身 |
-|---|---|---|
-| `saanotts-jp-v3-samples.zip` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 合成音の WAV |
-| `saanotts-jp-v3-stage4.pt` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | PyTorch の重み（2,744,874 B） |
-| `saanotts-jp-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | C99 コア用の int8 blob（**654,032 B / 形式 v2**）。⚠️ **v0.2.0 の v1（643,936 B）は現行コアが `SAAN_ERR_VERSION` で拒む** |
-| `saanotts-jp-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 参照・デバッグ用の fp32 blob |
-| `golden-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc int8-golden` 用の参照出力（`csrc/golden_i8.bin` に置く） |
-| `golden-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc golden`（= `test`）用（`csrc/golden.bin` に置く） |
-| `esp32s3-firmware-w8a8-pie.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **かな入力**のファーム（8 MB 以上・焼くだけ） |
-| `esp32s3-firmware-w8a32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・最適化なし（**PIE の比較対照**） |
-| `esp32s3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **漢字入力**のイメージ（**16 MB 必須**・焼くだけ） |
-| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**コンソールが USB Serial/JTAG**（native USB だけの板はこちら） |
-| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | かな入力・**USB Serial/JTAG**（8 MB 以上） |
-| `m5-cores3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **M5Stack CoreS3 / スタックチャン**。漢字 + 内蔵スピーカー + 画面（**16 MB 必須**） |
-| `k1-dict-438750.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 辞書 blob 単体（13,702,320 B） |
-
-⚠️ **モデルの重みは v0.1.0 / v0.1.1 / v0.2.0 で bit 同一**（再学習していない）。
-どのタグから落としても同じ。
-
-> **かつて v0.2.0 は重みを載せていなかった。** その結果 `releases/latest` が
-> v0.2.0 になった瞬間に**この表のリンク 5 本が全部壊れた**（C-052）。
-> いまは `scripts/check_release_assets.py` が**この表を読んで**、
-> 名前が挙がっている資産が実際にそのタグに在るかを CI で検査している。
-
-### 最小セットアップ（B / D）— piper-plus も教師も要らない
+### 最小セットアップ（B / D）
 
 ⚠️ **`uv sync` は使わない。** `pyproject.toml` の `[tool.uv.sources]` が
 piper-plus への**絶対パス**を指しているので、持っていない人は
@@ -176,17 +99,25 @@ uv run --no-project python scripts/synthesize_student.py \
 [ アクセント上昇 / ] 下降核 / # 句境界 / ° 無声化
 ```
 
-⚠️ **漢字から中間表現を作るにはフルセットアップが要る**（OpenJTalk）。
-かなを直接書けば不要:
+**漢字文をそのまま渡すこともできる**（下のフルセットアップが要る。OpenJTalk で
+漢字→かなを行うため）:
 
 ```bash
-uv run python scripts/to_intermediate.py "電源を入れてください。"   # ← フルセットアップ側
-#   → で[んげんおい[れてくださ]い
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+    --text "今日は良い天気ですね。" --out out/
 ```
 
-⚠️ `--text "漢字混じり文"` でも合成できるが、**そちらは教師 ckpt（private）が要る**
-（音素 ID を教師の `phoneme_id_map` 経由で組むため）。`--intermediate` は教師も
-OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一致する**（M-64 / M-65）。
+⚠️ **どちらの経路でも WAV はバイト単位で一致する**（M-92 で実測。held-out 300 文で
+生徒インデックスも 300/300 一致）。違いは**漢字→かなに OpenJTalk が要るかどうかだけ**。
+
+| 書きかた | 要るもの |
+|---|---|
+| `--intermediate "きょ][おわよ…"` | **最小セットアップだけ**（torch / numpy / soundfile） |
+| `--text "今日は良い天気ですね。"` | + **フルセットアップ**（piper-plus = OpenJTalk） |
+
+⚠️ **端末（`-DSAAN_KANJI=1`）はこの制約を受けない。** 辞書を載せた板は漢字文を
+そのまま受ける。ホストで OpenJTalk が要るのは、**端末より広いフル辞書**を使うため
+（端末の枝刈り辞書とは音素の 0.32% が違う）。
 
 ⚠️ **モデルの重みは MIT ではない。** 使う前に [`LICENSE-MODEL.md`](LICENSE-MODEL.md) を読むこと。
 
@@ -199,83 +130,47 @@ OpenJTalk も呼ばず、**同じ入力に対して WAV がバイト単位で一
 かな> 今日は良い天気ですね。                  ← 漢字版のビルドなら、そのまま打つ
 ```
 
-**入力に印を付ける必要はない**（現行のソースからのビルド）。端末が行を見て
-**かな / 辞書 / 拒否の 3 値**を決める（`saan_g2p_classify()`）:
-凍結テーブルのトークナイザが行末まで通れば**かな経路**、通らず中間表現の記号
-（`[ ] # ° _ ^ $`）が無ければ**辞書経路**、通らないのに記号が混じっていれば
-**拒否して喋らない**（「中間表現 + `。`」がそれらしい音で通ってしまうのを防ぐため）。
-⚠️ **半角 `?` は記号の判定から外してある** — 外すまでは `本当なんでしょうか?` のような
-疑問文が拒否されていた（held-out 2,333 行のうち 45 行 = 1.93%。M-90）。
-判定はホスト側 `scripts/kana_g2p.py` の `classify_route()` と同じ規則で、
-一致は `make -C csrc kb-parity`（held-out 298 文 + その中間表現 298 行 = **596/596**。M-90）が検査する。
-⚠️ **`!` の前置は残っているが、辞書経路を強制する試験用**で、普段は要らない。
+**入力に印を付ける必要はない。** 端末が行を見て**かな / 辞書 / 拒否の 3 値**を決める
+（`saan_g2p_classify()`）: 凍結テーブルのトークナイザが行末まで通れば**かな経路**、
+通らず中間表現の記号（`[ ] # ° _ ^ $`）が無ければ**辞書経路**、通らないのに記号が
+混じっていれば**拒否して喋らない**（「中間表現 + `。`」がそれらしい音で通るのを防ぐため）。
+判定はホスト側 `scripts/kana_g2p.py` と同じ規則で、一致は `make -C csrc kb-parity` が
+**596/596** で検査する。
 
-**ファームは 3 通りある**（v0.3.0）。**コンソールが UART0 の版と USB Serial/JTAG の版**があり、
+**ファームは 3 通り。** コンソールが **UART0 の版と USB Serial/JTAG の版**があり、
 CoreS3 / AtomS3 のような **native USB だけの板は `-usbjtag` の方**を焼く。
 
 | | 焼くもの | 受け付ける入力 | flash |
 |---|---|---|---|
 | かな | `esp32s3-firmware-w8a8-pie.bin` / `…-usbjtag.bin` | かな中間表現のみ | 8 MB 以上 |
 | **漢字** | `esp32s3-firmware-kanji-16mb.bin` / `…-usbjtag.bin` | **漢字かな交じり文**も | **16 MB 必須** |
-| **M5 CoreS3** | `m5-cores3-firmware-kanji-16mb.bin` | 同上。**内蔵スピーカーで鳴る**（実機確認済み。M-90） | **16 MB 必須** |
+| **M5 CoreS3** | `m5-cores3-firmware-kanji-16mb.bin` | 同上。**内蔵スピーカーで鳴る** | **16 MB 必須** |
 
 ⚠️ **v0.2.0 以前のイメージは `!` の前置が要り、入力が UART0**。必ず入れ替えること。
 
-✅ **かな経路も漢字経路も実機で動いている**（すべて CoreS3。D-047）。かな構成は
-**満チャンク xRT 0.494**、アンダーラン 0（M-89）。漢字を載せた M5 構成は **0.446**（M-90）で、
-`今日は良い天気ですね。` と `きょ][おわよ][いて][んきです°ね` が**同じ PCM**（`0xa69a7ebbb5ccb05f`）になる。
-第三者の報告（**S1 前**）は AtomS3 **1.718**（n=2、I2S 無効）/ CoreS3 **1.558**（60% の先読みで途切れ 0 回。
-[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)）。
-✅ **v0.3.0 の配布イメージは上の速度と `!` 不要の判定を含む**。M5 CoreS3 版は
-**焼いた実機で確認済み**（M-90）。⚠️ **v0.1.1 / v0.2.0 は S1 前のコードで入力が UART0**なので、
-native USB だけの板では起動はするが**入力が届かない**（M-83）。
-⚠️ ESP32-S3 では **W8A8 + PIE が既定**になった（D-048）。W8A32 で測るなら `-DSAAN_ENABLE_PIE=0` を明示する。
-
-**板は 2 通り。**
+**音の出口は 2 通り。**
 
 | 板 | どう焼くか | 音の出口 |
 |---|---|---|
-| ESP32-S3 DevKit / AtomS3 + I2S DAC | 上のイメージを焼く（`esp32/TESTING.md` A） | 外付け DAC（配線が要る。⚠️ `saan_i2s` は**実機未検証**。AtomS3 の報告は I2S 無効で速度だけ） |
-| **M5Stack CoreS3 / Core2 / Basic**（スタックチャンの中身） | **ソースからビルド**（`esp32/TESTING.md` の「M. M5Stack で試す」/ [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md)） | 内蔵スピーカー。画面に文が出て、タッチで再生。**漢字もこの構成で喋る**（M-90） |
-
-> 漢字を受け付けない理由をかつて「辞書が載らないため」と書いていたが、**測り直したら崩れ、
-> 実装まで通った**。辞書を TTS 専用のバイナリにすると 16 MB ボードに **438,750 entries** が載り、
-> **QEMU の UART に `!今日は良い天気ですね。` と打ち込むと端末が自分で形態素解析して
-> 合成まで完走する**（[M-76](docs/measurements.md)）。しかも出た音は
-> **凍結してあるかな中間表現と bit 一致**した（`0x78c209af06affc01`）。
->
-> - MeCab と **1,977/1,977 文で一致**（未知語込み）
-> - アクセント規則 126 行の C 移植が Python 版と **2,333/2,333 一致**
-> - NJD チェーンがホストと **635/635**、ラベル → 音素ID が **298/298**
-> - 1 文あたりのピーク RAM **104,589 B**、辞書 13,702,320 B（438,750 entries）
->
-> ⚠️ **ホストと違う音素が 0.32% ある**（n=298。辞書を枝刈りしているため。M-77）。
-> ✅ **2026-09-02 に CoreS3 で実機確認**（M-83。checksum は QEMU と一致、漢字 G2P 27.85〜66.30 ms）。
-> ✅ **2026-09-03、M5 のスピーカー構成にも載って喋った**（M-90。W8A8+PIE で xRT 0.446、`!` 不要）。
-> ✅ **音も聴いた** — ユーザーが「音は正しかった」と報告（M-91）。⚠️ **1 名・対照なし・盲検なし**なので「破綻していない」以上は言えない。
-> ⚠️ **v0.2.0 以前の配布イメージは UART0 入力**なので native USB だけの板では操作できない。**v0.3.0 で直した**。
-> （[K-1 調査](docs/research/k1-kanji-katakana-ondevice.md) / [実装計画](docs/plan/k1-kanji-implementation-plan.md)
-> ／ ソースから作るなら [`esp32/README.md`](esp32/README.md) の「漢字対応ビルド」）
+| ESP32-S3 DevKit / AtomS3 + I2S DAC | 上のイメージを焼く | 外付け DAC（配線が要る。⚠️ `saan_i2s` は**実機未検証**） |
+| **M5Stack CoreS3 / Core2 / Basic**（スタックチャンの中身） | 配布イメージ、または[ソースから](esp32/boards/m5unified/README.md) | 内蔵スピーカー。画面に文が出て、タッチで再生 |
 
 ### D. コードのゲートを回す
 
 ```bash
-make -C csrc line                                       # 端末の行編集（**陽性対照つき**）
+make -C csrc line                                       # 端末の行編集（陽性対照つき）
 make -C csrc fft                                        # 逆 FFT（naive DFT の 1,435 倍）
 make -C csrc g2p PYTHON="uv run --no-project python"    # オンデバイス G2P（2,819 ベクタ）
 make -C csrc erf                                        # GELU の erf 近似 vs libm（陽性対照つき）
-make -C csrc range                                      # 出力範囲つきカーネル（S9）が全域版と bit 一致（陽性対照つき）
-uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
+make -C csrc range                                      # 出力範囲つきカーネルが全域版と bit 一致
+uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata（fp32 拒否の陽性対照）
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
 ```
 
 ⚠️ **`PYTHON=...` を省くと `uv run python` になり、piper-plus を要求する。**
-（この区別を付けるまで「piper-plus 無しで通った」と誤って観測した。C-041）
-
 ⚠️ **`make -C csrc all-test` は通らない** — golden との突き合わせに `csrc/*.bin`
-（重みの書き出し）が要る。落とした `.pt` から
-`scripts/export_c_weights.py` で書き出せば通る。
+（重みの書き出し）が要る。落とした `.pt` から `scripts/export_c_weights.py` で書き出せば通る。
 
 ### フルセットアップ（漢字→かな変換 / 学習 / ラベル生成）
 
@@ -289,16 +184,28 @@ uv sync
 ⚠️ **教師 checkpoint（private）はこれでも入らない。** 要るのは
 **ラベル生成と学習をやり直すときだけ**で、漢字→かな変換は piper-plus のソースだけで動く。
 
-### まだできないこと
+## ダウンロード
 
-| | 理由 |
-|---|---|
-| **ラベル生成・学習をやり直す** | 教師 checkpoint が private リポジトリにある |
-| **音の良し悪しを人の耳で言う** | ⚠️ **聴取はどれも 1 名・対照なし**（β の決定 = M-60 / 実機の漢字経路 = M-91）。**「破綻していない」までは確かめた**が、`reports/k8_listen/` の 12 組（枝刈りで読みが変わるペア）と `reports/d4_accent/` のミニマルペアは**まだ聴かれていない**。**これが今いちばん足りないもの** |
-| **発話全体を実時間に収める** | ⚠️ 満チャンク 1 pull は **0.446** で要件を満たすが、warmup 38 フレームが初回 pull に乗るので**発話全体では 0.54〜0.71**（M-88〜M-90）。要件の分母がどちらかは決まっていない |
-| **v0.2.0 の int8 blob を最新のコアに渡す** | ⚠️ v0.2.0 の `saanotts-jp-v3-int8.bin` は形式 **v1** で、S4 以降のコアは `SAAN_ERR_VERSION` で拒む。**v0.3.0 の v2（654,032 B）に入れ替える** |
+**最新の [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) に全部入っている。**
+⚠️ **モデルの重みは v0.1.0 以降すべて bit 同一**（再学習していない）。
 
-## アーキテクチャ
+| 資産 | どこ | 中身 |
+|---|---|---|
+| `saanotts-jp-v3-samples.zip` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 合成音の WAV |
+| `saanotts-jp-v3-stage4.pt` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | PyTorch の重み（2,744,874 B） |
+| `saanotts-jp-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | C99 コア用の int8 blob（**654,032 B / 形式 v2**）。⚠️ v0.2.0 の v1 は現行コアが拒む |
+| `saanotts-jp-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 参照・デバッグ用の fp32 blob |
+| `golden-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc int8-golden` 用の参照出力 |
+| `golden-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc test` 用の参照出力 |
+| `m5-cores3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **M5Stack CoreS3 / スタックチャン**（16 MB 必須） |
+| `esp32s3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **漢字入力**・UART0（16 MB 必須） |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**USB Serial/JTAG**（native USB の板はこちら） |
+| `esp32s3-firmware-w8a8-pie.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **かな入力**・UART0（8 MB 以上） |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**USB Serial/JTAG** |
+| `esp32s3-firmware-w8a32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | かな入力・最適化なし（**PIE の比較対照**） |
+| `k1-dict-438750.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 辞書 blob 単体（13,702,320 B） |
+
+## しくみ
 
 ```
 漢字かな交じり文
@@ -318,26 +225,49 @@ uv sync
 
 - **C99 推論コア**（`csrc/`）— 依存は libm のみ。`malloc` を呼ばず arena を使う。
   ストリーミング版は一括版と **bit 完全一致**（27,136 sample）
-- **オンデバイス G2P**（`csrc/g2p.c`）— テーブル **877 B** / コード 1,549 B（ESP32-S3 実測）/ **作業メモリ 0 B**
-- **端末での自由入力** — シリアルに 1 行打つと喋る（`csrc/line.c` 369 B）。
-  かな中間表現でも漢字かな交じり文でもよく、`saan_g2p_classify()` が経路を決める
-  （辞書を持たないビルドは漢字を**喋らずに理由を出す**）。
-  ホストで先に変換するなら `uv run python scripts/to_intermediate.py "文"`
+- **オンデバイス G2P**（`csrc/g2p.c`）— テーブル **877 B** / コード 1,549 B / **作業メモリ 0 B**
+- **端末での自由入力**（`csrc/line.c` 369 B）— かなでも漢字かな交じり文でもよく、
+  辞書を持たないビルドは漢字を**喋らずに理由を出す**
 - **蒸留の全経路** — 教師ラベル生成 → 4 段の学習 → 評価（SCOREQ / UTMOS / DNSMOS /
   かな CER / 音素クラス別スペクトル平坦度）
 
-## 他のプロジェクトで使えそうなもの
+## 測ってわかっていること
 
-- **`csrc/`** — 依存なしの C99 推論コア。MCU に載る TTS のデコーダとして単体で読める
-- **`csrc/g2p.c` + `scripts/kana_g2p.py`** — かな中間表現の設計と C 実装。
-  **日本語 TTS を組み込みに載せるときの G2P 問題への 1 つの答え**
-- **`csrc/line.c`** — 369 B の UTF-8 対応行編集。マイコンのシリアルで日本語を打たせるなら、
-  **矢印キーが記号を挿入する / BS が UTF-8 を割る**の 2 つは必ず踏む
-- **`esp32/components/saanotts_core/saan_dict.c`** — **8 MB を超える flash パーティションの mmap**。
-  `CONFIG_SPI_FLASH_ROM_IMPL=y` の板では `esp_partition_mmap` が ROM 実装に落ちて
-  **128 ページ = 8 MB しか貼れず** `ESP_ERR_NO_MEM` になる。`esp_mmu_map` なら貼れる（M-90）
-- **`docs/measurements.md`** — 全項目に再現コマンドを付けた実測記録。
-  ESP32 のメモリ収支、esp-dsp のサイクル数からの外挿、日本語での MOS 予測器の較正など
+すべて手元の M5Stack CoreS3（W8A8 + PIE。ESP32-S3 では既定）での実測。
+
+（冒頭の表に無いものだけ。品質・速度・メモリはそちらを見ること）
+
+| 軸 | 値 |
+|---|---|
+| **アクセント** | ミニマルペア 37 ペアで教師との**符号一致 37/37** |
+| **漢字 G2P** | 5.51〜66.30 ms（入力 15〜84 B）。MeCab と **1,977/1,977 文一致** |
+| **かな経路と漢字経路** | 同じ文を**どちらで書いても PCM が bit 一致**する（端末・ホストとも） |
+| **アンダーラン** | **0**（全文）。鳴らし始めまで **384 ms** |
+
+**速度は作り直して要件（RTF ≤ 0.5）に届いた。** 最初の実測は 0.926 で、
+1 step の内訳を取ると **MAC は 3 割**しかなく、活性化の量子化・GELU・毎 step 102 回の
+テンソル検索・重みのコピー 489 KB/step が残りを占めていた。それを削って 1 step を
+18.38 M → **11.66 M cyc** にした。**波形は 1 bit も変わっていない**（checksum が同一）。
+経緯は [`docs/README.md`](docs/README.md) の年表に。
+
+## わかっていないこと
+
+**これが README でいちばん大事な節。** 数字が並んでいても、次のことは確かめていない。
+
+| | |
+|---|---|
+| **音の良し悪し** | ⚠️ **人が聴いた評価は 1 名・対照なし・盲検なしが 1 回だけ**。「破綻していない」までしか言えない。品質の数字は全部 SCOREQ / UTMOS / DNSMOS という**予測器**で、日本語では較正されていない（**実人間の音声ですら SCOREQ 2.50 / UTMOS 2.30** しか出ない）。だから **「教師比 0.644」は「教師の音を 100 として 64」ではなく、較正されていない予測器のスコアの比**（n=24）。**絶対値を英語の論文と比べてはいけない** |
+| **発話全体の実時間性** | ⚠️ 満チャンク 1 pull は 0.446 だが、warmup 38 フレームが初回 pull に乗るので**発話全体では 0.54〜0.71**。要件の分母がどちらかは決めていない |
+| **辞書の枝刈りの代償** | ⚠️ ホストと違う音素が 0.32% ある（n=298。M-77）。落ちた語は無音にならず、**短く切り直されて誤読される**（`上毛` → `上` + `毛`） |
+| **DevKit の I2S 出力** | ⚠️ `saan_i2s`（I2S 直叩き）は**実機未検証**。音が出ているのは M5Unified 経路だけ |
+| **他の板** | ⚠️ 自分で測ったのは **CoreS3 1 枚だけ**。第三者による独立した実測が 2 件あるが（[AtomS3 1.718](https://github.com/magatsux2019/sanotts-atoms3-results) / [CoreS3 1.558](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)）、**どちらも高速化前のコード**で、こちらでは未再現 |
+| **公式実装との差** | ⚠️ 同じ ESP32-S3 で公式実装が申告する **0.22× 実時間**には届いていない |
+
+制約の全部と、それをどう測ったかは [`MODEL_CARD.md`](MODEL_CARD.md) §4 に。
+
+> 🙏 **いちばんありがたい貢献は「聴いた感想」です。** ボードは要りません
+> （[`saanotts-jp-v3-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest) を再生するだけ）。
+> **「変な音がする」の一言が、n=24 の数字より情報量が多いことがあります。**
 
 ## 公式実装との関係
 
@@ -347,44 +277,25 @@ uv sync
 対応しており、**日本語は含まれていない**。
 
 公式リポジトリの**公開ドキュメントに記載された実測値**（ESP32-S3 で 0.22× 実時間など）は、
-本リポジトリの外挿値との突き合わせに使っている。**コードは参照していない**
-（この線引きは `docs/decisions.md` の D-032 として凍結し、hook で機械的に強制している）。
+本リポジトリの実測値との突き合わせに使っている。**コードは参照していない**
+（この線引きは機械的に強制している。[`CONTRIBUTING.md`](CONTRIBUTING.md) の 4 番）。
 
 ## ドキュメント
 
-**数値が食い違ったら [`docs/measurements.md`](docs/measurements.md) が正。**
+索引は [`docs/README.md`](docs/README.md)。**数値が食い違ったら
+[`docs/measurements.md`](docs/measurements.md) が正**（全項目に再現コマンド付き）。
+決定と訂正の履歴は [`docs/decisions.md`](docs/decisions.md)、
+モデルの中身と既知の制約は [`MODEL_CARD.md`](MODEL_CARD.md)、
+実機で動かす手順は [`esp32/TESTING.md`](esp32/TESTING.md)。
 
-| | |
-|---|---|
-| [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-91。全項目に再現コマンド付き |
-| [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-048 と**訂正履歴 C-001〜C-056** |
-| [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
-| [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
-| [`docs/release-notes/`](docs/release-notes/) | 各リリースで何が変わったか（**訂正も残してある**） |
-| [`esp32/README.md`](esp32/README.md) | ESP32-S3 のビルドと設計判断 |
-| [`esp32/TESTING.md`](esp32/TESTING.md) | **実機で動かす手順**（焼き方・喋らせ方・報告してほしい 4 行） |
-| [`MODEL_CARD.md`](MODEL_CARD.md) | モデルの中身・評価・既知の制約 |
-| [`CLAUDE.md`](CLAUDE.md) | 実装時の要点。AI エージェント向けの運用ルールでもある |
-| [`CONTRIBUTING.md`](CONTRIBUTING.md) | **貢献のしかた**。一番ありがたいのは実機の速度と**聴いた感想** |
-| [`.github/workflows/README.md`](.github/workflows/README.md) | **CI に入れているもの/入れていないもの**（⚠️ 品質・速度・音は 1 つも見ていない） |
+## 貢献
 
-## このリポジトリの進め方
+[`CONTRIBUTING.md`](CONTRIBUTING.md) を読んでください。
+**一番ありがたいのは聴いた感想**、次が別の ESP32-S3 での速度実測です。
 
-**このプロジェクトは AI エージェント（Claude Code）が大半を書いている。**
-そのための規律をリポジトリ内に明文化してある。
-
-- **推測を数値として書かない。** 測っていないことは「未測定」と書く
-- **訂正履歴を消さない。** 「1 コマンド打てば分かることを、打たずに推論した」種類の誤りが
-  **56 件**記録してある。同じ間違いを繰り返さないための資料
-- **決着したリスクも消さない。** 消すと同じ疑問が再燃する
-- **n が小さいときは n と CI を必ず併記する**（n=3 の差を結論にして反証されたことがある）
-- **ゲートは「落ちる壊し方」を言えないと書かない。** テストが緑のまま欠陥が潜んでいた例が
-  12 件あり、`.claude/skills/writing-gates/` にまとめてある
-
-`.claude/hooks/guard_bash.py` が、教師リポジトリへの書き込み・`pip install`・
-本番ラベルパックの破棄・GPL ソースの取得・コーパス本文を含むコミットを機械的に止める
-（回帰 94 ケース）。
+⚠️ このリポジトリは **AI エージェント（Claude Code）が大半を書いている。**
+そのための規律（推測を数値として書かない / 訂正履歴を消さない /
+ゲートには陽性対照を付ける）を `CONTRIBUTING.md` と `CLAUDE.md` に明文化してある。
 
 ## ライセンス
 

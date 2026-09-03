@@ -6739,3 +6739,81 @@ D-044（辞書の動作点 438,750）は音素の 0.32% だけで決めており
 - 端末に載らない後処理が 3 段あり、**中間表現で 2.00%** [1.15, 3.45] の文が食い違う（C-049 / M-70）
 - 枝刈りで落ちた語は**無音にならず、短く切り直されて誤読される**（C-051。`上毛` → `上` + `毛`）
 - **`magnitude_ratio` 1.193** — 生徒の起伏が教師より 19% 大きい（M-44 / M-59）。過剰強調かは未判断
+
+---
+
+## M-92. ホストの `--text`（漢字）が教師 ckpt を要求していたのは**不要な制約**だった。教師抜きの経路と held-out 300 文で **ids 300/300 一致**、WAV も**バイト一致**（自己実測）
+
+**2026-09-03。** README を読んだユーザーの指摘（「漢字を入れたら自動で G2P して合成まで
+してくれないのか。これだと漢字対応できているとは言えないのでは」）から。
+
+### 1. 何が起きていたか
+
+`scripts/synthesize_student.py` の漢字経路は 2 段だった:
+
+```
+漢字 --K.text_to_intermediate--> 中間表現 --G.encode_intermediate(pim)--> 教師 ID --map_ids--> 生徒 index
+                 ↑ OpenJTalk が要る              ↑ 教師 ckpt の phoneme_id_map が要る
+```
+
+**教師が要るのは 2 段目だけ**なのに、`--text` 全体が教師 ckpt（private リポジトリ）を
+要求していた。1 段目の OpenJTalk は本物の依存だが、2 段目は
+`gen_g2p_vectors.encode()`（**端末 `csrc/g2p.c` の期待値を作っているのと同じ関数**）が
+同じ生徒 index を教師抜きで出す。
+
+⚠️ **「一致するはず」はコード中のコメントに書かれていただけで、測られていなかった。**
+
+### 2. 測った
+
+```bash
+uv run python scripts/test_text_route_parity.py -n 300
+```
+
+```
+mora テーブル: live（195 件）
+
+一致 300 / 不一致 0 / 例外 0（n=300）
+
+陽性対照（中間表現を 1 文字落とす）: 50 件中 50 件が不一致
+
+OK  漢字で書いても かなで書いても同じ生徒 index（300/300）
+```
+
+| | |
+|---|---:|
+| held-out の文 | **300** |
+| 教師経由と教師なしで生徒 index が一致 | **300 / 300** |
+| 不一致 | **0** |
+| 例外 | **0** |
+| **陽性対照**（中間表現を 1 文字落とす） | **50 / 50 が不一致**（検査は空虚でない） |
+
+### 3. 出力そのものも一致する
+
+```bash
+uv run python scripts/synthesize_student.py --ckpt runs/v3/stage4.pt \
+    --text "今日は良い天気ですね。" --out /tmp/kanji_one
+uv run python scripts/synthesize_student.py --ckpt runs/v3/stage4.pt \
+    --intermediate "きょ][おわよ][いて][んきです°ね" --out /tmp/kana_one
+cmp /tmp/kanji_one/cli_000.wav /tmp/kana_one/cli_000.wav   # → 差分なし
+```
+
+**SHA-256 が両方とも `4dfd49faec4a73b1…`**（54,316 B）。⚠️ 漢字経路は live テーブル、
+かな経路は frozen テーブルを使う（195 件で同一内容）ので、**テーブルの取得元が違っても
+同じ WAV になる**ことも同時に確かめたことになる。
+
+### 4. 直したこと
+
+`--text` / `--texts` から `G.snapshot()` と `pim` を外し、`encode_student` に置き換えた。
+`gen_teacher_labels` の import は `--texts` の除外リスト（B-10）用に残した。
+
+**これで「フルセットアップさえあれば、漢字文 1 つでホストでも WAV が出る」**。
+⚠️ **OpenJTalk（= piper-plus のクローン）は依然として要る。** 最小セットアップ
+（torch / numpy / soundfile）だけの人は今も `--intermediate` を使う。
+
+### 5. ⚠️ 何を見ていないか
+
+- **音は聴いていない。** 見たのは ids と WAV のバイト一致だけ
+- **held-out 300 文**は `corpus_heldout.tsv` の先頭 300。表現可能率 96.40%（D-011）の
+  外に落ちる文はここでも例外になるはずだが、**300 文では 0 件**だった
+- **端末の辞書経路とは別物。** これはホスト（OpenJTalk のフル辞書）の話で、
+  端末の枝刈り辞書とは**音素の 0.32% が違う**（M-77）

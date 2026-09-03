@@ -19,7 +19,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-048 と**訂正履歴 C-001〜C-056** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-91。全数値に再現コマンド付き | 実測のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-92。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -154,6 +154,26 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
                             内部 DRAM の空き 132,039 B / 辞書 13.7 MB を `esp_mmu_map` で貼る
                             ⚠️ **音は聴いていない**（G32）
 ```
+
+### 速度の推移（README から移した。すべて手元の CoreS3 / W8A8+PIE。D-047）
+
+**なぜ遅かったかは測った。** 1 step の内訳を取ると **MAC は 3 割で、活性化の量子化（ソフト除算）・
+GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489 KB/step が残りを占めていた**（M-80）。
+
+| いつ | 入れたもの | 満チャンク xRT | 1 step |
+|---|---|---:|---:|
+| 2026-09-02 | **S1〜S5a**（量子化・GELU・テンソル検索・重みコピーを削る。M-81 / D-046） | 0.926 | 18,378,513 cyc |
+| 2026-09-03 | **64 B キャッシュ行**（M-84） | 0.861 | 17,125,414 |
+| 2026-09-03 | **T1**（末尾 pull の早期終了）+ **T5 修正**（GELU のコード生成。M-87 / C-055） | — | 16,638,110 |
+| 2026-09-03 | **T2**（捨てる出力を計算しない）+ **T3**（token のパイプ化）→ ✅ **要件達成**（M-88） | **0.497** | 11,724,417 |
+| 2026-09-03 | **T4**（arena の詰め。M-89） | 0.494 | 11,659,500 |
+| 2026-09-03 | **S5b**（weight-stationary の PIE）+ 辞書 + 漢字経路（M-90） | **0.446** | — |
+
+**checksum は M-82 以来 3 文とも同一**（W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d`）
+= **T1〜T5 と S5b は波形を 1 bit も変えていない**。
+⚠️ **QEMU の命令数も割合も実機の速度を予測しない** — 命令数が減ったのに GELU が 2 倍遅くなった
+実例がある（C-055）。詳細は [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) と
+[`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md)。
 
 **(1) の残りは深い聴取だけ。** ざっとした聴取は済んだ（M-91。ユーザーが「音は正しかった」。⚠️ 1 名・対照なし）。
 残るのは **`reports/k8_listen/` の 12 組**（枝刈りで読みが変わるペア）と
@@ -375,7 +395,7 @@ sanoTTS-jp/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
 │   ├── decisions.md                       決定記録 D-001〜D-048 + 訂正履歴 C-001〜C-056
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-91
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-92
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── plan/phase0-1-implementation-plan.md

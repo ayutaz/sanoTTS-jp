@@ -15,12 +15,13 @@
     uv run python scripts/synthesize_student.py --ckpt runs/v1/stage4.pt \
         --text "今日は良い天気ですね。" --out /tmp/one
 
-⚠️ **`--text` / `--texts`（漢字混じり文）は教師 ckpt を要求する。**
-音素 ID を教師の `phoneme_id_map` 経由で組むため。教師は private リポジトリにあるので、
-**リリースの重みだけを持っている人はこの経路を使えない**。
+⚠️ **`--text` / `--texts`（漢字混じり文）は OpenJTalk（フルセットアップ）を要求する。**
+漢字→かなの変換にだけ要る。**教師 ckpt はもう要らない**（M-92。旧実装は音素 ID を
+教師の `phoneme_id_map` 経由で組んでいたが、教師抜きの `encode_student` と
+held-out 300 文で ids が 300/300 一致したので外した）。
 
-その場合は `--intermediate` で**かな中間表現を直接**渡す。**端末が受け取るのと同じ形**で、
-教師 ckpt を 1 バイトも読まない:
+OpenJTalk を入れたくない（= リリースの重みだけ持っている）なら、`--intermediate` で
+**かな中間表現を直接**渡す。**端末が受け取るのと同じ形**で、依存は torch / numpy / soundfile だけ:
 
     uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
         --intermediate "きょ][おわよ][いて][んきです°ね" --out /tmp/one
@@ -164,25 +165,27 @@ def main() -> int:
 
         rows.append(("cli_000", args.intermediate))
     else:
-        # --- 漢字混じり文の経路（⚠️ **教師 ckpt が要る**）-------------------
-        import gen_teacher_labels as G
-        G.ENCODE_TABLE = table
-        try:
-            pim = json.load(open(G.snapshot() + "config.json"))["phoneme_id_map"]
-        except SystemExit:
-            raise SystemExit(
-                "教師 ckpt が HF キャッシュに無い（private リポジトリ）。\n"
-                "  リリースの重みだけを持っている場合は、かな中間表現を直接渡すこと:\n"
-                '    --intermediate "きょ][おわよ][いて][んきです°ね"\n'
-                "  漢字文からの変換は scripts/to_intermediate.py（OpenJTalk を使う）"
-            ) from None
+        # --- 漢字混じり文の経路（OpenJTalk が要る。⚠️ **教師 ckpt は要らない**）---
+        # ⚠️ **かつてここは教師の `phoneme_id_map` を経由していて、private な教師 ckpt を
+        #    要求していた。** だが教師が要るのは「中間表現 → 教師 ID → 生徒 index」の
+        #    2 段目だけで、`encode_student` が同じ生徒 index を教師抜きで出す。
+        #    **held-out 300 文で ids が 300/300 一致**することを実測して外した（M-92）。
+        #    陽性対照つきの検査は `scripts/test_text_route_parity.py`。
+        #    漢字→かなの `K.text_to_intermediate` には OpenJTalk が要る（これは本物の依存）。
+        from gen_g2p_vectors import encode as encode_student
 
         def to_student_ids(text: str) -> list[int]:
-            return map_ids(G.encode_intermediate(K.text_to_intermediate(text, table), pim))
+            inter = "".join(K.text_to_intermediate(text, table))
+            info = encode_student(inter, table)
+            if info["kind"] != 0:
+                raise KeyError(
+                    f"中間表現 {inter!r} の {info['err_byte']} バイト目が読めない")
+            return info["ids"]
 
         if args.text:
             rows.append(("cli_000", args.text))
         else:
+            import gen_teacher_labels as G      # load_exclusions だけに使う
             excluded = G.load_exclusions()
             for r in csv.reader(open(args.texts), delimiter="\t"):
                 if not r or not r[-1] or r[0] == "source":

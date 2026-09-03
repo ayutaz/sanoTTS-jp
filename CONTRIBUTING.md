@@ -14,16 +14,20 @@
 | **3** | 手順書をなぞって**詰まった場所**の報告 | ❌ 不要 |
 
 ⚠️ **1 は本当に足りていません。いま残っている最大の穴です。**
-品質の数字はすべて予測器（SCOREQ / UTMOS / DNSMOS）で、**人が聴いた評価は 1 名 1 回しかありません**
-（β の決定。M-60）。**実機が出した音は誰も聴いていません**（漢字経路も 0 名）。日本語では
-これらの予測器が較正されていない（[`docs/decisions.md`](docs/decisions.md) D-013 / D-020）ので、
+品質の数字はすべて予測器（SCOREQ / UTMOS / DNSMOS）で、**人が聴いた評価は 2 回しかありません**
+（β の決定 = M-60 / 実機の漢字経路 = M-91）。**どちらも 1 名・対照なし・盲検なし**なので、
+言えるのは「破綻していない」までです。日本語ではこれらの予測器が較正されていない
+（[`docs/decisions.md`](docs/decisions.md) D-013 / D-020）ので、
 **「変な音がする」の一言が、n=24 の数字より情報量が多いことがあります。**
+特に聴かれていないのは **`reports/k8_listen/` の 12 組**（辞書の枝刈りで読みが変わるペア）と
+**アクセントのミニマルペア**（`reports/d4_accent/`）です。
 
 **2 の手順は [`esp32/TESTING.md`](esp32/TESTING.md)。所要 15〜30 分・DAC は不要です。**
 速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.446**。M-90）が、
 **測ったのは 1 枚の板だけ**です。別の ESP32-S3（AtomS3 / DevKit / Core2 …）での実測を歓迎します。
-⚠️ **配布イメージ（v0.2.0）は S1 前のコードで、コンソール入力も UART0** です。
-最新の速度を測るには**ソースからビルド**してください。
+✅ **v0.3.0 の配布イメージは高速化後のコード**なので、焼くだけで測れます。
+native USB だけの板（CoreS3 / AtomS3）は **`-usbjtag` の版**を選んでください。
+⚠️ **v0.2.0 以前は S1 前のコードで、コンソール入力も UART0** です。
 
 ## 守ってほしい 4 つ
 
@@ -138,16 +142,19 @@ Japanese, but issues and PRs in English are fine.
 | **3** | Where the instructions broke for you | ❌ No |
 
 ⚠️ **1 is genuinely missing, and it is the biggest hole right now.** Every quality number
-here comes from a predictor (SCOREQ / UTMOS / DNSMOS), and **exactly one person has
-listened, once** (the β decision, M-60). **Nobody has listened to what the board produced**,
-and nobody at all to the kanji path. None of those predictors is calibrated for Japanese, so
-**"it sounds wrong" can carry more information than an n=24 score.**
+here comes from a predictor (SCOREQ / UTMOS / DNSMOS), and **human listening amounts to two
+sessions** (the β decision, M-60; the kanji path on hardware, M-91). **Both were one listener,
+no control, not blind**, so they say no more than "not broken". None of those predictors is
+calibrated for Japanese, so **"it sounds wrong" can carry more information than an n=24 score.**
+Still entirely unlistened: the **12 pairs in `reports/k8_listen/`** (where dictionary pruning
+changes a reading) and the **accent minimal pairs** in `reports/d4_accent/`.
 
 Instructions for 2: [`esp32/TESTING.md`](esp32/TESTING.md) — 15–30 minutes, no DAC required.
 The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.446**, M-90), but
 **that is one board**; measurements on any other ESP32-S3 are welcome.
-⚠️ The v0.2.0 firmware predates the speed rework and reads the console on UART0 — **build
-from source** to measure the current code.
+✅ **The v0.3.0 images carry the reworked code**, so flashing is enough to measure it; pick
+the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
+⚠️ Images before v0.3.0 predate the speed rework and read the console on UART0.
 
 ## Four rules
 
