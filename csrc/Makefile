@@ -207,8 +207,9 @@ erf: erf_test erf_test_linear
 # T1 前は 63 で落ちる（全フレームが obuf に出そろった後に 3 step 余分に回っていた）
 prof: prof_test student_i8.bin
 	./prof_test student_i8.bin --reps 20 --expect-no-lookup
-	./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 > /dev/null
-	@echo "  OK  step_chunk 54 回 / 3 発話（T1。詳細は ./prof_test student_i8.bin --reps 3 --expect-steps 54）"
+	@./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 > prof_gate.log \
+	    || { tail -n 6 prof_gate.log; rm -f prof_gate.log; false; }
+	@grep -E '^  (OK|NG)' prof_gate.log; rm -f prof_gate.log
 
 run-bench: bench
 	./bench --weights student.bin --json ../reports/d3b_latency_fft.json --label fft

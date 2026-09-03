@@ -54,12 +54,14 @@ K 計画 [`k1-kanji-implementation-plan.md`](k1-kanji-implementation-plan.md)（
 - **変更**: `csrc/saanotts_stream.c` の pull ループ `while (ofill < CH)` に「`emitted + ofill < n_frames`」を足す。`esp32/main/main.c` の `mean_rest` を満チャンク pull の中央値にし、pull ごとの ms をログ。`prof_report` で LOOKUP 行を INIT 側へ、DW 行の QUANT 重複を注記。
 - **期待効果**: 発話あたり step 21 → 18（−14%、約 −230 ms。**estimate**）。定常 step は不変。末尾のアンダーラン判定が消える。
 - **bit**: 同一（出力サンプル列は不変）。
-- **メモリ**: 0。
+- **メモリ**: arena（csrc）は 0。⚠️ `esp32/main/main.c` の pull の控え（`pull_us` / `pull_n`、128 本 × 5 B）で内部 DRAM の .bss が **+640 B**（審査で指摘。実装時は `uint32_t[256]` = 1,024 B だった。map の `.bss.pull_us` / `.bss.pull_n` で確認）。
+- **⚠️ xRT の定義が変わった**（審査 major）: 旧 `mean_rest` = 2 回目以降の全 pull の平均で、末尾 pull の出力に寄与しない step 3 回を含む。新 = 満チャンク pull の中央値。**M-82（0.926）/ M-84（0.861）はこの新しい行と直接比べられない**し、firmware に残した「2 回目以降 mean」の行も T1 後は末尾の step が消えているので旧値の再現にならない。T1 をまたいで比べてよいのは定義に依らない **「合成合計 ms」（全 pull の dt の和。firmware が出す）** と `-DSAAN_PROFILE=1` の **STEP 行（1 step のサイクル）** だけ。firmware はこの旨を結果の直後に ESP_LOGW で出す。満チャンク pull が 0 回（n_frames ≤ 8）なら xRT は `n/a`（0.000 と出さない）。pull ごとの行は実時間ループの外（done: の後）で出す（UART 115200 の板で pull と I2S write の間に入らないように）。
 - **ゲート**: `make -C csrc all-test`（stream G2: 一括版と 27,136 sample bit 一致）/ `./csrc/prof_test` の step_chunk 回数が 3 発話で 63 → 54。QEMU checksum 不変。
-- **陽性対照**: ~~条件を 1 フレーム早く（`< n_frames − 1`）すると末尾 1 フレームが欠けて G2 が落ちる。~~ **実装時に測ったら `− 1` も `− 2` も落ちなかった**: pull の境目は常に `emitted + ofill = 8m + 2` で、fpush が n_frames に届く step が残り 9〜10 フレームを一度に吐くため。`− 3` は n_frames ≡ 5 (mod 8) の入力だけ 3 フレーム欠け（demo_ids の prefix 49 件中 3 件）、**`− 8` で demo_ids（106 frames）が 98 で切れて G2 が落ちる**（2048/27136 sample 不一致）。陽性対照はこちらを使う。
+- **陽性対照**: ~~条件を 1 フレーム早く（`< n_frames − 1`）すると末尾 1 フレームが欠けて G2 が落ちる。~~ **実装時に測ったら `− 1` も `− 2` も落ちなかった**: pull の境目は常に `emitted + ofill = 8m + 2` で、fpush が n_frames に届く step が残り 9〜10 フレームを一度に吐くため。審査後に demo_ids の prefix 1..53（mod 8 の 8 残差すべて + T=2 / T=5）を一括版と memcmp で走査した実測（fp32、W8A8 も同形）: `− 1` 0/53 / `− 3` **5/53**（≡ 5 (mod 8) の 4/4 **と** T=2。「≡ 5 だけ」は誤りで、実装時の「49 件中 3 件」は短い発話を数えていなかった）/ **`− 8` 40/53**（demo 106 ≡ 2 は 98 で切れるが **≡ 3, 4 (mod 8) の 13 件は素通り**。残り r が 9〜10 のため）/ **`− 10` = `− (CH+2)` 53/53**。**全残差で落ちる陽性対照は `− (CH+2)` だけ**。`− 8` を使うなら ≡ 3, 4 を見逃すことを承知で。
 - **実機**: 表の読み替えのみ。セッション 1 で pull ごとの ms を確認。
 - **依存**: なし。
 - [x] 実装（stream 早期終了 / prof_test `--expect-steps 54` / main.c 満チャンク xRT + pull ごとの ms / prof_report の INIT 側 LOOKUP と DW 注記）— ホストゲート通過。QEMU checksum は実行結果を StructuredOutput に記録
+- [x] 審査の修正（fix）: main.c の pull ログを実時間ループの外へ / 控えを 640 B に / xRT `n/a` / 合成合計 ms の行と定義変更の ESP_LOGW / `make prof` の T1 ゲートが NG の理由を出す（`> /dev/null` をやめた）/ 陽性対照の記述を prefix 走査 53 件の実測に合わせた
 
 ### T2. 有効範囲だけ計算する（S9）
 
@@ -258,7 +260,8 @@ K 計画 [`k1-kanji-implementation-plan.md`](k1-kanji-implementation-plan.md)（
 
 | 箇所 | 誤り | 直し |
 |---|---|---|
-| T1 陽性対照 | `< n_frames − 1` は本番条件と等価で**落ちない** | `− 8`（demo が 98/106 で切れる）。T1 実装で確認済み |
+| T1 陽性対照 | `< n_frames − 1` は本番条件と等価で**落ちない** | `− 8`（demo が 98/106 で切れる）。⚠️ 再審査で `− 8` も **≡ 3, 4 (mod 8) を見逃す**と分かった（prefix 53 件で 40/53）。全残差で落ちるのは `− (CH+2)` = `− 10`（53/53） |
+| T1 メモリ / xRT | 「メモリ 0」/ 新 xRT を M-82 と並べる | main.c の .bss +640 B（控え 1,024 → 640 B に縮めた）/ **定義が違うので並べない**。T1 前後は「合成合計 ms」と STEP 行で比べる |
 | T4 (d) | obuf は `(CH+2)` で足りる | **足りない**。最大 ofill = 2·CH − (36 mod CH) = 12 = CH+4。取り下げ |
 | S7 | obuf の言及なし | CH=16 で **28 hop** 要る（ホスト 25 文が黙って通る壊れ方） |
 | T2 | dw / cdown / cup は窓全部 | dw の**入力**だけ窓全部。出力は中央 CH（DW −43% はこれで出る） |

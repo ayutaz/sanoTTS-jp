@@ -27,6 +27,7 @@
 #include <inttypes.h>
 #include <limits.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "esp_heap_caps.h"
@@ -208,9 +209,17 @@ static char    g_last_text[SAAN_CONSOLE_LINE_MAX];
 /* シリアル入力を待つ単位。この間隔でタッチも見る（合成中は見ない） */
 #define SAAN_POLL_MS 20
 
-/* 満チャンク pull の所要時間を控える上限（中央値を出すため）。256 pull × 8 frames = 2,048 frames
- * = 23.8 s の音声で、max_spec_length=700（8.13 s）を超える。溢れたら以降は数えるだけ */
-#define SAAN_MAX_PULL_LOG 256
+/* pull ごとの所要時間と n を控える上限。pull ごとの行は**実時間ループの中では出さず**、done: の後で
+ * まとめて出す（UART 115200 の板では 1 行 ≈ 数 ms が pull と I2S write の間に入り、途切れの原因になる。
+ * dt の外なので xRT には出ない = 審査 T1）。満チャンク pull の中央値もこの控えから出す。
+ * 128 pull × 8 frames = 1,024 frames = 11.9 s の音声で、max_spec_length=700（8.13 s、88 pull）を
+ * 超える。溢れたら以降は数えるだけ（行は出ない・中央値にも入らない。その旨を出す）。
+ * ⚠️ 内部 DRAM の .bss を 128 × (4 + 1) = 640 B 食う。T1 の「メモリ 0」は arena（csrc）だけの話で、
+ *    main.c はここで増える（審査 T1。以前は uint32_t × 256 = 1,024 B だった） */
+#define SAAN_MAX_PULL_LOG 128
+#if SAAN_CHUNK > 127
+#error "pull_n は 7 bit（bit 7 は予算超過の印）。SAAN_CHUNK が 127 を超えるなら uint16_t にすること"
+#endif
 
 /* --- 段別プロファイラ（-DSAAN_PROFILE=1 のときだけ。csrc/saan_prof.h）------------
  *
@@ -324,13 +333,18 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     int underruns = 0, short_pulls = 0;
     bool eos = false;
     bool ok = true;
-    /* T1: 満チャンク pull（n == SAAN_CHUNK、初回を除く）の所要時間だけを集める。
-     * 「定常 xRT」の定義はこの集合の中央値 / 平均。⚠️ 末尾の端数 pull（n < SAAN_CHUNK）と
-     *    初回 pull（warmup で step_chunk が複数回走る）は混ぜない。
+    /* T1: pull ごとの dt と n を控え、done: の後で行を出す + 満チャンク pull（n == SAAN_CHUNK、
+     * 初回を除く）の中央値 / 平均を出す。「定常 xRT」の定義はその中央値。
+     * ⚠️ 末尾の端数 pull（n < SAAN_CHUNK）と初回 pull（warmup で step_chunk が複数回走る）は混ぜない。
      *    以前の `mean_rest`（2 回目以降の全 pull の平均）は末尾 pull を含んでいて、
-     *    そこが 1 sample も出さない step を 3 回回していたため xRT が膨らんでいた。 */
-    static uint32_t full_us[SAAN_MAX_PULL_LOG];
-    int n_full = 0;
+     *    そこが 1 sample も出さない step を 3 回回していたため xRT が膨らんでいた。
+     * ⚠️ **M-82 / M-84 の「定常 xRT」はその旧定義**で、この firmware の値とは直接比べられない
+     *    （旧定義の行も T1 後は末尾 pull の step が消えているので M-82 の再現にはならない）。
+     *    T1 をまたいで比べてよいのは、定義に依らない「合成合計 ms」（全 pull の dt の和）と
+     *    `-DSAAN_PROFILE=1` の STEP 行（1 step のサイクル）だけ。
+     * pull_n の bit 7 は「その pull が予算を超えた」印（定常ループだけ立てる） */
+    static uint32_t pull_us[SAAN_MAX_PULL_LOG];
+    static uint8_t  pull_n[SAAN_MAX_PULL_LOG];
 
     for (int i = 0; i < preroll_chunks && !eos; ++i) {
         int64_t t0 = esp_timer_get_time();
@@ -338,9 +352,8 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         int64_t dt = esp_timer_get_time() - t0;
         if (s != SAAN_OK) { ESP_LOGE(TAG, "pull: %s", saan_strerror(s)); ok = false; goto done; }
         if (n <= 0) { eos = true; break; }
-        ESP_LOGI(TAG, "pull %d: n=%d %.2f ms", chunks + 1, (int)n, (double)dt / 1000.0);
         if (chunks == 0) t_first = dt; else t_rest += dt;
-        if (chunks > 0 && n == SAAN_CHUNK && n_full < SAAN_MAX_PULL_LOG) full_us[n_full++] = (uint32_t)dt;
+        if (chunks < SAAN_MAX_PULL_LOG) { pull_us[chunks] = (uint32_t)dt; pull_n[chunks] = (uint8_t)n; }
         /* ⚠️ `n` は**フレーム数**。サンプル数は n * SAAN_HOP */
         if (!saan_audio_preroll_push(g_chunk, (size_t)n * SAAN_HOP)) {
             ESP_LOGE(TAG, "プリロール容量の計算が合っていない。"
@@ -372,12 +385,14 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         /* ⚠️ **これが実機で最初に見るべき数値。** 1 チャンクの計算に、
          * そのチャンクが表す音声より長くかかったらアンダーラン。 */
         int64_t budget_us = (int64_t)n * SAAN_HOP * 1000000 / SAAN_SR;
-        if (dt > budget_us) ++underruns;
-        ESP_LOGI(TAG, "pull %d: n=%d %.2f ms%s", chunks + 1, (int)n, (double)dt / 1000.0,
-                 dt > budget_us ? "  ← 予算超過" : "");
-
+        const bool over = dt > budget_us;
+        if (over) ++underruns;
+        /* ⚠️ ここでは ESP_LOGI しない（pull と I2S write の間に UART の時間が入る）。行は done: の後 */
         if (chunks == 0) t_first = dt; else t_rest += dt;
-        if (chunks > 0 && n == SAAN_CHUNK && n_full < SAAN_MAX_PULL_LOG) full_us[n_full++] = (uint32_t)dt;
+        if (chunks < SAAN_MAX_PULL_LOG) {
+            pull_us[chunks] = (uint32_t)dt;
+            pull_n[chunks] = (uint8_t)n | (over ? 0x80 : 0);
+        }
         if (n < SAAN_CHUNK) ++short_pulls;
         total_frames += n; ++chunks;
 
@@ -390,7 +405,19 @@ done:
         double total_audio = (double)total_frames * SAAN_HOP / SAAN_SR;
         double mean_rest = chunks > 1 ? (double)t_rest / (chunks - 1) / 1000.0 : 0.0;
         double chunk_ms = (double)SAAN_CHUNK * SAAN_HOP * 1000.0 / SAAN_SR;
-        /* 定常 = 初回を除く満チャンク pull。中央値（挿入ソート。n_full は高々 SAAN_MAX_PULL_LOG）と平均 */
+        const int logged = chunks < SAAN_MAX_PULL_LOG ? chunks : SAAN_MAX_PULL_LOG;
+        /* pull ごとの行（実時間ループの外で出す） */
+        for (int i = 0; i < logged; ++i)
+            ESP_LOGI(TAG, "pull %d: n=%d %.2f ms%s", i + 1, (int)(pull_n[i] & 0x7f),
+                     (double)pull_us[i] / 1000.0, (pull_n[i] & 0x80) ? "  ← 予算超過" : "");
+        if (chunks > logged)
+            ESP_LOGW(TAG, "pull %d 回目以降の %d 回は控えていない（SAAN_MAX_PULL_LOG）。"
+                          "中央値もそこまでの満チャンク pull だけ", logged + 1, chunks - logged);
+        /* 定常 = 初回を除く満チャンク pull。控えの先頭に詰め直して中央値（挿入ソート）と平均 */
+        uint32_t *full_us = pull_us;
+        int n_full = 0;
+        for (int i = 1; i < logged; ++i)
+            if ((pull_n[i] & 0x7f) == SAAN_CHUNK) full_us[n_full++] = pull_us[i];
         double full_mean = 0.0, full_med = 0.0;
         if (n_full > 0) {
             uint64_t sum = 0;
@@ -404,28 +431,45 @@ done:
             full_med = (n_full & 1) ? full_us[n_full / 2] / 1000.0
                                     : (full_us[n_full / 2 - 1] + full_us[n_full / 2]) / 2000.0;
         }
-        const double xrt = chunk_ms > 0 ? full_med / chunk_ms : 0.0;
+        /* ⚠️ 満チャンク pull が 0 回（n_frames ≤ SAAN_CHUNK の短い発話）なら xRT は**未測定**。
+         *    0.000 と出すと「速い」に見えるので n/a にする（審査 T1） */
+        const bool have_xrt = n_full > 0 && chunk_ms > 0;
+        const double xrt = have_xrt ? full_med / chunk_ms : 0.0;
+        char xrt_s[16];
+        if (have_xrt) snprintf(xrt_s, sizeof xrt_s, "%.2f", xrt);
+        else          snprintf(xrt_s, sizeof xrt_s, "n/a");
+        const double total_ms = (double)(t_first + t_rest) / 1000.0;
         ESP_LOGI(TAG, "----- 結果 -----");
         ESP_LOGI(TAG, "pull %d 回 / %d frames / 音声 %.3f s（端数チャンク %d 回）",
                  chunks, (int)total_frames, total_audio, short_pulls);
+        ESP_LOGI(TAG, "合成合計 %.2f ms（全 pull の dt の和。定義に依らない量 — T1 前後の比較はこれか "
+                      "SAAN_PROFILE=1 の STEP 行で）/ 音声 %.3f s → 合成/音声 %.3f",
+                 total_ms, total_audio, total_audio > 0 ? total_ms / 1000.0 / total_audio : 0.0);
         ESP_LOGI(TAG, "初回 pull %.2f ms / 2 回目以降 mean %.2f ms（⚠️ 末尾の端数 pull を含む。参考値）"
                       "(満チャンク 1 個 = %.2f ms の音声)",
                  (double)t_first / 1000.0, mean_rest, chunk_ms);
         ESP_LOGI(TAG, "満チャンク pull（n=%d、初回を除く %d 回）: 中央値 %.2f ms / 平均 %.2f ms",
                  (int)SAAN_CHUNK, n_full, full_med, full_mean);
-        ESP_LOGI(TAG, "定常 xRT = %.3f（満チャンク pull の中央値 / %.2f ms。平均なら %.3f）"
-                      "  ← **1.0 を超えたら実時間に間に合っていない**",
-                 xrt, chunk_ms, chunk_ms > 0 ? full_mean / chunk_ms : 0.0);
+        if (have_xrt)
+            ESP_LOGI(TAG, "定常 xRT = %.3f（満チャンク pull の中央値 / %.2f ms。平均なら %.3f）"
+                          "  ← **1.0 を超えたら実時間に間に合っていない**",
+                     xrt, chunk_ms, full_mean / chunk_ms);
+        else
+            ESP_LOGW(TAG, "定常 xRT = n/a（満チャンク pull が 0 回。n_frames=%d ≤ %d の短い発話では測れない）",
+                     (int)st.n_frames, (int)SAAN_CHUNK);
+        ESP_LOGW(TAG, "⚠️ 「定常 xRT」の定義は T1 で変わった（旧: 2 回目以降の全 pull の平均 = 末尾 pull の"
+                      "出力に寄与しない step 3 回込み）。M-82 / M-84 の値とは直接比べないこと。"
+                      "上の「2 回目以降 mean」も T1 後は末尾の step が消えているので旧値の再現ではない");
 #if SAAN_BUFFERED
         ESP_LOGI(TAG, "再生方式: 全部貯めてから再生（途切れ 0）/ 発話開始まで %.0f ms", t_ready_ms);
-        saan_ui_status("合成 %.1f s → 音声 %.1f s (xRT %.2f)",
-                       t_ready_ms / 1000.0, total_audio, xrt);
+        saan_ui_status("合成 %.1f s → 音声 %.1f s (xRT %s)",
+                       t_ready_ms / 1000.0, total_audio, xrt_s);
 #else
         /* ⚠️ 判定は pull ごとの `dt > その pull の音声長`。**末尾の端数 pull を含む**
          *    （端数 pull は音声長が短いので予算も短い）。実際に途切れたかは測っていない */
         ESP_LOGI(TAG, "アンダーラン %d / %d チャンク（判定は pull ごと。末尾の端数 pull を含む）",
                  underruns, chunks);
-        saan_ui_status("xRT %.2f  途切れ %d/%d", xrt, underruns, chunks);
+        saan_ui_status("xRT %s  途切れ %d/%d", xrt_s, underruns, chunks);
         if (underruns > 0)
             ESP_LOGW(TAG, "途切れている。途切れない再生が要るなら -DSAAN_BUFFERED=1 "
                           "（1 発話ぶんを貯めてから鳴らす。待ちは合成時間）");

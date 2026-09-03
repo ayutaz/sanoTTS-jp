@@ -761,10 +761,15 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
      *    出力サンプル列は不変 = stream G2 が bit 一致で示す）。
      *    ⚠️ 陽性対照は `- 1` では**落ちない**（実測）。pull の境目では常に
      *    `emitted + ofill = 8m + 2`、`fpush = 8m + 4` で、fpush が n_frames に届く step が
-     *    残りを**全部一度に**吐く（istft_ready）ため、残り r が 3..8 フレームの境目だけが
-     *    危ない。`- 3` は n_frames ≡ 5 (mod 8) の入力を 3 フレーム欠けさせ、`- 8` は
-     *    demo_ids.h（106 frames）を 98 で切って G2 が落ちる（scratchpad の prefix 走査 49 件で
-     *    予測どおり）。「1 フレーム早く」は検出できないので、条件を触るなら `- 8` で確かめること。 */
+     *    残りを**全部一度に**吐く（istft_ready）ため、境目に残る r = n_frames − (8m + 2) が
+     *    3..10 フレームの範囲でしか壊れない。demo_ids.h の prefix 1..53（n_frames mod 8 の
+     *    8 残差すべて + T=2 / T=5 の短い発話）を一括版と memcmp した実測（fp32 / W8A8）:
+     *      `- 1`  0/53 落ちない
+     *      `- 3`  5/53: n_frames ≡ 5 (mod 8) の 4/4 **と** T=2（ループが一度も回らず出力 0）
+     *      `- 8`  40/53: demo（106 ≡ 2）は 98 で切れるが **≡ 3, 4 (mod 8) は素通り**（r が 9〜10）
+     *      `- 10` 53/53（= `- (CH+2)`。全残差で落ちる唯一の値）
+     *    「1 フレーム早く」は検出できず `- 8` も 2 残差を見逃すので、条件を触るなら `- (CH+2)` で
+     *    確かめること（`make stream` の多文 G2 は ≡ 3, 4 の文を含む = T2a）。 */
     while (im->ofill < CH && st->emitted + im->ofill < st->n_frames) {
         saan_status s = step_chunk(st, pcm);
         if (s != SAAN_OK) return s;
