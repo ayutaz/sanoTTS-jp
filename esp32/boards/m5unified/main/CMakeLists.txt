@@ -7,6 +7,19 @@
 #    傘を書くと全 esp_driver_* が IRAM を食う。
 get_filename_component(SAAN_MAIN "${CMAKE_CURRENT_LIST_DIR}/../../../main" ABSOLUTE)
 
+# --- K-7（漢字）: 辞書リーダと端末側 G2P の呼び出し口 ------------------------
+# ⚠️ **../../../main のものをそのまま使う**（DevKit と同じ .c）。ここでコピーを
+#    作ると「どちらが動いているか」が分からなくなる。
+# ⚠️ `esp_partition` は saan_dict.c がパーティションを**探す**のに要る。
+#    実際の貼り付けは esp_mmu_map（component `esp_mm`）で、こちらは
+#    CONFIG_SPI_FLASH_ROM_IMPL=y でも 128 ページ制限に当たらない。
+set(SAAN_MAIN_K "")
+set(SAAN_REQ_K "")
+if(SAAN_KANJI)
+    set(SAAN_MAIN_K "${SAAN_MAIN}/saan_dict.c" "${SAAN_MAIN}/saan_kanji.c")
+    set(SAAN_REQ_K esp_partition esp_mm)
+endif()
+
 idf_component_register(
     SRCS "${SAAN_MAIN}/main.c"
          "${SAAN_MAIN}/saan_console.c"
@@ -14,9 +27,18 @@ idf_component_register(
          "${SAAN_MAIN}/saan_model_rodata.c"
          "saan_audio_m5.cpp"
          "saan_ui_m5.cpp"
+         ${SAAN_MAIN_K}
     INCLUDE_DIRS "." "${SAAN_MAIN}"
     REQUIRES saanotts_core esp_timer esp_driver_usb_serial_jtag esp_driver_uart
+             ${SAAN_REQ_K}
 )
+
+# ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
+#    「漢字モードのプロンプト」と saan_kanji.c がこれを見る。片方だけだと
+#    プロンプトが出ない / 取り込んだ Open JTalk が `#error CHARSET` で落ちる。
+if(SAAN_KANJI)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_KANJI=1 CHARSET_UTF_8)
+endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/../../../cmake/saan_model_rodata.cmake")
 saan_model_rodata_header(${COMPONENT_LIB} "${SAAN_MODEL_BLOB}"

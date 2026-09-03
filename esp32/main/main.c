@@ -149,7 +149,9 @@ static bool g_dict_ok;
 /* T10 が arena へ移す予定の .bss（k7_label2ids.c の tok[640][16] 10,240 B + saan_kanji.c の
  * s_lab / s_tok / s_key 4,224 B）。計画 T4 のゲート `SAAN_ARENA_BYTES ≥ saan_kanji_workbytes() + 14,464`。
  * C99 には _Static_assert が無いので配列の typedef で検査する（落ちると「負のサイズの配列」でコンパイルが止まる） */
-#define SAAN_KANJI_T10_BSS_BYTES 14464u
+/* ⚠️ **0 になった**（K-A / T10(a)）。k7 のトークン表 10,240 B と s_key / s_tok / s_lab 4,224 B は
+ *    .bss から arena へ移り、SAAN_KANJI_WORKBYTES の中に入った。ここを 0 以外にすると二重計上になる。 */
+#define SAAN_KANJI_T10_BSS_BYTES 0u
 typedef char saan_arena_holds_kanji_workbytes[
     (SAAN_ARENA_BYTES >= SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES) ? 1 : -1];
 #endif
@@ -754,7 +756,15 @@ static void tts_task(void *arg) {
         ESP_LOGW(TAG, "辞書を開けなかった（または作業領域を取れなかった）。"
                       "**かな入力だけ**で続ける");
     else
-        ESP_LOGI(TAG, "漢字経路の作業領域 %u B", (unsigned)saan_kanji_workbytes());
+        /* ⚠️ **2 つとも出す。** workbytes は「最低限これだけ要る」、
+         *    Viterbi バイト数は「実際に渡る」。T10(a) で固定長の配列を
+         *    arena へ移したぶん後者が減るので、減りすぎ（16 KB 未満で
+         *    SAAN_KANJI_ERR_TOO_LONG）に気づけるようにしておく。 */
+        ESP_LOGI(TAG, "漢字経路の作業領域 %u B（最低限）/ Viterbi に渡る %u B "
+                      "（arena %d B のうち）",
+                 (unsigned)saan_kanji_workbytes(),
+                 (unsigned)saan_kanji_vitbytes(SAAN_ARENA_BYTES),
+                 (int)SAAN_ARENA_BYTES);
     log_heap("辞書 mmap 後");
 #endif
 

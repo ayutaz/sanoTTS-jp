@@ -114,20 +114,39 @@ static int label_prosody(const char *lab, int *a1, int *a2, int *a3) {
  *    DRAM が 19,304 B 溢れた**（QEMU ビルドは I2S を gc-sections が落とすので
  *    通っていた）。端末は ids 350 個で拒否する（`SAAN_MAX_IDS`）ので、
  *    トークンは高々 175 個。**640 なら 3 倍以上の余裕がある。**
- * ⚠️ ホスト側のゲートは held-out の長文を通すので、`-DK7_MAX_TOKENS=2048` で
- *    上書きできるようにしてある。 */
-#ifndef K7_MAX_TOKENS
-#define K7_MAX_TOKENS 640
-#endif
+ * ⚠️ 上限（K7_MAX_TOKENS / K7_TOK_MAX）は **k7_label2ids.h** に移した。
+ *    呼び出し側が置き場のバイト数（K7_SCRATCH_BYTES）を知る必要があるため。 */
 #define MAX_TOKENS K7_MAX_TOKENS
-#define TOK_MAX 16
+#define TOK_MAX    K7_TOK_MAX
+
+/* --- トークン表の置き場（T10(a)）--------------------------------------------
+ *
+ * 既定は .bss（ホストのゲートはこれ）。ESP32 は `-DK7_EXTERNAL_SCRATCH=1` で
+ * 呼び出し側（esp32/main/saan_kanji.c）が合成 arena の一部を渡す。
+ * ⚠️ **どちらでも配列の形と上限は同じ**。変わるのは置き場だけなので、
+ *    ホストで測った一致（G25）はそのまま端末にも当てはまる。 */
+#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
+static char (*s_tok_buf)[TOK_MAX];
+
+void k7_set_scratch(void *buf, size_t nbytes) {
+    /* ⚠️ **足りないバッファは受け取らない。** 受けて切り詰めると
+     *    「端末とホストで同じ列」が音としては再生できる形で崩れる。 */
+    s_tok_buf = (buf != NULL && nbytes >= K7_SCRATCH_BYTES)
+              ? (char (*)[TOK_MAX])buf : NULL;
+}
+#else
+static char s_tok_storage[MAX_TOKENS][TOK_MAX];
+static char (*const s_tok_buf)[TOK_MAX] = s_tok_storage;
+#endif
 
 k7_status k7_label2ids(const char *const *labels, int n_labels,
                        const char *text,
                        int32_t *ids, int32_t ids_cap, int32_t *n_ids) {
     if (!labels || !text || !n_ids || (ids_cap > 0 && !ids)) return K7_ERR_ARG;
-
-    static char tok[MAX_TOKENS][TOK_MAX];
+    /* ⚠️ 外部置き場のときに k7_set_scratch() を呼び忘れると**ここで止まる**。
+     *    NULL を書きに行って StoreProhibited で黙って再起動、にはしない。 */
+    if (s_tok_buf == NULL) return K7_ERR_ARG;
+    char (*tok)[TOK_MAX] = s_tok_buf;
     int nt = 0;
     const char *q = question_type(text);
 
