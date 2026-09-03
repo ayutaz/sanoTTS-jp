@@ -7,12 +7,13 @@
 
 | job | 中身 | 依存 | 実測 |
 |---|---|---|---:|
-| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数 / md の相対リンク / hook の回帰 94 ケース / 本文検出 / **blob → .rodata ヘッダ変換の回帰**（fp32 拒否の陽性対照つき。2026-09-02 追加） | **なし**（stdlib のみ） | **9 s**（追加前） |
-| `csrc` | `line` `fft` `pad` `g2p` **`erf`**（GELU の erf 近似 vs libm。2026-09-02 追加。重み不要） | cc のみ | **26 s**（追加前） |
-| `python` | `test_losses`（26 項目）/ `test_labelpack` | torch（**CPU ビルド**）+ numpy | **24 s** |
-| `release-assets` | **ドキュメントが名前を挙げた資産がリリースに在るか**（C-052 の再発防止） | ネットワーク | **9 s** |
+| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数 / md の相対リンク / hook の回帰 94 ケース / 本文検出 / **blob → .rodata ヘッダ変換の回帰**（fp32 拒否の陽性対照つき） | **なし**（stdlib のみ） | **9 s** |
+| `csrc` | `line` `fft` `pad` `g2p` `erf`（GELU の erf 近似 vs libm）**`range`**（S9 の範囲版カーネル vs `[0,T)` 版。2026-09-03 追加）。**どれも重み blob を要らない** | cc のみ | **163 s** |
+| `python` | `test_losses`（26 項目）/ `test_labelpack` | torch（**CPU ビルド**）+ numpy | **15 s** |
+| `release-assets` | **ドキュメントが名前を挙げた資産がリリースに在るか**（C-052 の再発防止） | ネットワーク | **10 s** |
 
-実測は run `33412561093`（2026-08-31、ubuntu-latest、uv のキャッシュあり）。
+実測は run `33718551954`（2026-09-03、ubuntu-latest、uv のキャッシュあり）。
+⚠️ `csrc` が 26 → 163 s に伸びたのは **`erf` の全 float 走査**（[-4, 4] の 2,164,260,866 値。T5）と `range` の追加による。
 再現: `gh run view <id> --json jobs -q '.jobs[] | "\(.name) \(.startedAt) \(.completedAt)"'`
 
 ⚠️ **torch は `--torch-backend cpu` を明示している。** 外すと Linux で
