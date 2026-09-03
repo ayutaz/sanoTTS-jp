@@ -42,7 +42,7 @@ and caveat lines removed; `...` stands for 14 pulls.*
 | On-device G2P | **13.7 MB dictionary** with kanji, or an **877 B table** for kana only |
 
 ⚠️ **This is a proof of concept, not a product.** What it most lacks is human listening:
-so far exactly one session, one listener, no control, not blind.
+so far two sessions, each one listener, no control, not blind.
 
 ## Why Japanese needs its own port
 
@@ -263,7 +263,7 @@ never changed by a single bit** (identical checksums). The trail is in the timel
 
 | | |
 |---|---|
-| **Whether it sounds good** | ⚠️ **Human listening amounts to one session, one listener, no control, not blind.** It says no more than "not broken". Every quality number comes from a **predictor** (SCOREQ / UTMOS / DNSMOS), and none is calibrated for Japanese — **real human speech scores only SCOREQ 2.50 / UTMOS 2.30**. So **"0.644 of the teacher" is not "64 where the teacher is 100"** but a ratio between scores of an uncalibrated predictor (n=24). **Do not compare the absolute values against English papers** |
+| **Whether it sounds good** | ⚠️ **Human listening amounts to two sessions (M-91 / M-93), each one listener, no control, not blind.** It says no more than "not broken". Every quality number comes from a **predictor** (SCOREQ / UTMOS / DNSMOS), and none is calibrated for Japanese — **real human speech scores only SCOREQ 2.50 / UTMOS 2.30**. So **"0.644 of the teacher" is not "64 where the teacher is 100"** but a ratio between scores of an uncalibrated predictor (n=24). **Do not compare the absolute values against English papers** |
 | **Real time over a whole utterance** | ⚠️ A full-chunk pull is 0.446, but the 38-frame warmup lands in the first pull, so **a whole utterance is 0.54–0.71**. Which denominator the requirement means is undecided |
 | **The cost of pruning the dictionary** | ⚠️ 0.32% of phonemes differ from the host (n=298, M-77). A dropped word is not silent — it is **re-segmented and misread** (`上毛` → `上` + `毛`) |
 | **I2S output on a DevKit** | ⚠️ `saan_i2s` (direct I2S) is **untested on hardware**. The only path that has made sound is M5Unified |
