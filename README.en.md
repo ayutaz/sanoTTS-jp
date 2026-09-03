@@ -44,18 +44,22 @@ and caveat lines removed; `...` stands for 14 pulls.*
 ⚠️ **This is a proof of concept, not a product.** What it most lacks is human listening:
 so far exactly one session, one listener, no control, not blind.
 
-## What makes Japanese hard
+## Why Japanese needs its own port
 
-Porting the English recipe verbatim breaks. These three walls are specific to Japanese.
+**Port the English recipe verbatim and it stalls at G2P.** Reading kanji needs a dictionary,
+and NAIST-JDIC measures **102 MB** — far too much for the chip. The answer was not to shrink
+the dictionary but to **cut the problem somewhere else**: the device accepts only
+"hiragana + accent marks" and converts that with an **877 B table**. **Neither the paper nor
+the official implementation has a counterpart**; this is the central design decision here.
 
-| Wall | How it was solved |
-|---|---|
-| **G2P doesn't fit** — reading kanji needs a dictionary, and NAIST-JDIC measures **102 MB** | **Change the input contract.** The device takes "hiragana + accent marks" and converts it with an **877 B table**; kanji→kana happens offline on a host. ⚠️ **That premise later collapsed when re-measured** — a TTS-only dictionary format takes an entry from 130 B to **28 B**, so **438,750 entries** fit a 16 MB board. **The device can now read kanji on its own** |
-| **Pitch accent** — 箸/橋/端 share a phoneme sequence and differ only in pitch. Aggregate scores cannot see it | 15 minimal-pair groups went into the eval set. **Sign agreement with the teacher: 37/37** |
-| **Devoiced vowels** — the `i`/`u` in です/した are acoustically close to frication noise | Confirmed separability with per-phoneme-class spectral flatness (AUC 0.847), then added them to the noise-injection set |
+⚠️ **That premise later collapsed when it was re-measured.** A TTS-only dictionary format
+takes an entry from 130 B to **28 B**, so **438,750 entries** fit a 16 MB board. The device
+now reads kanji on its own, but the kana intermediate form remains **the shared intermediate
+of both routes** — the same sentence written either way yields bit-identical PCM.
 
-**The first one mattered most**, and it was not about shrinking a dictionary — it changed
-where the problem was cut. Neither the paper nor the official implementation has a counterpart.
+Pitch accent (箸/橋/端) and devoiced vowels (the `i`/`u` in です/した) are also absent from
+the English version, and neither is visible in an aggregate score, so each got a dedicated
+evaluation (see [`MODEL_CARD.md`](MODEL_CARD.md)).
 
 ## Getting started
 
