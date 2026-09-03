@@ -113,7 +113,7 @@ PY
 # ---------------------------------------------------------------- 5
 hdr "5. CMake の構文（ESP-IDF 不要）"
 if cmake -P scripts/check_cmake_syntax.cmake > "$TMP/cm" 2>&1; then
-    ok "esp32 の CMakeLists.txt 5 本（boards/m5unified 含む）が構文として通る"
+    ok "esp32 の CMakeLists.txt 7 本（boards/m5unified と pie_probe 含む）が構文として通る"
 else
     ng "CMake 構文"; sed 's/^/      /' "$TMP/cm"
 fi

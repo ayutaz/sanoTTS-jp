@@ -1,0 +1,12 @@
+# D4（PSRAM ストリーム）用の変種。sdkconfig.defaults に重ねる:
+#
+#   idf.py -B build_probe_psram -DSDKCONFIG=build_probe_psram/sdkconfig \
+#          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.psram" build
+#
+# CoreS3 と同じ **Quad / 80 MHz**（esp32/boards/m5unified/sdkconfig.cores3）。
+# ⚠️ Octal にすると CoreS3 はブートループする（第三者報告）。
+CONFIG_SPIRAM=y
+CONFIG_SPIRAM_MODE_QUAD=y
+CONFIG_SPIRAM_SPEED_80M=y
+# QEMU には PSRAM が無い。見つからなくても起動させ、probe に「D4 skip」と出させる
+CONFIG_SPIRAM_IGNORE_NOTFOUND=y

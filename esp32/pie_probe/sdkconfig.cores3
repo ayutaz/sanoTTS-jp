@@ -1,0 +1,11 @@
+# 実機（M5Stack CoreS3 / ESP32-S3 DevKit の QIO 対応 flash）向けの重ね書き:
+#
+#   idf.py -B build_probe_dev -DSDKCONFIG=build_probe_dev/sdkconfig \
+#          -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" build
+#
+# ⚠️ **D 節（flash 行フィルの cyc）を M-82 の CoreS3 と比べるには、flash モードも同じ QIO で
+#    ないと意味が無い**（DIO は 2 bit 幅なので行フィルが遅く出る）。
+# ⚠️ **QEMU の flash モデルは QIO を受け付けない**（`qio_mode: Failed to set QIE bit` のあと
+#    spi_flash の初期化で assert → ブートループ。実際に踏んだ）。だから既定（sdkconfig.defaults）は
+#    DIO のままにして、実機で焼くときだけこれを重ねる。probe は起動時の行に flash モードを出す。
+CONFIG_ESPTOOLPY_FLASHMODE_QIO=y
