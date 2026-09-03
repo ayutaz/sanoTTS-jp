@@ -147,6 +147,39 @@ int main(int argc, char **argv) {
                    c.n_bad, rn);
     }
 
+    /* --- 陽性対照（毎回走る）------------------------------------------------
+     * ⚠️ **この比較器は一度、NaN を「完全一致」と報告して通していた**（C-056）。
+     * `err > 0` / `da > 0 && db > 0` という「正常なら真」の条件で分岐していたので、
+     * NaN は全部 else 側（= 一致）に落ちていた。**同じ壊れ方に戻っていないか毎回見る。**
+     * 実データを 1 要素だけ壊した複製を作り、比較器が**落とすこと**を確かめる。 */
+    {
+        const size_t n = (size_t)out.n_samples;
+        float *probe = (float *)malloc(sizeof(float) * n);
+        int pc_bad = 0;
+        if (!probe) {
+            printf("  NG! 陽性対照: 作業領域が取れない\n");
+            ++bad;
+        } else {
+            const float *ref_pcm = get(&G, "out.pcm", &nb);
+            memcpy(probe, out.pcm, sizeof(float) * n);
+            probe[n / 2] = (float)NAN;              /* (1) NaN を 1 つ混ぜる */
+            cmp_t cn = compare(probe, ref_pcm, n);
+            const int caught_nan = !(cn.pearson >= 0.98 && cn.snr_db >= 40.0 && cn.n_bad == 0);
+            memcpy(probe, out.pcm, sizeof(float) * n);
+            for (size_t i = 0; i < n; ++i) probe[i] *= 0.5f;   /* (2) 半分に潰す */
+            cmp_t ch = compare(probe, ref_pcm, n);
+            /* ⚠️ Pearson はスケール不変なので 1.0 のまま。**SNR で落ちなければ空虚**。 */
+            const int caught_half = !(ch.snr_db >= 40.0);
+            pc_bad = !(caught_nan && caught_half);
+            printf("  %s 陽性対照: NaN 1 個 → %s / 振幅 0.5 倍 → %s（C-056）\n",
+                   pc_bad ? "NG!" : "OK ",
+                   caught_nan ? "落ちる" : "**通ってしまう**",
+                   caught_half ? "落ちる" : "**通ってしまう**");
+            bad += pc_bad;
+            free(probe);
+        }
+    }
+
     printf("\n%s\n", bad ? "一致しない項目がある"
                           : "参照実装と一致（Pearson >= 0.98 かつ SNR >= 40 dB）");
     free(wbuf); free(gbuf); free(abuf); free(ids);
