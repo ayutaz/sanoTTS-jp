@@ -4,9 +4,9 @@ ESP32-S3 の **PIE（128-bit 整数 SIMD）** が使えるかを確かめる最�
 **実機のマイクロベンチ 2 本（D / E。T6 / P-0）**を足したもの。成果物ではない。
 
 ⚠️ **A〜C の前提検証は終わっている。** 本体のカーネルは実装済みで（M-57 / M-58、MAC の 99.40%）、
-出荷ファームでも `idf.py -DSAAN_ENABLE_PIE=1 build` で有効にでき、
-**QEMU で全経路 bit 一致**を確認した（M-62）。A〜C は**最小の切り分け用**として残してある
-（実機で不正命令例外が出たときなど）。
+**ESP32-S3 では出荷ファームの既定になった**（D-048。フラグを付けなくても W8A8 + PIE）。
+**QEMU で全経路 bit 一致**（M-62）、**実機でも checksum 一致**（M-83 / M-86 / M-90）。
+A〜C は**最小の切り分け用**として残してある（実機で不正命令例外が出たときなど）。
 
 **D / E は「MAC 1.61 cyc/MAC（M-82）は flash 律速か」「GELU 118 cyc/要素の原因は表か call か」を
 実機で数字にするためのもの。** 結果は M-85（`docs/measurements.md`）。計画 §5 の分岐はこれで決めた。
@@ -40,7 +40,7 @@ CPU MHz / D-cache / flash モード**が出るので、cyc を読む前に必ず
 
 | ファイル | 役割 |
 |---|---|
-| `sdkconfig.defaults` | 既定。**出荷構成（`esp32/boards/m5unified/sdkconfig.cores3`）と同じ 240 MHz / -O2 / flash 80 MHz / D-cache 64 KB・32 B 行**。flash モードだけ **DIO** |
+| `sdkconfig.defaults` | 既定。240 MHz / -O2 / flash 80 MHz / D-cache 64 KB。⚠️ **行は IDF 既定の 32 B のまま**で、出荷構成（`esp32/boards/m5unified/sdkconfig.cores3`）は 2026-09-03 に **64 B** になった（M-84）。**D 節の cyc/行 は 32 B 行の値**（M-85 もそう）。flash モードだけ **DIO** |
 | `sdkconfig.cores3` | **実機だけ**に重ねる: `CONFIG_ESPTOOLPY_FLASHMODE_QIO=y` |
 | `sdkconfig.psram` | D4 用: `CONFIG_SPIRAM=y`（Quad / 80 MHz / `IGNORE_NOTFOUND`）。無い板や QEMU では「D4 skip」 |
 | `main/probe_blob.c` | 本物の `csrc/student_i8.bin` を `.rodata` に埋める翻訳単位（`esp32/cmake/saan_model_rodata.cmake`。M5 構成と同じ仕組み） |
@@ -53,7 +53,10 @@ M-82 / M-85 と比べられない**ので、実機は必ず `sdkconfig.cores3` �
 
 ⚠️ **blob が無いと D 節は skip**（`csrc/student_i8.bin` を置くか `-DSAAN_MODEL_BLOB=<絶対パス>`）。
 skip は末尾に `⚠️ D 節は blob 無しで skip` と出て、**黙って PASS にはならない**。
-入手は https://github.com/ayutaz/sanoTTS-jp/releases/latest 。
+⚠️ **blob v2 が要る**（`saan_weights_open` を通すので v1 は `SAAN_ERR_VERSION`）。
+リリース v0.2.0 の `saanotts-jp-v3-int8.bin` は **v1** なので、
+`uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --int8 --out csrc/student_i8.bin
+--golden csrc/golden_i8.bin --golden-from-quantized --report csrc/export_i8.json` で作ること。
 
 ## 確かめていること
 
@@ -130,11 +133,17 @@ D3 ≈ D2、E1 4.8 cyc/要素）、**幅も 3〜300% 出る**。`-DSAAN_QEMU=1` 
 ⚠️ **E2〜E4 は本体の式の写し**（`PROBE_ERF_BODY` / `PROBE_GELU_LOOP`。「同じカーネルを 2 回書かない」原則の例外）。
 写しが本体とずれていないことは **E1 との memcmp 一致**で示し、比較が効いていることは
 **DRAM の表 1 要素（節点 64）を壊すと不一致・戻すと一致**で示す（実機 315 要素 / 該当区間の入力 317 個）。
-⚠️ **T5 と合流したので写しは書き直してある**（S5b の作業中に）。本体の erf 表は `kSaanErfD`（erf'）から
-`kSaanErfDh`（erf' × h を事前に掛けた表）になり、T5-G3 で早期 return がクランプに、符号は memcpy の OR に
-変わった。**写しはいま `saan_erf_approx_inl` と 1 行ずつ同じ。** ⚠️ 直すまで probe は
-`'kSaanErfD' undeclared` でビルドできなかった（S5b 以前からのビルド破れ）。
-ずれたら E1 と E3/E4 の memcmp が落ちる（黙って通ることはない）。
+⚠️ **T5 と合流したので写しは書き直した**（S5b の作業中に）。本体の erf 表は `kSaanErfD`（erf'）から
+`kSaanErfDh`（erf' × h を事前に掛けた表）になり、T5-G3 で早期 return がクランプになった。
+⚠️ 直すまで probe は `'kSaanErfD' undeclared` でビルドできなかった（S5b 以前からのビルド破れ）。
+
+⚠️ **いま写しは本体と 1 行ずれている（2026-09-03 時点）。** T5-G3 は符号の復元も
+`x < 0 ? -y : y` から**符号ビットの memcpy OR** に変えたが、**それは M-87 で撤回された**
+（実機の GELU が 118 → 211 cyc/要素に倍増。C-055）。**本体は三項演算子に戻り、
+`probe.c` の `PROBE_ERF_BODY` は memcpy OR のまま**なので、**E3 / E4 が測っているのは
+本番と別の形**。⚠️ **E1 との memcmp では検出できない** — 2 つの形は同じ値を出す
+（速さだけが違う）。**これが C-055 そのもの**で、「マイクロベンチは同じ形でしか本番を予測しない」の
+生きた実例として残してある。**新しい形を入れるときは、先に E 節へその形を足して実機で測ること**（1 回 10 秒）。
 ⚠️ IDF は `-ffp-contract=fast`。インライン化で `madd.s` への縮約が変わると**丸め水準で**出力が動きうる。
 実機 / QEMU とも差 0 要素だったが、落ちたらゲートを緩めず記録すること。
 
@@ -144,6 +153,8 @@ D3 ≈ D2、E1 4.8 cyc/要素）、**幅も 3〜300% 出る**。`-DSAAN_QEMU=1` 
 - **実機の PIE と QEMU の PIE が同じである保証**（実機の checksum が QEMU と一致することで裏を取っている。M-82 / M-83）
 - **D4（PSRAM）は未実測**（CoreS3 の pie_probe は PSRAM 無しで焼いた。`sdkconfig.psram` は QEMU で「D4 skip」まで）
 - D 節は **cin=48 / k=1 の 1 形状**だけ。本番は cinp 16〜304 の混合で、固定費と flash の比は層ごとに違う
+- **D-cache 64 B 行では測り直していない**（M-85 は 32 B 行。出荷構成は 64 B に変わった = M-84）。
+  行フィルの回数が半分になるので **(D3 − D2) はおそらく変わる**が、**測っていない**
 - D 節の割り込み禁止区間は最長 D5 の約 4.4 M cyc ≈ 18 ms（INT WDT 300 ms の内側）。**他コアの IDLE は止めていない**
   （キャッシュは共有だが、幅 ≤ 0.22% だったので影響は見えていない）
 

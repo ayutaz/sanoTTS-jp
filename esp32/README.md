@@ -1,55 +1,68 @@
-# ESP32-S3 プロジェクト雛形（c'-4）
+# ESP32-S3 のファームウェア（c'-4）
 
 `csrc/` の C99 推論コアを ESP-IDF アプリとして起動し、ストリーミング API で
-合成しながら I2S に流す雛形。
+合成しながら I2S に流す。**実機（M5Stack CoreS3）で動く**ところまで来た（M-90）。
+
+- **DevKit 構成**はこのディレクトリ（`esp32/`。音は I2S DAC）
+- **M5Stack 構成**は [`boards/m5unified/`](boards/m5unified/README.md)（内蔵スピーカー + 画面。**実機の測定はすべてこちら**）
+- **実機を持っている人向けの手順**は [`TESTING.md`](TESTING.md)
+- **PIE の切り分けと実機マイクロベンチ**は [`pie_probe/`](pie_probe/README.md)
 
 ---
 
-## ⚠️ 実機は第三者が動かした（M5Stack CoreS3、2026-09-02）。私は未再現
+## 現在地（2026-09-03）— **実機で動いた。要件 RTF ≤ 0.5 も満たした。残るのは聴取だけ**
 
 **これを最初に読むこと。**
-実機を持っている方への依頼は [`TESTING.md`](TESTING.md) にまとめてある。
+実機を持っている方への手順は [`TESTING.md`](TESTING.md) にまとめてある。
 
-**2026-09-02、第三者がこの雛形を M5Stack CoreS3 に移植して動かし、速度を報告した**
-（[`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)）:
-**W8A8+PIE で定常 1.554× RT / W8A32 で 4.834× RT。実時間に間に合っていない。** checksum は QEMU の記録と一致。
-その構成は **[`boards/m5unified/`](boards/m5unified/README.md)** として本リポジトリに取り込んだ
-（`main/` と `csrc/` を相対参照。音声出力は `M5.Speaker`、重みは `.rodata`）。
-同時に、1 step の内訳で MAC と同等以上だった 4 つ（テンソル検索 / 量子化のソフト除算 /
-GELU の `erff` / 重みのコピー）を削る **S1〜S5a** を入れた（M-81。QEMU 命令数比で −49%。**実機は未測定**）。
-⚠️ **S3 で基準 checksum が変わった**: W8A8+PIE `0xa69a7ebbb5ccb05f` / W8A32 `0xe4b645c30835d42d`
-（v0.2.0 までの配布イメージは旧値 `0x04de91103a0e49f9` / `0x78c209af06affc01`）。
+✅ **2026-09-02〜03、自分の M5Stack CoreS3 で測った**（板の同定は D-047: ESP32-S3 / 16 MB / Quad PSRAM 8 MB / native USB）。
+それ以前は「第三者が CoreS3 で 1.554× RT と報告したが私は未再現」という状態だった
+（[`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)）。**その報告はもう現在地ではない。**
+
+| | 9/2 夜（M-82） | **いま（M-90）** |
+|---|---:|---:|
+| 満チャンク 1 pull の xRT | 0.926 | **0.446**（要件 RTF ≤ 0.5 達成） |
+| 1 step | 18,378,513 cyc | **11,659,500 cyc**（M-89） |
+| アンダーラン | 1 / 14 | **0**（全文） |
+| 鳴らし始めまで | 719 ms | **384 ms**（M-90 の生ログ。M-89 は 432 ms） |
+| 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（最大ブロック 86,016。漢字辞書込みの構成で） |
+| arena（静的確保 / 実機の used） | 212,992 / 195,808 B | **180,224 / 157,360 B** |
+
+**PCM の checksum は M-82 から 1 bit も変わっていない**: W8A8+PIE **`0xa69a7ebbb5ccb05f`** /
+W8A32 **`0xe4b645c30835d42d`**。速度の作り直し（S1〜S5b / T1〜T5）は**すべて出力を変えない変更**だった。
+⚠️ **配布イメージ v0.2.0 までは旧コアの `0x04de91103a0e49f9` / `0x78c209af06affc01`**（S3 = GELU の erf 近似で変わった。D-046）。
 ⚠️ **blob は v2**（654,032 B）。リリース資産は v1 のままで、このコアは `SAAN_ERR_VERSION` で拒む。
 
-**2026-08-30 に QEMU で出荷ファームを起動から合成完了まで通した**（M-62）。
-同日、**シリアルから かなを自由入力できるようにし、QEMU の UART に実際に打ち込んだ**（M-63）。
-ESP-IDF v5.5 でビルドが通り、`saanotts_jp.bin` = 284,912 B
-（W8A8+PIE 版は 286,272 B / コンソールを native USB にすると 271,872 B。M-66）。
-**v0.1.1 からは焼くだけの merge 済みイメージ 2 種も配布している**（各 2.8 MB。M-67）。
+⚠️ **発話全体で見ると 0.541〜0.712 でまだ 0.5 を超える**（warmup 38 フレームぶんが初回 pull に乗る。
+要件の分母がどちらかは `docs/requirements.md` に書かれておらず未定 = D-049。M-88 / M-90）。
+⚠️ **音は誰も聴いていない**（G32）。checksum が同じなので波形は同一だが、
+**途切れの有無と読み違いの重大さは聴かないと分からない。**
 
-**2026-08-31、漢字対応ビルドも QEMU で合成まで完走した**（K-7 / M-76）。
-`!今日は良い天気ですね。` を UART に打ち込むと、端末が自分で形態素解析して
-ids 53 個を作り、**凍結してあるかな中間表現と同じ PCM**（`0x78c209af06affc01`）が出た。
-有効化は `idf.py -DSAAN_KANJI=1`（**既定は無効**。16 MB flash と 12 MB の辞書が要る）。
-**v0.2.0 からは焼くだけの 16 MB イメージも配布している**（`esp32s3-firmware-kanji-16mb.bin`）。
-⚠️ **配布イメージのコンソール入力は UART0**。native USB だけの板（CoreS3 / AtomS3）では入力が届かない
-（2026-09-02 に CoreS3 で実測。M-83）。⚠️ **漢字経路は 2026-09-02 に CoreS3 で実機確認した**（v0.2.0 のコードで
-`0x78c209af06affc01`、現行コードで `0xe4b645c30835d42d`。どちらも QEMU と一致。M-83）。
+### ⚠️ 変わった既定（古い手順をそのまま打つと別の構成になる）
 
-⚠️ **しかし実機（ESP32-S3 ボード）が無いので、実機では動かしたことが無い。**
-⚠️ **QEMU はサイクル精度ではないので、速度は一切測れていない。**
+| | 前 | いま | 出典 |
+|---|---|---|---|
+| **PIE** | `-DSAAN_ENABLE_PIE=1` が要った | **ESP32-S3 なら既定で有効**（W8A8 + PIE）。W8A32 で測るときだけ `-DSAAN_ENABLE_PIE=0` | **D-048** |
+| **flash モード** | IDF 既定の DIO | **QIO**（`sdkconfig.defaults`）。⚠️ `-DSAAN_QEMU=1` のときだけ `sdkconfig.qemu` が DIO に戻す（QEMU は QIO を受け付けない） | M-86 |
+| **D-cache の行** | 32 B | **64 B** | M-84 / M-86 |
+| **入力** | 漢字は `!` を前置 | **`!` は要らない**。`saan_g2p_classify()` が「かな / 辞書 / 拒否」の 3 値で決める（`!` は辞書経路への強制として残してある。試験用） | `csrc/g2p.h` |
+| **arena** | 208 KB（212,992 B） | **176 KB（180,224 B）** | M-89 |
+| **漢字 × M5** | 構成が無かった | **`boards/m5unified/` に辞書パーティションごと載る**（`esp_mmu_map`） | M-90 |
 
-| # | 未検証なこと | いつ分かるか |
+### 実機で分かったこと / まだ分かっていないこと
+
+| # | 見たかったこと | いま |
 |---|---|---|
 | ~~1~~ | ~~`idf.py build` が通るか~~ | ✅ **通った**（M-54 / v5.5） |
-| ~~2~~ | ~~起動するか~~ | ✅ **QEMU で起動・合成完了**（M-62） |
-| 3 | 実際の SRAM 消費（IDF + FreeRTOS + **I2S DMA 込み**の free heap） | ⚠️ 配布 firmware（W8A8+PIE）の QEMU 起動直後で 68,460 B（M-67）。**I2S DMA を含まない**ので実機で再確認 |
-| **4** | **実際の xRT とアンダーラン** — M-43 の 2.47 × RT は外挿 | ⚠️ **第三者報告: W8A8+PIE 1.554 / W8A32 4.834**（CoreS3。途切れ 10/14 チャンク）。**S1〜S5a 後は未測定** |
-| 5 | I2S の実サンプルレート誤差（**ESP32-S3 に APLL が無い**） | 実機 + オシロか長時間録音 |
-| 6 | flash から mmap した重みが D-cache を thrash しないか | 実機（QEMU にはキャッシュ挙動が無い） |
+| ~~2~~ | ~~起動するか~~ | ✅ QEMU（M-62）→ **実機**（M-83 / M-86 / M-89 / M-90） |
+| ~~3~~ | ~~実際の SRAM 消費（IDF + FreeRTOS + I2S DMA 込みの free heap）~~ | ✅ **実機で 132,039 B**（M5 構成・漢字辞書込み。M-90）。DevKit の漢字構成は 59,044 B（M-83 / M-86） |
+| ~~4~~ | ~~実際の xRT とアンダーラン~~ | ✅ **満チャンク 0.446 / アンダーラン 0**（M-90）。⚠️ 発話全体では 0.541〜0.712（M-90 の 4 文） |
+| **5** | I2S の実サンプルレート誤差（**ESP32-S3 に APLL が無い**） | ❌ **未測定**。オシロか長時間録音が要る（ファーム自身が警告を出す） |
+| ~~6~~ | ~~flash から mmap した重みが D-cache を thrash しないか~~ | ✅ 測った: flash の待ちは MAC の **38.5%**（M-85 の D 節）。64 B 行で **−7.0%**（M-84） |
 | ~~7~~ | ~~`sdkconfig.defaults` のオプション名が実在するか~~ | ✅ ビルドが通った（M-54） |
-| ~~8~~ | ~~`esp32/main` が呼ぶ IDF API の綴り~~ | ✅ ビルドが通り QEMU で実行された（M-62） |
-| **9** | **実機の I2S**（QEMU は DMA を捌かないので通せなかった） | ⚠️ M5.Speaker 経由では鳴った（報告）。**DevKit の `saan_i2s.c`（I2S 直叩き）は未** |
+| ~~8~~ | ~~`esp32/main` が呼ぶ IDF API の綴り~~ | ✅ 実機で起動した（M-83 以降） |
+| **9** | **DevKit の `saan_i2s.c`（I2S 直叩き）** | ⚠️ **未**。M5 の `M5.Speaker` 経由では鳴らしている（M-90。ログは `貯めた 8192 sample を送出` まで） |
+| **10** | **音（聴取 G32）** | ❌ **未。これだけが人を待っている** |
 
 **「たぶん動く」とは書かない。「未検証」と書く。**
 
@@ -74,7 +87,7 @@ newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた�
 
 ### では何を確かめたのか
 
-`bash scripts/check_esp32_template.sh` が通ることだけ。中身は 9 つ:
+`bash scripts/check_esp32_template.sh` が通ることだけ。中身は 10 個:
 
 | # | ゲート | 何が言えるか |
 |---|---|---|
@@ -87,6 +100,7 @@ newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた�
 | 7 | `main.c` が呼ぶ `saan_*` が csrc のヘッダに実在 | typo は無い |
 | 8 | ホスト stub ビルド + **C コアと bit 完全一致** | アプリ側ロジックが正しい（下記） |
 | 9 | IDF API の棚卸し | 実機で最初に照合する一覧 |
+| **10** | **静的 arena が漢字経路の作業領域を収められるか**（`SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES`） | 漢字ビルドで arena が溢れない。**陽性対照つき**（足りない arena の同じ typedef がコンパイルに失敗する） |
 
 ゲート 8 が実質の主検証。`esp32/host_stub/` に IDF API の偽ヘッダを置いて
 `esp32/main/*.c` をそのままホストでビルドし、I2S に書いたはずの int16 を
@@ -110,11 +124,12 @@ OK  [厳密] C 一括版 → int16 と 27136 sample **bit 完全一致**   （in
 
 | 項目 | 値 |
 |---|---|
-| ターゲット | **ESP32-S3**（内部 SRAM 512 KB / 8 MB flash を想定） |
-| ESP-IDF | **v5.x を想定**。新 I2S ドライバ `driver/i2s_std.h` を使う |
-| 音声出力 | I2S DAC（MAX98357A / PCM5102 など）22.05 kHz / 16 bit / mono |
+| ターゲット | **ESP32-S3**（内部 SRAM 512 KB / flash **8 MB 以上**。⚠️ **漢字対応は 16 MB 必須**） |
+| ESP-IDF | **v5.5 で実測**。新 I2S ドライバ `driver/i2s_std.h` を使う |
+| 音声出力 | I2S DAC（MAX98357A / PCM5102 など）22.05 kHz / 16 bit / mono。M5 構成は `M5.Speaker` |
+| 実機で測った板 | **M5Stack CoreS3**（ESP32-S3 / 16 MB flash / Quad PSRAM 8 MB / native USB。**D-047**） |
 
-✅ **ESP-IDF v5.5 でビルドが通ることを実測した**（2026-08-30）。それ以外の
+✅ **ESP-IDF v5.5 でビルドが通り、実機で動くことを実測した**（M-83 以降）。それ以外の
 マイナーバージョンは未検証。
 
 ⚠️ `main/CMakeLists.txt` の `REQUIRES` は **`driver` 1 本**にしてある。
@@ -138,58 +153,90 @@ uv run python scripts/gen_demo_ids.py                                # esp32/mai
 # 2. 手元のゲートを通す（ESP-IDF 不要）
 bash scripts/check_esp32_template.sh
 
-# 3. ビルド（✅ ESP-IDF v5.5 で通ることを実測済み。⚠️ 実機での起動は未検証）
+# 3. ビルド（ESP-IDF v5.5 で実測。**ESP32-S3 なら W8A8 + PIE が既定** = D-048）
 cd esp32
-idf.py set-target esp32s3
 idf.py build
 
 # 4. パーティション表・アプリ・重み blob をまとめて焼く
 idf.py -p /dev/tty.usbmodemXXXX flash monitor
 ```
 
+⚠️ **`idf.py set-target esp32s3` は打たない。** `sdkconfig.defaults` が
+`CONFIG_IDF_TARGET="esp32s3"` を持っているので不要で、しかも打つと
+`-DSAAN_MODEL_BLOB` の付かない configure が走って「blob が無い」で止まる（`TESTING.md` で実測）。
+
+⚠️ **PIE の既定が 2026-09-03 に逆になった**（D-048）。`-DSAAN_ENABLE_PIE=1` と書いてある
+古い手順は「既定と同じ」なので無害だが、**W8A32（PIE 無し）で測りたいときは
+`-DSAAN_ENABLE_PIE=0` を明示する**。ESP32-S3 以外の板では自動的に W8A32 に落ちる。
+
+⚠️ **既定は QIO / D-cache 64 B 行**（M-86 / M-84）。**QEMU は QIO を受け付けない**ので、
+`-DSAAN_QEMU=1` を付けたビルドは `esp32/CMakeLists.txt` が `sdkconfig.qemu`（DIO）を自動で重ねる。
+⚠️ **`esptool.py write_flash` に `--flash_mode qio` を渡してはいけない** — ヘッダが QIO になり
+ROM ローダが読めずブートループになる（M-86 で実際に踏んだ）。`@flash_args` のまま焼けば
+bootloader が起動後に `qio_mode: Enabling default flash chip QIO` で切り替える。
+
 `idf.py flash` は `esptool_py_flash_to_partition(flash "model" ...)` によって
 重み blob も `model` パーティションへ一緒に焼く（トップの `CMakeLists.txt`）。
 
 ---
 
-## 漢字対応ビルド（K-7。**既定は無効**）
+## 漢字対応ビルド（K-7 / K-A。**既定は無効**）
 
 端末に辞書を載せて、**漢字かな交じり文をそのまま**受け付ける構成。
-QEMU で合成まで完走している（M-76）。⚠️ **実機では未検証。**
+QEMU で完走し（M-76）、**2026-09-02〜03 に CoreS3 の実機でも動いた**（M-83 / M-86 / M-90）。
 
 ```bash
-# 1. 辞書 blob を作る（438,750 entries = D-044。13,702,320 B）
+# 1. 辞書 blob を作る（438,750 entries = D-044。13,702,320 B。数分かかる）
 uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
 
-# 2. 16 MB 版のパーティション表でビルド
+# 2-a. DevKit（16 MB flash。音は I2S DAC）
 cd esp32
 idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
     -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
     -DSAAN_KANJI=1 build
-
-# 3. 焼く（app / model / dict がまとめて焼かれる）
 idf.py -B build_kanji -p /dev/tty.usbmodemXXXX flash monitor
+
+# 2-b. M5Stack CoreS3（内蔵スピーカーと画面。⚠️ 辞書 13.7 MB 込みで焼くのに約 4 分）
+cd esp32/boards/m5unified
+idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict.bin build
+cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600 write_flash @flash_args
 ```
 
 ```
-かな> !今日は良い天気ですね。
-形態素 7 個 / ids 53 個
+かな> 今日は良い天気ですね。          ← **`!` は要らない**（経路は端末が決める）
+経路: 辞書
+漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.69 ms
 ```
 
 | | サイズ | 枠 |
 |---|---:|---:|
-| app | 359,584 B | 2,097,152 B（17.1%） |
-| model（int8 v2） | 654,032 B | 786,432 B |
+| app（DevKit。⚠️ K-7 当時の 2026-08-31 のビルド） | 359,584 B | 2,097,152 B（17.1%） |
+| app（M5 CoreS3。重みを `.rodata` に埋めた漢字ビルド。M-90） | 約 1.43 MB | 2,883,584 B（factory 2.75 MB） |
+| model（int8 v2。**DevKit のみ**。M5 は `.rodata`） | 654,032 B | 786,432 B |
 | **dict** | **13,702,320 B** | **13,828,096 B**（99.1%） |
 
-⚠️ **16 MB flash が要る**（`partitions_16mb.csv`）。8 MB のボードには載らない。
+⚠️ **16 MB flash が要る**（`partitions_16mb.csv` / `boards/m5unified/partitions.csv`。
+`dict` の offset は両方 `0x2D0000` にそろえてあるので、**同じ辞書イメージをどちらの板にも焼ける**）。
+8 MB のボードには載らない。
 ⚠️ **ホストと違う音素は 0.32%**（n=298。M-77）。差は**辞書の枝刈り**で、
 `上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
 移植そのものは正確（素性が一致した文でラベル差 0 件）。
-⚠️ **PSRAM は使っていない。** N16R8 には 8 MB あるが **QEMU が octal PSRAM を
-持っていない**ので、作業領域（130,176 B）は**合成用 arena から切り出している**。
-実機で PSRAM を有効にすれば `kj_alloc()` がそちらを優先する。
-⚠️ **速度は測れていない。音も聞いていない。**
+⚠️ **音は聴いていない**（G32）。
+
+### ⚠️ M5 構成では `esp_partition_mmap` で辞書を貼れない — **`esp_mmu_map` を使う**
+
+`boards/m5unified/sdkconfig.defaults` は `CONFIG_SPI_FLASH_ROM_IMPL=y` で、ESP32-S3 では
+`spi_flash_mmap` が **ROM の実装**にリンクされ、IDF はそれに **128 ページ = 8 MB** しか渡さない。
+辞書は `0xD30000 / 64 KB` = **211 ページ**なので、vaddr が余っていても `ESP_ERR_NO_MEM` になる。
+`saan_dict.c` が `esp_mmu_map`（`esp_mm`。ROM 実装と無関係）へ切り替えて解決した — 実機では
+**PSRAM 8 MB と同居して連続 vaddr 23,724,032 B が空いていた**（M-90）。
+
+⚠️ **QEMU では PSRAM が使えない**（octal PSRAM を持っていない）ので、QEMU 向けのビルドでは
+漢字経路の作業領域を**合成用 arena から切り出す**。実機の M5 構成では Open JTalk の一時ヒープが
+PSRAM に落ちる（component の `-include saan_oj_alloc.h`）ので、**内部 DRAM は 1 発話で 3 KB しか減らない**
+（起動直後 132,039 B → 1 発話後 129,155 B。M-90）。
 
 ---
 
@@ -220,7 +267,7 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 ### 1. 重みは flash に置き、SRAM にコピーしない
 
 `esp_partition_mmap()` で `model` パーティションを読む。blob は 654,032 B
-（int8）〜 2,249,792 B（fp32）で、512 KB の SRAM には入らない。
+（int8 v2）〜 2,249,792 B（fp32）で、512 KB の SRAM には入らない。
 コアは blob を書き換えないので read-only で足りる。
 
 置き場は 2 つあり、`saan_model.h` の `saan_model_open()` の実装を CMake で切り替える:
@@ -230,15 +277,21 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 | 置き場 | `model` パーティションを `esp_partition_mmap` | `scripts/blob_to_header.py` が `const uint8_t[]`（aligned(16)）にして app の `.rodata` |
 | app サイズ（W8A8+PIE / QEMU 構成） | 285,440 B | **928,832 B**（blob ぶん増える） |
 | モデルだけの差し替え | できる（`model` だけ焼き直す） | **できない**（app ごと再ビルド） |
-| いつ使うか | DevKit | **PSRAM を有効にした板**。CoreS3 では `CONFIG_SPIRAM=y` だと mmap が `ESP_ERR_NO_MEM` で落ちた（第三者の実機報告。未再現） |
+| いつ使うか | DevKit | **`boards/m5unified/`（M5Stack）**。この表には `model` パーティション自体が無い |
 
 どちらも QEMU で同じ checksum を出す（A-2 時点で `0x04de91103a0e49f9`。S3 以降は `0xa69a7ebbb5ccb05f`。起動直後の内部 DRAM free も 72.8 KB で同じ）。
 fp32 blob は `blob_to_header.py` が**ビルド時に拒否する**（回帰: `scripts/test_blob_to_header.py`）。
 
+⚠️ **かつてここに「CoreS3 では `CONFIG_SPIRAM=y` だと mmap が `ESP_ERR_NO_MEM` で落ちた（第三者報告・未再現）」
+と書いていたが、原因は PSRAM ではなかった**（M-90）。`CONFIG_SPI_FLASH_ROM_IMPL=y` のとき
+`spi_flash_mmap` が ROM 実装になり、IDF が渡すプールが **128 ページ = 8 MB** しか無いのが理由で、
+`esp_mmu_map` を使えば PSRAM 有効のまま 13.7 MB の辞書も貼れた（上の「漢字対応ビルド」）。
+**重みを `.rodata` に置くという M5 側の判断自体は変えていない。**
+
 ### 2. `EMBED_FILES` を使わない — **アライメントが無保証**
 
 ⚠️ **以下は ESP-IDF の公式 cmake を読んで得た事実。** v5.5 は手元にあるので
-ソースは確認できるが、**mmap の実挙動は実機でしか確かめられない**。
+ソースは確認できた。**mmap の実挙動のほうは実機で確かめた**（下記）。
 
 `idf_component_register(EMBED_FILES ...)` は `target_add_binary_data()` を
 **ALIGN 引数なしで**呼び、`data_file_embed_asm.cmake` は `DATA_ALIGNMENT` が
@@ -253,51 +306,63 @@ fp32 blob は `blob_to_header.py` が**ビルド時に拒否する**（回帰: `
 パーティションなら `esp_partition_mmap()` が 64 KB 境界（MMU ページ）に丸めて
 マップするので、`partitions.csv` で offset を 64 KB 境界に置けば 16 バイト境界も
 自動的に満たす（将来 PIE を使うときの `SOC_SIMD_PREFERRED_DATA_ALIGNMENT` = 16 も
-これで足りる）。⚠️ **この丸めの挙動も IDF ソース由来で、この環境では未確認。**
-だから `saan_model.c` は横着せず**実行時に 16 バイト境界を検査して落とす**。
-`saan_model.c` は取得直後に **16 バイト境界を検査して落とす**。
+これで足りる）。✅ **丸めの挙動は実機で確認できた** — CoreS3 の DevKit 構成で
+`重み OK: 183 tensors / base 0x…` が出て合成まで通った（M-83 / M-86）。
+それでも `saan_model.c` は横着せず**取得直後に 16 バイト境界を検査して落とす**。
+
+⚠️ **ただし `esp_partition_mmap` にはもう 1 つ落とし穴がある** — `CONFIG_SPI_FLASH_ROM_IMPL=y`
+の板では ROM 実装が使われ、IDF が渡すプールが **128 ページ = 8 MB** しか無い。
+13.7 MB の辞書はここで落ちるので `saan_dict.c` は `esp_mmu_map` を使う（M-90。
+上の「漢字対応ビルド」）。**重みの 654,032 B はこの上限に当たらない。**
 
 どうしても埋め込みたいなら、トップの `CMakeLists.txt` で
 `target_add_binary_data(${project_name}.elf "../csrc/student.bin" BINARY ALIGN 16)`
 と **ALIGN を明示**すること。
 
-### 3. arena は 208 KB を `.bss` に静的確保する
+### 3. arena は 176 KB を `.bss` に静的確保する
 
 ⚠️ **`saan_stream_arena_needed()` の戻り値を使ってはいけない。**
-n_ids=350 に対し **340,016 B (332 KB)** を返す緩い上限で、512 KB の SRAM の
-65% を占めてしまう。
+n_ids=350 に対し **302,816 B (295.7 KB)** を返す緩い上限で、実測の **1.88 倍**ある。
 
-⚠️ **CLAUDE.md / M-42 の「197 KB」もそのまま確保量にしてはいけない。**
-あれは高水位（`st.peak_used` = 197,424 B）で、**init が通る最小 arena は
-197,632 B**。ALIGN16 の切り上げと確保順の差でわずかに上回る。
+⚠️ **高水位（`st.peak_used`）もそのまま確保量にしてはいけない。**
+n_ids=350 で使うのは 160,224 B だが、**init が通る最小 arena は 160,768 B**。
+ALIGN16 の切り上げと確保順の差でわずかに上回る。
 
-208 KB (212,992 B) の根拠は**実測**（`make -C csrc arena`、ホスト）:
+176 KB (180,224 B) の根拠は**実測**（`make -C csrc arena`、ホスト。2026-09-03）:
 
 | 項目 | 値 |
 |---|---:|
-| `saan_stream_arena_needed(350)`（緩い上限） | 340,016 B |
-| n_ids=350 で init も pull も通る最小 arena | **197,632 B** |
-| 208 KB で通る最大 n_ids | **520** |
-| n_ids ≥ 560 | `SAAN_ERR_ARENA` で**きれいに失敗** |
-| n_ids 1〜1000（23 点）でのクラッシュ | **0 件** |
+| `saan_stream_arena_needed(350)`（緩い上限） | 302,816 B |
+| n_ids=350 で init も pull も通る最小 arena | **160,768 B** |
+| 176 KB で通った最大 n_ids | **450** |
+| 最初に clean fail した n_ids | **496**（`SAAN_ERR_ARENA`。1000 まで**クラッシュ 0 件**） |
+| 実機の used / peak（53 ids・M5 構成） | **157,360 B**（M-89） |
 
-設計上限は 350 ids（D-017 の `max_spec_length=700` 相当）なので 15,360 B の余裕。
+設計上限は 350 ids（D-017 の `max_spec_length=700` 相当）なので 19,456 B の余裕。
+
+⚠️ **かつては 208 KB (212,992 B) だった。** T2（S9 = 捨てる出力を計算しない）と
+T4（`cdel` 6 本をリング 1 本に / iSTFT の `re`・`im`・`frm` を `w_e` と共用）で
+a.used が 177,536 → 160,224 B（350 ids・ホスト）になったので下げた。
+実機では**内部 DRAM の空きが 99,987 → 136,407 B**（最大ブロック 55,296 → 90,112 B）になり、
+**漢字経路の作業領域 144,640 B を載せてもまだ 35,584 B 残る**（M-89。
+`check_esp32_template.sh` のゲート 10 が静的に検査する）。
+⚠️ **漢字ビルドだけ 204 KB に落としていた分岐は消えた**（176 KB ならその差が要らない）。
 
 ### 4. `saan_stream_init` の欠陥（**修正済み**）に対する二重防御
 
-✅ **この欠陥は `saan_arena` の粘着フラグで修正済み**（`csrc/saanotts.c:82`）。
+✅ **この欠陥は `saan_arena` の粘着フラグで修正済み**（`csrc/saanotts.c`）。
 `make -C csrc arena` は「**init が SAAN_OK を返した後に落ちた サイズ: 0 / 111 点**」で
 通る。以下は**なぜその修正が要ったか**の記録として残す。
 
 `saan_alloc` は失敗しても `used` を進めずに NULL を返す。`saan_stream_init` は
-確保を約 25 回するのに**各グループの最後の 1 個しか NULL 検査していない**。
+確保を約 25 回するのに**各グループの最後の 1 個しか NULL 検査していなかった**。
 そのため「大きい確保（`o1539` 49,248 B など）だけ失敗し、後続の小さい確保は成功」
 が起きると、**init が `SAAN_OK` を返したまま壊れた状態**になり、後で
-`saan_stream_pull` の中で NULL 書き込みになる。手元では SEGV、ESP32 では
+`saan_stream_pull` の中で NULL 書き込みになった。手元では SEGV、ESP32 では
 **StoreProhibited パニック = ログも出さずに再起動**。
 
-実測（`make -C csrc arena`）: n_ids=350 / arena 150〜260 KB を 1 KB 刻みで
-走らせると、**175〜191 KB の 15 サイズでクラッシュ**する。
+当時の実測（`make -C csrc arena`）: n_ids=350 / arena 150〜260 KB を 1 KB 刻みで
+走らせると、**175〜191 KB の 15 サイズでクラッシュ**した。
 180 / 186 / 192 KB はたまたま clean fail するので、**刻みが粗いと見逃す**。
 
 実際に入れた修正（**1 箇所で済んだ**）— `saan_arena` に粘着フラグを足す:
@@ -318,18 +383,21 @@ void *saan_alloc(saan_arena *a, size_t n) {
 
 これで各グループ末尾の既存の NULL 検査が正しく効くようになる。
 
-**雛形側の二重防御**（`main.c`）: init が `SAAN_OK` を返した後に `a.used` を検査する。
+**アプリ側の二重防御**（`main.c`）: init が `SAAN_OK` を返した後に `a.used` を、
+**コアが計算する期待値 `saan_stream_arena_used(n_ids)`** と突き合わせる。
 
-| 状態 | `a.used`（実測） |
-|---|---:|
-| 正しく init できた | 194,640 B (n_ids=1) 〜 198,768 B (n_ids=520) |
-| 黙って確保に失敗 | 178,992 / 185,136 / **191,280** B |
+⚠️ **かつてここは定数だった**（`SAAN_ARENA_USED_FLOOR = 192,960 B` = ホストで測った
+「正しい a.used の最小 194,640 と黙って失敗した最大 191,280 の中点」）。**定数は移植できない。**
+T2 で a.used が 16,512 B 下がって据え置けず、ホストで測り直した 180,064 B を置いたら
+**QEMU が「a.used が 179,296 B しかない」と言って拒否した**（2026-09-03）。差 768 B は
+`sizeof(struct saan_stream_impl)` のポインタ幅（ホスト 64 bit / Xtensa 32 bit）。
+**ホストで測った定数はターゲットの a.used と一致しない。** 各ターゲットが自分の
+`sizeof` から計算する関数にして解決した。ホスト側は `make -C csrc arena` の §5 が
+「関数の値 == 実測 a.used」を**陽性対照つき**（期待値を ±16 B ずらすと NG）で守る。
 
-閾値は `SAAN_ARENA_USED_FLOOR = 192,960 B`（中点）。誤検知も見逃しも無い。
-⚠️ **コアの確保順が変わったら `make -C csrc arena` で測り直すこと。**
-
-⚠️ arena を 208 KB にしていれば**クラッシュ帯 175〜191 KB には入らない**ので、
-この防御は保険。それでも欠陥自体は直すべき。
+⚠️ **上の「クラッシュ帯 175〜191 KB」は当時の確保順の話で、いまの 176 KB とは無関係**
+（現行コードは 111 点すべてで silent-fail 0）。**コアの確保順が変わったら
+`make -C csrc arena` で測り直すこと。**
 
 ### 5. タスクスタックは 16 KB を明示する
 
@@ -346,32 +414,40 @@ arm64 / clang -O2 での実フレームは **4,224 B**（`sub sp,sp,#0x1000` + `
 **`static` にしてスタックから外してある**。M-42 が arena だけ見て 200 KB を
 切っていたのと同じ間違いを、今度は FreeRTOS のタスクスタックで繰り返さないこと。
 
-⚠️ 16 KB が適切かは**未測定**。実機で `uxTaskGetStackHighWaterMark` を見て詰める
-（`main.c` が終了時にログへ出す）。
+✅ **実機で測れた**: M5 CoreS3 の漢字ビルドで `タスクスタック残り 10,996 B（16,384 B 中）`
+= **使ったのは 5,388 B**（M-90 の生ログ `reports/m90_cores3/device_m5_kanji.log`）。
+16 KB は余っているが、**この値は漢字経路を通した後の高水位**なので、
+詰めるなら自分の構成でこの行を見てから決めること。
 
 ### 6. 鳴らし始める前にプリロールする
 
-**最初の `saan_stream_pull` だけ定常の約 6 倍かかる**
-（ホスト実測 n_ids=350 で 12.21 ms vs 2.04 ms、比 6.0。CoreS3 の報告値も 766 ms vs 144 ms）。
+**最初の `saan_stream_pull` だけ定常の約 6 倍かかる。**
 受容野 36 + iSTFT 2 = 38 フレームの warmup で内部の `step_chunk` が複数回走るため。
 
+| | 初回 pull | 満チャンク pull | 比 |
+|---|---:|---:|---:|
+| ホスト（n_ids=350。`make -C csrc arena` §4、2026-09-03） | 9.78 ms | 1.52 ms | 6.4 |
+| **実機 CoreS3**（53 ids・M5 の漢字ビルド。M-90 の生ログ） | **244.65 ms** | **41.47 ms** | 5.9 |
+
 鳴らし始めた直後から合成を始めると、その 1 回ぶんが確実にアンダーランになる。
-`saan_audio_preroll_push()` で 4 チャンク（371 ms・16 KB）先に計算してから
-`saan_audio_start()` を呼ぶ。
+`saan_audio_preroll_push()` で 4 チャンク（`SAAN_AUDIO_PREROLL_SAMPLES` = 8,192 sample
+= 371 ms の音声・16 KB）先に計算してから `saan_audio_start()` を呼ぶ。
+実機ではこれで **鳴らし始めまで 384 ms / アンダーラン 0**（M-90）。
 
 音声出力は `main/saan_audio.h` の抽象 API で、実装は 2 つ（`saan_i2s.c` = DevKit の
 I2S 直叩き / `boards/m5unified/main/saan_audio_m5.cpp` = M5.Speaker）。
 float → int16 と checksum は **`saan_pcm.c` が唯一の実装**で、どちらもそれを呼ぶ。
 
-### 7. `-std=c99` を component に足さない
+### 7. `-std=c99` は component に足さなくてよい（**もう地雷ではない**）
 
-newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、
-`csrc/saanotts.c:412` と `csrc/saanotts_stream.c:398` が `M_PI` を無条件に使う
-（Hann 窓の生成）。IDF 既定の **gnu17 のまま**にする。
+newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、実際に
+`xtensa-esp32s3-elf-gcc -std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた（M-54）。
+**macOS の libc では `-std=c99` でも `M_PI` が見えるので手元では再現しない**種類の失敗で、
+**クロスコンパイルするまで一度も検出されなかった。**
 
-⚠️ `csrc/Makefile` が `-std=c99` なのを見て IDF 側にも写す、という自然な操作が
-地雷になる。**macOS の libc では `-std=c99` でも `M_PI` が見えるので手元では
-再現しない**種類の失敗。
+✅ **`csrc/saanotts_internal.h` で `M_PI` を定義して解決済み**なので、厳密 `-std=c99` でも
+5 ファイルすべてコンパイルが通る（実測。CI の Linux job がこれを毎回踏む）。
+IDF 既定の **gnu17 のまま**にしてあるが、足しても壊れない。
 
 同じ理由で `SAAN_FFT_DOUBLE` と `SAAN_USE_NAIVE_DFT` は**定義しない**
 （S3 の FPU は単精度のみ。naive DFT は double の `cos`/`sin` を使うが、
@@ -400,99 +476,117 @@ newlib の `M_PI` は `__STRICT_ANSI__` の下で隠れることがあり、
 | # | 見るもの | ログ行 | 判断 |
 |---|---|---|---|
 | 1 | 起動するか | `重み OK: N tensors` | ここで止まるなら partition / アライメント |
-| 2 | **アンダーラン** | `アンダーラン N / M チャンク` | **0 でないのが想定どおり**（下記） |
-| 3 | **定常 xRT** | `定常 xRT = X` | **1.0 を超えたら実時間に間に合っていない** |
-| 4 | 初回 pull と定常 pull の比 | `初回 pull ... / 2 回目以降 mean ...` | ホストでは 6.0 倍。プリロール量の根拠 |
-| 5 | **内部 DRAM の残り** | `終了時: 内部 DRAM free ...` | 208 KB の arena を引いた後どれだけ残るか |
-| 6 | タスクスタックの残り | `タスクスタック残り N B` | 16 KB を詰められるか |
-| 7 | int16 クリップ | `int16 クリップ N sample` | 0 でないなら出力が飽和している |
-| 8 | 実サンプルレート | ログに出ない | **オシロか長時間録音で測る**（S3 に APLL 無し） |
+| 2 | 入力がどちらの経路に行ったか | `経路: かな` / `経路: 辞書` | 読み違いを見たとき「辞書が悪いのか判定が悪いのか」の切り分けに要る |
+| 3 | **アンダーラン** | `アンダーラン N / M チャンク` | **0 が期待値**（M-88 以降。それ以前は末尾 pull で 1 出ていた） |
+| 4 | **満チャンク pull の xRT** | `定常 xRT = X（満チャンク pull の中央値 / 92.88 ms）` | 要件は **≤ 0.5**。CoreS3 の実測は **0.446**（M-90） |
+| 5 | **発話全体の比** | `合成合計 ... / 音声 ... → 合成/音声 X` | **定義に依らない量。版どうしを比べるならこれ**（xRT の定義は T1 で変わった = C-054） |
+| 6 | 初回 pull と満チャンク pull の比 | `初回 pull ... / 満チャンク pull（…）: 中央値 ...` | 実機で 5.9 倍。プリロール量の根拠 |
+| 7 | **内部 DRAM の残り** | `起動直後: 内部 DRAM free ... / 最大ブロック ...` | 176 KB の arena を引いた後どれだけ残るか（M5 の漢字ビルドで 132,039 B） |
+| 8 | タスクスタックの残り | `タスクスタック残り N B` | 実機で 10,996 / 16,384 B |
+| 9 | int16 クリップ | `int16 クリップ N sample` | 0 でないなら出力が飽和している |
+| 10 | **PCM の checksum** | `出力 PCM: 27136 sample / FNV-1a 0x...` | 期待値は `TESTING.md`。**これが一致して初めて「移植できた」** |
+| 11 | 実サンプルレート | ログに出ない | ❌ **未測定**。オシロか長時間録音で測る（S3 に APLL 無し） |
 
-### ⚠️ 「雛形が動いた」＝「実時間で喋れた」ではない
+⚠️ **速度の報告は `SAAN_PROFILE=0` のビルドで。** 計測自体にコストがある。
+内訳を見るときだけ `-DSAAN_PROFILE=1` を付け、**前の版の表と 1 行ずつ並べる**（C-055）。
 
-M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp32 は
-**2.47 × RT**。1 チャンク（音声 92.88 ms）の計算に約 229 ms かかる勘定になる。
-**DMA を何段積んでもスループット不足は埋まらない。**
+### ⚠️ 実時間には間に合った。ただし「良い音で」ではない
 
-つまり **アンダーランが出るのが期待値**で、この雛形の役目は
-「それを正しく観測してログに出すこと」。実時間化には **int8 + PIE** が要る、
-というのが M-43 の結論であり c'-3 の課題。
+M-43 の外挿（移植可能 C / fp32 で 2.47 × RT）は**どちらの向きにも外れていた。**
+実機の W8A32（PIE 無し）は **4.28〜4.62**（M-83。DIO の漢字ビルド）で外挿より**遅く**、
+W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）→ T1〜T5 と S5b を入れて
+**0.446**（M-90）と外挿より**速い**。**差は積和ではなく、量子化のソフト除算 / GELU の `erff` /
+テンソル検索 / 重みのコピー**だった（M-80 / M-85）。
+⚠️ **xRT の定義は途中で変わっている**（M-82 / M-84 は末尾 pull 込みの平均、M-87 以降は
+満チャンク pull の中央値 = C-054）。**並べるときは「合成合計 / 音声長」を見ること。**
+
+⚠️ **「実時間に間に合った」は「ちゃんと喋れている」ではない。**
+アンダーラン 0 は「pull の計算時間 < 音声長」を数えているだけで、
+**M5.Speaker の DMA の実挙動も、音そのものも別の話**。聴取（G32）は誰もやっていない。
 
 ---
 
-## 入力経路と、まだやっていないこと
+## 入力経路
 
-### 端末側 G2P は**入った**（が、実機では動かしていない）
+### 経路は端末が決める（**`!` は要らない**）
 
-`csrc/g2p.c` + `csrc/g2p_table.h`（自動生成）。`main.c` は
+`saan_g2p_classify()`（`csrc/g2p.c`）が 1 行を 3 値に分ける:
+
+| 判定 | 条件 | どうなるか |
+|---|---|---|
+| **かな** | 凍結テーブルのトークナイザが行末まで通る | `saan_g2p()` → 合成 |
+| **辞書** | 通らず、中間表現のマーク（`[ ] # ° _ ^ $ ? ?! ?. ?~`）も無い | `SAAN_KANJI` ビルドなら端末で形態素解析（K-7）。無いビルドは**喋らずに理由を出す** |
+| **拒否** | 通らないのにマークが混じっている | **喋らない**。位置と文字を出す |
+
+⚠️ **判定は手書きの文字集合ではない** — 「トークナイザが通るか」そのもの。
+ホスト側 `scripts/kana_g2p.py` の `classify_route()` と同じ規則で、一致は
+`uv run python scripts/k1/kb_route_parity.py`（held-out 298 文 + その中間表現 298 行）が測る。
+**片方だけ直すとそこが落ちる。**
+⚠️ 「中間表現 + `。`」を黙って辞書経路に回すと**それらしい音が出てしまう**ので、拒否は残してある。
+ℹ️ `!` を前置すると辞書経路に**強制**できる（試験用に残してある）。
+
+### 端末側 G2P（かな）
+
+`csrc/g2p.c` + `csrc/g2p_table.h`（自動生成、877 B）。`main.c` は起動時に
 `SAAN_DEMO_INTERMEDIATE`（かな中間表現 44 B）を `saan_g2p()` に通し、
-**その出力を合成に使う**。`kSaanDemoIds` は入力ではなく**答え合わせの錨**で、
-食い違ったら合成せずに `ESP_LOGE` で止まる。
+`kSaanDemoIds` の錨と照合する（**入力ではなく答え合わせ**。食い違ったら `ESP_LOGE` で止まる）。
 
-⚠️ **手元で確かめたのはホスト stub までで、実機では 1 度も走らせていない。**
-ホストでは以下を確認した:
+- `make -C csrc g2p` — Python (`scripts/kana_g2p.py`) と **ids が整数として完全一致**
+  （自己完結ベクタ 2,789 件）。`make -C csrc g2p-corpus` ではコーパス全行込みで **26,235 / 26,235**
+- ホスト stub で 53 ids が錨と一致し、合成結果が C 一括版と **bit 完全一致**
+- 錨を 1 要素、中間表現を 1 文字だけ変えると**どちらも exit 1 で落ちる**
 
-* `make -C csrc g2p` — Python (`scripts/kana_g2p.py`) と **ids が整数として完全一致**
-  （自己完結ベクタ 2,789 件）。`make -C csrc g2p-corpus` ではコーパス全行込みで
-  **26,235 / 26,235**
-* ホスト stub で `saan_g2p()` の 53 ids が `demo_ids.h` の錨と一致し、
-  合成結果が C 一括版と **bit 完全一致**
-* 錨を 1 要素、中間表現を 1 文字だけ変えると**どちらも exit 1 で落ちる**ことを確認
-
-⚠️ **実機のレイテンシは未測定。** 手元（M4 Max / arm64 clang -O2）の定常値は
-**44 B → 53 ids で 0.34〜0.54 us、450 B → 543 ids で 4.7 us**（20 万回ループ・
-結果を volatile に足して最適化除去を防いだ値、2 回実行のばらつき込み）。
+✅ **実機のレイテンシも測れた**: CoreS3 で **44 B → 53 ids が 0.102 ms**
+（M-90 の生ログ `reports/m90_cores3/device_m5_kanji.log` の `G2P:` 行）。
 合成 1 チャンク（92.88 ms の音声）に対して**無視できる**。
-⚠️ ホスト stub のログに出る `0.05 ms` は**冷えた 1 回目**で、定常値ではない。
-⚠️ ESP32-S3 の値ではない。
+参考: 手元（M4 Max / arm64 clang -O2）の定常値は 44 B → 53 ids で 0.34〜0.54 us。
 
-⚠️ **既定のビルドでは漢字を端末で扱わない**（D-010 / D-011）。中間表現を作るのは
-ホスト側（OpenJTalk）。**任意の文からは `scripts/to_intermediate.py` が作る**
-（`gen_demo_ids.py` は錨 1 件専用）。
+### 端末側 G2P（漢字。`-DSAAN_KANJI=1`）
 
-✅ **漢字対応ビルドもある**（K-7 / M-76。下の「漢字対応ビルド」節）。
-`idf.py -DSAAN_KANJI=1` で有効になり、`!` を前置した行を漢字かな交じり文として
-端末側で解析する。**既定は無効**（16 MB flash と 12 MB の辞書が要るため）。
+✅ **実機で動いた**（M-83 / M-86 / M-90）。CoreS3 で **33 B が 25.69〜27.85 ms、84 B が 63.45〜66.30 ms**
+（音声長の 1.7〜2.3%。⚠️ 計画の目安「1% 未満」には届いていない = G28）。
+⚠️ **PIE の有無に関係しない**（G2P は CPU 律速で MAC を含まない。M-86）。
+⚠️ **辞書が無いビルドでは喋らない** — 黙ってかな経路に流し込むと読めない文字が落ちる。
 
 ### シリアルからの自由入力（M-63 / D-040）
 
 **起動しても勝手には喋らない。** 錨との照合だけして `かな> ` プロンプトを出し、
-**かな中間表現を 1 行**受けて合成する（`-DSAAN_BOOT_SPEAK=1` で起動時に 1 回喋る）。
+1 行受けて合成する（`-DSAAN_BOOT_SPEAK=1` で起動時に 1 回喋る。M5 構成は既定で有効）。
 
 ```
-かな> こんにちわ
 かな> きょ][おわよ][いて][んきです°ね     ← 突き合わせ用の基準の 1 行
+かな> 今日は良い天気ですね。               ← 漢字ビルドなら同じ PCM が出る（M-90）
 ```
 
 - 行編集は `csrc/line.c`（369 B）。**UTF-8 対応の BS / CRLF / ESC の吸い込み / 溢れ検出**。
   ⚠️ **矢印キーの ESC [ A の `[` は中間表現では上昇アクセント。** 吸わないと
   カーソルを動かしただけで**エラーも出さずに抑揚が変わる**
-- 入出力は `esp32/main/saan_console.c`。**コンソールが UART0 でも
-  USB Serial/JTAG でも動く**（`esp32/sdkconfig.usb_serial_jtag` で切り替え）
-- 漢字・カタカナ・句読点は**位置と文字を出して拒否**する。端末では黙って落とさない
-- 上限は **350 ids**（arena の限界 520 ではなく学習分布の上限。D-040）。
+- 入出力は `esp32/main/saan_console.c`。**UART0 でも USB Serial/JTAG でも動く**
+  （`esp32/sdkconfig.usb_serial_jtag` で切り替え。⚠️ `rm -f sdkconfig` を忘れると黙って無視される）
+- 上限は **350 ids**（arena の限界ではなく学習分布の上限。D-040）。
   511 B 超・350 ids 超は**切り詰めず行ごと拒否**
-
-⚠️ **QEMU では通ったが、実機の UART では 1 度も試していない。**
-「本当に 1 バイトずつ取れるか」「端末上のエコーの見た目」は QEMU では判定できない。
+- ✅ **実機の USB Serial/JTAG で通した**（M-83 以降）。⚠️ **DevKit の UART0 では未**
+- ⚠️ **300 B 級の 1 行を一度に貼ると途中で欠ける** — 行バッファではなく
+  USB Serial/JTAG ドライバの RX リング（既定 256 B）が溢れる。64 B ずつ 30 ms 間隔なら通る（M-84 §5）
 
 ⚠️ **この経路で 2 回、音では気づけない欠陥を出した**（M-63 の §3）。
 どちらも状態機械ではなく**呼び出し側**の読み違いだったので、
 「エコーすべきか」を状態機械が返すよう API を変え、`make -C csrc line` の
 **G9 / G10** で固定した。
 
-### そのほか
+### まだやっていないこと
 
-- ~~**PIE (SIMD) カーネル**~~ — ✅ **入った**（M-57 / M-58 / M-62）。
-  `idf.py -DSAAN_ENABLE_PIE=1 build` で有効（既定は無効）。
-  ⚠️ **速度は未測定**／**出荷構成にするかは未決**
-- **`saan_tf` のポインタ解決** — コアは毎チャンク `saan_tf()` を多数回呼び、
-  1 回ごとに `vsnprintf` + 183 エントリの線形 `strncmp`（ヘッダ 19,048 B）を走る。
-  ホストの 0.022 × RT にはこのコストが既に含まれているが、ESP32 では 64 KB の
-  D-cache を重みと奪い合う。**実機で遅かったときの改修の第一候補**
-  （init 時に一度だけ解決して構造体に持つ）。⚠️ 未検証
+- ~~**PIE (SIMD) カーネル**~~ — ✅ **入り、既定になった**（M-57 / M-58 / M-62 / **D-048**）。
+  ESP32-S3 ではフラグ無しで W8A8 + PIE。実機で **0.446× RT**（M-90）
+- ~~**`saan_tf` のポインタ解決**~~ — ✅ **消した**（S1）。init 時に一度だけ解決して
+  構造体に持つ形になり、`make -C csrc prof --expect-no-lookup` が
+  「pull の中でテンソル検索 0 回」をゲートにしている
+- **実サンプルレートの誤差** — ❌ **未測定**（S3 に APLL が無い）
+- **DevKit の I2S 直叩き（`saan_i2s.c`）** — ❌ **実機で 1 度も鳴らしていない**。
+  鳴らせたのは M5.Speaker 経由だけ（M-90）
 - **GPIO 配線** — `saan_i2s.c` の `SAAN_I2S_GPIO_*` は**根拠のない仮置き**。
   自分のボードに合わせて変えること
+- **聴取（G32）** — ❌ **未。人が要る**
 
 ---
 
@@ -500,49 +594,58 @@ M-43 の外挿（実測 η_host = 0.364 を転移）では、移植可能 C / fp
 
 | パス | 役割 |
 |---|---|
-| `CMakeLists.txt` | トップ。`model` パーティションへの blob 焼き込みもここ |
+| `CMakeLists.txt` | トップ。`model` パーティションへの blob 焼き込みと、`-DSAAN_QEMU=1` のときの `sdkconfig.qemu` 重ねもここ |
 | `partitions.csv` | カスタムパーティション表（8 MB。既定では blob が入らない） |
 | `partitions_16mb.csv` | **漢字対応版**（16 MB。`dict` 13,828,096 B = D-042 の予算） |
-| `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション |
+| `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション / **QIO** / **D-cache 64 B 行** |
+| `sdkconfig.qemu` | **QEMU 用の上書き**（flash を DIO に戻す。QEMU は QIO を受け付けない。M-86） |
 | `sdkconfig.kanji` | 漢字対応ビルドの上書き（16 MB flash + 表の差し替え） |
-| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
-| `main/main.c` | arena・プリロール・合成ループ・計測ログ・タッチ再生・`SAAN_BUFFERED`・`SAAN_PROFILE` の表 |
+| `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
+| `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。**S3 なら PIE を既定で有効**（D-048）。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
+| `components/saanotts_core/saan_port_esp32.h` | 配置の注入点（`SAAN_HOT_DATA` → `DRAM_ATTR` など。erf 表を内部 DRAM に載せる） |
+| `components/saanotts_core/saan_oj_alloc.{h,c}` | 取り込んだ Open JTalk の一時ヒープを **PSRAM** に向ける（`-include`。ソースは 1 バイトも変えない） |
+| `main/main.c` | arena・プリロール・合成ループ・計測ログ・経路の自動判定・タッチ再生・`SAAN_BUFFERED`・`SAAN_PROFILE` の表 |
 | `main/saan_model.h` | `saan_model_open()` の宣言。実装は 2 つ（下） |
 | `main/saan_model.c` | 実装 1: flash の `model` パーティションを mmap（16 バイト境界を検査） |
 | `main/saan_model_rodata.c` | 実装 2: `.rodata` に埋めた blob（`-DSAAN_MODEL_RODATA=1`。`cmake/saan_model_rodata.cmake` がヘッダを生成） |
 | `main/saan_audio.h` | 音声出力の抽象 API（7 関数）。実装は `saan_i2s.c`（DevKit）と `boards/m5unified/main/saan_audio_m5.cpp` |
-| `main/saan_i2s.c` | `saan_audio.h` の I2S 直叩き実装 |
+| `main/saan_i2s.c` | `saan_audio.h` の I2S 直叩き実装。⚠️ **実機で鳴らしたことが無い** |
 | `main/saan_pcm.{h,c}` | float→int16 と FNV-1a / \|max\| / Σx²（**唯一の実装**） |
 | `main/saan_ui.h` / `saan_ui_null.c` | 画面の抽象 API と「何もしない」実装（M5 実装は `boards/m5unified/main/saan_ui_m5.cpp`） |
 | `main/saan_console.{h,c}` | シリアルからの 1 行入力（UART0 / USB Serial/JTAG）。poll + タッチ |
-| `cmake/saan_model_rodata.cmake` | blob → `const uint8_t[]` ヘッダの生成（DevKit と boards で共有） |
-| **`boards/m5unified/`** | **M5Stack 向けプロジェクト**（CoreS3 / Core2。`README.md` を読む） |
-| `main/saan_dict.{h,c}` | **K-7: `dict` パーティションの mmap**（64 KB 境界を検査） |
+| `main/saan_dict.{h,c}` | **K-7: `dict` パーティションを貼る。** `CONFIG_SPI_FLASH_ROM_IMPL=y` の板では `esp_partition_mmap` が 8 MB しか貼れないので **`esp_mmu_map`** に切り替える（M-90） |
 | `main/saan_kanji.{h,c}` | **K-7: 漢字文 → 生徒インデックス**（端末の全段） |
-| `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
+| `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
+| `cmake/saan_model_rodata.cmake` | blob → `const uint8_t[]` ヘッダの生成（DevKit と boards で共有） |
+| **`boards/m5unified/`** | **M5Stack 向けプロジェクト**（CoreS3 / Core2。`README.md` を読む）。**漢字辞書も載る** |
+| `pie_probe/` | PIE の前提検証（A〜C）と実機マイクロベンチ（D / E）。`README.md` を読む |
+| `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
+| [`TESTING.md`](TESTING.md) | **実機を持っている人向けの手順**（焼き方・打つ 1 行・報告してほしいログ） |
 
 ビルド時のフラグ:
 
 | フラグ | 既定 | 何が変わるか |
 |---|---|---|
-| `-DSAAN_ENABLE_PIE=1` | 無効 | W8A8 + PIE（整数 SIMD）。⚠️ int8 blob が要る |
+| `-DSAAN_ENABLE_PIE=0/1` | **ESP32-S3 では 1**（D-048）。それ以外は 0 | W8A8 + PIE（整数 SIMD）。⚠️ int8 blob が要る。**W8A32 で測るには 0 を明示する** |
 | `-DSAAN_W8A8_NOPIE=1` | 無効 | ⚠️ **陰性対照専用**（W8A8 のままスカラ） |
-| `-DSAAN_QEMU=1` | 無効 | I2S への書き込みだけ外す。⚠️ **音は出ない** |
-| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ 16 MB flash と 12 MB の辞書が要る |
-| `-DSAAN_BOOT_SPEAK=1` | 無効（非対話ビルドでは有効） | 起動時に錨の 1 文を喋る（突き合わせ用） |
-| `-DSAAN_MODEL_RODATA=1` | 無効 | 重みを app の `.rodata` に埋める（PSRAM 有効な板。`model` パーティションを焼かない） |
+| `-DSAAN_QEMU=1` | 無効 | I2S への書き込みを外し、**flash を DIO に戻す**（`sdkconfig.qemu`）。⚠️ **音は出ない** |
+| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ 16 MB flash と辞書 13.7 MB が要る |
+| `-DSAAN_DICT_BLOB=<絶対パス>` | `csrc/k1_dict.bin` | 焼く辞書 blob（`SAAN_KANJI=1` のとき） |
+| `-DSAAN_BOOT_SPEAK=1` | 無効（M5 構成と非対話ビルドでは有効） | 起動時に錨の 1 文を喋る（突き合わせ用） |
+| `-DSAAN_MODEL_RODATA=1` | 無効（**M5 構成では常に有効**） | 重みを app の `.rodata` に埋める（`model` パーティションを焼かない） |
+| `-DSAAN_MODEL_BLOB=<絶対パス>` | `csrc/student_i8.bin` | 焼く / 埋める重み blob |
 | `-DSAAN_BUFFERED=1` | 無効 | 1 発話ぶんを貯めてから鳴らす（途切れない。待ちは合成時間） |
 | `-DSAAN_PROFILE=1` | 無効 | 段別プロファイル（CCOUNT）を発話後に出す。⚠️ **速度の報告には 0 で**（計測にコストがある） |
+| `-DSAAN_OJ_PSRAM=0` | 1（`SAAN_KANJI` のとき） | ⚠️ **陽性対照**。Open JTalk の一時ヒープを素の `calloc` に戻す（内部 DRAM が減るのを見る） |
 | `-DSAAN_ARENA_HEAP=1` | 無効 | arena をヒープ（PSRAM 優先）から取る。ESP32（Core2）向け。⚠️ 遅い |
-| `main/demo_ids.h` | **自動生成**（`scripts/gen_demo_ids.py`）。中間表現 + 錨 ids |
-| `host_stub/` | IDF API の偽ヘッダ + 実装。**デバイスには載らない** |
-| [`TESTING.md`](TESTING.md) | **実機を持っている人向けの手順**（配線・焼き方・報告してほしい 4 行） |
 
 検査スクリプト（リポジトリのルートから）:
 
 ```bash
-bash scripts/check_esp32_template.sh    # 9 ゲート全部
+bash scripts/check_esp32_template.sh    # 10 ゲート全部（§10 = 静的 arena が漢字経路を収めるか）
 uv run python scripts/check_partitions.py
+uv run python scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv --rodata
 cmake -P scripts/check_cmake_syntax.cmake
 make -C csrc arena                       # arena の実測（✅ 通る）
+make -C csrc prof                        # 段別プロファイラ。`--expect-no-lookup` がゲート（S1）
 ```
