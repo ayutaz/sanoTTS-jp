@@ -16,9 +16,10 @@ bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシ
 途切れ 0 回を確認した（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
 [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。
 1 step の内訳を取ると積和ではなく量子化・GELU・テンソル検索・重みのコピーが支配的で（M-80）、
-それを削る **S1〜S5a** と M5Stack 対応を入れた。**手元の CoreS3 で自分で測り直すと定常 xRT 0.926**
-（同じ板の報告値 1.554 から −40%。checksum は QEMU と完全一致。M-82）。⚠️ **ぎりぎりで、要件の 0.5 には未達**。
-実機の内訳では **MAC の 64% が flash 律速の疑い、GELU が 14%**（[現在地](#現在地)）。
+それを削る **S1〜S5a** と M5Stack 対応を入れ、手元の CoreS3 で 1.554（報告値）→ 0.926 になった（M-82）。
+さらに **捨てられる出力を計算しない / token を持ち越す / GELU のコード生成 / 64 B キャッシュ行**を入れ、
+**2026-09-03 に要件を満たした — 満チャンク 1 pull の xRT 0.497、アンダーラン 0、鳴らし始めまで 434 ms**（M-88）。
+**波形は 1 bit も変わっていない**（checksum が M-82 と同一）。⚠️ 発話全体で見ると 0.55〜0.69 でまだ 0.5 を超える。
 
 ## 日本語でやると何が難しいか
 
@@ -39,8 +40,8 @@ bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシ
 |---|---|
 | **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
 | **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
-| **メモリ** | **197 KB** — ESP32-S3 の SRAM 512 KB の 38%。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
-| **速度** | ⚠️ **未達。** W8A8 + PIE の定常 xRT は AtomS3 **1.718**（n=2、I2S 無効）/ CoreS3 **1.558**（内蔵スピーカー・顔あり）。どちらもリアルタイム条件 `< 1.0` を満たさない（[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)）。積和以外を削る **S1〜S5a** を入れ、**手元の CoreS3 で 0.926**（n=3、M-82。⚠️ 要件 0.5 は未達。内訳: MAC 63.9% / GELU 14.0% / TOKEN 11.3%） |
+| **メモリ** | **157 KB**（350 ids で init も pull も通る最小 arena。静的確保は 176 KB）— ESP32-S3 の SRAM 512 KB の 34%。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
+| **速度** | ✅ **要件を満たした。** 手元の CoreS3（W8A8 + PIE）で**満チャンク 1 pull の xRT 0.497**、アンダーラン 0、鳴らし始めまで 434 ms（M-88。3 文とも）。1 step は 18.38 M → **11.72 M cyc**。⚠️ **発話全体で見ると 0.55〜0.69** でまだ 0.5 超（warmup 38 フレーム分）。第三者の報告値は S1 前のもの（AtomS3 **1.718** / CoreS3 **1.558**。[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
 | **実機の音声出力** | CoreS3 の M5Unified 経路で成功。60% を先読みし、発話開始まで **1,781 ms** / 追い越し（途切れ）**0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。同じ構成を [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) として取り込んだ（ビルドまで） |
 | **漢字を端末で読む** | ✅ **CoreS3 で実機確認**（M-83）: `!今日は良い天気ですね。` → 53 ids → checksum が QEMU と一致。漢字 G2P 27.85〜66.30 ms（33〜84 B）。⚠️ 音は未聴取、xRT は W8A32 で 4.3〜4.6（PIE 未有効） |
 

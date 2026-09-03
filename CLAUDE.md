@@ -57,12 +57,22 @@ checksum は M-62 と bit 一致。**独立した 2 件目**（AtomS3、PSRAM �
 重みのコピー（489 KB/step）が MAC と同等以上だった**（M-80）。PIE を磨いても消えない。
 → [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md)（§5 に直す順序 S1〜S8、
 §6 に M5 対応の取り込み案）。内訳は `make -C csrc prof`（ホスト）/ `idf.py -DSAAN_PROFILE=1`（実機・QEMU）。
-**S1〜S5a と M5Unified 対応（`esp32/boards/m5unified/`。A-1〜A-3 / A-5）を入れた**（M-81 / D-046。ブランチ
-`feat/s1-speed-m5`。QEMU の命令数比で 1 step −49%）。**2026-09-02 夜、ユーザーの CoreS3（D-047）で自分で測った（M-82）:
-定常 xRT 1.554（報告値）→ 0.926、checksum は QEMU と完全一致。ぎりぎりでアンダーラン 1/14。**
-**実機の内訳は QEMU と別物**: MAC 63.9%（**1.61 cyc/MAC** = flash 律速の疑い）/ GELU 14.0%（**118 cyc/要素**、異常）/ TOKEN 11.3%。
-**次は M-82 §4 の順**（flash vs SRAM の切り分け → GELU の表を DRAM に → S7 CHUNK 16 → S5b → S6 → D-048）。
-計画は [`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md)。
+**S1〜S5a と M5Unified 対応を入れ**（M-81 / D-046）、CoreS3 で **1.554（報告値）→ 0.926** まで来た（M-82）。
+そこから **S2 計画**（[`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md)）で
+**T1（末尾 pull の早期終了）/ T2（S9 = 捨てる出力を計算しない）/ T3（S6 = token のパイプ化）/ T4（arena の詰め）/
+T5（GELU のコード生成）/ 64 B キャッシュ行**を入れ、**2026-09-03 に要件を満たした**:
+
+| | M-82（9/2） | **M-88（9/3）** |
+|---|---:|---:|
+| 満チャンク 1 pull の xRT | 0.926 | **0.497**（要件 ≤ 0.5 達成） |
+| 1 step | 18,378,513 cyc | **11,724,417 cyc**（−36.2%） |
+| 鳴らし始めまで | 719 ms | **434 ms** |
+| アンダーラン | 1/14 | **0**（3 文とも） |
+| arena（静的確保） | 212,992 B | **180,224 B** |
+
+**checksum は全部 `0xa69a7ebbb5ccb05f` のまま = 波形は 1 bit も変わっていない**（T1〜T4 は bit 同一、T5 は S3 と bit 一致）。
+⚠️ **発話全体で見ると 0.550〜0.693 でまだ 0.5 を超える**（warmup 38 フレームが初回 pull に乗る）。要件の分母は未定（D-049）。
+⚠️ **音は聴いていない。**
 ⚠️ **S3（GELU の erf 近似）で QEMU の基準
 checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**（|max| 9744 → 9627）、
 W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
@@ -228,9 +238,9 @@ G9 / G10 で固定した。
 `|max|` 一致 + `Σx²` 相対差 1.6e-7 で丸め差と切り分ける。
 **bit 一致を主張してよいのは同じターゲット上の 2 構成を比べたときだけ。**
 
-✅ **速度は実機で測った**（M-82。CoreS3 / W8A8+PIE / S1〜S5a 後: **定常 xRT 0.926**、n=3 で決定的）。
-⚠️ 要件 RTF ≤ 0.5 には未達。**QEMU の割合は実機と別物だった**（実機は MAC 63.9%・GELU 14.0%）。速度の判断は
-必ず実機の `-DSAAN_PROFILE=1` の表で行う。
+✅ **速度は要件を満たした**（M-88。CoreS3 / W8A8+PIE / S2 計画 T1〜T5 後: **満チャンク xRT 0.497**、3 文とも）。
+⚠️ **QEMU の割合も命令数も実機の速度を予測しない**（M-80 → M-82、C-055: 命令数が減ったのに GELU が 2 倍遅くなった）。
+速度の判断は必ず**実機の `-DSAAN_PROFILE=1` の表**で行い、**マージ直後に前の版と 1 行ずつ並べる**。
 
 ⚠️ **`uv sync` は piper-plus のクローンを要求する**（`[tool.uv.sources]` が絶対パス）。
 外の人が**重みだけで音を出す / ゲートを回す**経路は別にある（D-041 / M-65。README の
