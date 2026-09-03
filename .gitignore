@@ -138,7 +138,11 @@ csrc/openjtalk/*.o
 csrc/k6_test
 csrc/k6_stderr.log
 csrc/k7_test
+csrc/k7_test_ext
 csrc/k7_stderr.log
+# G25b（T10(a)）の突き合わせ用。⚠️ ids はコーパス由来の派生物なのでコミットしない
+csrc/k7_ids_bss.txt
+csrc/k7_ids_ext.txt
 
 # K-7 のビルド出力
 esp32/build_kanji/

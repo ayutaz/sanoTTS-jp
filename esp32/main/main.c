@@ -648,7 +648,15 @@ static void tts_task(void *arg) {
         ESP_LOGW(TAG, "辞書を開けなかった（または作業領域を取れなかった）。"
                       "**かな入力だけ**で続ける");
     else
-        ESP_LOGI(TAG, "漢字経路の作業領域 %u B", (unsigned)saan_kanji_workbytes());
+        /* ⚠️ **2 つとも出す。** workbytes は「最低限これだけ要る」、
+         *    Viterbi バイト数は「実際に渡る」。T10(a) で固定長の配列を
+         *    arena へ移したぶん後者が減るので、減りすぎ（16 KB 未満で
+         *    SAAN_KANJI_ERR_TOO_LONG）に気づけるようにしておく。 */
+        ESP_LOGI(TAG, "漢字経路の作業領域 %u B（最低限）/ Viterbi に渡る %u B "
+                      "（arena %d B のうち）",
+                 (unsigned)saan_kanji_workbytes(),
+                 (unsigned)saan_kanji_vitbytes(SAAN_ARENA_BYTES),
+                 (int)SAAN_ARENA_BYTES);
     log_heap("辞書 mmap 後");
 #endif
 

@@ -29,8 +29,14 @@ typedef enum {
  * ⚠️ **.bss には置けない**（DRAM が 419 KB 足りない。G19 で実測）。 */
 int saan_kanji_init(void);
 
-/* 確保する作業領域のバイト数（ログ用）。 */
+/* 確保する作業領域のバイト数（**最低限これだけ要る**）。 */
 size_t saan_kanji_workbytes(void);
+
+/* arena が `arena_n` バイトのとき、実際に Viterbi へ渡るバイト数（ログ用）。
+ * ⚠️ **workbytes() と違って「余りも全部渡す」実際の値**。T10(a) で
+ *    固定長の配列を arena へ移したぶんここが減るので、起動ログに出して
+ *    「減りすぎていないか」を人が見られるようにしてある。 */
+size_t saan_kanji_vitbytes(size_t arena_n);
 
 /* 作業領域は呼び出し側が渡す（Viterbi 用。K-2 の arena）。 */
 saan_kanji_status saan_kanji_to_ids(const k1_dict_t *d,

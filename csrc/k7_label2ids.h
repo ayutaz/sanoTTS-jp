@@ -26,6 +26,29 @@ typedef enum {
     K7_ERR_ARG      = -3
 } k7_status;
 
+/* --- トークン表の置き場（T10(a)）---------------------------------------------
+ *
+ * 既定（ホストのゲート）は .bss の静的配列。**ESP32 では
+ * `-DK7_EXTERNAL_SCRATCH=1`** で呼び出し側が領域を渡す
+ * （esp32/main/saan_kanji.c が合成用 arena から切り出す）。
+ * .bss を `K7_SCRATCH_BYTES` = 10,240 B（既定値のとき）減らすため。
+ *
+ * ⚠️ **上限そのものは変わらない**（コンパイル時定数のまま）。渡すのは置き場だけ。
+ * ⚠️ ホスト側のゲートは held-out の長文を通すので `-DK7_MAX_TOKENS=2048` で
+ *    上書きできる。**その場合は .h と .c を同じ値でコンパイルすること**
+ *    （`K7_SCRATCH_BYTES` がずれる）。 */
+#ifndef K7_MAX_TOKENS
+#define K7_MAX_TOKENS 640
+#endif
+#define K7_TOK_MAX 16
+#define K7_SCRATCH_BYTES ((size_t)K7_MAX_TOKENS * (size_t)K7_TOK_MAX)
+
+#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
+/* `nbytes` は K7_SCRATCH_BYTES 以上。足りなければ以後 K7_ERR_ARG を返す
+ * （**黙って短いバッファを使わない**）。buf は 1 発話のあいだ生きていること。 */
+void k7_set_scratch(void *buf, size_t nbytes);
+#endif
+
 /* labels[0..n_labels) と元テキストから ids を作る。
  * `n_ids` には必要な総数が返る（cap を超えても数える）。 */
 k7_status k7_label2ids(const char *const *labels, int n_labels,

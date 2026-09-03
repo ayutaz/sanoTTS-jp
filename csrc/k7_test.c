@@ -106,6 +106,14 @@ static int32_t ids_dev[MAX_IDS], ids_full[MAX_IDS], ids_got[MAX_IDS];
 
 int main(int argc, char **argv) {
     const char *path = (argc > 1) ? argv[1] : "k6_vectors.bin";
+#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
+    /* T10(a) の陽性側: **置き場を外から渡した構成でも同じ列になるか**。
+     * 端末（esp32/main/saan_kanji.c）は合成 arena から切り出して渡す。
+     * ⚠️ ここで渡さないと k7_label2ids は K7_ERR_ARG を返す = 全件落ちる
+     *    （**黙って動かない**のではなく落ちることの確認でもある）。 */
+    static char k7_scratch[K7_SCRATCH_BYTES];
+    k7_set_scratch(k7_scratch, sizeof k7_scratch);
+#endif
     /* --dump-ids <file>: 端末 ids とホスト ids を書き出す（音の測定に渡す）。
      * ⚠️ **本文は書かない。** レポートにコーパス本文を混ぜないため（hook が deny する）。
      * 形式: 1 行 1 文 `<index>\t<dev ids 空白区切り>\t<host ids 空白区切り>` */

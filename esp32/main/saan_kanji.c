@@ -22,9 +22,9 @@
  *    heap から取ろうとしても**空きが 20,964 B しか無い**（どちらも QEMU で実測）。
  *    ⚠️ PSRAM は使えない — **QEMU が octal PSRAM を持っていない**。
  *
- * **大きい 2 つ（feat / k4 ノード）は合成用 arena から切り出す。**
- * G2P と合成は同時に走らないので競合しない。小さい配列（ポインタ表など）だけ
- * .bss に残す（合計 4.6 KB）。
+ * **固定長の配列は全部、合成用 arena から切り出す。**
+ * G2P と合成は同時に走らないので競合しない。.bss に残るのは `s_feat` の
+ * ポインタ表 384 B だけ（2026-09-03 に 14,464 B を arena へ移した = T10(a)）。
  *
  * ⚠️ **Viterbi の作業領域は 32 KB あれば held-out 298 文すべてで足りる**
  *    （16 KB だと 1 文落ちる。ホストで実測）。余裕を見て 48 KB 取る。
@@ -38,35 +38,72 @@
 #define KJ_FEAT_MAX   320
 #define KJ_VITERBI_N  (48u * 1024u)
 
-/* .bss（小さいものだけ） */
-static char s_key[KJ_KEY_MAX];
-static k1_token_t s_tok[KJ_MAX_TOK];
+/* .bss に残すのはポインタ表 1 本だけ（96 × sizeof(char*) = 384 B）。
+ * ⚠️ **s_key / s_tok / s_lab と K-7 のトークン表（合計 14,464 B）は
+ *    2026-09-03 に arena へ移した**（T10(a)）。M5 の内部 DRAM は 341,760 B しか
+ *    無く、arena 204 KB + M5Unified + M5GFX で埋まる。 */
 static char *s_feat[KJ_MAX_TOK];
-static const char *s_lab[KJ_MAX_LABEL];
 
-/* arena から切り出す（大きいもの） */
+/* arena から切り出す */
 static char *s_feat_flat;
 static k4_node_t *s_k4;
+static char *s_key;
+static k1_token_t *s_tok;
+static const char **s_lab;
 
-size_t saan_kanji_workbytes(void) {
-    return (size_t)KJ_MAX_TOK * KJ_FEAT_MAX
-         + sizeof(k4_node_t) * KJ_MAX_TOK + KJ_VITERBI_N;
+/* 16 バイト境界に切り上げる（PIE の SOC_SIMD_PREFERRED_DATA_ALIGNMENT と同じ）。 */
+#define KJ_ALIGN16(x) (((size_t)(x) + 15u) & ~(size_t)15u)
+
+/* K-7 のトークン表を arena から渡すか（component の CMakeLists が定義する）。
+ * ⚠️ **定義されていないビルドでは 1 バイトも予約しない** — その構成では
+ *    k7_label2ids.c が自分の .bss を使うので、ここで取ると二重に食う。 */
+#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
+#define KJ_K7_SCRATCH  K7_SCRATCH_BYTES
+#else
+#define KJ_K7_SCRATCH  ((size_t)0)
+#endif
+
+/* arena の先頭に並べる分（Viterbi を除く）。**layout() と 1 行ずつ対応させること。** */
+static size_t kj_prefix_bytes(void) {
+    size_t n = 0;
+    n  = KJ_ALIGN16((size_t)KJ_MAX_TOK * KJ_FEAT_MAX);
+    n += KJ_ALIGN16(sizeof(k4_node_t) * KJ_MAX_TOK);
+    n += KJ_ALIGN16((size_t)KJ_KEY_MAX);
+    n += KJ_ALIGN16(sizeof(k1_token_t) * KJ_MAX_TOK);
+    n += KJ_ALIGN16(sizeof(const char *) * KJ_MAX_LABEL);
+    n += KJ_ALIGN16(KJ_K7_SCRATCH);
+    return n;
+}
+
+size_t saan_kanji_workbytes(void) { return kj_prefix_bytes() + KJ_VITERBI_N; }
+
+size_t saan_kanji_vitbytes(size_t arena_n) {
+    size_t pre = kj_prefix_bytes();
+    return (arena_n > pre) ? (arena_n - pre) : 0u;
 }
 
 int saan_kanji_init(void) { return 1; }   /* 確保はしない。arena を借りる */
 
-/* arena の先頭に大きい配列を並べ、残りを Viterbi に回す。
+/* arena の先頭に固定長の配列を並べ、残りを Viterbi に回す。
  * ⚠️ **毎回やり直す。** 合成が arena を上書きするので、ポインタを
- *    起動時に 1 回だけ作ると次の発話で壊れたところを指す。 */
+ *    起動時に 1 回だけ作ると次の発話で壊れたところを指す。
+ * ⚠️ **arena は 16 バイト境界で渡される前提**（main.c の g_arena）。
+ *    先頭がずれていると全部の切り出しが 16 バイト境界を外す。 */
 static void *layout(void *arena, size_t arena_n, size_t *vit_n) {
     unsigned char *p = (unsigned char *)arena;
-    size_t need = saan_kanji_workbytes();
-    if (arena_n < need) { *vit_n = 0; return NULL; }
-    s_feat_flat = (char *)p;                 p += (size_t)KJ_MAX_TOK * KJ_FEAT_MAX;
-    /* k4_node_t は 4 バイト境界でよいが、16 に揃えておく */
-    p = (unsigned char *)(((uintptr_t)p + 15u) & ~(uintptr_t)15u);
-    s_k4 = (k4_node_t *)(void *)p;           p += sizeof(k4_node_t) * KJ_MAX_TOK;
-    p = (unsigned char *)(((uintptr_t)p + 15u) & ~(uintptr_t)15u);
+    if (arena_n < saan_kanji_workbytes()) { *vit_n = 0; return NULL; }
+    s_feat_flat = (char *)p;       p += KJ_ALIGN16((size_t)KJ_MAX_TOK * KJ_FEAT_MAX);
+    s_k4 = (k4_node_t *)(void *)p; p += KJ_ALIGN16(sizeof(k4_node_t) * KJ_MAX_TOK);
+    s_key = (char *)p;             p += KJ_ALIGN16((size_t)KJ_KEY_MAX);
+    s_tok = (k1_token_t *)(void *)p;
+                                   p += KJ_ALIGN16(sizeof(k1_token_t) * KJ_MAX_TOK);
+    s_lab = (const char **)(void *)p;
+                                   p += KJ_ALIGN16(sizeof(const char *) * KJ_MAX_LABEL);
+    /* K-7 のトークン表（`static char tok[640][16]` だったもの）。 */
+#if defined(K7_EXTERNAL_SCRATCH) && K7_EXTERNAL_SCRATCH
+    k7_set_scratch(p, K7_SCRATCH_BYTES);
+#endif
+                                   p += KJ_ALIGN16(KJ_K7_SCRATCH);
     for (int i = 0; i < KJ_MAX_TOK; i++) s_feat[i] = s_feat_flat + (size_t)i * KJ_FEAT_MAX;
     *vit_n = arena_n - (size_t)(p - (unsigned char *)arena);
     return p;

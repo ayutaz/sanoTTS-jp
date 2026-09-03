@@ -31,7 +31,11 @@ idf_component_register(
     SRCS "main.c" ${SAAN_MODEL_SRC} "saan_i2s.c" "saan_pcm.c" "saan_ui_null.c"
          "saan_console.c" ${SAAN_MAIN_K}
     INCLUDE_DIRS "."
-    REQUIRES saanotts_core driver esp_partition esp_timer
+    # ⚠️ `esp_mm` は saan_dict.c の **もう一方の経路**（esp_mmu_map）のため。
+    #    DevKit は CONFIG_SPI_FLASH_ROM_IMPL=n なので既定では esp_partition_mmap の
+    #    ままだが、`-DSAAN_DICT_MMU=1` で切り替えられるようにここに置いておく
+    #    （REQUIRES を書かないと include が見つからず、切り替えた瞬間に落ちる）。
+    REQUIRES saanotts_core driver esp_partition esp_mm esp_timer
 )
 
 if(SAAN_MODEL_RODATA)

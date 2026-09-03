@@ -364,7 +364,24 @@ k7_test: k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c k7_table.h $(OJ
 	    -o $@ k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c \
 	    $(OJT_SRC) $(LDLIBS)
 
+# T10(a): トークン表を **.bss ではなく呼び出し側の領域**に置いた構成
+# （ESP32 は合成 arena から切り出す）。**同じ列が出ること**を示すためだけの版。
+# ⚠️ これが無いと「端末では置き場が違う」経路がホストで一度も走らない。
+k7_test_ext: k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c k7_table.h $(OJT_SRC)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -DK7_EXTERNAL_SCRATCH=1 -Iopenjtalk \
+	    -o $@ k7_test.c k1dict.c k4_accent.c k4b_njd.c k7_label2ids.c \
+	    $(OJT_SRC) $(LDLIBS)
+
 .PHONY: k7
-k7: k7_test k6_vectors.bin
+k7: k7_test k7_test_ext k6_vectors.bin
 	@./k7_test k6_vectors.bin 2>k7_stderr.log || \
 	  { echo "--- stderr ---"; cat k7_stderr.log; exit 1; }
+	@echo ""
+	@echo "=== G25b: トークン表を arena に置いた構成でも同じ列か（T10(a)）==="
+	@./k7_test k6_vectors.bin --dump-ids k7_ids_bss.txt >/dev/null 2>>k7_stderr.log
+	@./k7_test_ext k6_vectors.bin --dump-ids k7_ids_ext.txt >/dev/null 2>>k7_stderr.log || \
+	  { echo "  NG  外部置き場の版が落ちた"; cat k7_stderr.log; exit 1; }
+	@if diff -q k7_ids_bss.txt k7_ids_ext.txt >/dev/null; then \
+	   echo "  OK  .bss 版と arena 版の ids が完全一致（$$(wc -l < k7_ids_bss.txt) 文）"; \
+	 else echo "  NG  置き場を変えたら列が変わった"; \
+	      diff k7_ids_bss.txt k7_ids_ext.txt | head -6; exit 1; fi
