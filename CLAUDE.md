@@ -29,76 +29,72 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | **このファイル** | 実装時の要点だけ。**コードを書く前に必ず読む** |
 | [`docs/measurements.md`](docs/measurements.md) | **数値の一次ソース**。全項目に再現コマンド付き。食い違ったらここが正 |
 | [`docs/decisions.md`](docs/decisions.md) | 決定の理由と**訂正履歴**（同じ間違いを繰り返さないため） |
-| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | 作業計画。B-0〜B-12 と Phase 0〜D。**§10 に残りのタスク** |
-| [`docs/vastai-runbook.md`](docs/vastai-runbook.md) | vast.ai 手順。⚠️ **通常は不要**（D-027 で手元完結） |
+| [`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md) | **いちばん新しい計画**。速度 T1〜T5 / 64 B 行 / M5 への漢字搭載。**残りは聴取だけ** |
+| [`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md) | S-1 の実装計画（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5b）。S2 計画の前段 |
+| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | かなトラックの作業計画。B-0〜B-12 と Phase 0〜D。**ほぼ履歴**（§10 の残りは全部片づいた） |
 | [`README.md`](README.md) の「はじめかた」 | **外の人向けの入口**。セットアップ → 合成 → 実機 |
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **実機を持っている人への依頼**（焼く・喋らせる・報告） |
 | [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
 | [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md) | **K-1**。端末で漢字を扱えるかの実測。B-0 の否定的結論のうち 4 つが崩れた |
-| [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md) | K トラックの実装計画。**冒頭の「残っているもの」を先に読む**（実機 / 聴取 / 判断 2 件） |
+| [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md) | K トラックの実装計画 K-0〜K-8。**実機まで完走した**（M-83 / M-90）。残りは聴取と、エントリ数・接続行列の判断 |
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-09-02）**: 2 つのトラックが走っている。
+**現状（2026-09-03）**: 2 つのトラックが走っている。**どちらも実機で動き、速度の要件も満たした。**
+**残っているのは聴取（G32）だけで、それは人を待っている。**
 
-**(1) かな中間表現の生徒モデル（本線・ほぼ完了）**
-Phase 0 / A / B / C / D-1 / D-2 / D-3a-c' 完了、
+**(1) かな中間表現の生徒モデル（完了）**
+Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
 検証タスク **B-0 〜 B-12** と **D-4 / E-1 / E-2 / E-2b** も全部完了。
-**PIE カーネルも実装・QEMU 検証まで完了**（M-57 / M-58）。
-**端末でかなの自由入力もできる**（M-63 / D-040）。
-**v0.1.1 で焼くだけの firmware も配布している**（M-67。漢字版は v0.2.0）。
-**第三者の実機報告で「間に合っていない」と分かり、速度の作り直し S1〜S5a と M5Stack 対応を入れた（下記）。残りは実機。**
+**端末でかなの自由入力ができ**（M-63 / D-040）、**焼くだけの firmware も配布している**（M-67。漢字版は v0.2.0）。
+**W8A8 + PIE は ESP32-S3 で既定になった**（D-048。W8A32 で測るなら `-DSAAN_ENABLE_PIE=0`）。
 
-⚠️ **2026-09-02、第三者が M5Stack CoreS3 で実機の速度を報告した**（**私は未再現**）:
-**W8A8+PIE で定常 1.554× RT（1 チャンク 144 ms）、W8A32 で 4.834× RT。実時間に間に合っていない。**
-checksum は M-62 と bit 一致。**独立した 2 件目**（AtomS3、PSRAM 無し、配布 firmware そのまま）も **xRT 1.718・checksum 一致**
-（README の「独立した ESP32-S3 実機報告が 2 件」。どちらも未再現）。**1 step の内訳を QEMU + ホストで取ったら、活性化の量子化
-（ソフト除算 + `rintf`）/ GELU（`erff`）/ テンソル検索（毎 step 102 回・ヘッダ 1.66 MB 走査）/
-重みのコピー（489 KB/step）が MAC と同等以上だった**（M-80）。PIE を磨いても消えない。
-→ [`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md)（§5 に直す順序 S1〜S8、
-§6 に M5 対応の取り込み案）。内訳は `make -C csrc prof`（ホスト）/ `idf.py -DSAAN_PROFILE=1`（実機・QEMU）。
-**S1〜S5a と M5Unified 対応を入れ**（M-81 / D-046）、CoreS3 で **1.554（報告値）→ 0.926** まで来た（M-82）。
-そこから **S2 計画**（[`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md)）で
-**T1（末尾 pull の早期終了）/ T2（S9 = 捨てる出力を計算しない）/ T3（S6 = token のパイプ化）/ T4（arena の詰め）/
-T5（GELU のコード生成）/ 64 B キャッシュ行**を入れ、**2026-09-03 に要件を満たした**:
+⚠️ **経緯**: 2026-09-01〜02 に**第三者の実機報告が 2 件**来て、実時間に間に合っていないと分かった
+（CoreS3 で W8A8+PIE 1.554× RT / AtomS3 で 1.718。checksum は M-62 と一致。**どちらも未再現・S1 前の値**）。
+1 step の内訳を取ると、活性化の量子化 / GELU / テンソル検索 / 重みのコピーが MAC と同等以上だった（M-80）。
+**S1〜S5a**（M-81 / D-046）→ **S2 計画の T1〜T5 + 64 B キャッシュ行**（[`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md)）
+→ **S5b** と削り、要件に届いた:
 
-| | M-82（9/2） | **M-88（9/3）** |
+| | M-82（9/2 夜） | **最新（9/3）** |
 |---|---:|---:|
-| 満チャンク 1 pull の xRT | 0.926 | **0.497**（要件 ≤ 0.5 達成） |
-| 1 step | 18,378,513 cyc | **11,724,417 cyc**（−36.2%） |
-| 鳴らし始めまで | 719 ms | **434 ms** |
-| アンダーラン | 1/14 | **0**（3 文とも） |
-| arena（静的確保） | 212,992 B | **180,224 B** |
-| 内部 DRAM の空き（実機） | 99,987 B | **136,407 B**（最大ブロック 90,112） |
+| 満チャンク 1 pull の xRT | 0.926 ⚠️ 旧定義 | **0.446**（M-90。要件 RTF ≤ 0.5 達成） |
+| 1 step | 18,378,513 cyc | **11,659,500 cyc**（M-89。−36.6%。S5b 前の値） |
+| 鳴らし始めまで | 719 ms | **432 ms**（M-89） |
+| アンダーラン | 1/14 | **0**（全文。M-87 以降） |
+| arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **180,224 / 157,360 B**（M-89） |
+| 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（M-90。辞書 + 漢字込み。最大ブロック 86,016） |
 
-**checksum は全部 `0xa69a7ebbb5ccb05f` のまま = 波形は 1 bit も変わっていない**（T1〜T4 は bit 同一、T5 は S3 と bit 一致）。
-⚠️ **発話全体で見ると 0.550〜0.693 でまだ 0.5 を超える**（warmup 38 フレームが初回 pull に乗る）。要件の分母は未定（D-049）。
-⚠️ **音は聴いていない。**
-⚠️ **S3（GELU の erf 近似）で QEMU の基準
-checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**（|max| 9744 → 9627）、
-W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
+**PCM の checksum は M-82 から 1 bit も変わっていない**（W8A8+PIE `0xa69a7ebbb5ccb05f` /
+W8A32 `0xe4b645c30835d42d`）= **T1〜T5 も S5b も 64 B 行も波形を変えていない**。
+⚠️ **発話全体で見ると 0.54〜0.71 でまだ 0.5 を超える**（M-88 の 3 文 0.550〜0.693 / M-90 の 4 文 0.541〜0.712。
+warmup 38 フレームが初回 pull に乗るため、文が長いほど 0.5 に近づく）。
+**要件がどちらの分母かは書かれていなかったので、両方を記録してある**（M-88 §1 / C-054）。
+**分母は未決で、D-049 で決める**（[`docs/requirements.md`](docs/requirements.md) §6.2）。
+⚠️ **音は聴いていない**（G32）。
+⚠️ **S3（GELU の erf 近似）で基準 checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**
+（|max| 9744 → 9627）、W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
 W8A8 の |max| が動くのは量子化の境界で 1 値が変わると下流に伝播するためで、品質（fp32 比 SNR 24 文）は不変。
-配布イメージ v0.2.0 までは旧値のまま。
-**S4 で blob は v2 になった**（int8 conv 重みを `[cout][k][align16(cin)]` で 0 埋め。654,032 B）。**リリース資産
-`saanotts-jp-v3-int8.bin` はまだ v1 で、S4 以降のコアは `SAAN_ERR_VERSION` で拒む** → マージ時に上げ直す。
+**配布イメージ v0.2.0 までは旧値のまま。**
+**S4 で blob は v2 になった**（int8 conv 重みを `[cout][k][align16(cin)]` で 0 埋め。654,032 B）。⚠️ **リリース資産
+`saanotts-jp-v3-int8.bin` はまだ v1 で、S4 以降のコアは `SAAN_ERR_VERSION` で拒む** → 次のリリースで上げ直す。
 
-**(2) 端末で漢字を扱う（K トラック・QEMU まで完走）**
+**(2) 端末で漢字を扱う（K トラック・完了）**
 B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つの根拠が崩れた**（K-1 調査）。
-**K-0 〜 K-7 完了。QEMU の UART に漢字文を打ち込んで合成まで通った**（M-76）。
-残りは**実機**（K-8）と、エントリ数・接続行列の判断。
+**K-0 〜 K-8 完了。スタックチャン（M5 CoreS3）で漢字・カタカナ・ひらがなを喋った**（M-90）。
+**`!` の印は要らない** — 端末が 3 値（かな / 辞書 / 拒否）で経路を決める（`saan_g2p_classify`。
+ホストの `to_intermediate.py` と **596/596 一致**）。**同じ文をかなで書いても漢字で書いても PCM が bit 一致する。**
+辞書 13.7 MB は **`esp_mmu_map`** で貼る（`esp_partition_mmap` は ROM 実装の 128 ページ = 8 MB 制限に当たる。M-90 §4）。
 → [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md)（結論）
 ／ [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md)（計画）
 
-設計値は D-016 〜 D-042 として凍結。実行はすべて手元の M4 Max（D-027）。
+設計値は D-016 〜 D-048 として凍結。実行はすべて手元の M4 Max（D-027）、実機はユーザーの M5 CoreS3（D-047）。
 
 ⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
 `runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
 
-**(1) の残りは実機の測定（A-0 / A-4）と、その後の S5b / D-048**（`docs/plan/s1-speed-implementation-plan.md`。
-旧計画 `docs/plan/phase0-1-implementation-plan.md` §10 も参照）:
-**P-1 の実装は完了**（M-57）/ **P-2** β の聴取（人が要る）。
-**E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
-**E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。
+**(1) の残りは聴取だけ**（アクセントの過剰強調 `magnitude_ratio` 1.193 の確認を含む）。
+**P-1 は M-57 / M-58、P-2（β）は M-60 / D-038、E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
+**E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。**S5b と D-048 も入った**（M-90 / D-048）。
 
 **(2) K トラックの現在地**（`docs/plan/k1-kanji-implementation-plan.md`）:
 
@@ -113,14 +109,16 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 | K-5 メモリの詰め | ✅ 1 文ピーク **268,941 → 104,589 B**（−61.1%）。M-71 |
 | K-6 ホストとの一致 | ✅ **素性が一致した 244 文でラベル差 0 件**（陰性対照 44 件）。M-74 |
 | **K-7 ESP32 / QEMU** | ✅ **漢字文から合成まで完走**。3 経路が bit 一致。M-76 |
-| K-8 実機 | ✅ **G28〜G31 実測**（CoreS3、M-83）: 漢字 G2P 27.85〜66.30 ms（音声長の 1.7〜2.3%。目安 1% 未達）/ xRT 4.28〜4.62（W8A32）/ checksum QEMU と一致。**G32 聴取だけ未**。⚠️ 配布イメージは UART0 入力で native USB の板では操作不能 |
+| K-8 実機（G28〜G31） | ✅ **CoreS3 で実測**（M-83）: 漢字 G2P 27.85〜66.30 ms（音声長の 1.7〜2.3%。⚠️ 目安 1% 未達）/ checksum が QEMU と一致。**W8A8+PIE 版も bit 一致**（M-86）。⚠️ **G32 聴取だけ未** |
+| K-A/K-B M5 への搭載 | ✅ **スタックチャンで喋った**（M-90）。辞書 + 漢字 + W8A8/PIE + T1〜T5 + S5b が 1 本のファームに載る。xRT 0.446 / 内部 DRAM の空き 132 KB。**`!` は要らない** |
 
-**端末で漢字が喋れる**（QEMU 上）。有効化は `idf.py -DSAAN_KANJI=1`（既定は無効）。
+**端末で漢字が喋れる**（実機。M-90）。有効化は `idf.py -DSAAN_KANJI=1`（**既定は無効**。16 MB flash と辞書パーティションが要る）。
 
-✅ **K トラックは 2026-09-02 に CoreS3 で実機確認した**（M-83。v0.2.0 コードで `0x78c209af06affc01`、現行コードで
-`0xe4b645c30835d42d`。どちらも QEMU と一致）。漢字 G2P は 27.85〜66.30 ms（33〜84 B）。⚠️ **音は聴いていない**。
-QEMU の `xRT 0.661` は**使えない数字**で、実機（W8A32）は 4.28〜4.62。
-一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
+✅ **K トラックは CoreS3 で実機確認した**（M-83 / M-86 / M-90）。checksum は QEMU と一致
+（v0.2.0 コード `0x78c209af06affc01` / 現行 W8A32 `0xe4b645c30835d42d` / 現行 W8A8+PIE `0xa69a7ebbb5ccb05f`）。
+漢字 G2P は 5.51〜66.30 ms（入力 15〜84 B。M-90 / M-83）で、**PIE には無関係**（CPU 律速で MAC を含まない。M-86）。
+⚠️ QEMU の `xRT 0.661` は**使えない数字**。実機は **W8A32 で 4.28〜4.62**（DIO。M-83）、**W8A8+PIE で 0.446**（M-90）。
+⚠️ 一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
 
 ⚠️ **ホストと違う音素は 0.32%**（n=298・438,750 entries。M-77）。
 ⚠️ **文単位で数えると 15.44% になる**（254/298）。**1 音素の差も全崩れも同じ 1 件**に
@@ -158,6 +156,7 @@ MeCab 一致が 0.18% 落ちる。将来採るなら**行ごとアフィン**（
 ⚠️ **P-1 の前提が 2 つとも間違っていた**（2026-08-28）:
 1. **「toolchain 待ち」ではなかった**（C-033）。入れていなかっただけで、
    ESP-IDF v5.5 はその日のうちに導入できた。**本物の待ちは実機ボードだけ**
+   （⚠️ その板も 2026-09-02 に同定して測り終えた。D-047 / M-82 以降）
 2. **GCC は PIE へ自動ベクトル化しない**（M-53 / C-034）。⚠️ 一度
    「W8A8 への書き換えが本体」と書いたが**誤り**で、**W8A8 は既に実装済み**
    （`saan_conv1d_i8a`）。有効なのは実測の方で、**W8A8 の int32 積和ループでも
@@ -168,7 +167,7 @@ MeCab 一致が 0.18% 落ちる。将来採るなら**行ごとアフィン**（
 20k → 40k にすると **−0.1090**（ノイズ床 0.0812 超え）。
 **decoder を作り直すのではなく Stage 3 を延ばすこと。40k でもまだ下がる余地がある。**
 
-**品質は目標に届いた。残るのはメモリとレイテンシ。**
+**品質は目標に届いた。速度とメモリも要件に届いた（M-88 / M-89 / M-90）。残るのは聴取だけ。**
 
 | 指標 | 生徒 | 教師 | 教師比 | 論文の英語 embedded 比 |
 |---|---:|---:|---:|---:|
@@ -217,7 +216,8 @@ int8 最小 SNR 23.27 → **25.72 dB** と改善した
 重み mmap（183 tensors / 16 B 境界）・端末側 G2P（53 ids が錨と完全一致）・
 arena・合成 27,136 sample・int16 変換まで動き、
 **PIE はスカラ実装と全 27,136 sample で bit 一致**した（陰性対照 PIE 命令 0 vs 5）。
-有効化は **`idf.py -DSAAN_ENABLE_PIE=1 build`** のフラグ 1 本にした（既定は無効）。
+⚠️ **当時は `-DSAAN_ENABLE_PIE=1` を明示したときだけ有効だったが、2026-09-03 に
+ESP32-S3 では既定で有効にした**（D-048。W8A32 で測るなら `-DSAAN_ENABLE_PIE=0`）。
 既定 blob も **int8 に切り替えた**（W8A8 は fp32 blob では 1 命令も効かないため、
 `main.c` が起動時に検査して止める）。実機テストの手順は `esp32/TESTING.md`。
 
@@ -239,9 +239,12 @@ G9 / G10 で固定した。
 `|max|` 一致 + `Σx²` 相対差 1.6e-7 で丸め差と切り分ける。
 **bit 一致を主張してよいのは同じターゲット上の 2 構成を比べたときだけ。**
 
-✅ **速度は要件を満たした**（M-88。CoreS3 / W8A8+PIE / S2 計画 T1〜T5 後: **満チャンク xRT 0.497**、3 文とも）。
-⚠️ **QEMU の割合も命令数も実機の速度を予測しない**（M-80 → M-82、C-055: 命令数が減ったのに GELU が 2 倍遅くなった）。
-速度の判断は必ず**実機の `-DSAAN_PROFILE=1` の表**で行い、**マージ直後に前の版と 1 行ずつ並べる**。
+✅ **速度は要件を満たした**（M-88 で 0.497 → M-90 で **0.446**。CoreS3 / W8A8+PIE / 満チャンク 1 pull）。
+⚠️ **速度の主張は「その形のコードを実機で測った数字」だけ**（C-055）。**3 つとも根拠にならない**:
+QEMU のサイクル（命令数に比例。M-80 → M-82）/ **objdump の命令数**（store → load の依存は命令数に出ない）/
+**「似た形」のマイクロベンチ**（pie_probe E 節は旧形の写しで、新形を測っていなかった）。
+実際にこれで **GELU が 118 → 211 cyc/要素に倍増**したまま通り、1 step が 14.7% 遅くなった（M-87）。
+速度の判断は必ず**実機の `-DSAAN_PROFILE=1` の表**で行い、**マージ直後に前の版と 1 行ずつ並べる**（GELU 行だけ見れば 10 秒）。
 
 ⚠️ **`uv sync` は piper-plus のクローンを要求する**（`[tool.uv.sources]` が絶対パス）。
 外の人が**重みだけで音を出す / ゲートを回す**経路は別にある（D-041 / M-65。README の
@@ -272,30 +275,48 @@ make -C csrc k4b                                   # K-4b NJD チェーン（G14
                                                    #   段ごと・規則ごとの陰性対照つき）
 make -C csrc k5                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
 make -C csrc k6                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
-make -C csrc k7                                    # K-7 ラベル → 生徒インデックス（G25〜G27）
-make -C csrc prof                                  # 段別プロファイラ（回数・要素数）。**--expect-no-lookup がゲート**（S1）
+make -C csrc k7                                    # K-7 ラベル → 生徒インデックス（G25〜G27 +
+                                                   #   **G25b/G25c**: 表を arena に置いても同じ列か）
+make -C csrc kb-parity                             # **K-B 経路判定**が端末とホストで一致するか
+                                                   #   （⚠️ pyopenjtalk が要るので all-test の外）
+make -C csrc prof                                  # 段別プロファイラ（回数・要素数）。ゲートは
+                                                   #   **--expect-no-lookup / --expect-steps 54 /
+                                                   #   --expect-gelu 12544 / --expect-dw 21280 /
+                                                   #   --expect-mac-le 4200628 / --expect-token 4**（S1 / T1〜T3）
 make -C csrc erf                                   # GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
+make -C csrc range                                 # **S9（T2）の範囲版カーネル**が [0,T) 版と bit 一致か
+                                                   #   （陽性対照つき。all-test に入っている）
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
+bash scripts/check_esp32_template.sh               # esp32/ 雛形をホストで検査（**§10 = arena ≥ 漢字経路
+                                                   #   の作業領域 + 14,464 B。陽性対照つき**）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / pad / **line** / **erf**）
+                                                   #   g2p / pad / line / erf / **range**）
+                                                   #   ⚠️ stream は **held-out 24 文 × 3 レーン**を見る
 ```
 
-**ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56 / M-76）:
+**ESP32 向けのビルドと QEMU 検証**（ESP-IDF v5.5。M-54 / M-56 / M-76 / M-90）:
 
 ```bash
 export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"   # ⚠️ 3.14 では venv が壊れる
 . ~/esp/esp-idf/export.sh
 export PATH="$HOME/.espressif/tools/qemu-xtensa/esp_develop_9.0.0_20240606/qemu/bin:$PATH"
-cd esp32 && idf.py set-target esp32s3 && idf.py build     # 雛形（PIE は無効）
-cd esp32/pie_probe && idf.py qemu                         # PIE の bit 一致検証（A / B / C 節）
 
-# M5Stack（スタックチャン）: ../../main と csrc を相対参照。重みは .rodata、PIE は S3 だけ
-cd esp32/boards/m5unified && idf.py -B build_cores3 -DSDKCONFIG=build_cores3/sdkconfig \
-    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" -DSAAN_ENABLE_PIE=1 build
+# DevKit 構成（8 MB）。既定で **QIO + D-cache 64 B 行 + W8A8/PIE**（D-048 / M-84 / M-86）
+cd esp32 && idf.py set-target esp32s3 && idf.py build
 
-# 漢字対応（K-7）。⚠️ **16 MB flash と辞書パーティションが要る**
-uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
+# ★ スタックチャン（M5 CoreS3）で漢字も喋る 1 本（M-90）。16 MB flash + 辞書パーティション
+uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin      # 13,702,320 B
+cd esp32/boards/m5unified && idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict.bin build
+cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 \
+    --baud 921600 write_flash @flash_args      # 辞書込みで約 4 分
+# ⚠️ **`--flash_mode qio` を渡さないこと**（ヘッダが QIO になって ROM ローダが読めず
+#    ブートループする。M-86）。`@flash_args` をそのまま使う
+
+# QEMU（漢字構成）。⚠️ QEMU の flash モデルは QIO を受け付けないので
+# `-DSAAN_QEMU=1` が sdkconfig.qemu で DIO に戻す（値は変わらない。M-85 / M-86）
 cd esp32 && idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
     -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
     -DSAAN_KANJI=1 -DSAAN_QEMU=1 build
@@ -303,11 +324,15 @@ cd build_kanji && esptool.py --chip esp32s3 merge_bin \
     --fill-flash-size 16MB -o /tmp/flash16.bin @flash_args
 qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
     -drive file=/tmp/flash16.bin,if=mtd,format=raw
-# → `かな>` に `!今日は良い天気ですね。` と打つ（`!` が漢字経路の印）
+# → `かな>` に `今日は良い天気ですね。` と打つ。**`!` は要らない**（経路は端末が決める。M-90）
+
+cd esp32/pie_probe && idf.py qemu    # PIE の bit 一致（A/B/C 節）+ 重みの置き場所 / GELU（D/E 節。M-85）
 ```
 
 ⚠️ **PSRAM は QEMU では使えない**（octal PSRAM を持っていない）。
 漢字経路の作業領域は**合成用 arena から切り出して**いるので無くても動く。
+⚠️ **辞書の mmap は `esp_mmu_map`**（`esp_partition_mmap` は `CONFIG_SPI_FLASH_ROM_IMPL=y` の
+M5 構成で 128 ページ = 8 MB しか貼れず、13.7 MB の辞書が `ESP_ERR_NO_MEM` になる。M-90 §4）。
 
 ## アーキテクチャ（固定仕様）
 
@@ -336,6 +361,9 @@ FFT 化で手元 **0.022× RT**（M-43）。
 ⚠️ **ESP32 への外挿では移植可能 C の fp32 は 2.47× RT で実時間に間に合わない**
 （実測 η_host=0.364 を転移した値。η=1 の下限だけ見ると 0.93 で「あと少し」に誤読する）。
 論文の 0.22× RT も **fp32 では達成不可能**で、**int8 + PIE が必須**。
+✅ **「int8 + PIE が必須」は実機で裏づけられた**: 同じ CoreS3 で **W8A32 は 0.92〜1.09**（QIO。M-86）、
+**W8A8+PIE は 0.446**（M-90）。⚠️ ただし **M-43 の 0.088× RT という外挿は実機の 18 倍外れた**。
+差は積和ではなく量子化 / GELU / テンソル検索 / 重みのコピーだった（M-80）。**外挿で速度を語らない。**
 
 ## 教師モデルの扱い
 
@@ -519,14 +547,16 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `evaluating-quality` | SCOREQ / UTMOS / 平坦度で品質を測る・報告するとき |
 | skill | `verifying-reports` | サブエージェントや過去セッションの報告を docs に転記する前 |
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
-| テスト | `make -C csrc k4b` / `k5` / `k6` / `k7` | **K トラックの受け入れゲート**。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
+| テスト | `make -C csrc k4b` / `k5` / `k6` / `k7` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
 | テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない** |
 | テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークが要る**。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
-| テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。**`--expect-no-lookup` がゲート**（pull 中のテンソル検索 0 回。S1）。⚠️ ホストの時間は実機の内訳ではない |
+| テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
+| テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
+| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（10 節）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べ、足りない arena ではコンパイルが止まることを**陽性対照**で示す |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で 4 job。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
@@ -586,8 +616,11 @@ uv run python scripts/synthesize_student.py --ckpt runs/v1/stage4.pt \
 ⚠️ **ラベルは一度だけ生成し、SHA-256 と生成環境を manifest に固定する**（D-015）。
 hook が本番パック `data/pack` の破棄と再生成を deny する。
 
-vast.ai は λ の並列探索や長時間学習で使う。手順は
-[`docs/vastai-runbook.md`](docs/vastai-runbook.md)（**CUDA parity ゲートは未通過**）。
+⚠️ **リモート（vast.ai）の手順書は 2026-09-03 に削除した**（D-027 の追記）。
+使う理由（λ の並列探索 / 1.4 M z-line）がどちらも消え、走らせた記録も無いのに
+**未通過の CUDA parity ゲートを含む手順**を残す方が危なかった。
+再びリモートで回すなら `deploy/vastai_bootstrap.sh` と `scripts/b4_device_parity.py --device cuda`、
+[`docs/requirements.md`](docs/requirements.md) §8.4 から組み直すこと。
 
 ## piper-plus の参照点
 
@@ -716,8 +749,11 @@ import sys; sys.path.insert(0, "~/Documents/piper-plus/src/python")
 
 ## 入力仕様（確定）
 
-**中間表現「ひらがな + アクセント記号 + 無声化マーク」**。漢字は端末で扱わない。
+**中間表現「ひらがな + アクセント記号 + 無声化マーク」**。
 要件定義は [`docs/requirements.md`](docs/requirements.md)、決定の経緯は D-010 / D-011。
+⚠️ **「漢字は端末で扱わない」は 2026-09 に半分だけ古くなった。** K トラック（`-DSAAN_KANJI=1`）を
+入れた板は**漢字文をそのまま受ける**（M-90）。端末は 3 値で経路を決め、**かな行と漢字行から同じ PCM が出る**。
+この節の中間表現は**その両方の共通の中間表現**であって、蒸留・学習・ホスト側の経路は今も全部これ。
 
 ```
 今日は良い天気ですね。  →  きょ][おわよ][いて][んきです°ね
@@ -790,134 +826,71 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 未解決のブロッカー（優先順）
+## 残っているタスク（2026-09-03 更新。**聴取だけ**）
 
-**Phase 0 / A / B / C / D-1〜D-3c' と検証タスク B-0 〜 B-12 / D-4 はすべて決着した。**
-**K トラックも K-0 〜 K-7 まで決着した**（QEMU で漢字文から合成まで完走。M-76）。
-設計値は D-016 〜 D-043 として凍結。現在地は [`docs/README.md`](docs/README.md)。
+**Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
+K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-048 として凍結。
+現在地は [`docs/README.md`](docs/README.md)。
 
-**両トラックとも、残っているのは実機だけ:**
+| # | 何 | 種類 | ゲート |
+|---|---|---|---|
+| **1** | **聴取** — このプロジェクトの音を**まだ誰も聴いていない** | **人が要る**（私は音を聞けない） | **G32** |
+| 2 | RTF の分母（満チャンク 1 pull = 0.446 で達成 / 発話全体 = 0.54〜0.71 で未達） | 判断 | **未決。D-049 で決める**（`docs/requirements.md` §6.2） |
+| 3 | リリース資産の blob を v1 → v2 に上げる（S4 以降のコアが `SAAN_ERR_VERSION` で拒む） | 作業 | `scripts/check_release_assets.py` |
+| 4 | 配布イメージを USB Serial/JTAG 入力でも配る（v0.2.0 は UART0 のみ = native USB の板で操作不能。M-83） | 作業 | `esp32/TESTING.md` |
+| 5 | K トラックのエントリ数・接続行列（今は 438,750 / int16） | 判断 | D-044 を見直すか |
 
-| | 残り |
-|---|---|
-| (1) かな中間表現 | **実機**（A-0 / A-4。ユーザーのスタックチャン）→ **S5b** → **D-048**。⚠️ 第三者報告 W8A8+PIE **1.554× RT**（間に合っていない。S-1）。S1〜S5a は入れた（M-81） |
-| (2) 漢字（K） | ~~実機（K-8）~~ ✅ G28〜G31（M-83）/ **G32 聴取** / PIE 有効の漢字ビルド / M5 構成への辞書搭載（PSRAM 有効時の mmap 報告の切り分け）/ エントリ数・接続行列の判断 |
+**素材はそろっている。** 端末の ids はホストの生徒モデルにそのまま入るので、
+**端末の音とホストの音は実機なしで直接比べられる**（M-78）:
 
-⚠️ **板はある（ユーザーのスタックチャン）。種類の同定（ESP32-S3 か ESP32 か）が最初の一歩（A-0）。** QEMU はサイクル精度ではない。
+| 何を聴くか | 場所 | 聴かないと分からない理由 |
+|---|---|---|
+| 枝刈りの誤読 | `reports/k8_listen/`（12 組。`k8_audio_gap.py --wav-dir` で再生成） | **SCOREQ は誤読を罰しない**（M-78: 差 −0.0127、CI が 0 を跨ぐ） |
+| アクセントの過剰強調 | `reports/d4_accent/student` と `teacher`（各 64 本） | `magnitude_ratio` **1.193** = 生徒の起伏が教師より 19% 大きい（M-59） |
+| 未知語フォールバック | 専用セットは無い（`k1_unk_guess` の出力を作るところから） | 「無音より誤読の方が良い」は**測っていない仮定**のまま |
+| 生徒の音そのもの | `reports/student_wav_v3/`（held-out 24 文） | 集約スコアは摩擦音の欠陥を見逃す（論文が実際に見逃した） |
 
-1. ~~**【次】PIE カーネル。**~~ ✅ **実装完了**（M-57）。
-   `saan_conv1d_i8a` の内積を `ee.vmulas.s8.accx` で書き直し、
-   **QEMU で bit 完全一致**を確認（陰性対照つき）。活性化ストライドを
-   `align16(cin)` にパディングして **MAC の 99.40%** を覆う（M-58）。
-   ⚠️ **残る 0.60% は depthwise で原理的に載らない**（チャネル方向のギャザー）。
-   ⚠️ **出荷ファームではまだ無効** — `esp32/components/saanotts_core/CMakeLists.txt`
-   が `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない。**W8A8 を採る決定が要る**。
-   ✅ **速度は自分で測った**（M-82: CoreS3 で W8A8+PIE **0.926× RT**。第三者報告 1.554 → S1〜S5a で −40%）。⚠️ 目標 RTF ≤ 0.5 は未達。
-   ✅ **toolchain も QEMU も導入済み**
-   （ESP-IDF v5.5 / GCC 14.2.0 / qemu-xtensa 9.0.0）。
-   **QEMU が PIE を実装しているので、実機なしで正しさを検証できる**（M-56）。
-   ✅ **W8A8 は知覚的に無料**と実測済み（M-55。SCOREQ 差 +0.0049、CI が 0 を含む）。
-   ✅ **W8A8 カーネルも実装・テスト済み**（`saan_conv1d_i8a`。ホストで fp32 比 0.850）。
-   ✅ **本番経路への接続も済んでいる**（`saan_conv1d_w` が `SAAN_INT8_ACT` で切替。既定 0）。
-   ✅ **PIE カーネルも実装済み**（M-57 / M-58。MAC の **99.40%**、QEMU で bit 完全一致）。
-   ⚠️ **残りは 2 つだけ**:
-   **(a) 出荷ファームでの有効化** — `esp32/components/saanotts_core/CMakeLists.txt` が
-   `SAAN_PIE` / `SAAN_INT8_ACT` を定義していない。**W8A8 を採る決定が要る**
-   （SNR は落ちるが **SCOREQ では差が無い** = M-55。arena は 200 KB を 1.1 KB 超過）。
-   **(b) 実機** — 第三者の報告が 1 件（CoreS3 / W8A8+PIE **1.554× RT**。間に合っていない。**未再現**）。
-   ⚠️ **M-43 の 0.088× RT は外挿で、実機報告はその 18 倍遅かった。** 差は積和ではなく量子化 / GELU /
-   テンソル検索 / 重みのコピー（M-80）。**S1〜S5a で削った**（M-81。QEMU 命令数比 −49%）が実機は未測定。
-   次は A-0 / A-4（ユーザーのスタックチャン）。
+⚠️ **実機のスピーカーでしか分からないものが残る**（G32 の本体）: **途切れ・音量・実サンプルレートの誤差**。
+checksum が一致しても、M5.Speaker の DMA の実挙動は別（M-90 §5）。
+
+⚠️ **聴取が決定を覆す可能性がある。** D-044（438,750 entries）は**「音素の 0.32%」だけで決めた**。
+⚠️ **聴取者は今のところ 1 名**で、v2↔v3 の差は 7 試行で聴き分けられなかった（C-037）。
+
+**実装として書くものは残っていない。** 1〜5 は「聴く」「決める」「上げ直す」。
+
+⚠️ **これから板を買うなら N16R8。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
+16 MB なら**かなトラックの構成もそのまま焼ける**（`partitions.csv` は 5.06 MB）。
+**別々に取りに行くと 2 回焼き直しになる。** 実測に使っているのはユーザーの M5 CoreS3（16 MB / PSRAM 8 MB Quad。D-047）。
+
+### 決着した問いと、そこに残る警告
+
+- **PIE カーネル（P-1）** ✅ `saan_conv1d_i8a` の内積を `ee.vmulas.s8.accx` に。**MAC の 99.40%** を覆い、
+  QEMU でも実機でもスカラ実装と **bit 一致**（M-57 / M-58 / M-62、陰性対照つき）。**S5b で weight-stationary 化**して
+  dot の 95.1% を覆う（M-90）。⚠️ **残る 0.60% は depthwise で原理的に載らない**（チャネル方向のギャザー）。
+  **ESP32-S3 では既定で有効**（D-048）。数え方:
 
 ```bash
 export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
 xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -Wall -DSAAN_INT8_ACT=1 -DSAAN_PIE=1 -c csrc/saanotts_int8.c -o /tmp/i8.o
-xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（S5a 後は 7。フラグ無しなら 0）
+xtensa-esp32s3-elf-objdump -d /tmp/i8.o | grep -c "ee\."     # PIE 命令数（S5b 後は 74。フラグ無しなら 0）
 ```
-2. **`β`（式7）の決定。** 候補は β=0 と 2（M-40）。**聴取で決める**（論文も同様）。
-   聴取セットは `reports/listening_beta/` に用意済み（40 試行）。
-   ⚠️ この生徒は **β=0 で既に教師と一致**しており、式7 が要らない可能性が高い。
-   ⚠️ 上流（英語）は **β=6.0** を採用している（`docs/upstream-sanotts.md`）
-3. ~~**int8 カーネル。**~~ **決着した**（M-45）。ブロブ 2,249,792 → 643,936 B（**−71.4%**）、
-   fp32 経路に対し held-out 24 文で平均 **25.88 dB**。
-   ⚠️ **最小 23.27 dB / 9 文が 25 dB 未満**。⚠️ **実行時 RAM は減らない**（W8A32 なので flash だけ）
-4. ~~**【追試 E-1】DNSMOS。**~~ **決着した**（M-50 / D-034）。生徒の教師比
-   **OVRL 0.7725** [0.7483, 0.7973]（n=24）。**SCOREQ 比 0.611 より高い** —
-   指標によって生徒の見え方が変わる。
-   ⚠️ **上流の言う「金属的アーティファクトは SCOREQ で高・DNSMOS で低」は再現しなかった。**
-   金属様対照（Griffin-Lim 位相破壊）に対し **DNSMOS は同 SNR の白色雑音より 1.33 も甘い**。
-   ⚠️ **ただし SNR は位相破壊と加法雑音を等化する尺度ではない**（対数スペクトル距離で
-   1.99 dB 対 58.10 dB。照合で指摘）。**「DNSMOS は金属様に鈍い」と言い切れるほど強くない。**
-   ⚠️ **陽性対照 G6 は FAIL。** ハードクリップ (SNR 10.5 dB) で 4 スコアとも下がらない。
-   **DNSMOS が下がらないことを「劣化が無い」と読んではいけない。**
-   ⚠️ **DNSMOS は日本語で高ピッチを罰する**（先行研究で平均 log F0 と r=−0.788。
-   人間は −0.059）。**つくよみちゃんは高ピッチ女声**なので、この指標は不利側に偏る
-   ⚠️ **DNSMOS はアクセント誤りに完全に無反応**（人間 4.00→2.16 で DNSMOS 3.82→3.83）。
-   **D-4 のアクセント評価の代わりにならない**
-   ⚠️ `speechmos` は UTMOS の torch.hub checkout と**同名パッケージで衝突する**ので
-   同一プロセスで両方は import できない
-5. ~~**【追試 E-2】decoder の教師初期化。**~~ **決着した**（M-49 / M-52）。
-   幅スイープで **容量律速ではない**ことが確定（M-52）。**レーン分解は済んだ**（M-49）。
-   ギャップ 0.729（n=200）の内訳は **decoder 0.395 / acoustic 0.283 / duration 0.052**
-   （鎖分解・すべて有意）。**40 次元 c-line のコストは 0.024 しかない**ので、
-   decoder の 0.395 は `Gγ` に帰属する。⚠️ **ただし論文流の置換定義では
-   acoustic 0.508 > decoder 0.395 と順序が逆**になり、**主因は分解の取り方で入れ替わる**。
-   ⚠️ **了解度（かな CER）では decoder が唯一の寄与**（+0.039、acoustic/duration は 0）。
-   **残っているのは「容量律速か」だけ**（`Gγ` の幅スイープ、Stage 3 のみ ×4 で約 2 時間）。
-   ⚠️ **教師初期化そのものは定義できない** — 形状としては 27/28 のテンソルが切り出せるが、
-   合致先は定数 FiLM（`cond` / `cond_layers`）か別フレームレートの ResBlock で意味が対応せず、
-   `hout (1539,48,1)` は教師側に候補ゼロ（`uv run python reports/r3_slice_matrix.py`）。
-   詳細は [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) §10
 
-6. ~~**アクセント型の再現性。**~~ **決着した**（M-44 / D-030）。ミニマルペア 15 群
-   32 語 64 文で、教師ゲート通過 36 ペアの**符号一致 35/36 = 0.972**
-   （CI95 [0.897, 1.000]、経験的ヌル 0.614）、3 メンバー群の同定 **4/4**（chance 1/6）。
-   **記号 `[` `]` `#` だけで足りており、duration net への A1/A2/A3 追加は不要**。
-   残るのは (a) **聴取していない** (b) 2 型の下降核が n=13〜16 でしか測れておらず
-   `]` 単独の AUC（教師 0.6526 / 生徒 0.5895）だけペアコントラストと食い違う
-
-## 残っているタスク（**2026-09-02 更新。まず実機 1 つ、その後 2 つ**）
-
-| # | 何 | トラック | ゲート | 実機が要るか |
-|---|---|---|---|---|
-| **1** | **サイクル実測**（速度） | 両方 | G28 / G29（K）+ D-3d（かな） | ✅ **要る** |
-| **2** | **聴取** | 両方 | G32 | ❌ 不要（WAV は用意済み） |
-| **3** | 起動から合成まで落ちない / checksum が QEMU と一致 | K | G30 / G31 | ✅ 要る |
-| **4** | 出荷ファームで **W8A8 + PIE** を有効にするかの判断（**D-048**） | かな | — | ✅ 実質要る（動機が速度） |
-| **5** | **速度の作り直し**（S-1）。S1〜S5a は入れた。**実機で効果を測る**（A-4）→ **S5b**（重み行をレジスタに保持） | かな | all-test / QEMU checksum / `SAAN_PROFILE=1` の表 | ✅ 効果の確認に要る |
-
-✅ **「音の測定」は済んだ**（M-78）。実機は要らなかった — 端末の ids はホストの
-生徒モデルにそのまま入るので、**端末の音とホストの音を直接比べられる**。
-**SCOREQ の差は −0.0019（全体）/ −0.0127（違う 44 文だけ）で、どちらも CI が 0 を跨ぐ。**
-⚠️ **枝刈りは音を汚していない。変えるのは読みだけ。**
-⚠️ ただし **SCOREQ は誤読を罰しない**ので、読み違いの重大さは**聴取でしか分からない**。
-**聴取セットは `reports/k8_listen/` に 12 組ある**（`k8_audio_gap.py --wav-dir` で再生成）。
-
-⚠️ **4 は「今すぐ決められる」ように見えて決められない。** 有効にする動機は速度なのに、
-**その速度が測れるのは実機だけ**。材料（M-55 / M-57 / M-58）は揃っているが、
-効果を確認できないまま決めることになる。
-
-⚠️ **ボードは N16R8 を選ぶこと。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
-16 MB なら**かなトラックの構成もそのまま焼ける**（`partitions.csv` は 5.06 MB）。
-**別々に取りに行くと 2 回焼き直しになる。**
-
-**S5b 以外、実装として書くものは残っていない。** 1〜4 は「測る」「聴く」「決める」。
-
-⚠️ **聴取が決定を覆す可能性がある**: D-044（動作点 438,750）は
-**「音素の 0.32%」だけで決めた**。⚠️ 未知語フォールバックの
-「無音より誤読の方が良い」も**測っていない仮定**のまま。
-
-~~**P-2** β の聴取~~ → ✅ **決着**（M-60 / D-038）。**β=0 で確定、式7 は不要**。
-⚠️ **聴取者 1 名。** v2↔v3 の差も 7 試行で聴き分けられなかった
-（**予測器の差が可聴域に届いていない**。C-037）。
-**E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着。**
-**成果物は v3 に差し替え済み**（M-59 / D-037）。
-⚠️ **「金属的な尾が出ていれば (a)（論文の `Gγ` 逆算が違う）の証拠になる」は撤回**（C-026）。
-尾が出ても「うちの decoder が不十分」であって「うちの逆算が間違い」ではない。
-実際 DNSMOS では尾のパターン自体が出ていない。
-
-**優先度を下げたもの**: `λ_Δ/λ_s/λ_T` の探索（初期値のまま目標に届いた）/
-1.4 M z-line（上限を測る必要が薄れた）/ 学習の延長（Stage 2 はまだ下がる余地あり）。
+- **`β`（式7）** ✅ **β=0 で確定、式7 は不要**（M-60 / D-038）。⚠️ 上流（英語）は 6.0（`docs/upstream-sanotts.md`）。
+- **int8** ✅ blob 2,249,792 → 643,936 B（**−71.4%**）、fp32 経路に対し held-out 24 文で平均 **25.88 dB**（M-45）。
+  ⚠️ **最小 23.27 dB / 9 文が 25 dB 未満**。⚠️ **W8A32 では実行時 RAM は減らない**（flash だけ）。
+- **E-1 DNSMOS** ✅ 教師比 **OVRL 0.7969**（v3。M-61 / D-034）。⚠️ **合否に使わず併記プローブに留める**。理由が 4 つある:
+  **陽性対照 G6 が FAIL**（ハードクリップ SNR 10.5 dB で 4 スコアとも下がらない）/
+  **日本語で高ピッチを罰する**（先行研究で平均 log F0 と r=−0.788。つくよみちゃんは高ピッチ女声）/
+  **アクセント誤りに完全に無反応**（人間 4.00→2.16 で DNSMOS 3.82→3.83。**D-4 の代わりにならない**）/
+  上流の「金属的アーティファクトは SCOREQ で高・DNSMOS で低」は**再現しなかった**。
+  ⚠️ `speechmos` は UTMOS の torch.hub checkout と**同名パッケージで衝突する**（同一プロセスで両方 import できない）。
+- **E-2 decoder の教師初期化** ✅ **定義できない**（27/28 は形状が合うが意味が対応せず、`hout (1539,48,1)` は候補ゼロ）。
+  代わりに鎖分解した（M-49 / D-033。内訳は上の「ギャップの内訳」）。**E-2b で容量律速でないことも確定**（M-52）。
+  **E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。
+- **アクセント型（D-4）** ✅ v3 は **37/37 で符号一致**（M-59 / D-030）。記号 `[ ] #` だけで足り、A1/A2/A3 は要らない。
+  ⚠️ 残るのは (a) **聴いていない** (b) `]` 単独の AUC（教師 0.6526 / 生徒 0.5895）だけペアコントラストと食い違う。
+- **優先度を下げたもの**: `λ_Δ/λ_s/λ_T` の探索（初期値のまま目標に届いた）/ 1.4 M z-line（上限を測る必要が薄れた）/
+  学習の延長（Stage 2 はまだ下がる余地あり。⚠️ Stage 3 の 160k は無駄で 80k が最適点。M-59）。
 
 ## ⚠️ 未知語は誤読ではなく「無音で消える」
 
