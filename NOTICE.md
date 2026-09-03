@@ -161,9 +161,12 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
 | 対象 | ライセンス | 場所 |
 |---|---|---|
 | **Open JTalk**（NJD / JPCommon 系 34 ファイル） | **修正 BSD**（Copyright (c) 2008-2016 Nagoya Institute of Technology / HTS Working Group） | [`csrc/openjtalk/`](csrc/openjtalk/) |
+| **nnn112358 の M5Stack 移植から取り込んだ 3 ファイル** | **MIT**（Copyright (c) 2026 nnn112358） | [`esp32/boards/m5unified/main/saan_audio_m5.cpp`](esp32/boards/m5unified/main/saan_audio_m5.cpp) / [`saan_ui_m5.cpp`](esp32/boards/m5unified/main/saan_ui_m5.cpp) / [`scripts/blob_to_header.py`](scripts/blob_to_header.py) |
 
-**端末で漢字を扱う経路（K-7）で使う。** かな入力だけの既定ビルドには入らない
+**Open JTalk** は端末で漢字を扱う経路（K-7）で使う。かな入力だけの既定ビルドには入らない
 （`idf.py -DSAAN_KANJI=1` を付けたときだけコンパイル対象になる）。
+**nnn112358 の 3 ファイル**は M5Stack 向けビルド（`esp32/boards/m5unified/`）と
+重みを `.rodata` に埋めるビルドでだけ使う。
 
 - ライセンス全文は [`csrc/openjtalk/COPYING`](csrc/openjtalk/COPYING)
 - 出所・バージョン・改変の一覧は [`csrc/openjtalk/PROVENANCE.md`](csrc/openjtalk/PROVENANCE.md)
@@ -172,9 +175,38 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
 - **改変は 1 件だけ**（`jpcommon_label.c` の `MAXBUFLEN` 1024 → 256。K-5）。
   `scripts/k1/k4b_vendor.py --check` が「上流 + 改変表」と突き合わせるので、
   **表に無い改変は落ちる**
+- ⚠️ **ESP32 ビルドは一時ヒープを PSRAM に向けるが、取り込んだ C は 1 バイトも変えていない。**
+  `cc -include csrc/saan_oj_alloc.h` で `calloc` / `strdup` / `free` を
+  コンパイル時に差し替えるだけで、実装（`esp32/components/saanotts_core/saan_oj_alloc.c`）は
+  **本プロジェクトが書いたもの（MIT）**。上流のファイル一覧・SHA-256 は上のまま変わらない
 
 ⚠️ **修正 BSD は MIT と同居できる**（コピーレフトではない）。
 ⚠️ **GPL-3.0 の `Ampixa/sanoTTS` とは別物**（D-032 の凍結対象ではない）。
+
+nnn112358 の 3 ファイルについて:
+
+- 取り込み元は [nnn112358/SanoTTS-jp-M5StackCoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)
+  （第三者による本リポジトリの M5Stack 移植）。**各ファイルの冒頭に出所と MIT を書いてある。**
+- 本リポジトリの API（`saan_audio.h` / `saan_ui.h` / `saan_pcm.h`）に合わせて書き換えており、
+  逐語コピーではない（float → int16 と checksum は `saan_pcm.c` を呼ぶようにした）
+- **MIT 同士なので、このリポジトリの `LICENSE` と衝突しない。** 著作権表示は残すこと
+
+## ⚠️ ビルド時に取得する第三者コンポーネント（リポジトリには入っていない）
+
+`esp32/boards/m5unified/` を **M5Stack 実機向けにビルドするときだけ**、
+ESP-IDF Component Registry から自動で取得される（`main/idf_component.yml`）。
+**リポジトリには含まれない**（`.gitignore` が `managed_components/` を除外している）。
+
+| 対象 | バージョン | ライセンス |
+|---|---|---|
+| **M5Unified** | 0.2.21 | **MIT**（Copyright (c) 2021 M5Stack） |
+| **M5GFX** | 0.2.28 | **MIT**（同上）。⚠️ `src/lgfx/` は **LovyanGFX 由来で FreeBSD ライセンス**、同梱の日本語フォントは **IPA フォントライセンス v1.0**（`src/lgfx/Fonts/IPA/`） |
+
+⚠️ **これらを含む firmware イメージを配布する場合は、上の表示も同梱すること。**
+画面に文字を出すビルドは **IPA 由来のフォントデータをバイナリに含む**。
+⚠️ 本リポジトリが **v0.1.1 / v0.2.0 で配布した `esp32s3-firmware-*.bin` には
+M5Unified / M5GFX は入っていない**（DevKit 構成でビルドしたもの）。
+⚠️ 確認した組み合わせは `dependencies.lock`（このファイルもリポジトリには入れていない）。
 
 ## 主な依存（すべて寛容型ライセンス）
 
