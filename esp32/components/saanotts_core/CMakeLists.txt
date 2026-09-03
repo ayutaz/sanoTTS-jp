@@ -126,6 +126,22 @@ endif()
 # ⚠️ **2 つを別々に定義できないようにしてある。** `SAAN_PIE=1` だけを定義しても
 #    PIE カーネルは W8A8 経路（`saan_conv1d_i8a`）の中にしか無いので 1 命令も出ない。
 #    「片方だけ定義して効かない」を構造的に潰す。
+# --- D-048: **ESP32-S3 では W8A8 + PIE を既定にする**（2026-09-03）-----------------
+#
+# 根拠: (1) **これ無しでは実時間に間に合わない** — W8A32 は CoreS3 で xRT 4.3〜4.6（M-83 / M-86）、
+#       W8A8+PIE は **0.494**（M-89。要件 RTF ≤ 0.5）。(2) **知覚的に無料** — held-out 24 文の
+#       SCOREQ 差 +0.0049 で CI が 0 を含む（M-55）。(3) arena の増分 4.2 KB は 176 KB に収まる（M-89）。
+# ⚠️ **ESP32-S3 以外（ESP32 / C3 …）では PIE 命令が無いので自動的に W8A32 に落ちる**（下の分岐）。
+#    明示的に W8A32 で測りたいときは `-DSAAN_ENABLE_PIE=0`。
+if(NOT DEFINED SAAN_ENABLE_PIE)
+    idf_build_get_property(_saan_default_target IDF_TARGET)
+    if(_saan_default_target STREQUAL "esp32s3")
+        set(SAAN_ENABLE_PIE 1)
+        message(STATUS "sanoTTS: ESP32-S3 なので W8A8 + PIE を**既定で有効**にする（D-048）"
+                       " — W8A32 で測るなら -DSAAN_ENABLE_PIE=0")
+    endif()
+endif()
+
 if(SAAN_ENABLE_PIE)
     # ⚠️ **PIE は ESP32-S3 だけ。** ESP32（M5Stack Core2 / Basic）に渡すと、コアの
     #    `#if defined(__XTENSA__) && SAAN_PIE` は通るが `ee.*` がアセンブラで落ちる。
@@ -145,6 +161,6 @@ elseif(SAAN_W8A8_NOPIE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
     message(STATUS "sanoTTS: W8A8 / PIE 無し（**陰性対照**。出荷構成ではない）")
 else()
-    message(STATUS "sanoTTS: W8A8 + PIE 無効（既定 = W8A32 / 移植可能 C）"
-                   " — 有効化は -DSAAN_ENABLE_PIE=1")
+    message(STATUS "sanoTTS: W8A8 + PIE 無効（W8A32 / 移植可能 C）。"
+                   "ESP32-S3 では既定が有効なので、これは -DSAAN_ENABLE_PIE=0 を明示したか S3 以外の板（D-048）")
 endif()

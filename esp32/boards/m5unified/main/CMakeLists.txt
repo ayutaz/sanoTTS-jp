@@ -25,6 +25,14 @@ saan_model_rodata_header(${COMPONENT_LIB} "${SAAN_MODEL_BLOB}"
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
 #    「fp32 blob なのに W8A8 有効」ガードがこれを見る。片方だけ定義すると
 #    ガードが黙って消えて、効いていないのに気づけない構成に戻る。
+# ⚠️ D-048: ESP32-S3 では既定で有効（コア component の CMakeLists.txt が SAAN_ENABLE_PIE を立てる）。
+# main 側は arena の見積り（W8A8 の scratch）に使うだけなので、同じ既定をここでも組む。
+if(NOT DEFINED SAAN_ENABLE_PIE)
+    idf_build_get_property(_saan_main_target IDF_TARGET)
+    if(_saan_main_target STREQUAL "esp32s3")
+        set(SAAN_ENABLE_PIE 1)
+    endif()
+endif()
 if(SAAN_ENABLE_PIE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_INT8_ACT=1)
 endif()
