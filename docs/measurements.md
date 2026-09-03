@@ -6498,3 +6498,79 @@ M-83 の DevKit 漢字構成で free が 59,044 B しか無かったのが、M5 
 - **S7（CHUNK 16）と S5b はまだ入っていない。**
 - **漢字ビルド（`SAAN_KANJI=1`）では未測定。** 静的検査（`check_esp32_template.sh` §10）は通るが、実機で辞書 + PIE + T1〜T4 の同時構成は測っていない。
 - **音は聴いていない**（checksum が同一なので波形は不変。途切れの有無は別）。
+
+---
+
+## M-90. **スタックチャン（M5 CoreS3）で漢字・カタカナ・ひらがなを喋った** — `!` 不要の自動判定、辞書 13.7 MB を `esp_mmu_map` で mmap、xRT 0.446、内部 DRAM の空き 132 KB（自己実測）
+
+**2026-09-03。ユーザーの CoreS3（D-047）。** プロジェクトの目的そのもの（CLAUDE.md「G2P が本プロジェクトの主目的」）に到達した構成。
+`esp32/boards/m5unified`（M5.Speaker で発声・画面つき）に **辞書パーティション + 漢字経路 + W8A8/PIE + T1〜T5 + 64 B 行 + S5b** を全部載せた 1 本のファーム。
+コード 3e5cf8e（`feat/s1-speed-m5`）。生ログ `reports/m90_cores3/device_m5_kanji.log`。
+
+```bash
+cd esp32/boards/m5unified
+idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict.bin build
+cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash @flash_args
+# ⚠️ --flash_mode qio を渡さないこと（ブートループ。M-86）。約 4 分（辞書 13.7 MB）
+```
+
+### 1. 入力（`!` は要らない。経路は端末が決める）
+
+| 打った行 | 経路 | 漢字 G2P | 形態素 → ids → frames | 音声 | checksum |
+|---|---|---:|---|---:|---|
+| `きょ][おわよ][いて][んきです°ね` | **かな** | — | — → 53 → 106 | 1.231 s | `0xa69a7ebbb5ccb05f` |
+| `今日は良い天気ですね。` | **辞書** | 25.69 ms | 7 → **53** → 106 | 1.231 s | **`0xa69a7ebbb5ccb05f`**（かな行と同値） |
+| `吾輩は猫である。名前はまだ無い。` | 辞書 | 40.79 ms | 11 → 84 → 215 | 2.496 s | `0x6ddb9a69f1b18994` |
+| `本当なんでしょうか?` | 辞書 | 21.46 ms | 7 → 41 → 108 | 1.254 s | `0x3afccd30e0b208ec` |
+| `コンニチハ` | 辞書 | 5.51 ms | 2 → 29 → 60 | 0.697 s | `0xb99d25e78e05ba1e` |
+
+- **同じ文をかなで書いても漢字で書いても同じ PCM が出る**（1 行目と 2 行目が bit 一致）。判定は端末側の 3 値
+  （かな G2P のトークン化が通る → かな / 通らずマークが無い → 辞書 / 通らずマークがある → 拒否）で、ホストの `to_intermediate.py` と 596/596 一致（K-B）。
+- **`本当なんでしょうか?` が喋れる**。半角 `?` をマークから外した修正（3e5cf8e）が効いている。それ以前は held-out 2,333 行の 45 行（1.93%）が拒否だった。
+- **カタカナも辞書経路で読む**。
+
+### 2. 速度（`SAAN_PROFILE=0`）
+
+| | 満チャンク pull 中央値 → xRT | 合成合計 / 音声長 | アンダーラン |
+|---|---:|---:|---:|
+| 53 ids | 41.4 ms → **0.446** | 757.75 ms → 0.616 | **0** / 14 |
+| 84 ids | 41.5 ms → 0.447 | 1,350.74 ms → 0.541 | 0 / 27 |
+| 41 ids | 41.4 ms → 0.446 | 749.91 ms → 0.598 | 0 / 14 |
+| 29 ids | 41.2 ms → 0.444 | 496.13 ms → 0.712 | 0 / 8 |
+
+**M-89 の 0.494 から 0.446 へ**。差は **S5b**（weight-stationary の PIE カーネル。dot の 95.1% / MAC の 76.3% を覆う）。
+⚠️ S5b 単独の寄与はこの測定では分離していない（S5b + 漢字構成をまとめて焼いた）。**要件 RTF ≤ 0.5 は 4 文とも満たす。**
+
+### 3. メモリ
+
+| | 値 |
+|---|---:|
+| 起動直後の内部 DRAM free | **132,039 B**（最大ブロック 86,016） |
+| 辞書 mmap 後 | 131,495 B |
+| 1 発話後 | 129,155 B |
+| 漢字経路の作業領域（最低限） | 144,640 B（arena 180,224 B から。Viterbi に 84,736 B 渡る） |
+| flash | app 1.43 MB（factory 2.75 MB）+ 辞書 13.83 MB = 16 MB ちょうど |
+
+**Open JTalk の一時ヒープは PSRAM に落ちている**（`-include saan_oj_alloc.h`）ので、内部 DRAM は発話しても 3 KB しか減らない。
+
+### 4. 辞書の mmap — **`esp_partition_mmap` ではなく `esp_mmu_map`**
+
+```
+saan_dict: esp_mmu_map を使う（CONFIG_SPI_FLASH_ROM_IMPL の 128 ページ制限を回避）
+           / 連続空き vaddr 23,724,032 B (ESP_OK)
+saan_dict: esp_mmu_map OK: vaddr 0x3c960000
+saan_dict: 辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377
+```
+
+M5 構成は `CONFIG_SPI_FLASH_ROM_IMPL=y` で、ESP32-S3 では `spi_flash_mmap` が **ROM の実装**にリンクされ、IDF はそれに **128 ページ = 8 MB** しか渡さない。
+辞書は 0xD30000 / 64 KB = **211 ページ**なので `esp_partition_mmap` では貼れない（第三者が報告した `ESP_ERR_NO_MEM` の説明になる）。
+`esp_mmu_map`（`esp_mm`、ROM 実装と無関係）に切り替えて解決した。**PSRAM 8 MB と同居して 23.7 MB の連続 vaddr が空いている**。
+
+### 5. ⚠️ 限界
+
+- **音は聴いていない**（私は音を聞けない）。M5.Speaker には送っており、`貯めた 8192 sample (0.372 s) を送出` まではログに出ている。**G32 の聴取は人が要る。**
+- **実サンプルレートの誤差は未測定**（ファーム自身が警告を出す）。
+- 4 文だけ。checksum の 3 つ（84 / 41 / 29 ids）は**初出で参照値が無い**。
+- **S5b の寄与を分離していない。** pie_probe の D6 / D7 を実機で読むのが本筋（未実施）。
