@@ -226,8 +226,8 @@ void saan_relu(float *x, size_t n) {
  * なぜ: GELU は要素ごとに `erff()` を呼び、1 step に 21,664 回（M-80）。newlib の erff は
  * 多項式 + `expf` の関数呼び出しで、QEMU の命令数比で 1 step の 14〜25% を使っていた。
  *
- * 方式: x ∈ [0, 4] を h = 1/32 の 128 区間に割り、節点の erf と erf' を表に持ち（erf_table.h）、
- * 区間内は 3 次 Hermite。奇関数なので |x| で計算して符号を戻す。|x| ≥ 4 は ±1
+ * 方式: x ∈ [0, 4] を h = 1/32 の 128 区間に割り、節点の erf と erf'·h を表に持ち（erf_table.h。
+ * 導関数は T5-G4 で h を掛けた値で持つ）、区間内は 3 次 Hermite。奇関数なので |x| で計算して符号を戻す。|x| ≥ 4 は ±1
  * （erf(4) = 1 − 1.5e-8 は float で 1.0）。理論誤差 h⁴/384 · max|erf⁗| ≈ 1.1e-8 で、
  * float 演算の丸めの方が大きい。**libm の erff との max|Δ| ≤ 2e-7** を `make -C csrc erf` が守る。
  *
@@ -265,8 +265,9 @@ float saan_erf_approx(float x) {
 #if SAAN_ERF_TEST_LINEAR
     const float y = f0 + t * (f1 - f0);
 #else
-    const float h = 1.0f / (float)SAAN_ERF_H_INV;
-    const float d0 = kSaanErfD[i] * h, d1 = kSaanErfD[i + 1] * h;   /* 導関数 × h */
+    /* 導関数 × h。T5-G4 で表に事前に掛けてある（2^-5 倍は float で正確なので旧 kSaanErfD[i] * h と
+     * bit 一致。erf_test.c §3 が全 129 節点で検査する）。要素あたり乗算 2 回と定数 1 個の l32r が消える */
+    const float d0 = kSaanErfDh[i], d1 = kSaanErfDh[i + 1];
     const float t2 = t * t, t3 = t2 * t;
     /* Hermite 基底: h00 = 2t³−3t²+1, h10 = t³−2t²+t, h01 = −2t³+3t², h11 = t³−t² */
     const float y = f0 * (2.0f * t3 - 3.0f * t2 + 1.0f)

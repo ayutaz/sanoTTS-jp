@@ -1,7 +1,7 @@
 /* S3: saan_erf_approx() が libm の erff() と一致するかのゲート（`make -C csrc erf`）。
- * T5-G3 で「S3 実装との全格子 bit 一致」を足した（下記 §2）。
+ * T5-G3 で「S3 実装との全格子 bit 一致」（§2）、T5-G4 で「事前スケール表の bit 一致」（§3）を足した。
  *
- *   ./erf_test                        … §1 max|Δ| <= SAAN_ERF_TOL と §2 全格子 bit 一致で OK
+ *   ./erf_test                        … §1 max|Δ| <= SAAN_ERF_TOL / §2 全格子 bit 一致 / §3 表の bit 一致で OK
  *   ./erf_test_linear --expect-fail   … 線形補間に落とした**陽性対照**（§1 が落ちなければ NG）
  *   ./erf_test_clamp --expect-grid-fail … クランプをずらした**陽性対照**（§2 が落ちなければ NG）
  *
@@ -201,9 +201,24 @@ int main(int argc, char **argv) {
                grid_ok ? "NG!" : "OK ", grid_ok ? "通ってしまった（比較が効いていない）" : "落とす");
         return grid_ok ? 1 : 0;
     }
+    /* --- §3: 表そのもの（T5-G4）。kSaanErfV は旧表と同一、kSaanErfDh[i] は旧 kSaanErfD[i] * h と bit 一致。
+     *     2^-5 倍は float で正確（指数が 5 減るだけ）なので、生成器が正しければ 129 節点すべてで一致する。
+     *     ⚠️ 生成器が double の erf'(x)·h を直接 %.9g で出すと二重丸めで 2 節点ずれる（Python で実測）。 */
+    long tbl_bad_v = 0, tbl_bad_dh = 0;
+    for (int i = 0; i <= SAAN_ERF_N; ++i) {
+        if (f2u(kSaanErfV[i]) != f2u(kRefErfV[i])) ++tbl_bad_v;
+        const float ref_dh = kRefErfD[i] * (1.0f / 32.0f);
+        if (f2u(kSaanErfDh[i]) != f2u(ref_dh)) ++tbl_bad_dh;
+    }
+    const int tbl_ok = (tbl_bad_v == 0 && tbl_bad_dh == 0);
+    printf("  §3 表の bit 一致: kSaanErfV vs 旧表 不一致 %ld / kSaanErfDh vs 旧 kSaanErfD·h 不一致 %ld（%d 節点）\n",
+           tbl_bad_v, tbl_bad_dh, SAAN_ERF_N + 1);
+
     printf("  %s saan_erf_approx は erff と max|Δ| <= %.1e で一致\n", within ? "OK " : "NG!",
            (double)SAAN_ERF_TOL);
     printf("  %s saan_erf_approx は S3 実装と全格子で bit 一致（erf は ±0.0 のみ許容、GELU は厳密）\n",
            grid_ok ? "OK " : "NG!");
-    return (within && grid_ok) ? 0 : 1;
+    printf("  %s 事前スケール表 kSaanErfDh は旧 kSaanErfD × h と全節点で bit 一致（T5-G4）\n",
+           tbl_ok ? "OK " : "NG!");
+    return (within && grid_ok && tbl_ok) ? 0 : 1;
 }
