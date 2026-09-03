@@ -1,9 +1,11 @@
 /* S3: saan_erf_approx() が libm の erff() と一致するかのゲート（`make -C csrc erf`）。
  * T5-G3 で「S3 実装との全格子 bit 一致」（§2）、T5-G4 で「事前スケール表の bit 一致」（§3）を足した。
  *
- *   ./erf_test                        … §1 max|Δ| <= SAAN_ERF_TOL / §2 全格子 bit 一致 / §3 表の bit 一致で OK
+ *   ./erf_test                        … §1 max|Δ| <= SAAN_ERF_TOL / §2 全格子 + §2a [-4,4] の float 全走査 +
+ *                                        §2b 本番 saan_gelu() の bit 一致 / §3 表の bit 一致で OK
  *   ./erf_test_linear --expect-fail   … 線形補間に落とした**陽性対照**（§1 が落ちなければ NG）
- *   ./erf_test_clamp --expect-grid-fail … クランプをずらした**陽性対照**（§2 が落ちなければ NG）
+ *   ./erf_test_clamp --expect-grid-fail … クランプをずらした**陽性対照**（§2 / §2a / §2b の**どれか 1 本でも**
+ *                                        落ちなければ NG。3 本が別々に効いていることを言うため）
  *
  * ⚠️ しきい値 2e-7 は「float の 1.0 の 3〜4 ulp」。Hermite の理論誤差 1.1e-8 より
  *    float 演算の丸めの方が大きいので、実測でこの水準に収まることを確かめる。
@@ -17,7 +19,10 @@
  *    ⚠️ **ホスト（この比較）と Xtensa は丸めが違う**ので、ここが通っても QEMU の checksum
  *    不変は別に確かめる。ここで守れるのは「同じコンパイラなら同じ bit」だけ。
  *    ⚠️ x = −0.0 だけは erf の符号が違ってよい（S3 は +0.0、G3 は −0.0）。GELU は
- *    1.0f + (∓0.0f) = 1.0f で同一 — それは GELU 側の bit 比較が全点で確かめる。 */
+ *    1.0f + (∓0.0f) = 1.0f で同一 — それは GELU 側の bit 比較が全点で確かめる。
+ *    ⚠️ T5 の検証で 2 本足した（§2a / §2b）。§2 の格子は「その点では一致」しか言えず、G-3 の約束は
+ *    「全有限値で一致」なので [-4, 4] の float を全部走査する（§2a。約 12 s）。§2 は外部ラッパしか
+ *    呼ばないので、本番の saan_gelu()（G-1 のインライン展開）は §2b が別に bit で比べる。 */
 #include "saanotts_internal.h"
 #include "erf_table.h"
 
@@ -191,15 +196,66 @@ int main(int argc, char **argv) {
     { static const float sp[] = { 0.0f, -0.0f, 4.0f, -4.0f, 1e30f, -1e30f, 3.9999f, -3.9999f, 4.0001f, -4.0001f };
       for (size_t i = 0; i < sizeof sp / sizeof sp[0]; ++i) grid_point(sp[i]); }
     for (int i = -8000; i <= 8000; ++i) grid_point((float)i / 1000.0f);
-    const int grid_ok = (g_grid_bad_erf == 0 && g_grid_bad_gelu == 0);
+    /* §2a（T5 検証で追加）: [0, 4] の **float 全走査**（bit 0x00000000 .. 0x40800000 = 1,082,130,433 値）
+     * と、その負号。格子は「その点では一致」しか言えない — 分岐の除去（G-3）は「全有限値で一致」が
+     * 約束なので、クランプ以下の float を 1 つ残らず S3 と比べる。|x| > 4 は両方ともクランプ
+     * （§1 の乱数 [-5, 5] と ±1e30 が踏む）。⚠️ 約 2×10⁹ 回の評価で数秒かかる */
+    long sweep_bad_erf = 0, sweep_bad_gelu = 0; uint32_t sweep_first = 0; int sweep_have_first = 0;
+    for (uint32_t b = 0u; b <= 0x40800000u; ++b) {
+        for (int s = 0; s < 2; ++s) {
+            float x; const uint32_t xb = b | (s ? 0x80000000u : 0u);
+            memcpy(&x, &xb, sizeof x);
+            const float a = saan_erf_approx(x), r = ref_erf_s3(x);
+            int bad = 0;
+            if (f2u(a) != f2u(r) && !(a == 0.0f && r == 0.0f)) { ++sweep_bad_erf; bad = 1; }
+            if (f2u(gelu_from_erf(x, a)) != f2u(gelu_from_erf(x, r))) { ++sweep_bad_gelu; bad = 1; }
+            if (bad && !sweep_have_first) { sweep_first = xb; sweep_have_first = 1; }
+        }
+    }
+    /* §2b（T5 検証で追加）: **本番の saan_gelu()**（インライン版 saan_erf_approx_inl を展開した経路。T5-G1）を
+     * S3 の GELU（凍結 erf × 同じ式）と bit で比べる。§2 は外部ラッパ saan_erf_approx() しか呼ばないので、
+     * ラッパとインライン展開が別のコードになっても §2 では見えない。GELU が実際に渡す x·(1/√2) が
+     * クランプ 4 を跨ぐように x ∈ [-8, 8] を 1/16000 刻み（256,001 点）+ 乱数 1e6 点 */
+    long prod_n = 0, prod_bad = 0; float prod_first = 0.0f; int prod_have_first = 0;
+    {
+        enum { PB = 4096 };
+        static float buf[PB], xs[PB];
+        int fill = 0;
+        rs = 0x2545f491u;
+        for (int i = -128000; i <= 128000 + 1000000; ++i) {
+            const float x = (i <= 128000) ? (float)i / 16000.0f : rndf(-8.0f, 8.0f);
+            xs[fill] = x; buf[fill] = x; ++fill;
+            if (fill == PB || i == 128000 + 1000000) {
+                saan_gelu(buf, (size_t)fill);
+                for (int k = 0; k < fill; ++k) {
+                    const float want = gelu_from_erf(xs[k], ref_erf_s3(xs[k] * 0.70710678f));
+                    ++prod_n;
+                    if (f2u(buf[k]) != f2u(want)) { ++prod_bad; if (!prod_have_first) { prod_first = xs[k]; prod_have_first = 1; } }
+                }
+                fill = 0;
+            }
+        }
+    }
+    const int grid_ok = (g_grid_bad_erf == 0 && g_grid_bad_gelu == 0
+                         && sweep_bad_erf == 0 && sweep_bad_gelu == 0 && prod_bad == 0);
     printf("  §2 S3 実装との全格子 bit 一致: %ld 点 / erf 不一致 %ld / GELU 不一致 %ld",
            g_grid_n, g_grid_bad_erf, g_grid_bad_gelu);
     if (g_have_first) printf("（最初の不一致 x = %.7g）", (double)g_first_bad);
     printf("\n");
+    printf("  §2a [-4, 4] の float 全走査 %lu 値: erf 不一致 %ld / GELU 不一致 %ld",
+           2ul * (0x40800000ul + 1ul), sweep_bad_erf, sweep_bad_gelu);
+    if (sweep_have_first) { float fx; memcpy(&fx, &sweep_first, sizeof fx); printf("（最初の不一致 x = %.9g = 0x%08lx）", (double)fx, (unsigned long)sweep_first); }
+    printf("\n");
+    printf("  §2b 本番 saan_gelu()（インライン経路）vs S3 GELU: %ld 点 / 不一致 %ld", prod_n, prod_bad);
+    if (prod_have_first) printf("（最初の不一致 x = %.7g）", (double)prod_first);
+    printf("\n");
     if (expect_grid_fail) {
-        printf("  %s 陽性対照: クランプをずらした版は全格子 bit 一致を%s\n",
-               grid_ok ? "NG!" : "OK ", grid_ok ? "通ってしまった（比較が効いていない）" : "落とす");
-        return grid_ok ? 1 : 0;
+        /* 3 本とも落ちること。どれか 1 本が「不一致 0」なら、その比較は効いていない */
+        const int each = (g_grid_bad_erf + g_grid_bad_gelu) > 0 && (sweep_bad_erf + sweep_bad_gelu) > 0 && prod_bad > 0;
+        printf("  %s 陽性対照: クランプをずらした版は全格子 bit 一致を%s（§2 / §2a / §2b %s）\n",
+               (grid_ok || !each) ? "NG!" : "OK ", grid_ok ? "通ってしまった（比較が効いていない）" : "落とす",
+               each ? "すべて落ちた" : "のどれかが落ちていない");
+        return (grid_ok || !each) ? 1 : 0;
     }
     /* --- §3: 表そのもの（T5-G4）。kSaanErfV は旧表と同一、kSaanErfDh[i] は旧 kSaanErfD[i] * h と bit 一致。
      *     2^-5 倍は float で正確（指数が 5 減るだけ）なので、生成器が正しければ 129 節点すべてで一致する。
@@ -216,7 +272,7 @@ int main(int argc, char **argv) {
 
     printf("  %s saan_erf_approx は erff と max|Δ| <= %.1e で一致\n", within ? "OK " : "NG!",
            (double)SAAN_ERF_TOL);
-    printf("  %s saan_erf_approx は S3 実装と全格子で bit 一致（erf は ±0.0 のみ許容、GELU は厳密）\n",
+    printf("  %s saan_erf_approx / saan_gelu は S3 実装と bit 一致（格子 + [-4,4] 全走査 + 本番 GELU 経路。erf は ±0.0 のみ許容）\n",
            grid_ok ? "OK " : "NG!");
     printf("  %s 事前スケール表 kSaanErfDh は旧 kSaanErfD × h と全節点で bit 一致（T5-G4）\n",
            tbl_ok ? "OK " : "NG!");

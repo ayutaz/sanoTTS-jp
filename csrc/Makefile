@@ -188,6 +188,9 @@ erf_test_linear: erf_test.c $(CORE) $(HDRS)
 # T5-G3: 「S3 実装（erf_test.c 内の凍結コピー）との全格子 bit 一致」の**陽性対照**。
 # クランプの上限を 4.0 からずらすと |x| ≥ 4 の値が 1.0f から動いて落ちる。
 # ⚠️ 3.9999f では落ちない（erf(3.9999) は float でまだ 1.0f。計画の値は実測で外れた）ので 3.9f
+# ⚠️ T5 検証で §2a（[-4,4] の float 全走査）/ §2b（本番 saan_gelu() のインライン経路）を足した。
+#    --expect-grid-fail は **3 本すべてが落ちる**ことを要求する（1 本でも 0 なら効いていない）。
+#    erf_test / erf_test_clamp は全走査で各 12 s 程度（M4 Max）
 erf_test_clamp: erf_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_ERF_TEST_CLAMP=3.9f -o $@ erf_test.c $(CORE) $(LDLIBS)
 
