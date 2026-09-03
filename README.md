@@ -40,7 +40,7 @@ bit 一致を確認し、CoreS3 は内蔵スピーカー・画面・リップシ
 |---|---|
 | **品質** | 教師の **64%**（SCOREQ 比 0.644）。論文の英語版が報告する比 0.5427 を上回る |
 | **アクセント** | ミニマルペア 37 ペアで教師との符号一致 **37/37** |
-| **メモリ** | **157 KB**（350 ids で init も pull も通る最小 arena。静的確保は 176 KB）— ESP32-S3 の SRAM 512 KB の 34%。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
+| **メモリ** | **157 KB**（350 ids で init も pull も通る最小 arena。静的確保は 176 KB）— ESP32-S3 の SRAM 512 KB の 34%。実機の内部 DRAM の空きは **136 KB**（M-89）。重みは int8 で 654,032 B（flash。blob v2 = 事前整列で +10,096 B。v1 は 643,936 B） |
 | **速度** | ✅ **要件を満たした。** 手元の CoreS3（W8A8 + PIE）で**満チャンク 1 pull の xRT 0.497**、アンダーラン 0、鳴らし始めまで 434 ms（M-88。3 文とも）。1 step は 18.38 M → **11.72 M cyc**。⚠️ **発話全体で見ると 0.55〜0.69** でまだ 0.5 超（warmup 38 フレーム分）。第三者の報告値は S1 前のもの（AtomS3 **1.718** / CoreS3 **1.558**。[AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)） |
 | **実機の音声出力** | CoreS3 の M5Unified 経路で成功。60% を先読みし、発話開始まで **1,781 ms** / 追い越し（途切れ）**0 回**（[実装](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [動画](https://x.com/nnn112358/status/2095071771355725970)）。同じ構成を [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) として取り込んだ（ビルドまで） |
 | **漢字を端末で読む** | ✅ **CoreS3 で実機確認**（M-83）: `!今日は良い天気ですね。` → 53 ids → checksum が QEMU と一致。漢字 G2P 27.85〜66.30 ms（33〜84 B）。⚠️ 音は未聴取、xRT は W8A32 で 4.3〜4.6（PIE 未有効） |
@@ -310,7 +310,7 @@ uv sync
 | | |
 |---|---|
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
-| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-88。全項目に再現コマンド付き |
+| [`docs/measurements.md`](docs/measurements.md) | **実測値の一次ソース** M-1〜M-89。全項目に再現コマンド付き |
 | [`docs/decisions.md`](docs/decisions.md) | 決定 D-001〜D-047 と**訂正履歴 C-001〜C-055** |
 | [`docs/upstream-sanotts.md`](docs/upstream-sanotts.md) | 公式実装から得た事実（⚠️ すべて上流の申告値・未再現） |
 | [`docs/plan/`](docs/plan/) | 作業計画と残りのタスク |
