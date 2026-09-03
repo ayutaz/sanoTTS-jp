@@ -73,6 +73,7 @@ K 計画 [`k1-kanji-implementation-plan.md`](k1-kanji-implementation-plan.md)（
 - **陽性対照**: c1 の範囲を `[3, W−2)` に 1 フレーム狭めると G2 が落ちる（中央 8 の先頭が壊れる）。
 - **実機**: セッション 1 で MAC / GELU の cyc/step。
 - **依存**: T1（step 回数が変わるので prof の「/step」を先に安定させる）。
+- [x] **T2a**（stream G2 の多文化 / `SAAN_OBUF_HOPS` = 2·CH − (SAAN_LATENCY mod CH) / ofill の上限を「超えない **かつ** 届く」で assert / コアは書く前に `ofill >= SAAN_OBUF_HOPS` で SAAN_ERR_ARENA）— `make -C csrc stream` が fp32 / W8A32 / W8A8 の 3 レーン × held-out 24 文（int8 レーンは d̂ が違い残差 1 つが空くので文の prefix で補完）。実測: ofill 最大 12 は n_frames ≡ 4 (mod 8) の 4 文（h02 156 / h13 140 / h14 132 / h18 300 frames）、≡ 3 は 11、他は 10。陽性対照 (CH+2): ≡ 3・4 の 7 文が `pull: arena が足りない` で落ち、1 文の G2 は通ったまま（審査の指摘どおり）。⚠️ W8A8 レーンだけ G1 を `--g1-kb 208`（実機の静的 arena）で見る — W8A8 は 200 KB を超える（M-55。今 203.0 KB）
 
 ### T3. token ブロックをトークン単位のパイプに（S6）
 

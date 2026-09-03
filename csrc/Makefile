@@ -69,6 +69,11 @@ golden_test: golden_test.c $(CORE) $(HDRS)
 stream_test: stream_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ stream_test.c $(CORE) $(LDLIBS)
 
+# W8A8 のストリーミング（T2a）。切り替えがコンパイル時なので**別バイナリ**にする
+# （dump_pcm_a32 / dump_pcm_a8 と同じ理由: 同じ名前で上書きするとどちらを測ったか分からない）
+stream_test_a8: stream_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o $@ stream_test.c $(CORE) $(LDLIBS)
+
 fft_test: fft_test.c fft.c fft.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ fft_test.c fft.c $(LDLIBS)
 
@@ -134,8 +139,16 @@ g2p_vectors_corpus.bin:
 test: golden_test
 	./golden_test student.bin golden.bin
 
-stream: stream_test
-	./stream_test student.bin golden.bin
+# 3 レーン（fp32 / W8A32 / W8A8）× held-out 24 文（T2a）。
+# ⚠️ 1 文（golden の in.ids = 106 frames ≡ 2 mod 8）だけでは n_frames mod CH の
+#    残差 1 通りしか見ず、末尾 step 数・obuf の深さの壊れ方を捕まえられない
+# ⚠️ W8A8 のレーンだけ G1 の上限を **208 KB**（実機の静的 arena。esp32/main/main.c の
+#    SAAN_ARENA_BYTES）にする。W8A8 は 200 KB を超えることが分かっている（M-55: conv 1 本ぶんの
+#    activation 作業領域。当時 201.1 KB、blob v2 の今は 203.0 KB）。fp32 / W8A32 は D-029 の 200 KB のまま
+stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
+	./stream_test    student.bin    golden.bin ids_heldout.bin
+	./stream_test    student_i8.bin golden.bin ids_heldout.bin
+	./stream_test_a8 --g1-kb 208 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test
@@ -220,7 +233,7 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf
 
 clean:
-	rm -f golden_test stream_test fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
+	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress k2_test k4_test \
 	      g2p_test line_test k4b_test k4b_stderr.log k5_mem_test k5_stderr.log k6_test k6_stderr.log k7_test k7_stderr.log \
 	      k5_labels*.txt k5_mem_ctrl k5_worst.bin *.o openjtalk/*.o
 	rm -rf k5_ctrl

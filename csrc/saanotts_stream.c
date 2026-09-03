@@ -121,7 +121,8 @@ struct saan_stream_impl {
     int32_t out_pos;     /* 次に出す絶対サンプル位置 */
     int32_t skip_hops;   /* 捨てる先頭 hop 数（一括版の N/2 切り出しに対応） */
     int ola_len;
-    float *obuf;         /* [(CH + 4) * HOP] 出力の詰め替え */
+    float *obuf;         /* [SAAN_OBUF_HOPS * HOP] 出力の詰め替え。
+                          * 深さは 2·CH − (SAAN_LATENCY mod CH) = CH+4（saanotts_stream.h） */
     int32_t ofill;
     float *tok_buf, *tok_w1, *tok_w2, *tok_out;   /* token チャンクの作業領域 */
 
@@ -213,7 +214,8 @@ size_t saan_stream_arena_needed(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(float) * 1539 * CH);
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);
     s += SAAN_ALIGN16(sizeof(float) * (size_t)(SAAN_NFFT + 2 * SAAN_HOP)) * 2;
-    s += SAAN_ALIGN16(sizeof(float) * (size_t)(CH + 4) * SAAN_HOP);
+    /* obuf: 2·CH − (SAAN_LATENCY mod CH) hop（= CH+4。saanotts_stream.h の導出） */
+    s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
     s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT) * 2;
     s += SAAN_ALIGN16(sizeof(float) * NB) * 2;
     /* W8A8（`-DSAAN_INT8_ACT=1`）のとき conv 1 本ぶんの activation 作業領域。
@@ -521,13 +523,14 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
      * `N/2 / HOP` 回を捨てるのが正しい */
     im->out_pos = 0;
     im->skip_hops = SAAN_NFFT / 2 / SAAN_HOP;
-    im->obuf = (float *)saan_alloc(a, sizeof(float) * (size_t)(CH + 4) * SAAN_HOP);
+    im->obuf = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
     im->tok_buf = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
     im->tok_w1  = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
     im->tok_w2  = (float *)saan_alloc(a, sizeof(float) * AC_W * TOK_MAXW);
     im->tok_out = (float *)saan_alloc(a, sizeof(float) * AC_W * CH);
     if (!im->obuf || !im->tok_out) return SAAN_ERR_ARENA;
     im->ofill = 0;
+    st->ofill_max = 0;
     st->peak_used = a->peak;
     return SAAN_OK;
 }
@@ -725,6 +728,9 @@ static saan_status step_chunk_body(saan_stream *st, float *pcm) {
                 --im->skip_hops;
                 continue;                     /* ofill は増やさない = 捨てる */
             }
+            /* ⚠️ obuf の深さは SAAN_OBUF_HOPS で閉じている（導出は saanotts_stream.h）。
+             *    超えるなら隣のバッファを黙って壊すので、書く前に止める */
+            if (im->ofill >= SAAN_OBUF_HOPS) return SAAN_ERR_ARENA;
             istft_pop(im, im->obuf + (size_t)im->ofill * SAAN_HOP);
             ++im->ofill;
         }
@@ -765,6 +771,7 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
         /* ⚠️ `used` ではなく `peak` を見る。W8A8 の activation 作業領域は
          * conv の中で確保して**すぐ返す**ので、`used` では捕まらない */
         if (st->a->peak > st->peak_used) st->peak_used = st->a->peak;
+        if (im->ofill > st->ofill_max) st->ofill_max = im->ofill;
         /* 入力を出し切ってなお足りないなら打ち切る（無限ループ防止）。
          * ⚠️ **真に必要な余剰は遅延 SAAN_LATENCY + iSTFT の 2 フレームだけ。**
          * 以前は `+ 4*CH + 16` の安全マージンを積んでいたが、それは

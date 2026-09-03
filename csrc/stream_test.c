@@ -5,11 +5,23 @@
  *   G3 発話長に対して RAM が O(1)
  *   G4 golden test が通り続ける（別バイナリ）
  *
- *   cc -std=c99 -O2 -o stream_test stream_test.c saanotts.c saanotts_stream.c -lm
- *   ./stream_test student.bin golden.bin
+ *   G2 多文（T2a）: held-out 24 文 × 一括 vs ストリーミング memcmp。
+ *      n_frames mod SAAN_CHUNK の残差 0〜7 を**全部**含むこと、pull ごとの ofill の
+ *      最大が SAAN_OBUF_HOPS（= 2·CH − (SAAN_LATENCY mod CH) = CH+4）を超えず、
+ *      **かつ届く**（= 上限がきつい。届かないならテスト文が最悪ケースを含んでいない）
+ *      ことを assert する。⚠️ 1 文だけの G2 は残差 1 通りしか見ない（demo は 106 ≡ 2）。
+ *      obuf を (CH+2) に縮めた壊れ方は 1 文の G2 でも QEMU checksum でも捕まらなかった
+ *      （審査 2026-09-03）。
+ *
+ *   cc -std=c99 -O2 -o stream_test stream_test.c saanotts.c saanotts_stream.c \
+ *       saanotts_int8.c fft.c -lm
+ *   ./stream_test student.bin golden.bin [ids_heldout.bin]
+ *   ./stream_test student_i8.bin golden.bin ids_heldout.bin       # W8A32
+ *   （-DSAAN_INT8_ACT=1 でビルドしたものに student_i8.bin を渡せば W8A8）
  */
 #include "saanotts.h"
 #include "saanotts_stream.h"
+#include <stdint.h>
 
 #include <math.h>
 #include <stdio.h>
@@ -25,8 +37,194 @@ static void *slurp(const char *path, size_t *size) {
     fclose(f); *size = (size_t)n; return b;
 }
 
+/* SAAN ブロブから fp32 テンソルを引いて int32 の ids に直す（int8_e2e_test.c と同じ）。
+ * 要素数を返す。無ければ -1 */
+static int read_ids(const saan_weights *w, const char *name, int32_t *dst, int cap) {
+    uint32_t dt = 0;
+    uint64_t nb = 0;
+    const void *p = saan_tensor(w, name, &dt, NULL, &nb);
+    if (!p || dt != 0u) return -1;
+    const int n = (int)(nb / sizeof(float));
+    if (n > cap) return -1;
+    const float *f = (const float *)p;
+    for (int i = 0; i < n; ++i) dst[i] = (int32_t)f[i];
+    return n;
+}
+
+/* 1 文を一括版とストリーミング版で合成して memcmp する（G2 多文の 1 単位）。
+ * 戻り値: 0 = bit 一致 / 1 = 不一致 / -1 = どちらかがエラー（stderr に出す）。
+ * `*n_frames` に一括版のフレーム数、`*ofill_max` に pull ごとの obuf 充填の最大、
+ * `*n_pull` に pull 回数（n_out > 0 のもの）を返す */
+static int stream_vs_batch(const saan_weights *W, const int32_t *ids, int n_ids,
+                           int *n_frames, int32_t *ofill_max, int *n_pull) {
+    const size_t need_b = saan_arena_needed(n_ids);
+    void *ab = malloc(need_b);
+    saan_arena A;
+    saan_arena_init(&A, ab, need_b);
+    saan_output out;
+    saan_status s = saan_synthesize(W, &A, ids, n_ids, SAAN_S_V, &out);
+    if (s != SAAN_OK) { fprintf(stderr, "一括: %s\n", saan_strerror(s)); free(ab); return -1; }
+    const int S = out.n_samples;
+    *n_frames = out.n_frames;
+
+    const size_t need_s = saan_stream_arena_needed(n_ids);
+    void *as = malloc(need_s);
+    saan_arena B;
+    saan_arena_init(&B, as, need_s);
+    saan_stream st;
+    s = saan_stream_init(&st, W, &B, ids, n_ids, SAAN_S_V);
+    if (s != SAAN_OK) {
+        fprintf(stderr, "stream init: %s\n", saan_strerror(s));
+        free(ab); free(as); return -1;
+    }
+    if (st.n_frames != out.n_frames) {
+        fprintf(stderr, "フレーム数が違う: 一括 %d / stream %d\n", out.n_frames, st.n_frames);
+        free(ab); free(as); return -1;
+    }
+    float *got = calloc((size_t)S, sizeof(float));
+    float chunk[SAAN_CHUNK * SAAN_HOP];
+    int32_t n, pos = 0;
+    int pulls = 0;
+    int rc = 0;
+    while (1) {
+        s = saan_stream_pull(&st, chunk, &n);
+        if (s != SAAN_OK) { fprintf(stderr, "pull: %s\n", saan_strerror(s)); rc = -1; break; }
+        if (n == 0) break;
+        ++pulls;
+        const int32_t take = n * SAAN_HOP;
+        const int32_t room = S - pos;
+        memcpy(got + pos, chunk, sizeof(float) * (size_t)(take < room ? take : room));
+        pos += take;
+        if (pos >= S) break;
+    }
+    *ofill_max = st.ofill_max;
+    *n_pull = pulls;
+    if (rc == 0) rc = memcmp(got, out.pcm, sizeof(float) * (size_t)S) != 0;
+    free(got); free(ab); free(as);
+    return rc;
+}
+
+/* G2 多文（T2a）。held-out の全文で一括 vs ストリーミング。
+ * 残差 0〜(CH−1) のカバーと ofill の上限（超えない **かつ 届く**）を assert する。
+ * 戻り値は NG の数 */
+static int g2_multi(const saan_weights *W, const char *path) {
+    size_t hsz;
+    void *hbuf = slurp(path, &hsz);
+    saan_weights H;
+    if (saan_weights_open(&H, hbuf, hsz) != SAAN_OK) {
+        fprintf(stderr, "ids ブロブを開けない: %s\n", path); return 1;
+    }
+    static int32_t ids[4096];
+    int cnt[SAAN_CHUNK], omax[SAAN_CHUNK], ndiff[SAAN_CHUNK];
+    for (int r = 0; r < SAAN_CHUNK; ++r) { cnt[r] = 0; omax[r] = 0; ndiff[r] = 0; }
+    int n_utt = 0, n_same = 0, n_err = 0;
+    int32_t omax_all = 0;
+    printf("\n  G2 多文（%s）: 一括 vs ストリーミング memcmp\n", path);
+    printf("      %3s %5s %7s  mod%-2d %5s %9s\n",
+           "#", "ids", "frames", SAAN_CHUNK, "pull", "ofill最大");
+    for (int k = 0; k < 4096; ++k) {
+        char nm[32];
+        snprintf(nm, sizeof nm, "ids.%03d", k);
+        const int n = read_ids(&H, nm, ids, 4096);
+        if (n <= 0) break;
+        int nf = 0, pulls = 0;
+        int32_t om = 0;
+        const int rc = stream_vs_batch(W, ids, n, &nf, &om, &pulls);
+        const int r = nf % SAAN_CHUNK;
+        ++cnt[r];
+        if (om > omax[r]) omax[r] = om;
+        if (om > omax_all) omax_all = om;
+        if (rc == 0) ++n_same; else if (rc < 0) ++n_err; else ++ndiff[r];
+        printf("      %3d %5d %7d  %5d %5d %9d %s\n", k, n, nf, r, pulls, om,
+               rc == 0 ? "一致" : rc < 0 ? "ERROR" : "NG! 不一致");
+        ++n_utt;
+    }
+    if (n_utt == 0) { fprintf(stderr, "ids ブロブが空: %s\n", path); return 1; }
+
+    /* 残差の補完。⚠️ int8 blob は d̂ が fp32 と違う（int8_e2e の d̂ 一致 < 100%）ので
+     * 同じ 24 文でもフレーム数が変わり、残差 1 つが空くことがある（実測: W8A32 で
+     * ≡6、W8A8 で ≡4 が空いた。≡4 が空くと上限 12 に届かない）。
+     * 空いた残差は**文の prefix**（ids の先頭 n 個。T1 の陽性対照と同じ作り方）で埋める。
+     * 一括 vs ストリーミングの一致は入力列の言語的な妥当性に依らない */
+    int n_fill = 0, n_fill_fail = 0;
+    for (int r = 0; r < SAAN_CHUNK; ++r) {
+        if (cnt[r]) continue;
+        int found = 0;
+        for (int k = 0; k < n_utt && !found; ++k) {
+            char nm[32];
+            snprintf(nm, sizeof nm, "ids.%03d", k);
+            const int n = read_ids(&H, nm, ids, 4096);
+            if (n <= 0) break;
+            for (int m = n - 1; m >= 8 && m >= n - 48; --m) {
+                int nf = 0, pulls = 0;
+                int32_t om = 0;
+                const int rc = stream_vs_batch(W, ids, m, &nf, &om, &pulls);
+                if (nf % SAAN_CHUNK != r) continue;
+                ++cnt[r];
+                if (om > omax[r]) omax[r] = om;
+                if (om > omax_all) omax_all = om;
+                if (rc == 0) ++n_same; else if (rc < 0) ++n_err; else ++ndiff[r];
+                printf("      %3d %5d %7d  %5d %5d %9d %s  ← 補完: #%d の先頭 %d ids\n",
+                       k, m, nf, r, pulls, om,
+                       rc == 0 ? "一致" : rc < 0 ? "ERROR" : "NG! 不一致", k, m);
+                ++n_utt; ++n_fill; found = 1;
+                break;
+            }
+        }
+        if (!found) ++n_fill_fail;
+    }
+    free(hbuf);
+
+    int bad = 0;
+    printf("      残差ごと（n_frames mod %d）:\n", SAAN_CHUNK);
+    printf("        %4s %4s %9s %6s\n", "mod", "文数", "ofill最大", "不一致");
+    int uncovered = 0;
+    for (int r = 0; r < SAAN_CHUNK; ++r) {
+        printf("        %4d %4d %9d %6d%s\n", r, cnt[r], omax[r], ndiff[r],
+               cnt[r] == 0 ? "  ← 覆われていない" : "");
+        if (cnt[r] == 0) ++uncovered;
+    }
+    const int all_same = (n_same == n_utt);
+    printf("  %s G2 多文: 一括版と bit 完全一致 %d/%d 文（エラー %d。うち残差の補完 %d 件）\n",
+           all_same ? "OK " : "NG!", n_same, n_utt, n_err, n_fill);
+    bad += !all_same;
+    printf("  %s G2 多文: 残差 0〜%d を全部含む（覆われていない残差 %d、補完できなかった %d）\n",
+           uncovered == 0 ? "OK " : "NG!", SAAN_CHUNK - 1, uncovered, n_fill_fail);
+    bad += (uncovered != 0);
+    /* ofill の上限。⚠️ 「超えない」だけでは空虚に通る（buffer を余分に取れば必ず通る）。
+     * **上限にちょうど届く**ことも要求して、テスト文が最悪ケース（CH=8 では
+     * n_frames ≡ 4 (mod 8)）を含んでいることを同時に保証する */
+    const int within = omax_all <= SAAN_OBUF_HOPS;
+    const int tight  = omax_all == SAAN_OBUF_HOPS;
+    printf("  %s G2 多文: pull ごとの ofill 最大 %d ≤ SAAN_OBUF_HOPS %d"
+           "（= 2·CH − (SAAN_LATENCY mod CH) = %d − %d）\n",
+           within ? "OK " : "NG!", omax_all, SAAN_OBUF_HOPS,
+           2 * SAAN_CHUNK, SAAN_LATENCY % SAAN_CHUNK);
+    printf("  %s G2 多文: 上限に届いている（最大 %d == %d。届かないなら最悪ケースを含んでいない）\n",
+           tight ? "OK " : "NG!", omax_all, SAAN_OBUF_HOPS);
+    bad += !within;
+    bad += !tight;
+    return bad;
+}
+
 int main(int argc, char **argv) {
-    if (argc < 3) { fprintf(stderr, "usage: %s student.bin golden.bin\n", argv[0]); return 2; }
+    /* --g1-kb N: G1 の上限（既定 200 = D-029）。⚠️ **W8A8（-DSAAN_INT8_ACT=1）は 200 KB を
+     * 超えることが分かっている**（M-55: conv 1 本ぶんの activation 作業領域）。その
+     * レーンは Makefile が実機の静的 arena（esp32/main/main.c の SAAN_ARENA_BYTES = 208 KB）
+     * を渡す。既定値を動かさないのは、W8A32 / fp32 の 200 KB を黙って緩めないため */
+    int g1_kb = 200;
+    for (int i = 1; i + 1 < argc; ++i) {
+        if (strcmp(argv[i], "--g1-kb") == 0) {
+            g1_kb = atoi(argv[i + 1]);
+            for (int j = i; j + 2 < argc; ++j) argv[j] = argv[j + 2];
+            argc -= 2; --i;
+        }
+    }
+    if (argc < 3) {
+        fprintf(stderr, "usage: %s [--g1-kb N] student.bin golden.bin [ids_heldout.bin]\n",
+                argv[0]);
+        return 2;
+    }
     size_t wsz, gsz;
     void *wbuf = slurp(argv[1], &wsz), *gbuf = slurp(argv[2], &gsz);
     saan_weights W, G;
@@ -144,8 +342,9 @@ int main(int argc, char **argv) {
          * （D-3a の照合で指摘された。arena だけだと 200 KB を超えていても気づかない） */
         const size_t FFT_STACK = 4224;
         const size_t total = s3.peak_used + FFT_STACK;
-        const int g1 = total < 200u * 1024u;
-        printf("\n  %s G1 ピーク RAM < 200 KB\n", g1 ? "OK " : "NG!");
+        const int g1 = total < (size_t)g1_kb * 1024u;
+        printf("\n  %s G1 ピーク RAM < %d KB%s\n", g1 ? "OK " : "NG!", g1_kb,
+               g1_kb != 200 ? "  ⚠️ --g1-kb で D-029 の 200 KB から変えている" : "");
         printf("        テスト文  %3d ids / %4d frames : arena %6.1f KB\n",
                n_ids, T, (double)st.peak_used / 1024.0);
         printf("        実用最大  %3d ids / %4d frames : arena %6.1f KB + FFT stack %.1f KB\n",
@@ -177,6 +376,15 @@ int main(int argc, char **argv) {
                ndiff, S, first, first / SAAN_HOP, mx);
     }
     bad += !same;
+    printf("      （1 文: %d frames ≡ %d mod %d、pull ごとの ofill 最大 %d）\n",
+           T, T % SAAN_CHUNK, SAAN_CHUNK, st.ofill_max);
+
+    /* G2 多文（T2a）: held-out 24 文。⚠️ 省略可だが、省くと残差 1 通りしか見ない */
+    if (argc >= 4) {
+        bad += g2_multi(&W, argv[3]);
+    } else {
+        printf("\n  ⚠️ G2 多文は走らせていない（第 3 引数に ids_heldout.bin を渡す）\n");
+    }
 
     /* G3: 発話長に対して RAM が O(1)
      *

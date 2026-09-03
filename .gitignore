@@ -67,6 +67,7 @@ __pycache__/
 /csrc/int8_test
 /csrc/int8_e2e_test
 /csrc/stream_test
+/csrc/stream_test_a8
 /csrc/arena_stress
 /csrc/g2p_test
 /csrc/line_test
