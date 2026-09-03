@@ -10,19 +10,23 @@ This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/a
 ("sanoTTS") to Japanese, distilling [piper-plus](https://github.com/ayutaz/piper-plus)
 (MB-iSTFT-VITS2) into three small students: Duration, Acoustic, and an iSTFT Decoder.
 
-✅ **Two independent ESP32-S3 hardware results are available.** An M5Stack AtomS3
-confirmed bit-exact inference and PCM generation; a CoreS3 ran its built-in speaker,
-display, and lip sync. Their steady-state xRT values were **1.718 / 1.558**, respectively,
-so neither generates in real time. The CoreS3 avoided gaps with 60% preroll
+✅ **On 2026-09-03 an M5Stack CoreS3 (a Stack-chan) spoke kanji text directly** (M-90).
+A single firmware carries the 13.7 MB dictionary; you type **`今日は良い天気ですね。`** over
+serial and it speaks — **no `!` prefix**, the device decides the route itself.
+**A full-chunk pull runs at xRT 0.446, meeting the RTF ≤ 0.5 requirement.**
+⚠️ **Nobody has listened to it.** That is the only thing left.
+
+**Speed was rebuilt until it met the requirement.** The two independent hardware reports
+(**both predate S1**) measured AtomS3 **1.718** and CoreS3 **1.558**, neither real time
 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results) /
 [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
 [video](https://x.com/nnn112358/status/2095071771355725970)).
-⚠️ **It does not keep up with real time yet.** A per-stage breakdown showed the MACs were not
-the bottleneck — activation quantization, GELU's `erff`, per-step tensor lookups and weight
-copies were (M-80). Those were removed (**S1–S5a**) and M5Stack support was added (2026-09-02).
-**Re-measured on our own CoreS3: steady-state xRT 0.926** (down from the 1.554 reported on the same board;
-checksum bit-identical to QEMU; M-82). ⚠️ Barely under 1.0 and short of the 0.5 requirement; on hardware
-**~64 % of the step is MACs, suspected flash-bound, and GELU is 14 %** (see [Status](#status)).
+A per-step breakdown showed the MACs were not the bottleneck — activation quantization,
+GELU's `erff`, per-step tensor lookups and weight copies were (M-80). Removing those gave
+**S1–S5a** (M-82: 0.926) → **T1–T5 plus a 64 B cache line** (M-88: 0.497, zero underruns) →
+**S5b** (M-90: 0.446). **The waveform has not changed by a single bit since M-82** (identical checksums).
+⚠️ **Measured over a whole utterance it is still 0.54–0.71** (the 38-frame warmup lands in the
+first pull; which denominator the requirement means has not been decided).
 
 ## What makes Japanese hard
 
@@ -30,7 +34,7 @@ Porting the English recipe as-is breaks. These three walls are specific to Japan
 
 | Wall | How it was solved |
 |---|---|
-| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host. ⚠️ **Re-measuring later broke this premise and the implementation went through** — a TTS-only format is 130 B → **28 B** per entry, so 438,750 entries fit a 16 MB board, and QEMU synthesizes from kanji end to end (K-7 / M-76). ⚠️ **Untested on hardware**, but a **flash-and-go 16 MB image ships in v0.2.0** |
+| **G2P doesn't fit** — reading kanji needs a dictionary. NAIST-JDIC measures **102 MB** | **The input contract was changed.** The device accepts only *kana + accent marks* and converts them with a **877 B table**. Kanji→kana happens offline on the host. ⚠️ **Re-measuring later broke this premise and the implementation went through** — a TTS-only format is 130 B → **28 B** per entry, so 438,750 entries fit a 16 MB board, and QEMU synthesizes from kanji end to end (K-7 / M-76). ✅ **It runs on hardware too** — a CoreS3 reproduced the QEMU checksum (M-83) and **spoke through the M5 speaker** (M-90) |
 | **Pitch accent** — 箸 / 橋 / 端 ("chopsticks" / "bridge" / "edge") share a phoneme sequence and differ only in pitch. Aggregate scores cannot see this | 15 minimal-pair groups were added to the eval set. **37/37 sign agreement** with the teacher |
 | **Devoiced vowels** — the `i` and `u` in です / した are acoustically close to frication | Separability was confirmed with per-phoneme-class spectral flatness (AUC 0.847) before adding them to the noise-injection set |
 
@@ -44,10 +48,10 @@ a counterpart.
 |---|---|
 | **Quality** | **64 % of the teacher** (SCOREQ ratio 0.644), above the 0.5427 ratio the paper reports for English |
 | **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
-| **Memory** | **197 KB** — 38 % of the ESP32-S3's 512 KB SRAM. Weights are 654,032 B in int8 (flash; blob v2 with pre-aligned rows, +10,096 B over v1's 643,936 B) |
-| **Speed** | ⚠️ **Not met.** W8A8 + PIE steady-state xRT is **1.718** on AtomS3 (n=2, I2S disabled) and **1.558** on CoreS3 (built-in speaker + avatar). Both exceed the real-time threshold of 1.0 ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)). **S1–S5a** remove the non-MAC work; **0.926 on our own CoreS3** (n=3, M-82. ⚠️ the 0.5 requirement is not met; breakdown: MAC 63.9 % / GELU 14.0 % / TOKEN 11.3 %) |
-| **Hardware audio output** | Works through M5Unified on CoreS3. With 60% preroll: **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)). The same setup is now in this repo as [`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) (builds; not yet run here) |
-| **Kanji on the device** | ✅ **Confirmed on a CoreS3** (M-83): `!今日は良い天気ですね。` → 53 ids → checksum identical to QEMU. Kanji G2P 27.85–66.30 ms (33–84 B). ⚠️ Not listened to; xRT 4.3–4.6 with W8A32 (PIE not enabled in that build) |
+| **Memory** | **157 KB** of arena used on hardware (176 KB = 180,224 B reserved statically) — 34 % of the ESP32-S3's 512 KB SRAM. Free internal DRAM on the board: **136,407 B** (kana build, M-89) / **132,039 B** (kanji build with the dictionary, M-90). Weights are 654,032 B in int8 (flash; blob v2 with pre-aligned rows, +10,096 B over v1's 643,936 B) |
+| **Speed** | ✅ **Requirement met.** On our own CoreS3 (W8A8 + PIE, **now the default on S3** — D-048) a full-chunk pull runs at **xRT 0.446** (kanji build, all four sentences, M-90); the kana build gives 0.494 (M-89) / 0.497 (M-88). Zero underruns, 434 ms to first sound, one step down from 18.38 M to **11.66 M cycles**. ⚠️ **Over a whole utterance it is 0.54–0.71**, still above 0.5 (the 38-frame warmup; which denominator the requirement means is undecided). The third-party numbers **predate S1**: AtomS3 **1.718** / CoreS3 **1.558** ([AtomS3](https://github.com/magatsux2019/sanotts-atoms3-results/blob/main/results/atom_s3_2026-09-01.md) / [CoreS3](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3/blob/main/docs/measurements.md)) |
+| **Hardware audio output** | ✅ **[`esp32/boards/m5unified/`](esp32/boards/m5unified/README.md) speaks through the CoreS3's built-in speaker** (M-90, with the display). A third party got there first via M5Unified: 60% preroll gave **1,781 ms** to speech onset and **0** overtake gaps ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) / [video](https://x.com/nnn112358/status/2095071771355725970)). ⚠️ **Nobody has listened to it** |
+| **Kanji on the device** | ✅ **Confirmed on a CoreS3** (M-83: checksum identical to QEMU, kanji G2P 27.85–66.30 ms). ✅ **Also loaded into the M5 speaker build** (M-90: the 13.7 MB dictionary via `esp_mmu_map`, xRT 0.446 with W8A8+PIE). **No `!` needed** — the device classifies each line three ways. ⚠️ Not listened to |
 
 ⚠️ **Everything above is a predictor score at n = 24–200, and exactly one person has
 listened, once** (the β decision, M-60 / D-038). "Teacher ratio 0.644" does not mean
@@ -56,7 +60,44 @@ calibrated for Japanese**. Real human Japanese speech scores only
 **SCOREQ 2.50 / UTMOS 2.30** here, so **do not compare the absolute numbers against
 English papers**.
 
-**Two independent hardware reports are now available.** The int8 kernel uses the
+**Why it used to be slow was measured.** A per-step breakdown showed **MACs at ~30 %**, with
+activation quantization (software division), GELU's `erff`, 102 tensor lookups per step and
+489 KB/step of weight copies taking the rest (M-80). Everything below is **measured on our own
+CoreS3** (D-047; W8A8 + PIE, `esp32/boards/m5unified/`):
+
+| When | What went in | Full-chunk xRT | One step |
+|---|---|---:|---:|
+| 2026-09-02 | **S1–S5a** — remove the quantization / GELU / lookup / weight-copy overhead (M-81 / D-046) | 0.926 | 18,378,513 cyc |
+| 2026-09-03 | **64 B cache line** (M-84) | 0.861 | 17,125,414 |
+| 2026-09-03 | **T1** (stop the tail pull early) + **T5 fix** (generated GELU; M-87 / C-055) | — | 16,638,110 |
+| 2026-09-03 | **T2** (do not compute discarded outputs) + **T3** (pipelined token block) → ✅ **requirement met** (M-88) | **0.497** | 11,724,417 |
+| 2026-09-03 | **T4** (packed arena; M-89) | 0.494 | 11,659,500 |
+| 2026-09-03 | **S5b** (weight-stationary PIE) + dictionary + kanji path (M-90) | **0.446** | — |
+
+**All three checksums have been identical since M-82** (W8A8+PIE `0xa69a7ebbb5ccb05f` /
+W8A32 `0xe4b645c30835d42d`) — **T1–T5 and S5b changed the waveform by zero bits**.
+⚠️ **Neither QEMU's instruction counts nor its stage percentages predict hardware speed** —
+one change cut the instruction count and made GELU twice as slow (C-055). The trail:
+[`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) and
+[`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md).
+
+**What hardware has verified** (all on a CoreS3, D-047):
+
+| When | What |
+|---|---|
+| 2026-09-02 | **The kanji path ran** (M-83; gates G28–G31). `!今日は良い天気ですね。` → 53 ids → checksum identical to QEMU. Kanji G2P **27.85–66.30 ms** |
+| 2026-09-03 | **RTF ≤ 0.5 met** (M-88 / M-89). Zero underruns, 434 ms to first sound, 136,407 B of internal DRAM free |
+| 2026-09-03 | **A Stack-chan spoke kanji, katakana and hiragana** (M-90). The 13.7 MB dictionary is mapped with `esp_mmu_map`; xRT **0.446**, 132,039 B of internal DRAM free. `今日は良い天気ですね。` and `きょ][おわよ][いて][んきです°ね` produce **the same PCM** |
+
+**What QEMU verified first:**
+
+| When | What |
+|---|---|
+| 2026-08-30 | The shipping firmware **boots → mmaps the weights → runs G2P → synthesizes → converts to int16**. **PIE is bit-identical to the scalar path across all 27,136 samples** (with a negative control, M-62) |
+| 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.2.0 ships a flash-and-go 16 MB image for it** |
+
+**Two independent third-party hardware reports exist** (⚠️ **both predate S1** — 2026-09-01/02,
+before the rework above — and **neither has been reproduced here**). The int8 kernel uses the
 ESP32-S3's PIE (SIMD): `ee.vmulas.s8.accx` replaces the dot product and covers **99.4%**
 of the MACs.
 
@@ -70,34 +111,14 @@ of the MACs.
   ([implementation and measurements](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3) /
   [video](https://x.com/nnn112358/status/2095071771355725970))
 
-⚠️ **Correct inference and hardware playback are confirmed, but generation itself is
-not real-time yet.** The CoreS3 result hides the deficit with preroll. Neither result reaches
-the **0.22× real-time** reported by the official implementation on the same chip.
+⚠️ **This repository's `saan_i2s` path (DevKit direct I2S) remains untested on hardware.**
+The only path that has made sound on a board is M5Unified (`esp32/boards/m5unified/`).
+⚠️ The shipped v0.1.1 / v0.2.0 images predate S1 and take console input on UART0, so
+native-USB-only boards (CoreS3 / AtomS3) boot but cannot be driven; build from source there.
+⚠️ The **0.22× real-time** the official implementation reports on the same chip is still ahead of us.
 
-**Why it is slow was measured.** A per-step breakdown showed **MACs at ~30 %**, with
-activation quantization (software division), GELU's `erff`, 102 tensor lookups per step and
-489 KB/step of weight copies taking the rest (M-80). **S1–S5a** remove them (M-81 / D-046).
-**Measured on our own CoreS3: steady-state xRT 0.926, checksum identical to QEMU on all 27,136
-samples** (M-82; three utterances, same value). The on-device profile looks nothing like QEMU's:
-**MAC 63.9 % (1.61 cycles/MAC — suspected flash-bound) / GELU 14.0 % (118 cycles/element) /
-TOKEN 11.3 %**. Next steps:
-[`docs/research/s1-m5-cores3-speed.md`](docs/research/s1-m5-cores3-speed.md) and
-[`docs/plan/s1-speed-implementation-plan.md`](docs/plan/s1-speed-implementation-plan.md).
-
-**What QEMU has verified:**
-
-| When | What |
-|---|---|
-| 2026-08-30 | The shipping firmware **boots → mmaps the weights → runs G2P → synthesizes → converts to int16**. **PIE is bit-identical to the scalar path across all 27,136 samples** (with a negative control, M-62) |
-| 2026-08-31 | **The device reading kanji text directly** also ran to completion (K-7 / M-76). **v0.2.0 ships a flash-and-go 16 MB image for it** |
-
-✅ **The kana path has run inference and generated PCM on AtomS3, and played through the
-built-in speaker on CoreS3.** The CoreS3 audio path is a derivative implementation using
-M5Unified; generation without preroll is still not real-time. **This repository's
-`saan_i2s` path (DevKit direct I2S) remains untested on hardware.** The kanji path is confirmed on a
-CoreS3 (M-83). After S1–S5a the M5Unified path runs at **0.926 on CoreS3** (M-82, `esp32/boards/m5unified/`).
-⚠️ The shipped v0.1.1 / v0.2.0 images take console input on UART0, so native-USB-only boards (CoreS3 / AtomS3)
-boot but cannot be driven; build from source there.
+> 🙏 **More ESP32-S3 measurements are welcome — and above all, what it sounds like to you.**
+> Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). **No DAC required.**
 
 ## Getting started
 
@@ -185,22 +206,41 @@ checkpoint** (it builds phoneme IDs through the teacher's `phoneme_id_map`).
 Instructions: [`esp32/TESTING.md`](esp32/TESTING.md). After flashing, over serial:
 
 ```
-かな> きょ][おわよ][いて][んきです°ね        ← works on either firmware
-かな> !今日は良い天気ですね。                ← `!` only on the kanji firmware
+かな> きょ][おわよ][いて][んきです°ね        ← the kana intermediate form
+かな> 今日は良い天気ですね。                  ← on a kanji build, just type it
 ```
+
+**No marker is required** on a current source build. The device looks at the line and picks
+one of **three routes** (`saan_g2p_classify()`): if the frozen tokenizer consumes the line it
+takes the **kana** path; if it does not and no intermediate-form mark (`[ ] # ° _ ^ $`)
+is present it takes the **dictionary** path; if it does not *and* a mark is present it
+**refuses to speak** — otherwise "intermediate form + `。`" would slip through and produce
+plausible-sounding nonsense. ⚠️ A plain `?` is deliberately **not** treated as a mark;
+until it was excluded, questions like `本当なんでしょうか?` were refused (45 of 2,333
+held-out lines = 1.93%, M-90). The same rule runs host-side as `classify_route()` in
+`scripts/kana_g2p.py`, and `make -C csrc kb-parity` checks they agree
+(298 held-out sentences + their 298 intermediate forms = **596/596**, M-90).
+⚠️ A leading `!` still exists, but only to *force* the dictionary route for testing.
 
 **There are two firmwares.**
 
 | | Flash this | Accepted input | Flash size |
 |---|---|---|---|
 | Kana | `esp32s3-firmware-w8a8-pie.bin` | The kana intermediate form only | 8 MB+ |
-| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` | **Prefix a line with `!`** for kanji text | **16 MB required** |
+| **Kanji** | `esp32s3-firmware-kanji-16mb.bin` | Kanji text too (⚠️ the v0.2.0 image still needs the `!` prefix) | **16 MB required** |
 
-✅ **The kana path is confirmed on two hardware configurations.** AtomS3 measured
-steady-state xRT **1.718** (n=2, I2S disabled). CoreS3 played through its built-in speaker
-using M5Unified; steady-state xRT **1.558** was covered by 60% preroll with **zero** gaps
+✅ **Both the kana and the kanji path run on hardware** (all on a CoreS3, D-047). The kana
+build gives a full-chunk **xRT 0.494** with zero underruns (M-89); the M5 build with the
+dictionary gives **0.446** (M-90), and `今日は良い天気ですね。` and
+`きょ][おわよ][いて][んきです°ね` come out as the same PCM (`0xa69a7ebbb5ccb05f`).
+The third-party numbers **predate S1**: AtomS3 **1.718** (n=2, I2S disabled) and CoreS3
+**1.558**, the latter covered by 60% preroll with **zero** gaps
 ([implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)).
-⚠️ **The kanji one has never run on hardware.**
+⚠️ **The v0.1.1 / v0.2.0 images predate S1 and read the console on UART0**, so on a
+native-USB-only board they boot but cannot be driven (M-83). **The speed above and the
+`!`-free classification only exist in a build from source.**
+⚠️ On ESP32-S3, **W8A8 + PIE is now the default** (D-048); pass `-DSAAN_ENABLE_PIE=0` to
+measure W8A32.
 
 > The reason kanji used to be rejected was "the dictionary does not fit". Re-measuring broke that
 > premise, and the implementation now runs: with a TTS-only dictionary format a 16 MB
@@ -216,9 +256,11 @@ using M5Unified; steady-state xRT **1.558** was covered by 60% preroll with **ze
 >
 > ⚠️ **0.32% of phonemes differ from the host** (n=298, M-77) — the on-device
 > dictionary is pruned, so some readings change.
-> ⚠️ **Never run on real hardware; speed and audio are unmeasured.**
-> **v0.2.0 ships a flash-and-go image, but only QEMU has verified it.**
-> (See [`esp32/README.md`](esp32/README.md), section 漢字対応ビルド.)
+> ✅ **Confirmed on a CoreS3 on 2026-09-02** (M-83; checksum identical to QEMU, kanji G2P
+> 27.85–66.30 ms), and **on 2026-09-03 it spoke through the M5 speaker** (M-90; xRT 0.446
+> with W8A8+PIE, no `!` needed). ⚠️ **Still not listened to.**
+> ⚠️ **The v0.2.0 image reads the console on UART0**, so a native-USB-only board cannot be
+> driven; build from source. (See [`esp32/README.md`](esp32/README.md), section 漢字対応ビルド.)
 
 ### D. Run the code gates
 
@@ -227,6 +269,7 @@ make -C csrc line                                       # Line editing (**with a
 make -C csrc fft                                        # Inverse FFT (1,435× the naive DFT)
 make -C csrc g2p PYTHON="uv run --no-project python"    # On-device G2P (2,819 vectors)
 make -C csrc erf                                        # GELU erf approximation vs libm (with positive control)
+make -C csrc range                                      # Range-limited kernels (S9) match the full-range ones bit for bit
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata header (positive control: fp32 rejected)
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
@@ -256,18 +299,20 @@ regenerate labels or retrain; kanji→kana conversion works with the piper-plus 
 | | Why |
 |---|---|
 | **Regenerate labels / retrain** | The teacher checkpoint lives in a private repository |
-| **Real-time generation without preroll** | ⚠️ AtomS3 measured steady-state xRT **1.718** and CoreS3 **1.558**. CoreS3 avoids gaps with 60% preroll ([hardware implementation](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)) |
-| **Say whether it sounds good** | ⚠️ **One listener, one session.** Zero for the kanji path |
+| **Say whether it sounds good** | ⚠️ **One listener, one session** (the β decision, M-60). **Nobody has listened to what the board produced**, and nobody at all to the kanji path. **This is the biggest gap right now** |
+| **Fit a whole utterance into real time** | ⚠️ A full-chunk pull is **0.446** and meets the requirement, but the 38-frame warmup lands in the first pull, so **the whole utterance is 0.54–0.71** (M-88–M-90). Which denominator the requirement means is undecided |
+| **Get the current speed by just flashing a release** | ⚠️ The v0.2.0 firmware predates S1 and reads the console on UART0. The speed above and the `!`-free classification only exist in a build from source |
+| **Feed the released int8 blob to a current core** | ⚠️ `saanotts-jp-v3-int8.bin` is still format **v1**; a core built after S4 rejects it with `SAAN_ERR_VERSION`. Build v2 with `scripts/export_c_weights.py --int8` |
 
 ## Architecture
 
 ```
 Japanese text (kanji + kana)
-   │  host side, offline (OpenJTalk)
-   ▼
+   │  host side, offline (OpenJTalk)  ┊  device side, 13.7 MB dictionary (-DSAAN_KANJI=1)
+   ▼                                   ┊  438,750 entries mapped from flash
 kana intermediate    きょ][おわよ][いて][んきです°ね    [ rise / ] downstep / # phrase / ° devoiced
-   │  device side — a 877 B table, nothing else
-   ▼
+   │  device side — a 877 B table      ┊  saan_g2p_classify() picks the route
+   ▼                                   ┊  (kana / dictionary / refuse; both reach the same ids)
 phoneme ids ──▶ Duration Dα ──▶ Acoustic Aβ ──▶ iSTFT Decoder Gγ ──▶ 22.05 kHz PCM
                  33 K params      195 K            331 K
                             └─ joined by an explicit 40-dim latent interface (the c-line)
@@ -281,9 +326,11 @@ sentences and cannot read held-out text.
   caller-supplied arena. The streaming build is **bit-identical** to the batch build
   (27,136 samples)
 - **On-device G2P** (`csrc/g2p.c`) — **877 B** table / 1,549 B code (measured on ESP32-S3) / **0 B working memory**
-- **Free-form input on the device** — type one line of the kana intermediate form over
-  serial and it speaks (`csrc/line.c`, 369 B). From kanji text:
-  `uv run python scripts/to_intermediate.py "..."` (host side)
+- **Free-form input on the device** — type one line over serial and it speaks
+  (`csrc/line.c`, 369 B). Either the kana intermediate form or kanji text;
+  `saan_g2p_classify()` decides (a build without the dictionary **refuses and says why**
+  rather than dropping the characters). To convert on the host instead:
+  `uv run python scripts/to_intermediate.py "..."`
 - **The full distillation path** — teacher label generation → 4-stage training → evaluation
   (SCOREQ / UTMOS / DNSMOS / kana CER / per-phoneme-class spectral flatness)
 
@@ -296,6 +343,10 @@ sentences and cannot read held-out text.
 - **`csrc/line.c`** — 369 B of UTF-8-aware line editing. If you let people type Japanese
   over an MCU serial port, you will hit both of these: **arrow keys inserting a markup
   character, and backspace splitting a UTF-8 sequence**
+- **`esp32/components/saanotts_core/saan_dict.c`** — **mapping a flash partition larger than
+  8 MB**. On a board built with `CONFIG_SPI_FLASH_ROM_IMPL=y`, `esp_partition_mmap` links to
+  the ROM implementation, which is handed only **128 pages = 8 MB**, so it fails with
+  `ESP_ERR_NO_MEM`. `esp_mmu_map` maps it (M-90)
 - **`docs/measurements.md`** — a measurement log where every entry carries a reproduction
   command: ESP32 memory budget, extrapolation from esp-dsp cycle counts, calibration of MOS
   predictors on Japanese, and more
