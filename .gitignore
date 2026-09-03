@@ -45,6 +45,15 @@ __pycache__/
 # 個人設定（許可モード等）。チームで共有しない
 .claude/settings.local.json
 
+# セッションの作業用ディレクトリ（Claude Code が作る）。**成果物ではない**
+#   .claude/worktrees/ … 並行タスク用の git worktree（作業後に git worktree remove する）
+#   .workflows/        … 一回限りのオーケストレーション用スクリプト。
+#                        ⚠️ かつて .workflows/phase-a.js を追跡していたが、Phase A（2026-08-27）
+#                        限りの道具で、どの文書からも参照されず中身も D-013 / M-16 の頃で
+#                        止まっていたので外した。**結論は docs/decisions.md に残っている**
+.claude/worktrees/
+/.workflows/
+
 # 学習の成果物。重みは数 MB だが、ログと一緒に runs/ ごと除外する
 # （再現に要るのは summary.json と log.jsonl だけなので、必要になったら個別に追跡する）
 /runs/*/stage*.pt
