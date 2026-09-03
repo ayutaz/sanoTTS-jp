@@ -1,11 +1,12 @@
-/* 自動生成 — 編集しない（scripts/gen_erf_table.py。本文 sha256 36410a8df117d191…）
+/* 自動生成 — 編集しない（scripts/gen_erf_table.py。本文 sha256 3f981dec4ec70427…）
  *
  *   uv run --no-project python scripts/gen_erf_table.py > csrc/erf_table.h
  *
  * erf の 3 次 Hermite 補間表（S3）。x = i / 32（i = 0..128、[0, 4]）の
  * erf(x)（kSaanErfV）と **erf'(x) · h**（kSaanErfDh。erf'(x) = 2/√π · exp(−x²)、h = 1/32。
  * T5-G4 で h を掛けた値にした。旧 kSaanErfD[i] * h と bit 一致 — erf_test.c が検査する）。
- * 使う側は csrc/saanotts.c の saan_erf_approx()。ゲートは `make -C csrc erf`。 */
+ * 使う側は csrc/saanotts.c の saan_erf_approx()。ゲートは `make -C csrc erf`。
+ * 表は SAAN_HOT_DATA 付き（ESP32 では内部 DRAM。ホストでは空。T5-G2）。 */
 #ifndef SAAN_ERF_TABLE_H
 #define SAAN_ERF_TABLE_H
 
@@ -13,7 +14,12 @@
 #define SAAN_ERF_N     128          /* 区間数。節点は N + 1 */
 #define SAAN_ERF_XMAX  4.0f
 
-static const float kSaanErfV[129] = {
+/* 配置属性（T5-G2）。saanotts_internal.h を先に include していれば定義済み。単独で include しても通るように */
+#ifndef SAAN_HOT_DATA
+#define SAAN_HOT_DATA
+#endif
+
+static const SAAN_HOT_DATA float kSaanErfV[129] = {
     0.0f, 0.0352503739f, 0.0704319777f, 0.105476444f,
     0.140316205f, 0.174884885f, 0.209117677f, 0.24295171f,
     0.27632639f, 0.309183728f, 0.341468634f, 0.373129194f,
@@ -49,7 +55,7 @@ static const float kSaanErfV[129] = {
     0.999999985f
 };
 
-static const float kSaanErfDh[129] = {
+static const SAAN_HOT_DATA float kSaanErfDh[129] = {
     0.0352618508f, 0.0352274291f, 0.0351243764f, 0.0349532887f,
     0.0347151645f, 0.0344113894f, 0.0340437107f, 0.033614248f,
     0.0331254415f, 0.0325800478f, 0.0319811068f, 0.0313319266f,

@@ -53,7 +53,8 @@ def prescale_h(d: float) -> float:
 
 
 def table(name: str, vals: list[float], per: int = 4) -> str:
-    lines = [f"static const float {name}[{len(vals)}] = {{"]
+    # SAAN_HOT_DATA: ESP32 では DRAM_ATTR（内部 DRAM）、ホストでは空（csrc/saanotts_internal.h。T5-G2）
+    lines = [f"static const SAAN_HOT_DATA float {name}[{len(vals)}] = {{"]
     for i in range(0, len(vals), per):
         chunk = ", ".join(fmt(v) for v in vals[i:i + per])
         lines.append("    " + chunk + ("," if i + per < len(vals) else ""))
@@ -77,13 +78,19 @@ def main() -> int:
  * erf の 3 次 Hermite 補間表（S3）。x = i / {H_INV}（i = 0..{N}、[0, {X_MAX:g}]）の
  * erf(x)（kSaanErfV）と **erf'(x) · h**（kSaanErfDh。erf'(x) = 2/√π · exp(−x²)、h = 1/{H_INV}。
  * T5-G4 で h を掛けた値にした。旧 kSaanErfD[i] * h と bit 一致 — erf_test.c が検査する）。
- * 使う側は csrc/saanotts.c の saan_erf_approx()。ゲートは `make -C csrc erf`。 */
+ * 使う側は csrc/saanotts.c の saan_erf_approx()。ゲートは `make -C csrc erf`。
+ * 表は SAAN_HOT_DATA 付き（ESP32 では内部 DRAM。ホストでは空。T5-G2）。 */
 #ifndef SAAN_ERF_TABLE_H
 #define SAAN_ERF_TABLE_H
 
 #define SAAN_ERF_H_INV {H_INV}
 #define SAAN_ERF_N     {N}          /* 区間数。節点は N + 1 */
 #define SAAN_ERF_XMAX  {fmt(X_MAX)}
+
+/* 配置属性（T5-G2）。saanotts_internal.h を先に include していれば定義済み。単独で include しても通るように */
+#ifndef SAAN_HOT_DATA
+#define SAAN_HOT_DATA
+#endif
 
 {body}
 #endif /* SAAN_ERF_TABLE_H */

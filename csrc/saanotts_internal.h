@@ -9,6 +9,29 @@
 
 #include "saanotts.h"
 
+/* --- プラットフォームの注入点（T5-G2）--------------------------------------------------
+ *
+ * コアは移植可能 C99 のまま（依存は libm のみ）。配置属性だけを外から受ける:
+ *   -DSAAN_PORT_HEADER='"saan_port_esp32.h"' を渡すと、そのヘッダをここで include する。
+ *   ESP32 は esp32/components/saanotts_core/saan_port_esp32.h が esp_attr.h を include し、
+ *   SAAN_HOT_DATA → DRAM_ATTR（内部 DRAM）/ SAAN_HOT_CODE → IRAM_ATTR に定義する。
+ * ホスト（csrc/Makefile、CI、scripts/check_esp32_template.sh、esp32/pie_probe）は未定義 →
+ * 空に展開されて**コードは 1 バイトも変わらない**。
+ *
+ * 使う先: erf 表（csrc/erf_table.h、129 節点 × 2 = 1,032 B）に SAAN_HOT_DATA。flash の .rodata に
+ * あると、1 step に 584 KB 流れる重みのストリームと D-cache を争う（M-82 §4 / maps [2]）。
+ * SAAN_HOT_CODE は**今は使っていない**（定義だけ置く。IRAM は M5 構成で余裕を測ってから）。
+ * ⚠️ 配置を変えても値は変わらないので bit 同一（QEMU の checksum で確認。T5 の手順）。 */
+#ifdef SAAN_PORT_HEADER
+#include SAAN_PORT_HEADER
+#endif
+#ifndef SAAN_HOT_DATA
+#define SAAN_HOT_DATA
+#endif
+#ifndef SAAN_HOT_CODE
+#define SAAN_HOT_CODE
+#endif
+
 /* ⚠️ `M_PI` は **C99 標準ではない**（POSIX 拡張）。macOS の clang では
  * `-std=c99` でも見えるが、**xtensa-esp32s3-elf の newlib では見えない**。
  * 実際に ESP32-S3 向けにクロスコンパイルして初めて出た（M-54）:
