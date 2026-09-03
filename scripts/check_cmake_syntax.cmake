@@ -51,6 +51,8 @@ function(target_include_directories)
 endfunction()
 function(target_compile_definitions)
 endfunction()
+function(target_sources)
+endfunction()
 # `project()` は script モードで使えないので上書きする
 function(project)
     message(STATUS "  project(${ARGN})")
@@ -61,7 +63,9 @@ foreach(F "${ESP32_DIR}/CMakeLists.txt"
           "${ESP32_DIR}/main/CMakeLists.txt"
           "${ESP32_DIR}/components/saanotts_core/CMakeLists.txt"
           "${ESP32_DIR}/boards/m5unified/CMakeLists.txt"
-          "${ESP32_DIR}/boards/m5unified/main/CMakeLists.txt")
+          "${ESP32_DIR}/boards/m5unified/main/CMakeLists.txt"
+          "${ESP32_DIR}/pie_probe/CMakeLists.txt"
+          "${ESP32_DIR}/pie_probe/main/CMakeLists.txt")
     if(NOT EXISTS "${F}")
         message(SEND_ERROR "無い: ${F}")
         set(FAILED 1)

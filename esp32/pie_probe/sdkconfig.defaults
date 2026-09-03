@@ -1,2 +1,26 @@
+# PIE プローブの既定設定。
+#
+# ⚠️ **D / E 節（マイクロベンチ）は出荷構成と同じ CPU / flash / キャッシュで測る**ために、
+#    esp32/boards/m5unified/sdkconfig.cores3 と同じ値を置いてある。ここを変えると
+#    cyc の絶対値が変わり、M-82 の 1.61 cyc/MAC と比べられなくなる。
+CONFIG_IDF_TARGET="esp32s3"
+
+# --- 速度（-O2 / 240 MHz。IDF 既定の -Og では E1 の cyc が本番と別物になる）---
+CONFIG_COMPILER_OPTIMIZATION_PERF=y
+CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ_240=y
+
+# --- flash とキャッシュ（CoreS3 と同じ 80 MHz / D-cache 64 KB / I-cache 32 KB / 行 32 B）---
+# ⚠️ flash モードは **ここでは DIO のまま**（IDF 既定）。QEMU の flash モデルが QIO を受け付けず
+#    起動でブートループするため（実際に踏んだ）。実機は sdkconfig.cores3 を重ねて QIO にする。
+#    **D 節の cyc/行 を M-82（CoreS3 = QIO）と比べるのは QIO で焼いたときだけ。**
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESP32S3_DATA_CACHE_64KB=y
+CONFIG_ESP32S3_INSTRUCTION_CACHE_32KB=y
+
+# --- D 節は blob 654 KB を .rodata に埋めるので app が 1 MB を超える → 4 MB / factory 1.5 MB ---
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_SINGLE_APP_LARGE=y
+
+# --- WDT / スタック ---
 CONFIG_ESP_TASK_WDT_EN=n
 CONFIG_ESP_MAIN_TASK_STACK_SIZE=8192

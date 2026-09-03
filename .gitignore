@@ -104,6 +104,8 @@ reports/e1_dnsmos/scratch/
 # ESP-IDF のビルド成果物
 /esp32/build/
 /esp32/pie_probe/build/
+# pie_probe の複数構成（T6 の D / E 節: build_probe / build_probe_dev / build_probe_psram など）
+/esp32/pie_probe/build_*/
 /esp32/**/sdkconfig
 /esp32/**/sdkconfig.old
 /esp32/.cache/
