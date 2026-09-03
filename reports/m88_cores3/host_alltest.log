@@ -1,0 +1,611 @@
+./golden_test student.bin golden.bin
+入力 53 ids / arena 38.66 MB を確保
+arena 実使用 0.97 MB / 106 frames / 27136 sample (1.231 s)
+
+  OK  d_hat 完全一致           53/53
+  OK  out.log_d                Pearson 1.000000  SNR  125.91 dB  max|Δ| 7.227e-07  n=53
+  OK  out.c                    Pearson 1.000000  SNR  130.98 dB  max|Δ| 7.823e-07  n=4240
+  OK  out.pcm                  Pearson 1.000000  SNR  118.29 dB  max|Δ| 3.651e-07  n=27136
+
+参照実装と一致（Pearson >= 0.98 かつ SNR >= 40 dB）
+cc -std=c99 -O2 -Wall -Wextra  -o stream_test stream_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+cc -std=c99 -O2 -Wall -Wextra  -DSAAN_INT8_ACT=1 -o stream_test_a8 stream_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+./stream_test    student.bin    golden.bin ids_heldout.bin
+一括版      : 106 frames / 27136 sample / arena 990.3 KB
+stream 版   : 106 frames 出力 / arena ピーク 171.1 KB (確保 198.9 KB)
+  [切り分け] c-line vs 一括版: OK   0/4240 不一致
+
+  OK  G1 ピーク RAM < 200 KB
+        テスト文   53 ids /  106 frames : arena  171.1 KB
+        実用最大  350 ids /  785 frames : arena  173.4 KB + FFT stack 4.1 KB
+        合計  177.5 KB  ← 判定はこちら（SRAM 512 KB の 35%）
+  OK  G2 一括版と bit 完全一致         27136 sample すべて一致
+      （1 文: 106 frames ≡ 2 mod 8、pull ごとの ofill 最大 10）
+
+  G2 多文（ids_heldout.bin）: 一括 vs ストリーミング memcmp
+        #   ids  frames  mod8   pull ofill最大
+        0    89     168      0    21        10 一致
+        1    90     232      0    29        10 一致
+        2    77     156      4    20        12 一致
+        3    47     102      6    13        10 一致
+        4   200     437      5    55        10 一致
+        5   268     560      0    70        10 一致
+        6   127     249      1    32        10 一致
+        7    86     216      0    27        10 一致
+        8    57     127      7    16        10 一致
+        9    39      90      2    12        10 一致
+       10   124     275      3    35        11 一致
+       11   114     264      0    33        10 一致
+       12    97     193      1    25        10 一致
+       13    71     140      4    18        12 一致
+       14    65     132      4    17        12 一致
+       15    61     129      1    17        10 一致
+       16    57     125      5    16        10 一致
+       17    57     112      0    14        10 一致
+       18   136     300      4    38        12 一致
+       19    81     162      2    21        10 一致
+       20    53     114      2    15        10 一致
+       21   179     339      3    43        11 一致
+       22    63     145      1    19        10 一致
+       23   187     451      3    57        11 一致
+      残差ごと（n_frames mod 8）:
+         mod 文数 ofill最大 不一致
+           0    6        10      0
+           1    4        10      0
+           2    3        10      0
+           3    3        11      0
+           4    4        12      0
+           5    2        10      0
+           6    1        10      0
+           7    1        10      0
+  OK  G2 多文: 一括版と bit 完全一致 24/24 文（エラー 0。うち残差の補完 0 件）
+  OK  G2 多文: 残差 0〜7 を全部含む（覆われていない残差 0、補完できなかった 0）
+  OK  G2 多文: pull ごとの ofill 最大 12 ≤ SAAN_OBUF_HOPS 12（= 2·CH − (SAAN_LATENCY mod CH) = 16 − 4）
+  OK  G2 多文: 上限に届いている（最大 12 == 12。届かないなら最悪ケースを含んでいない）
+
+  G3 発話長に対する RAM:
+        ids  frames  定常部     -8B/id  高水位
+         53     106   171.1 KB   170.6 KB   171.1 KB
+        106     227   171.5 KB   170.6 KB   171.5 KB
+        212     469   172.3 KB   170.6 KB   172.3 KB
+        424     953   173.9 KB   170.6 KB   173.9 KB
+        848    1921   177.2 KB   170.6 KB   324.6 KB  ← duration の一時が上回る
+  OK  G3 パイプライン定常部が発話長に対して O(1)（ids 比例分 8 B/id を除いて一定）
+      ⚠️ 高水位は duration の一時領域 384 B/id で O(n_ids)。D-017 の実用最大 350 ids では定常部が上回るので G1 は影響を受けない
+
+Phase D-2 の受け入れ条件を満たした
+./stream_test    student_i8.bin golden.bin ids_heldout.bin
+一括版      : 106 frames / 27136 sample / arena 990.3 KB
+stream 版   : 106 frames 出力 / arena ピーク 171.1 KB (確保 198.9 KB)
+  [切り分け] c-line vs 一括版: OK   0/4240 不一致
+
+  OK  G1 ピーク RAM < 200 KB
+        テスト文   53 ids /  106 frames : arena  171.1 KB
+        実用最大  350 ids /  785 frames : arena  173.4 KB + FFT stack 4.1 KB
+        合計  177.5 KB  ← 判定はこちら（SRAM 512 KB の 35%）
+  OK  G2 一括版と bit 完全一致         27136 sample すべて一致
+      （1 文: 106 frames ≡ 2 mod 8、pull ごとの ofill 最大 10）
+
+  G2 多文（ids_heldout.bin）: 一括 vs ストリーミング memcmp
+        #   ids  frames  mod8   pull ofill最大
+        0    89     168      0    21        10 一致
+        1    90     232      0    29        10 一致
+        2    77     157      5    20        10 一致
+        3    47     101      5    13        10 一致
+        4   200     437      5    55        10 一致
+        5   268     560      0    70        10 一致
+        6   127     249      1    32        10 一致
+        7    86     216      0    27        10 一致
+        8    57     127      7    16        10 一致
+        9    39      89      1    12        10 一致
+       10   124     276      4    35        12 一致
+       11   114     263      7    33        10 一致
+       12    97     193      1    25        10 一致
+       13    71     139      3    18        11 一致
+       14    65     133      5    17        10 一致
+       15    61     129      1    17        10 一致
+       16    57     125      5    16        10 一致
+       17    57     112      0    14        10 一致
+       18   136     301      5    38        10 一致
+       19    81     160      0    20        10 一致
+       20    53     114      2    15        10 一致
+       21   179     340      4    43        12 一致
+       22    63     145      1    19        10 一致
+       23   187     450      2    57        10 一致
+        0    83     150      6    19        10 一致  ← 補完: #0 の先頭 83 ids
+      残差ごと（n_frames mod 8）:
+         mod 文数 ofill最大 不一致
+           0    6        10      0
+           1    5        10      0
+           2    2        10      0
+           3    1        11      0
+           4    2        12      0
+           5    6        10      0
+           6    1        10      0
+           7    2        10      0
+  OK  G2 多文: 一括版と bit 完全一致 25/25 文（エラー 0。うち残差の補完 1 件）
+  OK  G2 多文: 残差 0〜7 を全部含む（覆われていない残差 0、補完できなかった 0）
+  OK  G2 多文: pull ごとの ofill 最大 12 ≤ SAAN_OBUF_HOPS 12（= 2·CH − (SAAN_LATENCY mod CH) = 16 − 4）
+  OK  G2 多文: 上限に届いている（最大 12 == 12。届かないなら最悪ケースを含んでいない）
+
+  G3 発話長に対する RAM:
+        ids  frames  定常部     -8B/id  高水位
+         53     106   171.1 KB   170.6 KB   171.1 KB
+        106     227   171.5 KB   170.6 KB   171.5 KB
+        212     469   172.3 KB   170.6 KB   172.3 KB
+        424     953   173.9 KB   170.6 KB   173.9 KB
+        848    1921   177.2 KB   170.6 KB   324.6 KB  ← duration の一時が上回る
+  OK  G3 パイプライン定常部が発話長に対して O(1)（ids 比例分 8 B/id を除いて一定）
+      ⚠️ 高水位は duration の一時領域 384 B/id で O(n_ids)。D-017 の実用最大 350 ids では定常部が上回るので G1 は影響を受けない
+
+Phase D-2 の受け入れ条件を満たした
+./stream_test_a8 --g1-kb 208 student_i8.bin golden.bin ids_heldout.bin
+一括版      : 106 frames / 27136 sample / arena 990.3 KB
+stream 版   : 106 frames 出力 / arena ピーク 173.5 KB (確保 201.3 KB)
+  [切り分け] c-line vs 一括版: OK   0/4240 不一致
+
+  OK  G1 ピーク RAM < 208 KB  ⚠️ --g1-kb で D-029 の 200 KB から変えている
+        テスト文   53 ids /  106 frames : arena  173.5 KB
+        実用最大  350 ids /  791 frames : arena  175.8 KB + FFT stack 4.1 KB
+        合計  179.9 KB  ← 判定はこちら（SRAM 512 KB の 35%）
+  OK  G2 一括版と bit 完全一致         27136 sample すべて一致
+      （1 文: 106 frames ≡ 2 mod 8、pull ごとの ofill 最大 10）
+
+  G2 多文（ids_heldout.bin）: 一括 vs ストリーミング memcmp
+        #   ids  frames  mod8   pull ofill最大
+        0    89     170      2    22        10 一致
+        1    90     234      2    30        10 一致
+        2    77     157      5    20        10 一致
+        3    47     101      5    13        10 一致
+        4   200     437      5    55        10 一致
+        5   268     561      1    71        10 一致
+        6   127     247      7    31        10 一致
+        7    86     216      0    27        10 一致
+        8    57     127      7    16        10 一致
+        9    39      91      3    12        11 一致
+       10   124     275      3    35        11 一致
+       11   114     265      1    34        10 一致
+       12    97     193      1    25        10 一致
+       13    71     141      5    18        10 一致
+       14    65     133      5    17        10 一致
+       15    61     129      1    17        10 一致
+       16    57     125      5    16        10 一致
+       17    57     112      0    14        10 一致
+       18   136     302      6    38        10 一致
+       19    81     161      1    21        10 一致
+       20    53     115      3    15        11 一致
+       21   179     341      5    43        10 一致
+       22    63     147      3    19        11 一致
+       23   187     450      2    57        10 一致
+        0    87     156      4    20        12 一致  ← 補完: #0 の先頭 87 ids
+      残差ごと（n_frames mod 8）:
+         mod 文数 ofill最大 不一致
+           0    2        10      0
+           1    5        10      0
+           2    3        10      0
+           3    4        11      0
+           4    1        12      0
+           5    7        10      0
+           6    1        10      0
+           7    2        10      0
+  OK  G2 多文: 一括版と bit 完全一致 25/25 文（エラー 0。うち残差の補完 1 件）
+  OK  G2 多文: 残差 0〜7 を全部含む（覆われていない残差 0、補完できなかった 0）
+  OK  G2 多文: pull ごとの ofill 最大 12 ≤ SAAN_OBUF_HOPS 12（= 2·CH − (SAAN_LATENCY mod CH) = 16 − 4）
+  OK  G2 多文: 上限に届いている（最大 12 == 12。届かないなら最悪ケースを含んでいない）
+
+  G3 発話長に対する RAM:
+        ids  frames  定常部     -8B/id  高水位
+         53     106   171.1 KB   170.6 KB   173.5 KB  ← duration の一時が上回る
+        106     228   171.5 KB   170.6 KB   173.9 KB  ← duration の一時が上回る
+        212     472   172.3 KB   170.6 KB   174.7 KB  ← duration の一時が上回る
+        424     960   173.9 KB   170.6 KB   177.2 KB  ← duration の一時が上回る
+        848    1936   177.2 KB   170.6 KB   354.4 KB  ← duration の一時が上回る
+  OK  G3 パイプライン定常部が発話長に対して O(1)（ids 比例分 8 B/id を除いて一定）
+      ⚠️ 高水位は duration の一時領域 384 B/id で O(n_ids)。D-017 の実用最大 350 ids では定常部が上回るので G1 は影響を受けない
+
+Phase D-2 の受け入れ条件を満たした
+cc -std=c99 -O2 -Wall -Wextra  -o fft_test fft_test.c fft.c -lm
+./fft_test
+== 1. naive DFT との一致 (n=100) ==
+  white   SNR dB: min 138.13  mean 138.66  max 139.42  (bit-exact 0/100)
+  [PASS] white spectrum SNR >= 120 dB (min over 100)
+  decay   SNR dB: min 137.89  mean 138.36  max 139.10  (bit-exact 0/100)
+  [PASS] decaying spectrum SNR >= 120 dB (min over 100)
+== 2. 既知入力 ==
+  DC              max|err| = 0.000e+00
+  [PASS] DC bin -> constant 1/N
+  Nyquist         max|err| = 0.000e+00
+  [PASS] Nyquist bin -> (-1)^n / N
+  bin37 real      max|err| = 4.164e-10
+  [PASS] single real bin -> cosine
+  bin37 imag      max|err| = 3.434e-10
+  [PASS] single imag bin -> -sine
+  im[0]/im[512] を無視: yes
+  [PASS] DC/Nyquist の虚部を読まない（naive 版と同じ契約）
+== 3. 速度 (n=1000) ==
+  fft   :     1760.0 ns/call  (sd   1533.9, n=1000)
+  naive :  2247804.0 ns/call  (sd 100076.3, n=1000)
+  speedup: 1277.2x
+  audio 1 秒あたり (86.13 frame): fft 0.152 ms / naive 193.6 ms
+  (sink -2.61349)
+ALL CHECKS PASSED
+cc -std=c99 -O2 -Wall -Wextra  -o int8_test int8_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+./int8_test student.bin student_i8.bin golden.bin ../reports/d3c_int8.json
+== 1. 合成入力（ランダム重み・ランダム入力）でのカーネル SNR ==
+shape                           W8A32    W8A32/deq       W8A8
+dur c1 32->32 k5               43.75       130.15     41.58
+ac  c1 48->48 k5               43.05       128.24     40.84
+ac  out 48->40 k1              44.77       135.02     41.79
+dec inp 40->76 k3              43.74       131.26     41.35
+dec pw1 76->304 k1             44.29       132.99     41.31
+dec pw2 304->76 k1             43.32       127.38     40.12
+dec cup 12->76 k1              47.38       140.33     44.06
+dec hout 48->1539              45.02       134.92     41.99
+dec dw 76 k7 (depthwise)       48.73       142.02     43.08
+
+== 2. 実際の重み（student.bin vs student_i8.bin）· 入力は N(0,1) · T=106 ==
+tensor                                  shape      W8A32    W8A32/deq       W8A8
+duration.blocks.0.c1.weight           32x32x5     44.05       130.17     41.66
+duration.blocks.0.c2.weight           32x32x5     44.16       129.73     41.73
+duration.blocks.1.c1.weight           32x32x5     44.45       130.08     41.75
+duration.blocks.1.c2.weight           32x32x5     44.66       129.87     42.08
+duration.blocks.2.c1.weight           32x32x5     44.76       129.99     42.02
+duration.blocks.2.c2.weight           32x32x5     44.07       129.87     41.89
+duration.proj.weight                   1x32x1     46.88       137.25     43.05
+acoustic.token.0.c1.weight            48x48x5     42.96       127.80     40.77
+acoustic.token.0.c2.weight            48x48x5     43.71       128.25     41.30
+acoustic.token.1.c1.weight            48x48x5     42.81       128.21     40.72
+acoustic.token.1.c2.weight            48x48x5     42.47       128.18     40.39
+acoustic.token.2.c1.weight            48x48x5     43.04       128.49     40.87
+acoustic.token.2.c2.weight            48x48x5     42.63       128.17     40.52
+acoustic.frame.0.c1.weight            48x48x5     43.09       128.14     41.00
+acoustic.frame.0.c2.weight            48x48x5     43.05       127.93     40.92
+acoustic.frame.1.c1.weight            48x48x5     42.79       127.82     40.83
+acoustic.frame.1.c2.weight            48x48x5     42.96       128.14     40.76
+acoustic.frame.2.c1.weight            48x48x5     43.30       128.22     41.15
+acoustic.frame.2.c2.weight            48x48x5     43.22       128.00     41.04
+acoustic.frame.3.c1.weight            48x48x5     43.23       128.30     40.93
+acoustic.frame.3.c2.weight            48x48x5     42.74       127.75     40.62
+acoustic.frame.4.c1.weight            48x48x5     42.98       128.01     40.83
+acoustic.frame.4.c2.weight            48x48x5     41.99       128.05     40.14
+acoustic.out.weight                   40x48x1     45.91       134.99     42.59
+decoder.inp.weight                    76x40x3     43.89       131.02     41.47
+decoder.dw.0.weight                    76x1x7     48.74       141.98     43.03
+decoder.dw.1.weight                    76x1x7     48.76       141.65     43.04
+decoder.dw.2.weight                    76x1x7     48.03       141.55     42.86
+decoder.dw.3.weight                    76x1x7     47.85       141.65     42.68
+decoder.dw.4.weight                    76x1x7     46.88       141.96     42.47
+decoder.pw1.0.weight                 304x76x1     44.49       133.16     41.49
+decoder.pw1.1.weight                 304x76x1     44.31       132.89     41.41
+decoder.pw1.2.weight                 304x76x1     44.40       133.06     41.34
+decoder.pw1.3.weight                 304x76x1     44.39       132.95     41.20
+decoder.pw1.4.weight                 304x76x1     44.13       133.06     41.15
+decoder.pw2.0.weight                 76x304x1     42.59       127.06     39.83
+decoder.pw2.1.weight                 76x304x1     42.53       127.05     39.80
+decoder.pw2.2.weight                 76x304x1     42.39       127.23     39.52
+decoder.pw2.3.weight                 76x304x1     42.36       127.12     39.82
+decoder.pw2.4.weight                 76x304x1     42.09       127.14     39.32
+decoder.cdown.0.weight                12x40x1     45.84       135.35     42.32
+decoder.cdown.1.weight                12x40x1     46.06       135.68     42.75
+decoder.cdown.2.weight                12x40x1     45.69       135.75     42.15
+decoder.cdown.3.weight                12x40x1     46.33       135.49     42.58
+decoder.cdown.4.weight                12x40x1     45.39       135.33     42.19
+decoder.cup.0.weight                  76x12x1     48.38       140.21     44.93
+decoder.cup.1.weight                  76x12x1     48.49       140.39     44.72
+decoder.cup.2.weight                  76x12x1     48.51       140.29     45.03
+decoder.cup.3.weight                  76x12x1     48.36       140.15     44.71
+decoder.cup.4.weight                  76x12x1     48.02       140.14     44.37
+decoder.hdown.weight                  48x76x1     45.09       132.73     41.65
+decoder.hout.weight                 1539x48x1     40.95       135.19     39.39
+  最悪 W8A32 40.95 dB (decoder.hout.weight) / 最悪 W8A8 39.32 dB (decoder.pw2.4.weight)
+
+== 2c. saan_quantize_w_i8 + saan_pack_w_i8 と scripts/export_c_weights.py の一致 ==
+  OK  int8 値 554388/554388 一致（v2 配置・padding 込み） / scale の不一致 0 / nbytes 不一致 0
+
+== 2b. 実 activation（golden out.c, 40x106）で decoder.inp ==
+  decoder.inp (T=106)  W8A32 46.91 dB   W8A8 44.47 dB
+
+== 3. 速度（このホスト。⚠️ ESP32-S3 では別の順位になる） ==
+shape                      fp32 ns    W8A32 ns     W8A8 ns  A32/f32   A8/f32  f32 ps/M  A32 ps/M   A8 ps/M
+ac  c1 48->48 k5             78325       78990       83155     1.01     1.06      64.1      64.7      68.1
+dec inp 40->76 k3            63510       64425       58185     1.01     0.92      65.7      66.6      60.2
+dec pw1 76->304 k1          185415      186950       99190     1.01     0.53      75.7      76.3      40.5
+dec pw2 304->76 k1          171855      178175       78705     1.04     0.46      70.2      72.8      32.1
+dec hout 48->1539           596730      619085      501450     1.04     0.84      76.2      79.1      64.0
+
+== 3b. 実重みの全 conv 層（T=106 を 1 回ずつ）の合計 ==
+  fp32 4.113 ms / W8A32 4.150 ms (1.01x) / W8A8 3.269 ms (0.79x)
+  MAC の内訳: ksz=1 が 58.3% / ksz>1 が 41.7%
+
+== 4. ブロブのサイズ ==
+  fp32   2249792 B (payload 2236032 B)
+  int8    654032 B (payload 634788 B = int8 554388 + scale 21536 + fp32 58864)
+  payload 比 3.52x / ファイル比 3.44x
+  v2 の padding 10096 B（dims から計算）→ 期待 payload 634788 B（M-39 の 624,692 + padding）
+  OK  payload = M-39 の 624,692 B + v2 padding 10096 B
+
+== 5. コアのディスパッチ（fp32 / int8 の両方を受け付ける） ==
+  OK  int8 ok / fp32 ok
+  OK  saan_w: 打ち間違い→NULL / scale を重みにしない / int8 は q+scale / fp32 は f32
+
+OK: int8 カーネルは逆量子化 fp32 と 100 dB 超で一致
+JSON: ../reports/d3c_int8.json (12557 B)
+./golden_test student_i8.bin golden_i8.bin
+入力 53 ids / arena 38.66 MB を確保
+arena 実使用 0.97 MB / 106 frames / 27136 sample (1.231 s)
+
+  OK  d_hat 完全一致           53/53
+  OK  out.log_d                Pearson 1.000000  SNR  120.70 dB  max|Δ| 1.917e-06  n=53
+  OK  out.c                    Pearson 1.000000  SNR  127.24 dB  max|Δ| 1.371e-06  n=4240
+  OK  out.pcm                  Pearson 1.000000  SNR  115.33 dB  max|Δ| 5.439e-07  n=27136
+
+参照実装と一致（Pearson >= 0.98 かつ SNR >= 40 dB）
+cc -std=c99 -O2 -Wall -Wextra  -o int8_e2e_test int8_e2e_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+./int8_e2e_test student.bin student_i8.bin golden.bin ids_heldout.bin \
+	    ../reports/d3c2_int8_e2e.json
+== 1. golden 文（golden.bin）==
+  53 ids / 106 frames / 27136 sample
+  d_hat 一致 53/53   log_d 34.14 dB   c 42.14 dB   pcm 29.52 dB
+
+== 2. held-out（ids_heldout.bin）==
+    #    ids   frames  d̂一致  log_d dB      c dB    pcm dB
+    0     89      168     89/89      35.01     42.15     27.11
+    1     90      232     88/90      36.37     43.63     29.10
+    2     77      156     76/77      34.42     42.29     28.25
+    3     47      102     46/47      34.90     42.71     31.54
+    4    200      437    198/200     36.32     42.53     27.20
+    5    268      560    266/268     35.64     42.65     29.71
+    6    127      249    125/127     35.36     40.70     28.21
+    7     86      216     86/86      39.72     43.28     26.98
+    8     57      127     57/57      37.46     42.93     25.76
+    9     39       90     36/39      39.92     43.27     28.99
+   10    124      275    121/124     36.75     42.48     27.84
+   11    114      264    113/114     38.60     43.34     27.39
+   12     97      193     97/97      35.56     41.25     27.03
+   13     71      140     70/71      35.84     42.38     28.65
+   14     65      132     64/65      33.63     43.00     26.83
+   15     61      129     61/61      37.15     41.54     25.72
+   16     57      125     57/57      38.67     41.02     29.15
+   17     57      112     57/57      33.88     43.23     28.90
+   18    136      300    135/136     38.92     42.50     27.98
+   19     81      162     77/81      36.01     42.43     30.16
+   20     53      114     53/53      35.32     44.08     29.83
+   21    179      339    176/179     34.47     40.83     26.67
+   22     63      145     63/63      36.12     39.88     27.50
+   23    187      451    184/187     37.57     41.95     28.04
+
+  n=24  平均 28.11 dB / 最小 25.72 dB / 最大 31.54 dB  （25 dB 未満 0 文）
+  d̂ 一致（トークン単位）2395/2425 = 98.8%
+
+  OK  平均 28.11 dB >= 27.0 dB
+  OK  最小 25.72 dB >= 25.0 dB
+  ⚠️ 「1 文ごとに >= 25 dB」では判定しない — 量子化そのものの性質で正しい実装でも 0/24 文が下回る
+
+OK: int8 経路は fp32 経路に対して所定の SNR を満たす
+JSON: ../reports/d3c2_int8_e2e.json (3659 B)
+# ⚠️ かつて `-D_DARWIN_C_SOURCE` を付けていたが **macOS 専用**で Linux では効かない。
+#    `arena_stress.c` が自前で `_POSIX_C_SOURCE` を立てるようにした。
+cc -std=c99 -O2 -Wall -Wextra  -o arena_stress arena_stress.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+./arena_stress student.bin golden.bin
+sanoTTS-jp arena ストレス（c'-4 の受け入れ条件）
+  weights : student.bin (2249792 B)
+  base ids: 53 個を巡回させて任意長を作る
+
+== 1. arena を 1 KB 刻みで走査（n_ids=350・設計上限） ==
+  saan_stream_arena_needed(350) = 320128 B (312.6 KB)  ← **緩い上限**
+  実測: init も pull も通る最小 arena = 178176 B (174 KB)
+  needed() / 実測 = 1.80 倍。**needed() をそのまま静的確保しないこと**
+  OK  **init が SAAN_OK を返した後に落ちた** サイズ: 0 / 111 点
+  ⚠️ これが c'-4 の主ゲート。saan_alloc は失敗しても used を進めないので、
+     大きい確保だけ失敗して後続の小さい確保が成功すると init が OK を返す。
+  雛形の既定 212992 B (208 KB) は実測に対し +34816 B
+
+== 2. arena 212992 B 固定で n_ids を振る（**クラッシュ 0** が条件） ==
+     n_ids  結果      
+         1  ok          
+         8  ok          
+        16  ok          
+        32  ok          
+        53  ok          
+        80  ok          
+       120  ok          
+       160  ok          
+       200  ok          
+       250  ok          
+       300  ok          
+       350  ok          
+       400  ok          
+       450  ok          
+       496  ok          
+       520  ok          
+       560  init-fail   
+       600  init-fail   
+       700  init-fail   
+       800  init-fail   
+       848  init-fail   
+       900  init-fail   
+      1000  init-fail   
+  OK  クラッシュ 0 件 / 通った最大 n_ids = 520 / 最初に clean fail した n_ids = 560
+
+== 4. pull のプロファイル（n_ids=350 / arena 212992 B・このホスト） ==
+  pull 回数 99 / 合計 785 frames = 200960 sample (9.114 s の音声)
+  ⚠️ pull が返すのは **フレーム数**（最大 8）。サンプル数は n*256
+  最終 pull の n = 1 / n < 8 だった回数 = 1
+  満チャンク 1 個 = 2048 sample = 92.88 ms の音声
+  初回 pull 10.80 ms / 2 回目以降 mean 1.74 ms (worst 1.97) → 初回は 6.2 倍
+  定常 pull の xRT = 0.0187（このホスト。ESP32 ではない）
+  算法遅延 = 38 frames = 0.441 s（受容野 36 + iSTFT 2）
+  OK  G7 初回 pull が定常の 5 倍以上（I2S を enable する前にプリロールが要る根拠）
+  arena: st.peak_used 177536 B / a.peak 177536 B / a.used 177536 B / 確保 212992 B
+  OK  st.peak_used == a.peak（duration net の一時確保を巻き戻しても 高水位は変わらない）
+  ⚠️ ただし**高水位は「確保すべき量」ではない**: 177536 B (173.4 KB) しか 使わないのに、
+     init が通る最小 arena は 178176 B。ALIGN16 の切り上げと 確保順の差でずれる。
+== 5. init 後の a.used が saan_stream_arena_used(n_ids) と一致するか（雛形の二重防御の前提） ==
+  OK  n_ids    1 : a.used 174752 B / saan_stream_arena_used 174752 B
+  OK  n_ids    8 : a.used 174784 B / saan_stream_arena_used 174784 B
+  OK  n_ids   53 : a.used 175168 B / saan_stream_arena_used 175168 B
+  OK  n_ids  350 : a.used 177536 B / saan_stream_arena_used 177536 B
+  OK  n_ids  520 : a.used 178880 B / saan_stream_arena_used 178880 B
+  OK  陽性対照: 期待値を ±16 B ずらすと NG になる
+  ⚠️ この値はホストのもの。ターゲットは sizeof(impl) がポインタ幅で変わるので同じ式で自分で計算する
+
+arena ストレス: すべての条件を満たした
+cc -std=c99 -O2 -Wall -Wextra  -o g2p_test g2p_test.c g2p.c
+cd .. && uv run python scripts/gen_g2p_vectors.py --closed \
+	    --out csrc/g2p_vectors.bin --manifest csrc/g2p_vectors.json
+Using CPython 3.14.0
+Creating virtual environment at: .venv
+warning: The `tool.uv.dev-dependencies` field (used in `/Users/s19447/Documents/piper-plus/pyproject.toml`) is deprecated and will be removed in a future release; use `dependency-groups.dev` instead
+   Building saanotts-jp @ file:///private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/6489b49d-f07e-49e2-a8c0-b2ba0faf0fcf/scratchpad/wt_t3
+      Built saanotts-jp @ file:///private/tmp/claude-1518468357/-Users-s19447-Desktop-saanoTTS-jp/6489b49d-f07e-49e2-a8c0-b2ba0faf0fcf/scratchpad/wt_t3
+Installed 110 packages in 1.38s
+mora テーブル: live（195 件）
+mora テーブル 195 エントリ / ん 異音 21 件 / 語彙 57
+sha256(table) = 9bd232f9c4865163a78b987ce86f7268721c1e23e4304f1770e292bb92a69074
+csrc/g2p_vectors.bin: 2819 ベクタ (2789 成功 / 30 エラー期待) / ids 合計 24450 / 最長 543 / 265,928 B
+黙って落ちる件数の合計: ー 23 / ° 6
+manifest: csrc/g2p_vectors.json
+./g2p_test g2p_vectors.bin --min-vectors 2700
+ベクタ g2p_vectors.bin: 2819 件 / 最長 543 ids / 最長入力 450 B
+
+G0 既知解と陰性対照（ベクタファイルに依存しない）
+  OK  既知解 53 ids が demo_ids.h と完全一致
+  OK  陰性対照: 1 文字変えると ids が変わる
+
+G1 テーブルの SHA-256（ベクタと実装が同じテーブルから来ているか）
+  OK  一致
+  OK  mora テーブル 195 エントリ
+
+G2 ベクタ件数の下限（空ファイルで満点を取らせない）
+  OK  2819 件 >= 2700
+  OK  正常 2789 件 / エラー期待 30 件（両側ある）
+
+G3 パリティ（Python と ids が完全一致するか。相関ではなく整数の一致）
+  OK  一致 2789 / 2789
+
+G4 PAD 規則の不変量 n_ids == 2*p + 3 - k == 2*(p-k) + 3 + k
+  OK  2789 / 2789 件で成立
+
+G5 エラー経路（未知文字 / 不正 UTF-8。err_byte まで一致するか）
+  OK  30 / 30 件
+
+G6 バッファ不足（ERR_OVERFLOW を返し、cap を 1 個も超えて書かない）
+  OK  428 / 428 件
+
+G7 陰性対照: 別ベクタの期待 ids を当てると必ず不一致になるか
+  OK  21 組すべて不一致
+
+G8 黙って落ちた件数（`ー` と `°`）の合計が Python と一致するか
+  OK  ー drop 期待 23 / 実際 23、° drop 期待 6 / 実際 6
+
+OK: 全ゲート通過
+./run_pad_gate.sh
+== G-1 W8A8 パディング部のゼロ埋め ==
+  OK  G-1a 重みの隙間を 127 にしても出力不変 → 活性化側のゼロ埋めが効いている
+  OK  G-1b 活性化の隙間を 127 にしても出力不変 → 重み側のゼロ埋めが効いている
+  OK  G-1c 陽性対照: 両方汚すと出力が変わる（隙間は本当に読まれている）
+  基準 checksum=d37315ee0fc44eef
+G-1: PASS
+cc -std=c99 -O2 -Wall -Wextra  -o line_test line_test.c line.c
+./line_test
+== 行編集ステートマシン（csrc/line.c）==
+
+G1. 正常系（中間表現がバイト単位で保存される）
+  OK   1 行だけ完成する
+  OK   長さ 14 B（きょ][おわ）
+  OK   内容がバイト単位で一致
+  OK   overflow が立たない
+  OK   カナリア無傷
+
+G2. 行末（CR / LF / CRLF のどれでも 1 行）
+  OK   CRLF で 1 行（LF が空行を作らない）
+  OK   LF だけで 1 行
+  OK   CR だけで 1 行
+  OK   LF LF は 2 行目が空行（吸わない）
+  OK   CRLF 2 行がちょうど 2 行
+
+G3. BS は UTF-8 の 1 文字を消す（1 バイトではない）
+  OK   あい + DEL → 3 B（1 バイト消しなら 5 B）
+  OK   残りが あ そのもの
+  OK   あ + BS → 空行
+  OK   空行での BS が下に突き抜けない
+  OK   BS 2 回で 2 文字とも消える
+
+G4. ESC シーケンスを吸う（矢印キーが `[` を挿入しない）
+  OK   あ + ↑ + い → 6 B
+  OK   `[`（上昇アクセント）が混入していない
+  OK   パラメータ付き CSI（ESC [ 1 ; 2 D）も全部吸う
+  OK   SS3（ESC O F = End キー）も吸う
+  OK   裸の ESC は次の 1 バイトだけ吸う
+
+G5. 溢れ（黙って切り詰めない・領域外に書かない）
+  OK   buf[cap] のカナリアが無傷（領域外に書いていない）
+  OK   溢れても Enter で 1 行として完成する
+  OK   長さが cap-1 を超えない
+  OK   overflow が立つ（**黙って切り詰めない**）
+  OK   溢れていない行では overflow が立たない
+
+G6. 行をまたいで残らない
+  OK   2 行目が 1 行目の続きになっていない
+  OK   2 行目の内容が い
+
+G7. Ctrl-C / Ctrl-U で行を捨てる
+  OK   Ctrl-C の後は打ち直した分だけ
+  OK   Ctrl-U で空行になる
+
+G9. 行をまたいで状態を持ち越す（CRLF を送る端末で空行を作らない）
+  OK   持ち越せば CRLF 2 行がちょうど 2 行
+  OK   陽性対照: 毎行 reset すると空行が増える（saan_console.c が reset しない理由）
+
+G10. エコーされる列 == 合成される列（画面が嘘をつかない）
+  OK   LF 区切りで 2 行
+  OK   1 行目: エコー == 中身
+  OK   **2 行目: エコー == 中身**（先頭 1 文字が落ちない）
+  OK   CRLF でも 2 行目が一致
+  OK   BS の後も一致（書き直し）
+  OK   溢れたバイトはエコーもしない（画面が止まるのが「もう入らない」の合図）
+
+G8. TAB / NUL などの制御文字は捨てる
+  OK   TAB が混入しない
+  OK   その他の C0 制御文字が混入しない
+
+== 陽性対照: わざと素直に書いた実装 naive_feed() ==
+  （BS は 1 バイト消し / ESC 素通し / CRLF 2 行 / 黙って切り詰め）
+  同じベクタで 20 項目が落ちた
+
+----- 結果 -----
+OK  csrc/line.c は全項目通過 / 陽性対照は 20 項目で落ちた
+⚠️ 見ていないもの: UART から本当に 1 バイトずつ取れるか、端末のエコーの見た目、全角の表示幅（**実機でしか見えない**）
+cc -std=c99 -O2 -Wall -Wextra  -o erf_test erf_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+cc -std=c99 -O2 -Wall -Wextra  -DSAAN_ERF_TEST_LINEAR=1 -o erf_test_linear erf_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+cc -std=c99 -O2 -Wall -Wextra  -DSAAN_ERF_TEST_CLAMP=3.9f -o erf_test_clamp erf_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+./erf_test
+  §1 saan_erf_approx vs erff: max|Δ| 1.192e-07 (x = -2.919325) / しきい値 2.0e-07  n = 1000000 + 256,001 格子
+  §2 S3 実装との全格子 bit 一致: 1272545 点 / erf 不一致 0 / GELU 不一致 0
+  §2a [-4, 4] の float 全走査 2164260866 値: erf 不一致 0 / GELU 不一致 0
+  §2b 本番 saan_gelu()（インライン経路）vs S3 GELU: 1256001 点 / 不一致 0
+  §3 表の bit 一致: kSaanErfV vs 旧表 不一致 0 / kSaanErfDh vs 旧 kSaanErfD·h 不一致 0（129 節点）
+  OK  saan_erf_approx は erff と max|Δ| <= 2.0e-07 で一致
+  OK  saan_erf_approx / saan_gelu は S3 実装と bit 一致（格子 + [-4,4] 全走査 + 本番 GELU 経路。erf は ±0.0 のみ許容）
+  OK  事前スケール表 kSaanErfDh は旧 kSaanErfD × h と全節点で bit 一致（T5-G4）
+./erf_test_linear --expect-fail
+  §1 saan_erf_approx vs erff: max|Δ| 1.181e-04 (x = 0.7029963) / しきい値 2.0e-07  n = 1000000 + 256,001 格子
+  OK  陽性対照: 線形補間は しきい値を超えて落ちる
+./erf_test_clamp --expect-grid-fail
+  §1 saan_erf_approx vs erff: max|Δ| 1.192e-07 (x = -2.919325) / しきい値 2.0e-07  n = 1000000 + 256,001 格子
+  §2 S3 実装との全格子 bit 一致: 1272545 点 / erf 不一致 229753 / GELU 不一致 115418（最初の不一致 x = -4.520554）
+  §2a [-4, 4] の float 全走査 2164260866 値: erf 不一致 683860 / GELU 不一致 348225（最初の不一致 x = 3.90665412 = 0x407a069f）
+  §2b 本番 saan_gelu()（インライン経路）vs S3 GELU: 1256001 点 / 不一致 193025（最初の不一致 x = -8）
+  OK  陽性対照: クランプをずらした版は全格子 bit 一致を落とす（§2 / §2a / §2b すべて落ちた）
+cc -std=c99 -O2 -Wall -Wextra  -o range_test range_test.c saanotts.c saanotts_stream.c fft.c saanotts_int8.c -lm
+./range_test
+S9 範囲版カーネルの受け入れゲート（2000 試行 × 3 経路 + LN）
+  OK  G-R1   範囲版 vs [0,T) 版 bit 一致 2000/2000 試行 / 陽性対照（1 列ずらすと不一致）1492/1492
+  OK  G-R1dw 範囲版 vs [0,T) 版 bit 一致 2000/2000 試行 / 陽性対照（1 列ずらすと不一致）1492/1492
+  OK  G-R2   範囲版 vs [0,T) 版 bit 一致 2000/2000 試行 / 陽性対照（1 列ずらすと不一致）1500/1500
+  OK  G-R2dw 範囲版 vs [0,T) 版 bit 一致 2000/2000 試行 / 陽性対照（1 列ずらすと不一致）1500/1500
+  OK  G-R3   範囲版 vs [0,T) 版 bit 一致 2000/2000 試行 / 陽性対照（1 列ずらすと不一致）1500/1500
+  OK  G-R3dw 範囲版 vs [0,T) 版 bit 一致 2000/2000 試行 / 陽性対照（1 列ずらすと不一致）1500/1500
+  OK  G-LN   LayerNorm が T に依らない（T=1 の連続列 vs ストライド T）2000/2000 一致 / 陽性対照（隣の列と比べると不一致）2000/2000
+      ⚠️ 2026-09-03 に落ちた形（列を局所配列に写す前）: 500 試行中 71 で 1 ulp 違った
+OK: 範囲版カーネルは [0,T) 版と bit 一致（陽性対照も効いている）
