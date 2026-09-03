@@ -240,13 +240,27 @@ void saan_relu(float *x, size_t n) {
 #define SAAN_ERF_TEST_LINEAR 0
 #endif
 
+/* ⚠️ **陽性対照のためのフック（2 つ目。T5-G3）。** `-DSAAN_ERF_TEST_CLAMP=3.9f` はクランプの
+ *    上限をずらす。erf_test の「S3 実装との全格子 bit 一致」がこれで**落ちること**で、
+ *    その比較が効いていると言える。本番では定義しない（既定 = SAAN_ERF_XMAX）。 */
+#ifndef SAAN_ERF_TEST_CLAMP
+#define SAAN_ERF_TEST_CLAMP SAAN_ERF_XMAX
+#endif
+
 float saan_erf_approx(float x) {
-    const float ax = fabsf(x);
-    if (ax >= SAAN_ERF_XMAX) return x < 0.0f ? -1.0f : 1.0f;
+    /* T5-G3: FP の分岐を 2 つ消した（Xtensa は分岐予測を持たない）。**Hermite の式は S3 と
+     * 1 文字も変えていない。** S3 実装との bit 一致は erf_test.c の全格子チェックが守る。
+     *  (1) `|x| ≥ 4 なら ±1 を return` → ax を 4.0 にクランプして表を引く。u = 128.0 → i = 127,
+     *      t = 1.0 で Hermite 基底は (0, 0, 1, 0) を float で正確に出し、y = kSaanErfV[128]
+     *      （0.999999985 は float で 1.0f）。±1e30 も同じ経路で ±1.0f になる
+     *  (2) `x < 0 ? -y : y` → y の符号ビットに x の符号ビットを OR（y ≥ 0 なので全有限値で一致。
+     *      x = −0.0 だけ S3 の +0.0 に対し −0.0 を返すが、GELU は 1.0f + (∓0.0f) = 1.0f で同一） */
+    float ax = fabsf(x);
+    ax = (ax < (float)SAAN_ERF_TEST_CLAMP) ? ax : (float)SAAN_ERF_TEST_CLAMP;
     const float u = ax * (float)SAAN_ERF_H_INV;    /* 区間座標。整数部が区間番号 */
-    int i = (int)u;                                /* 0 .. N-1（ax < XMAX なので N 未満） */
-    if (i >= SAAN_ERF_N) i = SAAN_ERF_N - 1;       /* 丸めで u == N になったときの保険 */
-    const float t = u - (float)i;                  /* [0, 1) */
+    int i = (int)u;                                /* 0 .. N（ax == XMAX のとき N） */
+    if (i >= SAAN_ERF_N) i = SAAN_ERF_N - 1;       /* 整数の min。ax == XMAX なら i = N−1, t = 1 */
+    const float t = u - (float)i;                  /* [0, 1] */
     const float f0 = kSaanErfV[i], f1 = kSaanErfV[i + 1];
 #if SAAN_ERF_TEST_LINEAR
     const float y = f0 + t * (f1 - f0);
@@ -260,7 +274,13 @@ float saan_erf_approx(float x) {
                   + f1 * (-2.0f * t3 + 3.0f * t2)
                   + d1 * (t3 - t2);
 #endif
-    return x < 0.0f ? -y : y;
+    uint32_t yb, xb;
+    memcpy(&yb, &y, sizeof yb);
+    memcpy(&xb, &x, sizeof xb);
+    yb |= xb & 0x80000000u;                        /* 奇関数: 符号を x から戻す（分岐なし） */
+    float r;
+    memcpy(&r, &yb, sizeof r);
+    return r;
 }
 
 /* PyTorch の既定は tanh 近似ではなく erf 版。erf は saan_erf_approx（S3。丸め水準で erff と一致） */

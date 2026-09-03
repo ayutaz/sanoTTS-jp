@@ -76,6 +76,7 @@ __pycache__/
 /csrc/prof_test
 /csrc/erf_test
 /csrc/erf_test_linear
+/csrc/erf_test_clamp
 
 # レーン比較の生成物（`make -C csrc lanes` で再生成できる）。
 # ⚠️ wav は *.wav で既に除外されるが、**ディレクトリごと**明示しておく。
