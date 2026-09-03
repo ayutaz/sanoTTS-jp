@@ -25,8 +25,8 @@
 
 **進捗**: §5 の S1〜S5b と S6 / S9、§6 の取り込みは実装済み（[M-81](../measurements.md#m-81) /
 [M-88](../measurements.md#m-88) / [M-89](../measurements.md#m-89) / [M-90](../measurements.md#m-90)。
-[`../plan/s1-speed-implementation-plan.md`](../plan/s1-speed-implementation-plan.md) と
-[`../plan/s2-fast-kanji-m5-plan.md`](../plan/s2-fast-kanji-m5-plan.md) の進捗表）。
+[`../plan/s2-fast-kanji-m5-plan.md`](../plan/s2-fast-kanji-m5-plan.md) の進捗表。
+**S-1 計画は同文書 §10 に前史として畳み、`plan/s1-speed-implementation-plan.md` は削除した**）。
 **残っているのは S7（`SAAN_CHUNK` 16）と S8（2 コア）だけで、どちらも要件を満たした今は起票していない。**
 
 ⚠️ **2026-09-02 の途中経過**（[M-82](../measurements.md#m-82)）: **定常 xRT 1.554（報告値・S1 前）→ 0.926（−40%）**、
@@ -236,7 +236,7 @@ fp32 比 SNR は 24 文とも不変。M-81）。**基準 checksum はここで 1
 ## 6. M5Stack 対応を本リポジトリに取り込んだ形（✅ 実装済み。2026-09-02、Task A-1〜A-3）
 
 報告者の構成をそのまま入れるのではなく、**`csrc/` を相対参照する本リポジトリの流儀**（コピーしない）に合わせた。
-計画と各 Task のゲートは [`../plan/s1-speed-implementation-plan.md`](../plan/s1-speed-implementation-plan.md)。
+計画と各 Task のゲートは [`../plan/s2-fast-kanji-m5-plan.md`](../plan/s2-fast-kanji-m5-plan.md)（S1〜S5a は §10 の前史、T1〜T17 は §3）。
 
 | 何 | どこ | 検証 |
 |---|---|---|

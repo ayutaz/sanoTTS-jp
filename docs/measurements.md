@@ -5705,7 +5705,7 @@ INIT: 311840 cyc / 回
 
 ## M-81. S1〜S3 を入れた — ホストと QEMU の記録、**QEMU の基準 checksum の更新**（自己実測 / ⚠️ 実機ではない）
 
-M-80 の内訳を受けて、`docs/plan/s1-speed-implementation-plan.md` の S1〜S3 を入れた（⚠️ 2 件目の独立報告 = AtomS3 1.718× RT・checksum 一致も、この時点のコア = S1 前の配布 firmware）
+M-80 の内訳を受けて、S-1 計画（現 `docs/plan/s2-fast-kanji-m5-plan.md` §10 の前史）の S1〜S3 を入れた（⚠️ 2 件目の独立報告 = AtomS3 1.718× RT・checksum 一致も、この時点のコア = S1 前の配布 firmware）
 （ブランチ `feat/s1-speed-m5`。S4 / S5 は未着手）。**実機の数字はまだ無い**（板待ち）。
 ここに書くのは、各ステップが出力に何をしたか（bit 同一 / 丸め水準）と、QEMU の命令数比の変化。
 
