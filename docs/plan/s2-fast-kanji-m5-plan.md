@@ -56,9 +56,10 @@ K 計画 [`k1-kanji-implementation-plan.md`](k1-kanji-implementation-plan.md)（
 - **bit**: 同一（出力サンプル列は不変）。
 - **メモリ**: 0。
 - **ゲート**: `make -C csrc all-test`（stream G2: 一括版と 27,136 sample bit 一致）/ `./csrc/prof_test` の step_chunk 回数が 3 発話で 63 → 54。QEMU checksum 不変。
-- **陽性対照**: 条件を 1 フレーム早く（`< n_frames − 1`）すると末尾 1 フレームが欠けて G2 が落ちる。
+- **陽性対照**: ~~条件を 1 フレーム早く（`< n_frames − 1`）すると末尾 1 フレームが欠けて G2 が落ちる。~~ **実装時に測ったら `− 1` も `− 2` も落ちなかった**: pull の境目は常に `emitted + ofill = 8m + 2` で、fpush が n_frames に届く step が残り 9〜10 フレームを一度に吐くため。`− 3` は n_frames ≡ 5 (mod 8) の入力だけ 3 フレーム欠け（demo_ids の prefix 49 件中 3 件）、**`− 8` で demo_ids（106 frames）が 98 で切れて G2 が落ちる**（2048/27136 sample 不一致）。陽性対照はこちらを使う。
 - **実機**: 表の読み替えのみ。セッション 1 で pull ごとの ms を確認。
 - **依存**: なし。
+- [x] 実装（stream 早期終了 / prof_test `--expect-steps 54` / main.c 満チャンク xRT + pull ごとの ms / prof_report の INIT 側 LOOKUP と DW 注記）— ホストゲート通過。QEMU checksum は実行結果を StructuredOutput に記録
 
 ### T2. 有効範囲だけ計算する（S9）
 

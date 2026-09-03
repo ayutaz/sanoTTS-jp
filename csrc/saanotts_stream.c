@@ -746,8 +746,20 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
     if (st->emitted >= st->n_frames) return SAAN_OK;      /* 発話の終わり */
 
     /* CH フレームぶん溜まるまでパイプラインを進める。
-     * warmup（遅延 38 フレーム）の間は obuf に何も溜まらない */
-    while (im->ofill < CH) {
+     * warmup（遅延 38 フレーム）の間は obuf に何も溜まらない。
+     * ⚠️ **まだ出していないフレームが残っている間だけ step する**（T1）。
+     *    iSTFT は `istft_ready` で n_frames hop ちょうどで止まるので、
+     *    `emitted + ofill == n_frames` になったら obuf に全フレームが出そろっている。
+     *    そこで ofill < CH でも回し続けると、末尾の pull だけ出力に 1 sample も
+     *    寄与しない step_chunk が 3 回走る（106 frames の 1 文で 21 → 18 step。
+     *    出力サンプル列は不変 = stream G2 が bit 一致で示す）。
+     *    ⚠️ 陽性対照は `- 1` では**落ちない**（実測）。pull の境目では常に
+     *    `emitted + ofill = 8m + 2`、`fpush = 8m + 4` で、fpush が n_frames に届く step が
+     *    残りを**全部一度に**吐く（istft_ready）ため、残り r が 3..8 フレームの境目だけが
+     *    危ない。`- 3` は n_frames ≡ 5 (mod 8) の入力を 3 フレーム欠けさせ、`- 8` は
+     *    demo_ids.h（106 frames）を 98 で切って G2 が落ちる（scratchpad の prefix 走査 49 件で
+     *    予測どおり）。「1 フレーム早く」は検出できないので、条件を触るなら `- 8` で確かめること。 */
+    while (im->ofill < CH && st->emitted + im->ofill < st->n_frames) {
         saan_status s = step_chunk(st, pcm);
         if (s != SAAN_OK) return s;
         /* ⚠️ `used` ではなく `peak` を見る。W8A8 の activation 作業領域は

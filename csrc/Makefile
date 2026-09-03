@@ -7,7 +7,8 @@
 #   make int8-e2e  int8 経路の end-to-end（fp32 経路との波形 SNR。D-3c'-2）
 #   make arena     arena ストレス（ESP32 の静的 arena を決める・c'-4）
 #   make bench     レイテンシ測定（段別の内訳）
-#   make prof      段別プロファイラ（回数・要素数。--expect-no-lookup がゲート = S1）
+#   make prof      段別プロファイラ（回数・要素数。ゲートは --expect-no-lookup = S1 と
+#                  --expect-steps 54 = T1 の 2 つ。時間の行はゲートではない）
 #   make erf       GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
 #   make g2p       端末側 G2P の受け入れゲート（自己完結ベクタ 2,819 件）
 #   make line      端末の行編集ステートマシン（**陽性対照つき**）
@@ -189,8 +190,12 @@ erf: erf_test erf_test_linear
 	./erf_test
 	./erf_test_linear --expect-fail
 
+# 2 行目がゲート（T1）: demo_ids.h の 106 frames は 3 発話で step_chunk 54 回（18/発話）。
+# T1 前は 63 で落ちる（全フレームが obuf に出そろった後に 3 step 余分に回っていた）
 prof: prof_test student_i8.bin
 	./prof_test student_i8.bin --reps 20 --expect-no-lookup
+	./prof_test student_i8.bin --reps 3 --expect-no-lookup --expect-steps 54 > /dev/null
+	@echo "  OK  step_chunk 54 回 / 3 発話（T1。詳細は ./prof_test student_i8.bin --reps 3 --expect-steps 54）"
 
 run-bench: bench
 	./bench --weights student.bin --json ../reports/d3b_latency_fft.json --label fft

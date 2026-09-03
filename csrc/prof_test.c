@@ -1,6 +1,7 @@
 /* 段別プロファイラのホスト harness（`make -C csrc prof`）
  *
- * ⚠️ **ゲートではない。** OK / NG を出さない。段・カーネルごとの内訳を表にするだけ。
+ * 段・カーネルごとの内訳を表にする。**時間の行はゲートではない**。ゲートになるのは
+ * 下の `--expect-*` で明示した回数（S1 の LOOKUP 0 回 / T1 の step_chunk 回数）だけ。
  *
  * 何を測るか: 実機（M5Stack CoreS3、第三者の報告）で W8A8 + PIE が 1.55× RT だった。
  * 1 チャンクの MAC 数に対してサイクル数が 70 倍多く、**積和以外が支配的**なのは
@@ -16,10 +17,16 @@
  *
  *   cc -std=c99 -O2 -DSAAN_INT8_ACT=1 -DSAAN_PROFILE=1 -o prof_test prof_test.c \
  *      saanotts.c saanotts_stream.c saanotts_int8.c fft.c -lm
- *   ./prof_test student_i8.bin [--reps 20] [--expect-no-lookup]
+ *   ./prof_test student_i8.bin [--reps 20] [--expect-no-lookup] [--expect-steps N]
  *
- * `--expect-no-lookup` だけはゲート: **pull の中でテンソル検索（LOOKUP）が 1 回でも走ったら
- * exit 1**。S1（検索を init で 1 回に）の受け入れ条件。S1 前は 102 回/step で落ちる（陰性対照）。
+ * ゲートは 2 つだけ（どちらも指定したときだけ効く）:
+ *   `--expect-no-lookup`  **pull の中でテンソル検索（LOOKUP）が 1 回でも走ったら exit 1**。
+ *                         S1（検索を init で 1 回に）の受け入れ条件。S1 前は 102 回/step で落ちる（陰性対照）。
+ *   `--expect-steps N`    **step_chunk の総回数（reps 発話の合計）が N と違ったら exit 1**。
+ *                         T1（pull ループの早期終了）の受け入れ条件。demo_ids.h の 106 frames は
+ *                         3 発話で **54**（18/発話）。T1 前は 63（21/発話。全フレームが obuf に
+ *                         出そろった後に 3 step 余分に回っていた）で落ちる（陰性対照）。
+ *                         ⚠️ 回数は reps に比例するので、`--reps` と組で指定すること。
  */
 #define _POSIX_C_SOURCE 199309L
 
@@ -66,14 +73,16 @@ static void *slurp(const char *path, size_t *size) {
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        fprintf(stderr, "usage: %s student_i8.bin [--reps N]\n", argv[0]);
+        fprintf(stderr, "usage: %s student_i8.bin [--reps N] [--expect-no-lookup] [--expect-steps N]\n", argv[0]);
         return 2;
     }
     int reps = REPS_DEFAULT;
     int expect_no_lookup = 0;
+    long expect_steps = -1;   /* < 0 = 検査しない */
     for (int i = 2; i < argc; ++i) {
         if (strcmp(argv[i], "--reps") == 0 && i + 1 < argc) reps = atoi(argv[++i]);
         else if (strcmp(argv[i], "--expect-no-lookup") == 0) expect_no_lookup = 1;
+        else if (strcmp(argv[i], "--expect-steps") == 0 && i + 1 < argc) expect_steps = atol(argv[++i]);
     }
     if (reps < 1) reps = 1;
 
@@ -117,7 +126,7 @@ int main(int argc, char **argv) {
     printf("時計: ホストの ns（⚠️ 実機のサイクルではない。回数と要素数だけが実機と共通）\n\n");
     printf("%-8s %12s %14s %8s %14s %12s\n", "区間", "回数/step", "ns/step", "%STEP", "要素/step", "ns/要素");
     for (int id = 0; id < SAAN_PROF_N; ++id) {
-        if (id == SAAN_PROF_INIT) continue;
+        if (id == SAAN_PROF_INIT || id == SAAN_PROF_LOOKUP) continue;   /* 発話側の表に出す */
         const double cnt = steps ? (double)saan_prof_cnt[id] / steps : 0.0;
         const double acc = steps ? (double)saan_prof_acc[id] / steps : 0.0;
         const double n   = steps ? (double)saan_prof_n[id] / steps : 0.0;
@@ -125,9 +134,18 @@ int main(int argc, char **argv) {
                step_per_chunk > 0 ? 100.0 * acc / step_per_chunk : 0.0, n,
                saan_prof_n[id] ? (double)saan_prof_acc[id] / (double)saan_prof_n[id] : 0.0);
     }
-    printf("\nINIT（発話ごと）: %.0f ns / 回 (%u 回)\n",
+    /* ⚠️ DW 行の要素数には、その中で呼ぶ QUANT（saan_quantize_act_i8p）の要素が重複して
+     *    入っている（DW は区間全体、QUANT は入れ子の内側）。カーネル行を足し合わせるときは
+     *    DW − QUANT(dw 分) で読むこと。 */
+    printf("  ⚠️ DW の ns/step には入れ子の QUANT（dw 入力の量子化）が含まれる。カーネル行の単純合算は二重計上\n");
+    printf("\n--- INIT 側（発話あたり。step で割らない）---\n");
+    printf("INIT   : %.0f ns / 回 (%u 回)\n",
            saan_prof_cnt[SAAN_PROF_INIT] ? (double)saan_prof_acc[SAAN_PROF_INIT] / saan_prof_cnt[SAAN_PROF_INIT] : 0.0,
            (unsigned)saan_prof_cnt[SAAN_PROF_INIT]);
+    /* LOOKUP は S1 で init に移した。step で割ると「0.6%/step」に見えるが、pull の中では 0 回 */
+    printf("LOOKUP : %.2f 回 / 発話, %.0f ns / 発話（init の resolve_weights。pull の中の回数は下）\n",
+           (double)saan_prof_cnt[SAAN_PROF_LOOKUP] / reps,
+           (double)saan_prof_acc[SAAN_PROF_LOOKUP] / reps);
     printf("1 発話の step_chunk 合計: %.3f ms（%u step × %.0f ns）\n",
            step_per_chunk * steps / reps / 1e6, (unsigned)(steps / (uint32_t)reps), step_per_chunk);
     printf("pull の中の LOOKUP: %u 回（%d 発話の合計。init の分は含まない）\n",
@@ -140,6 +158,16 @@ int main(int argc, char **argv) {
             return 1;
         }
         printf("  OK  pull の中でテンソル検索は 0 回（重みは init で解決済み）\n");
+    }
+    if (expect_steps >= 0) {
+        if ((long)steps != expect_steps) {
+            printf("  NG! step_chunk が %u 回（期待 %ld。%d 発話の合計）\n",
+                   (unsigned)steps, expect_steps, reps);
+            free(abuf); free(wbuf);
+            return 1;
+        }
+        printf("  OK  step_chunk %u 回（期待 %ld。%d 発話 × %u）\n",
+               (unsigned)steps, expect_steps, reps, (unsigned)(steps / (uint32_t)reps));
     }
     free(abuf);
     free(wbuf);
