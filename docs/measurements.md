@@ -7208,7 +7208,7 @@ node /tmp/align.js
 - **`AudioContext` は 22,050 Hz を保証しない。** 出音は端末のサンプルレート（多くは 48,000 Hz）へ
   **リサンプルされる**ので、**鳴っている音は checksum と一致しない**。
   一致を主張してよいのは `saan_web_pcm()` が返す float 配列まで
-- **`.bin` に対する Pages の `Content-Encoding` は未確認**（§8）
+- ~~**`.bin` に対する Pages の `Content-Encoding` は未確認**~~ → ✅ **§12 で測った**（gzip が付く）
 - **wasm の転送サイズ・起動時間・初回描画までの時間を測っていない**
 - **`web/main.js` はどのゲートも 1 行も走らせていない**（§11）。
   `saan_web_message()` の表示を消しても全ゲートは緑のまま
@@ -7246,3 +7246,45 @@ git checkout -- web/saan_web.c
 G-W7 / G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6。CI の `web` job でも回る。
 **辞書 13.7 MB が要る部分**（漢字 == かな / ids 350 超えの拒否）だけは CI で回らず、
 ⚠️ **skip ではなく「回せなかった」と理由つきで出る。**
+
+### 12. 公開された Pages が実際に返すもの（自己実測 / 2026-09-04）
+
+`main` にマージして [`pages.yml`](../.github/workflows/pages.yml) が初めて走った直後
+（run 33830594650。build / deploy とも success）に、**公開 URL を叩いて測った**。
+
+再現:
+
+```bash
+curl -sL -o /dev/null -w '%{http_code} %{content_type} %{size_download}\n' \
+     https://ayutaz.github.io/sanoTTS-jp/saan_web_w8a32.wasm
+# 転送時の圧縮を見るなら Accept-Encoding を付けてヘッダを読む
+curl -sL -o /dev/null -D - -H 'Accept-Encoding: gzip, deflate, br' \
+     https://ayutaz.github.io/sanoTTS-jp/student_i8.bin | grep -i content-encoding
+```
+
+| 資産 | HTTP | `content-type` | 非圧縮 | 転送時 |
+|---|---:|---|---:|---|
+| `index.html` | 200 | `text/html` | 13,502 | — |
+| `main.js` | 200 | `application/javascript` | 21,171 | — |
+| `saan_web_w8a32.mjs` | 200 | `text/javascript` | 9,893 | — |
+| `saan_web_w8a32.wasm` | 200 | **`application/wasm`** | 161,233 | **gzip** |
+| `saan_web_w8a8.wasm` | 200 | `application/wasm` | 162,793 | gzip |
+| `student_i8.bin` | 200 | `application/octet-stream` | 654,032 | **gzip** |
+| `k1_dict.bin.gz` | 200 | `application/gzip` | **5,496,167** | なし（既に gzip） |
+| `NOTICE*.txt` / `LICENSE-MODEL.md` | 200 | `text/plain` / `text/markdown` | — | — |
+
+⚠️ **陽性対照**: 在らざる名前（`saan_web_w8a99.mjs`）は **404**。
+「全部 200」がサーバの挙動ではないことを確かめてある。
+
+**分かったこと:**
+
+- ✅ **`.wasm` は `application/wasm` で返る** → `WebAssembly.instantiateStreaming` がそのまま使える
+- ✅ **`.bin`（`application/octet-stream`）にも Pages は gzip を掛ける。**
+  §10 で「未確認」としていた点。⚠️ **それでも辞書を `.gz` で置く判断は変えない** —
+  配信側の方針に依存させないため（方針は予告なく変わりうる）
+- ⚠️ **`k1_dict.bin.gz` は 5,496,167 B**。手元の `gzip -9`（5,476,122 B）より **20,045 B 大きい**。
+  ubuntu-latest の GNU gzip と macOS の Apple gzip の版差で、
+  **中身は同じ**（`pages.yml` が展開して `cmp` で確かめている）
+
+⚠️ **これは「配信されている」ことの確認であって、「ブラウザで動く」ことの確認ではない。**
+**ブラウザは 1 種類も開いていないし、音も誰も聴いていない**（§10 は埋まっていない）。

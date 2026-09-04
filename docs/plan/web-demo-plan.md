@@ -152,7 +152,9 @@ G-W1/G-W2 が緑でも、**ブラウザが通る経路は 1 行も検査され�
     一致するのは `|max|` と `Σx²` の相対差だけ。
 13. **Pages は HTTP ヘッダを設定できない。** COOP/COEP が張れないので
     `-pthread` / `SharedArrayBuffer` は**構造的に使えない**。
-14. **`.bin` が Pages で gzip されるかは未確認。** だから `.gz` を置いて
+14. ~~**`.bin` が Pages で gzip されるかは未確認。**~~ → ✅ **公開して測ったら、gzip されると分かった**
+    （`student_i8.bin` は `application/octet-stream` で `content-encoding: gzip` が付く。M-94 §12）。
+    ⚠️ **それでも `.gz` を置く判断は変えない** — 配信側の方針に依存させないため。だから `.gz` を置いて
     `DecompressionStream('gzip')` で展開する。⚠️「たぶん圧縮される」と書かない。
 15. **`upload-pages-artifact` はドット始まりを全部除外し、シンボリックリンクを許さない。**
 16. **`python3 -m http.server` は hook が deny する。** `uv run python -m http.server` を使う。
@@ -220,4 +222,4 @@ Pages に置くのは **重み + 辞書 + Open JTalk + Emscripten ランタイ�
 - **モバイルで測っていない**
 - **ブラウザの音を誰も聴いていない**（G32 と同じ空白）
 - `AudioContext` は 22,050 Hz を直接は保証しない。**リサンプルが挟まるので出音は checksum と一致しない**
-- `.bin` に対する Pages の `Content-Encoding` は未確認（だから `.gz` を置く）
+- ~~`.bin` に対する Pages の `Content-Encoding` は未確認~~ → ✅ **測った**（M-94 §12。gzip が付く）
