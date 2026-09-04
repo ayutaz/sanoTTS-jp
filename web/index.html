@@ -145,7 +145,12 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
     <label><input type="radio" name="lane" value="w8a8"> <strong>W8A8</strong>（重みも活性も int8 = 実機の出荷構成）</label>
     <p class="note">同じ 24 文で 平均 24.27 dB / 最小 22.00 dB。<strong>受け入れゲートは通っていません</strong>（既知の劣化）。
       実機 ESP32-S3 で焼いているのはこちらです。</p>
-    <p class="note">⚠️ この SNR は node 上の wasm で測った値で、<strong>ブラウザでは 1 度も測っていません</strong>。</p>
+    <p class="note">この SNR は node 上の wasm で測った値ですが、<strong>Chrome で同じ wasm を走らせて
+      PCM が bit 一致する</strong>ことを確かめてあるので、そのまま当てはまります（M-95）。
+      ⚠️ <strong>SNR そのものをブラウザで測り直したわけではありません。</strong></p>
+    <p class="note">音は<strong>両レーンとも聴いてもらって「問題なかった」/ 途切れ無し</strong>（M-96）。
+      ⚠️ <strong>1 名・対照なし・盲検なし</strong>で、欠陥が無いことの証明ではありません。
+      ⚠️ <strong>モバイルと Safari では測っていません。</strong></p>
   </fieldset>
 
   <button id="play" type="button">再生</button>
@@ -179,10 +184,13 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 </ul>
 
 <div class="warn">
-<strong>⚠️ 出音は実機と同じ音ではありません。</strong>
-合成した PCM は 22,050 Hz ですが、ブラウザの <code>AudioContext</code> が
-その周波数で鳴らせるとは限らず、多くの環境でリサンプルが挟まります。
-<strong>ブラウザの音はまだ誰も評価していません</strong>（ブラウザでの速度も 1 種類も測っていません）。
+<strong>⚠️ どこまで確かめてあるか。</strong>
+合成した PCM は 22,050 Hz です。Chrome では <code>AudioContext</code> が
+<strong>要求どおり 22,050 Hz を返す</strong>ことを確かめました（M-95。既定は 48,000 Hz）が、
+<strong>それ以外のブラウザでは分かりません</strong>。リサンプルが挟まれば出音は checksum と一致しません。
+音は<strong>両レーンとも聴いてもらって「問題なかった」/ 途切れ無し</strong>（M-96）。
+⚠️ <strong>1 名・対照なし・盲検なし</strong>で、欠陥が無いことの証明ではありません。
+⚠️ <strong>モバイルと Safari は速度も音も測っていません。</strong>
 </div>
 
 <h2>ライセンスと帰属</h2>

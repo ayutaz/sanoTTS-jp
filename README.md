@@ -14,7 +14,7 @@
 インストール不要。**漢字かな交じり文をそのまま打つと喋る**。
 ⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもので（arena も同じ 180,224 B）、
 piper-plus の WASM の置き換えではなく**実機のコードを触れる形にした入口**（[D-050](docs/decisions.md#d-050)）。
-⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。速度は Chrome で **0.008〜0.019 ×RT**（[M-95](docs/measurements.md#m-95)）。⚠️ **音は誰も聴いていない / モバイルと Safari は未測定**。
+⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。速度は Chrome で **0.008〜0.019 ×RT**（[M-95](docs/measurements.md#m-95)）。音は**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**（[M-96](docs/measurements.md#m-96)。⚠️ **1 名・対照なし・盲検なし**）。⚠️ **モバイルと Safari は未測定**。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
@@ -195,7 +195,8 @@ uv run --no-project python scripts/test_labelpack.py
   wasm にしただけで、**arena も実機と同じ 180,224 B**（→ [D-050](docs/decisions.md#d-050)）
 - 初回は**辞書 13,702,320 B（gzip -9 で 5,476,122 B）**を落とす。⚠️ 回線が細いと待たされる
 - ⚠️ **ブラウザでは 1 種類も速度を測っていない**（測ったのは node だけ。[M-94](docs/measurements.md#m-94)）
-- ⚠️ **ブラウザの音は誰も聴いていない。** `AudioContext` のリサンプルが挟まるので、
+- 音は **W8A32 / W8A8 の両方を聴いてもらい「問題なかった」/ 途切れ無し**（[M-96](docs/measurements.md#m-96)）。⚠️ **1 名・対照なし・盲検なし**。
+  ⚠️ かつてここに書いていた「`AudioContext` のリサンプルが挟まる」は、**要求どおり 22,050 Hz が返る**ことが分かった（M-95 §3）ので前提が変わった。ただし
   **鳴っている音は checksum と一致しない**
 - ⚠️ **成果物は今も ESP32。** Web は入口であって、このプロジェクトの目的ではない（[D-007](docs/decisions.md#d-007)）
 

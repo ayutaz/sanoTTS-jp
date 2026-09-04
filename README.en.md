@@ -17,7 +17,9 @@ Nothing to install. **Type Japanese text with kanji and it speaks.**
 it is a way to touch the code that runs on hardware ([D-050](docs/decisions.md#d-050)).
 ⚠️ **The first load pulls a 5.5 MB dictionary** (gzip).
 Measured in Chrome at **0.008–0.019 ×RT** ([M-95](docs/measurements.md#m-95)).
-⚠️ **Nobody has listened to it, and neither mobile nor Safari has been measured.**
+It has been listened to on **both lanes** — reported fine, no dropouts
+([M-96](docs/measurements.md#m-96)). ⚠️ **One listener, no control, not blind.**
+⚠️ **Neither mobile nor Safari has been measured.**
 
 This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/abs/2608.21378)
 ("sanoTTS") to Japanese, distilling [piper-plus](https://github.com/ayutaz/piper-plus)
@@ -207,9 +209,13 @@ needed, because the C side decides the route (`saan_g2p_classify()`).
   ⚠️ Expect a wait on a slow link
 - Measured in **Chrome 152** (headless): PCM is **bit-identical to node**, and a short
   utterance synthesizes in **9.6–23.0 ms** ([M-95](docs/measurements.md#m-95)).
-  ⚠️ **No audio was played, nobody has listened, and neither mobile nor Safari was measured**
+  Someone has since listened on **both lanes** — reported fine, no dropouts
+  ([M-96](docs/measurements.md#m-96)). ⚠️ **One listener, no control, not blind.**
+  ⚠️ **Neither mobile nor Safari was measured**
   ([M-94](docs/measurements.md#m-94))
-- ⚠️ **Nobody has listened to it in a browser.** `AudioContext` resamples the output, so what
+- Listened to on **both lanes**: fine, no dropouts ([M-96](docs/measurements.md#m-96)).
+  ⚠️ **One listener, no control, not blind.** As for resampling, `AudioContext` turns out to
+  honour 22,050 Hz (M-95 §3), so the old warning below no longer holds as stated:
   you hear does **not** match the checksums
 - ⚠️ **The deliverable is still the ESP32.** The web page is a door, not the goal
   ([D-007](docs/decisions.md#d-007))
