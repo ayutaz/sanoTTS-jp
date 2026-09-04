@@ -192,9 +192,10 @@ jobs:
       # ⚠️ **`upload-pages-artifact` はドット始まりを全部除外し、シンボリックリンクを
       #    許さない。** `ln -s` を使わず実体をコピーする。`.nojekyll` は置いても
       #    除外されるので置かない（deploy-pages は Jekyll を通さないので要らない）。
-      # ⚠️ 辞書は **`gzip -9` して `.gz` で配る**。Pages が `.bin` に
-      #    `Content-Encoding: gzip` を付けるかは**未確認**なので、server の圧縮に頼らず
-      #    JS 側の `DecompressionStream('gzip')` で展開する（計画 §5-14）。
+      # ⚠️ 辞書は **`gzip -9` して `.gz` で配る**。Pages は `.bin`（`application/octet-stream`）にも
+      #    **gzip を掛ける**ことが分かったが（M-94 §12 で実測）、**それでも `.gz` を置く** —
+      #    配信側の方針は予告なく変わりうるので、転送量を server の設定に依存させない。
+      #    JS 側は `DecompressionStream('gzip')` で展開する（計画 §5-14）。
       - name: _site を組み立てる
         run: |
           set -eu
