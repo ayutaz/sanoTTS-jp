@@ -73,7 +73,7 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 | **W-1** | `web/build.sh` — emcc 6.0.9 で 2 レーン × SIMD | 2 本の `.wasm` と `.mjs` が出る |
 | **W-2** | `web/index.html` + `web/main.js` — 最小 UI | 手元プレビューで鳴る |
 | **W-3** | ライセンス表示 | **G-W7**（LICENSE-MODEL.md §3.1 の 22 行と一字一句一致） |
-| **W-4** | `.github/workflows/pages.yml` | Actions が緑・成果物ができる |
+| **W-4** | `.github/workflows/pages.yml` | ✅ **マージ前に実ブランチで build job を回して緑**（run 33828197417。`upload-pages-artifact` まで通り artifact **6,237,222 B**）。⚠️ **`deploy` だけは未実行** — `github-pages` 環境の branch policy が `main` の 1 件だけなので、`if: github.ref == 'refs/heads/main'` で skip させた |
 | **W-5** | `scripts/check_web_gates.sh` — **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7** | 陽性対照が落ちる |
 | **W-6** | `ci.yml` に web job と **int8 レーン**を追加 | C-057 とセット |
 | **W-7** | ドキュメント（D-050 / M-94 / C-057 / README / CLAUDE.md） | `check_doc_counters.py` / `check_doc_links.py` |
