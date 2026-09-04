@@ -120,4 +120,4 @@ for f in "$OUT"/saan_web_w8a32.mjs "$OUT"/saan_web_w8a32.wasm \
 done
 echo
 echo "⚠️ node の値はブラウザの値ではない（C-055）。ブラウザの実測は M-95（Chrome 152）。"
-echo "⚠️ 音は誰も聴いていない / モバイルと Safari は未測定。"
+echo "⚠️ 聴取は 1 名・対照なし・盲検なし（M-96）/ モバイルと Safari は未測定。"
