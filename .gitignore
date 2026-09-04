@@ -209,3 +209,4 @@ csrc/jdict_vectors_deq.bin
 csrc/jdict_vectors_aff.bin
 csrc/k1_dict_8mb.bin
 csrc/matrixa_test
+esp32/build_k8/

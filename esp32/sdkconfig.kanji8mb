@@ -1,0 +1,28 @@
+# D-051 の ①: **8 MB flash** に漢字辞書を載せる構成の上書き
+#
+# ⚠️ **出荷構成ではない。** 出荷は 16 MB（`sdkconfig.kanji` / D-044）で、
+#    こちらは「8 MB でも成立するか」を確かめるための構成である。
+#
+# ⚠️ **辞書が違う。** 接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にし、
+#    エントリを 228,000 に絞った blob **7,123,088 B** を焼く:
+#
+#      uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \
+#          --out csrc/k1_dict_8mb.bin
+#
+#    枠は 7,143,424 B なので**余りは 20,336 B（0.28%）しかない**。
+#    ⚠️ **entries を変えたら必ず測り直すこと。**
+#
+# ⚠️ **読みの精度が落ちる**（D-051 / M-99。n=1,495）:
+#      16 MB（438,750 + 生 int16）… 音素の誤り 0.63%
+#      これ（228,000 + アフィン） … 音素の誤り 1.01%
+#
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb_kanji.csv"
+
+# --- PSRAM は**使わない** ---
+#
+# ⚠️ QEMU が octal PSRAM を持っていないので有効にできない（sdkconfig.kanji と同じ理由）。
+# ⚠️ **8 MB の板は PSRAM 無しが多い**（AtomS3 など）ので、
+#    この構成は**その場合の実測にもなっている**（M-98 / D-052 の軸）。
+#    漢字経路の作業領域は `kj_alloc()` が PSRAM → 内部 RAM の順に取る。
