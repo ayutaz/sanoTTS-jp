@@ -12,7 +12,11 @@ dependencies = [
     "numpy<2.5",
     "soundfile>=0.14.0",
     "librosa>=0.11.0",
-    "huggingface-hub>=0.36.2,<1.0",
+    # 下限 1.5.0 は transformers 5.x を解決させるため（D-053）。`<1.0` のままだと
+    # transformers が 4.57.x で凍結され、alert #1〜#4 の指す版が advisory の脆弱範囲から出ない。
+    # ⚠️ **「アラートが閉じる」とは書かない** — GitHub の再スキャンは未観測（D-053 / M-105 §7）。
+    # hf-hub 1.x は requests → httpx に変わる（`local_dir_use_symlinks` は消滅）。
+    "huggingface-hub>=1.5.0,<2.0",
 ]
 
 [project.optional-dependencies]

@@ -62,7 +62,11 @@ EXCLUDED_TARGETS: dict[str, str] = {
     #    手元では `make -C csrc prof` が 1.5 s で通り、見ているのは**時間ではなく回数**なので
     #    CI に足せるはず。**まだ足していない**ので、ここには「未着手」と書いておく。
     "prof": "重み blob（student_i8.bin）。⚠️ リリースから落とせるので `golden` job に足せる（未着手）",
-    "g2p-corpus": "コーパス本文（data/splits/*.tsv は git 管理外）",
+    # ⚠️ glob で書くと嘘になる。`gen_g2p_vectors.py` の CORPUS_FILES は 3 本
+    #    （corpus_train / corpus_heldout / corpus_embedded）で、**embedded だけ tracked**。
+    #    無いのは残る 2 本。`--min-vectors 23000` は embedded の 183 行では届かない。
+    "g2p-corpus": "コーパス本文 data/splits/corpus_train.tsv と corpus_heldout.tsv"
+                  "（git にもリリースにも無い。同 dir の corpus_embedded.tsv は tracked）",
     "kb-parity": "pyopenjtalk と piper-plus（ホスト側 G2P との突き合わせ）",
     # 辞書 13.7 MB（k1_dict.bin）と pyopenjtalk が要る
     "jdict": "辞書 blob（13.7 MB）と pyopenjtalk",
@@ -87,6 +91,22 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     "scripts/check_esp32_template.sh": "ESP-IDF の xtensa toolchain（約 2 GB）と重み blob",
     "scripts/check_partitions.py": "重み blob と辞書 blob（大きさを突き合わせる）",
     "scripts/test_discriminator.py": "ラベルパック data/pack_sibdense（git 管理外）",
+    # ⚠️ **docs job には入れられない**（依存ゼロ・ネットワーク無しが売りなので）。
+    #    要るもの 3 つ: piper-plus の checkout / nltk と transformers（≈ torch 込みで数 GB。
+    #    `nltk_data` の averaged_perceptron_tagger_eng も要る — **g2p_en が import 時に
+    #    nltk.download を呼ぶ**）/ 教師 snapshot の config.json。
+    #
+    # ⚠️ **訂正。** ここには 4 つめとして「コーパス本文 corpus_embedded.tsv（git 管理外）」と
+    #    書いてあったが**誤り**。`git ls-files -s data/splits/corpus_embedded.tsv` は blob を
+    #    返す（tracked・184 行 = ヘッダ + 本文 183 行）。**除外の根拠は 1 本減った。**
+    #    残る 3 つで除外は成り立つ。単独で決定的なのは 3 つめで、教師 snapshot は
+    #    private repo `ayousanz/piper-plus-zero-shot-tsukuyomi` 由来なので CI では取れない
+    #    （piper-plus の checkout と nltk_data は原理的には用意できる）。
+    #    → `python` job（torch を入れている）に足すなら piper-plus と nltk_data、そして
+    #      **private snapshot の config.json をどう渡すか**が要る。**未着手**。
+    "scripts/test_cve_reach.py":
+        "piper-plus の checkout・nltk_data（g2p_en が要る）・"
+        "教師 snapshot の config.json（private repo 由来。CI では取れない）",
     "scripts/test_k1_dict.py": "pyopenjtalk（3 件が辞書の実体を要る）",
     "scripts/kana_g2p.py": "pyopenjtalk と piper-plus（凍結テーブルとの突き合わせ。表だけの検査は `make -C csrc g2p` が CI で回している）",
     "scripts/k1/k0_verify_dict.py": "凍結した sys.dic（103 MB。git 管理外）",

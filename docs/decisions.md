@@ -3814,3 +3814,130 @@ od -A d -t u4 -N 16 /tmp/saanotts-jp-v3-int8.bin
 
 ⚠️ **同じ形が他にもありうる。** 「A/B」と「N%」を並べて書いたら、
 **その場で割り算して合うか見ること。**
+
+---
+
+<a id="d-053"></a>
+## D-053: **Python の依存は開発専用**という前提で脆弱性に対応する — transformers は**上げる** / nltk は**待つ** / Dependabot は **Actions のみ**
+
+**2026-09-04。** `uv.lock` 由来の Dependabot アラート **5 件**（transformers 4 件 / nltk 1 件。すべて open・すべて
+`manifest_path = "uv.lock"` / `scope = runtime`）にどう対応するかを決めた。実測は [M-105](measurements.md#m-105)。
+
+**この決定の土台は「Python は配布物に入らない」という事実である。**
+配っているのは ESP32 firmware（C99）・モデル重み・blob・wasm で、**Python は 1 バイトも入っていない**
+（[D-035](#d-035) / [D-039](#d-039) / [D-050](#d-050) の配布物一覧）。Python はラベル生成・学習・評価・ゲートの
+開発側だけで動く。⚠️ **だからといって「使っていないから対象外」にはならない** — 下記のとおり
+**パッケージは実際に import され、実行もされる**。
+
+### 根拠
+
+| 項目 | 値 | 根拠 |
+|---|---|---|
+| transformers を止めていたのは**このリポジトリ自身**の `huggingface-hub>=0.36.2,<1.0` | 下限を `>=1.5.0` に上げると解決が通り **4.57.6 → 5.16.1**（hf-hub 0.36.2 → 1.30.0 / tokenizers 0.22.2 → 0.23.2） | [M-105](measurements.md#m-105) §1 |
+| 上げても教師の出力が動かない | phase0 の 6/6 PASS・標準出力が前後で差分 0。**`yT` / `zT` / `dT` の 3 系列とも sha256・`\|max\|`・Σx² が同値**で、int16 PCM の `\|max\|` 12961 / n=57600 も同値。⚠️ **n=1 文（90 ids）で、本番のラベル生成経路ではない**。⚠️ **transformers は import されるだけで教師の forward には関与しない**（[M-105](measurements.md#m-105) §6 の経路①）ので、これは「上げても壊れない」の確認であって「同じラベルが出る」の証明ではない | [M-105](measurements.md#m-105) §3 |
+| 評価スタックも動く | faster-whisper large-v3 が hf-hub 1.30.0 でキャッシュから読め、CER 3 値（かな / 表層の 6 値）と書き起こしの sha256 が前後で一致。⚠️ **n=3 のスタック疎通で、品質の再測定ではない** — held-out 24 文の値・平均・教師比は測っておらず、公表値の かな CER 0.1671（[M-61](measurements.md#m-61)）の再現でもない。**この 3 値を品質の指標として引用してはいけない。** ⚠️ 入力の wav と `corpus_heldout.tsv` はどちらも git に無いので**リポジトリだけでは再現できない** | [M-105](measurements.md#m-105) §4 |
+| **advisory が名指しした脆弱 API は 1 度も呼ばれない** | 実経路 10 文・音素 ID 810 個を通して **10 sink の発火 0 件**。陽性対照は nltk 2 件 / transformers 4 件を観測し、ゲート自身の壊し方 **5/5** が落ちる | [M-105](measurements.md#m-105) §5 |
+| ⚠️ **パッケージは動いている** | transformers は 2 経路で import される（`piper_train.export_onnx` → pytorch_lightning → `torchmetrics/functional/text/bert.py` のトップレベル import / `faster_whisper` → ctranslate2）。nltk は import だけでなく**実行される**（`language_id_map` が 2 件以上だと multilingual に auto-promote され、**ラテン文字を含む文**が `g2p_en` → `pos_tag` に入る。実コーパスで **9/183 = 4.9%**） | [M-105](measurements.md#m-105) §5 / §6 |
+| nltk（CVE-2026-81726）に**修正版のリリースが存在しない** | Dependabot API の `first_patched_version` が **`none`**（#5 だけ。#1〜#4 は 5.0.0rc3 / 5.3.0 / 5.5.0 / 5.10.0 が入る。**自己実測**）。上流 develop には修正がマージ済みで（PR 3757 / 3759 / 3813 で advisory の 6 sink すべてが pathsec 化）develop は 335 コミット先行なのに `VERSION` はまだ 3.10.3 = **無いのは修正ではなくリリース番号だけ**（⚠️ **この develop 側は前段の調査**で、私は引き当てていない） | [M-105](measurements.md#m-105) §7 + 前段の調査 |
+| 解決した版が yank されていない | transformers 5.16.1 = `yanked:false` / huggingface-hub 1.30.0 = `yanked:false`。⚠️ **transformers 5.10.0 は yank 済み**（GitHub が「修正版 5.10.0」と言っているのは yank 版。前段の調査） | [M-105](measurements.md#m-105) §7 |
+
+### 決めたこと
+
+1. **transformers の 4 件（#1〜#4）は版を上げる。** 書き換えるのは transformers の行ではなく
+   **`pyproject.toml` の `huggingface-hub` の行**（`>=1.5.0,<2.0`）。piper-plus 側の `transformers>=4.50.0` は
+   上限が無いので無関係だった。⚠️ **上限を `<2.0` に緩めるだけでは lock は 1 mm も動かない**
+   （uv は既存 lock の版を優先する。前段の実測）。
+   ⚠️ **「閉じる」とは書かない。** 測ったのは「`uv.lock` の版が advisory の脆弱範囲の外に出たこと」だけで、
+   **Dependabot の再スキャン結果は未マージ・未 push のため観測していない**（[M-105](measurements.md#m-105) §7）。
+2. **nltk の 1 件（#5）は open のまま上流のリリースを待つ。dismiss しない。**
+   `nltk` を外す・ピンを緩める・alert を閉じる、のどれもしない。⚠️ **dismiss の理由として `inaccurate` は使えない**
+   （nltk 3.10.3 で `pathsec.ENFORCE=True` のまま `AveragedPerceptron.load('/etc/hosts')` を呼ぶと止まらない
+   = **advisory は正しい**。前段の実測）。
+3. **`.github/dependabot.yml` は `github-actions` の 1 レーンだけにする**（monthly / limit 3 / `chore(deps):`）。
+   pip / uv のレーンは置かない。
+4. **「脆弱 API が呼ばれない」を散文で書かず、ゲートにする** — `scripts/test_cve_reach.py`
+   （10 sink + 陰性対照 1 個・陽性対照 5 件つき）。⚠️ **CI では回していない**（下記の副作用）。
+
+### ⚠️ 言い方を間違えないこと
+
+- ❌ **「transformers / nltk は使っていない」は誤りだった。** どちらも import され、nltk は実行される。
+  ✅ 正しい主張は **「パッケージは動くが、advisory が名指しした関数は呼ばれない」**
+  （実経路で 0 件・陽性対照つき）**＋「テキストがファイルパスとして渡る経路が無い」**。
+  6 つの nltk sink はどれもパス（モデルの保存先・読み込み元）を引数に取り、
+  本リポジトリはそのパスを 1 度も与えていない。
+- ❌ **「アラート #1〜#4 が閉じる / 4 件閉・1 件残」は書けない。** 測ったのは
+  **`uv.lock` の版が advisory の脆弱範囲の外に出たこと**だけで、**GitHub の再スキャンは未観測**
+  （未マージ・未 push）。✅ 書けるのは **「4 件が脆弱範囲外・1 件が範囲内のまま」**
+  （[M-105](measurements.md#m-105) §7 の対照表）。
+- ❌ **`pathsec.ENFORCE` を有効にしていないから対象外、は使えない。**
+  **出荷既定値が `True`** で、それでも上の `load` は止まらない。ENFORCE は根拠にしない。
+- ❌ **「Dependabot は uv に対応していない」も誤り。** `package-ecosystem: "uv"` は GA 対応済み
+  （version updates 2025-03-13 / security updates 2025-12-16。⚠️ 日付は changelog 由来で、
+  この worktree では引き当てていない）。**成立しないのはこのリポジトリの構造の側。**
+
+### pip / uv のレーンを置かない理由（構造的に不可）
+
+`pyproject.toml` の `[tool.uv.sources]` が piper-plus を**絶対パス**
+`/Users/s19447/Documents/piper-plus/src/python` で指している。そのパスが無い環境で `uv lock` を回すと
+`error: Distribution not found at: file:///...`（exit=2）で落ちる。**Dependabot の更新は解決（= `uv lock`）を
+要する**ので、レーンを置いても PR は出ない。
+
+⚠️ **この失敗は手元で絶対パスを外した状態を作って再現したもの**（前段の調査）で、
+**GitHub 上の Dependabot が実際に何で落ちるかは未観測**（失敗理由は API から見えない）。
+「レーンを置いたら落ちる」は手元の再現からの推論である。
+
+⚠️ **アラートと更新は非対称**。依存グラフは `uv.lock` を静的に読むだけなので**脆弱性は検出され続ける**
+（このファイルに何を書いても消えない）。実際に、修正版のある 4 件が open のまま
+**Dependabot 作の PR は 0 本**だった（security update はリポジトリ設定として既に有効
+= `automated-security-fixes` が `{"enabled":true,"paused":false}`）。**依存の修正は人が `uv lock` で作る。**
+
+**副作用**:
+- **`huggingface-hub` 1.x は requests をやめて httpx になる**（`httpx` / `httpcore` / `h11` / `anyio` が新規、
+  `typer` / `shellingham` / `annotated-doc` も付いてくる = 7 件増で lock は 143 → 150 packages）。
+  `snapshot_download` から `local_dir_use_symlinks` が消滅するが、本リポジトリの `WhisperModel(...)` は
+  **2 箇所**（`scripts/measure_cer.py:103` / `scripts/e2_lane_cer.py:65`）でどちらも `download_root` を
+  渡さず、`local_dir_use_symlinks` は `.py` / `.toml` / `.yml` で **0 ヒット**（自己実測）なので踏まない。
+  ⚠️ **hf-hub 1.x の proxy / retry / timeout 挙動は未測定** — 検証は前後どちらも `HF_HUB_OFFLINE=1` の
+  キャッシュ読みで、**ダウンロード経路を 1 度も踏んでいない**。`proxies` / `HTTP(S)_PROXY` /
+  `max_retries` / `HF_HUB_*_TIMEOUT` / `requests.exceptions` / `urllib3` も 0 ヒットだが、
+  **「今のコードが踏まない」は「httpx への移行が無害」ではない**。`hf_hub_download` の呼び出しは
+  2 ファイルだけで、うち `scripts/b12_moe_overlap.py` は**今回未実行**
+  （[M-105](measurements.md#m-105) §10）。
+- **`transformers` 5.x で advisory の sink クラス名がリネームされている**: 4.57.6 の `PretrainedConfig` は
+  5.16.1 では `PreTrainedConfig` が正名で、`PretrainedConfig` は**同一オブジェクトを指すエイリアス**
+  （`a is b` = True。`__qualname__` は `PreTrainedConfig`）。ゲートは旧名で `getattr` するのでエイリアス経由で通り、
+  G1 の出力は正名 `transformers.configuration_utils.PreTrainedConfig.from_pretrained` を表示する。
+  ⚠️ **将来エイリアスが消えたら G1 が WRAP-MISSING で落ちる = 正しい壊れ方**なので、ゲートは直していない。
+  ⚠️ **この記述を消すと、その日に G1 が落ちたとき理由が誰にも分からなくなる**
+  （[M-105](measurements.md#m-105) §5 にも同じ注記を置いてある）。
+- **`scripts/test_cve_reach.py` は CI で回らない**（`scripts/check_ci_coverage.py` の `EXCLUDED_SCRIPTS` に
+  理由つきで登録した）。docs job には入れられない（依存ゼロ・ネットワーク無しが売りで、nltk と
+  transformers = torch 込みで数 GB が要る）。`python` job に足すには piper-plus の checkout /
+  `nltk_data` の `averaged_perceptron_tagger_eng`（`g2p_en` が import 時に `nltk.download` を呼ぶ）/
+  **教師 snapshot の `config.json`（private repo）**が要る。⚠️ **4 つ目が private なので今の形では回せない。**
+  → **手で走らせるゲートはいずれ走らせなくなる**（`.claude/skills/writing-gates/SKILL.md`）という警告は
+  このゲートに当てはまったままである。
+- **`csrc/Makefile` の `all-test` にも入れていない**（あれは C99 のゲートの束で、これは Python + piper-plus が要る）。
+- ⚠️ **`.github/dependabot.yml` を検査するゲートは 1 本も無い。** CI にも `all-test` にも無く、
+  このファイルは `scripts/check_ci_coverage.py` の監査外（`ci.yml` しか読まない）。
+  ⇒ **この yml の typo は黙って無視される**まま置かれている。
+  なお SchemaStore の schema に当てた検証（**VALID** / 陽性対照 2 件 = `montly` で 2 件・
+  `github-action` で 1 件）は**手順を yml のコメントに残したので再現する**（⚠️ ネットワークが要る。
+  [M-105](measurements.md#m-105) §8）。**ただしそれは 1 回の手作業であってゲートではない。**
+- ⚠️ **この worktree では `uv lock --check` が NG になる**（`requires-dist` の editable が親チェックアウトの
+  深さのため。実際の出力は [M-105](measurements.md#m-105) §1）。**`--check` の NG を lock の壊れの証拠に使ってはいけない。**
+  **親チェックアウトで通るかは worktree の外に cd しない制約のため未検証。**
+  ⚠️ worktree で `uv lock` / `uv sync` / 素の `uv run python` を回すと editable の相対パス 7 行が
+  worktree の深さに書き換わる（戻し方は M-105 の冒頭）。
+- ⚠️ **GitHub 上でアラートが実際に閉じるのは未観測。** 照合したのは
+  「`uv.lock` の版が advisory の脆弱範囲の外に出たこと」だけで、Dependabot の再スキャン結果は見ていない。
+  **「4 件閉じた」ではなく「4 件が脆弱範囲外になった」**が言えることのすべてである。
+
+### 取り下げる条件
+
+- **配布物に Python を入れると決めたとき** → この決定の土台（開発専用）が消えるので、
+  依存の扱いを配布物の基準で作り直す（脆弱 API を呼ばないだけでは足りなくなる）。
+- **`transformers` / `nltk` を直接 import するコードを書いたとき** → 今は piper-plus と
+  ctranslate2 を経由した間接依存で、呼び出し口は `text_to_phoneme_ids_and_prosody` の 1 経路。
+  自分で API を呼び始めたら「呼ばれない」の根拠が変わるので、sink 表と経路の数え直しが要る。
+- **`nltk` に修正版が出たとき** → #5 は待つのをやめて上げる（方針 2 を実行に移す）。
