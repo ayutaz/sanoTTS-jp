@@ -8531,3 +8531,160 @@ M-72 の `./csrc/k2_test` と M-77 の `./csrc/k7_test` / `make label-ids_test`
 - **M-68 の 2 値を追っていない**
 - **実機 / QEMU 17 件・評価（重い）10 件・教師 ckpt 8 件は走らせていない**
 - **§2 の「端末では平叙で終わる」は実機で鳴らしていない**
+
+---
+
+<a id="m-104"></a>
+## M-104. **8 MB flash の漢字構成を QEMU で通した** — C リーダを書き、blob が枠に入り、起動して合成まで完走した（自己実測）
+
+⚠️ **[D-051](decisions.md#d-051) は「8 MB の実機が入るまで着手しない」と書いていたが、
+それは確かめ方として間違っていた。** 実質的なリスクは「**書いていない C リーダが正しいか**」で、
+それは 16 MB の板でも QEMU でも確かめられる。**ユーザーの指摘で気づいた**（2026-09-04）。
+
+### 0. 何を作ったか
+
+新しいセクション **`matrixa`**（接続行列を**行ごとアフィン uint8** で持つ）。
+⚠️ **既存の `matrix`（生 int16）は 1 バイトも触っていない** ので、出荷している
+16 MB の blob はそのまま動く。**1 つのセクション名に 2 つの形式を入れない**のは、
+`matrix` の長さ検査 `len == 4 + 2*L*R` を厳密なまま残すため（[M-100](#m-100)）。
+
+```
+matrixa:  0     u16 lsize / 2 u16 rsize / 4 u16 bits=8 / 6 u16 reserved
+          8     i16 lo[rsize]
+          8+2R  u16 span[rsize]
+          8+4R  u8  q[lsize*rsize]        合計 8 + 4*rsize + lsize*rsize
+```
+
+⚠️ **量子化も逆量子化も整数で閉じる**（float スケールだとホストと C で値が食い違い、
+Viterbi の判断が変わる。[M-99](#m-99) §1 / [C-060](decisions.md#c-060)）:
+
+```
+q  = ((v - lo)*510 + span) / (span*2)
+v' = lo + (q*span*2 + 255) / 510          中間値は最大 255*17,342*2 = 8,844,420（int32）
+```
+
+⚠️ **`matrix` と `matrixa` の両方があれば `JDICT_ERR_MATRIX` で拒む。**
+黙って片方を選ぶと「動くが読みだけ違う」形になる（M-100 で見た欠陥そのもの）。
+
+### 1. C リーダが正しいか — **全 1,896,129 要素で一致**
+
+再現:
+
+```bash
+uv run python scripts/k1/k2_gen_vectors.py --matrix-mode affine --out csrc/jdict_vectors_deq.bin
+uv run python scripts/k1/k2_gen_vectors.py --matrix-affine   --out csrc/jdict_vectors_aff.bin
+make -C csrc matrixa
+```
+
+⚠️ **「MeCab と 183/184 一致した」はリーダが正しい証拠にならない。**
+量子化そのものが 1 文の分割を変えるので、**リーダにバグがあっても同じ 183/184 が出る**
+（実際に両方の形式で同じ数が出た）。だから**同じ逆量子化値を 2 通りの形式で持った
+blob を突き合わせる**:
+
+| ゲート | 結果 |
+|---|---|
+| G-A1 寸法が一致 | OK 1377x1377 |
+| **G-A2 形式が実際に違う**（片方だけ matrixa） | OK。⚠️ **これが無いと G-A3 は自明に通る** |
+| **G-A3 `jdict_trans` が全要素で一致** | **OK 1,896,129 / 1,896,129** |
+| G-A4 陽性対照: `lo[7]` を +1 | OK **不一致 1,377 件**（= lsize。行 7 の全列） |
+
+⚠️ **陰性対照（同じ blob を 2 回渡す）で、ゲート自身が SIGSEGV した。**
+G-A4 が第2引数を matrixa だと決めつけて NULL に書いていた。しかも
+**printf がバッファに残って消え、「何も出さずに終了」に見えた**。
+`setvbuf` でバッファリングを切り、前提が崩れたら G-A3/G-A4 を走らせないようにした。
+
+### 2. サイズ — 枠に入る。⚠️ **余りは 20,336 B しかない**
+
+再現:
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \
+    --out csrc/k1_dict_8mb.bin
+uv run python scripts/check_partitions.py --file esp32/partitions_8mb_kanji.csv --rodata
+```
+
+| | 値 |
+|---|---:|
+| 行列セクション | **1,901,645 B**（生 int16 3,792,262 → **−1,890,617**） |
+| 逆量子化の最大誤差 | **34**（M-99 の記録と一致） |
+| span の範囲 | 1,188..17,342 / **span==0 の行 0 / 1377** |
+| blob（228,000 entries） | **7,123,088 B** |
+| 枠（`dict` パーティション） | 7,143,424 B |
+| **余り** | **20,336 B = 0.28%** |
+
+⚠️ **D-051 の見積 7,115,943 B より 7,145 B 大きい。** あれは形式からの算術で、
+これは実ビルド。**方向は同じだが、余りが薄いので entries を変えたら必ず測り直すこと。**
+
+### 3. QEMU で起動して合成まで完走した
+
+再現:
+
+```bash
+cd esp32 && idf.py -B build_k8 -DSDKCONFIG=build_k8/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji8mb" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_8mb.bin build
+cd build_k8 && esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB \
+    -o /tmp/flash8.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/flash8.bin,if=mtd,format=raw
+```
+
+⚠️ **`-DSAAN_MODEL_RODATA=1` が要る。** 8 MB の表には `model` 行が無い（重みは app の
+`.rodata`）ので、付けないと CMake が `Could not find offset of partition model` で止まる。
+
+| | 値 |
+|---|---:|
+| app | **1,021,248 B** / 枠 1,179,648（余り **158,400 B** = 13%） |
+| 見出し語 / エントリ | 181,397 / **228,000** |
+| 起動直後の内部 DRAM | free 103,132 B / 最大ブロック 90,112 |
+| 辞書 mmap 後 | free **102,556 B** |
+| 漢字 G2P 直後の**低水位** | **84,716 B**（4 文中の最小） |
+| Open JTalk の一時ヒープ上限 | 81,412 B（予算 81,920） |
+
+⚠️ **PSRAM 無しで動いている**（QEMU は octal PSRAM を持たない）。
+これは **AtomS3 のような PSRAM 無しの 8 MB 板の条件そのもの**である
+（[M-98](#m-98) / [D-052](decisions.md#d-052) の軸を同時に踏んでいる）。
+
+⚠️ **`esp_partition_mmap` で足りた**（7.1 MB < ROM 実装の 128 ページ = 8 MB 制限）。
+16 MB の 13.7 MB では `esp_mmu_map` が要ったが（[M-90](#m-90) §4）、ここでは当たらない。
+
+### 4. 読みが変わっていないか
+
+| 文 | 形態素（端末 / ホストのフル辞書） | ids | PCM の FNV-1a |
+|---|---|---:|---|
+| 今日は良い天気ですね | 6 / **6** | 53 | **`0xa69a7ebbb5ccb05f`** ← **16 MB 版の基準値と bit 一致** |
+| 技術の進歩は目覚ましいものがあります | 9 / **9** | 93 | `0x35d40fb53438bf47` |
+| 国際連合の安全保障理事会 | 6 / **6** | 75 | `0xcce7fd062fd45a2c` |
+| コンピューターの性能が向上した | 7 / **7** | 69 | `0xb1751f2b8332db92` |
+
+⚠️ **1 文目の checksum が 16 MB 版の基準（CLAUDE.md の W8A8+PIE 値）と完全に一致した。**
+**枝刈りとアフィン量子化を通しても、この文の読みは変わっていない。**
+
+**より強い検証: 同じ 4 文を「漢字行」と「かな行」の両方で入れた。**
+かな行は**ホストのフル辞書**が作った中間表現（`scripts/to_intermediate.py`）なので、
+**PCM が一致すれば、端末の 8 MB 辞書がフル辞書と同じ読みに着いた**ことになる:
+
+| 文 | 漢字経路 | かな経路（ホストのフル辞書由来） | 一致 |
+|---|---|---|:-:|
+| 今日は良い天気ですね | 53 ids `0xa69a7ebbb5ccb05f` | 53 ids `0xa69a7ebbb5ccb05f` | ✅ |
+| 技術の進歩は目覚ましいものがあります | 93 ids `0x35d40fb53438bf47` | 93 ids `0x35d40fb53438bf47` | ✅ |
+| 国際連合の安全保障理事会 | 75 ids `0xcce7fd062fd45a2c` | 75 ids `0xcce7fd062fd45a2c` | ✅ |
+| コンピューターの性能が向上した | 69 ids `0xb1751f2b8332db92` | 69 ids `0xb1751f2b8332db92` | ✅ |
+
+**4 / 4 で bit 一致。** ⚠️ **n=4。** 音素の誤り 1.01%（n=1,495）は
+「1,495 文のうち平均 1.01% の音素が違う」という意味なので、
+**4 文で差が出ないのは当然であって、これは 1.01% を否定しない。**
+
+### 5. ⚠️ 何を見ていないか
+
+- **実機に焼いていない。** QEMU の値であって、**速度は 1 つも測れていない**
+  （[C-055](decisions.md#c-055): QEMU のサイクルは実機の速度を予測しない）。
+  ⚠️ **アフィンの逆量子化が Viterbi を何倍遅くするかは未測定のまま**
+- **8 MB の実機を持っていない。** 16 MB の CoreS3 に 8 MB の表を焼けば
+  「その板で動く」ところまでは言えるが、**まだやっていない**
+- **読みの比較は 4 文だけ**（漢字/かな 8 入力）。**n=4 では 1.01% は検出できない**。
+  **音素の誤り 1.01%（n=1,495）はホストで測った値**で、端末で測り直していない
+- **音は誰も聴いていない**（G32）。1.01% がどう聞こえるかは分からない
+- **`matrixa` は `jdict-hard` の入力検査にまだ入れていない**（長さを削った / bits を変えた
+  blob を拒むかは未検証）
