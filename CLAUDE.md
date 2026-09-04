@@ -919,6 +919,11 @@ cd esp32 && idf.py -B build_k8 -DSDKCONFIG=build_k8/sdkconfig \
     -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_8mb.bin build   # ⚠️ MODEL_RODATA=1 が要る（model 行が無い）
 ```
 
+✅ **M5Unified（画面 + スピーカー）を積んだ 8 MB 版も実機で喋った**（M-105 §4b）。
+⚠️ **ただし枠が別**: M5 の app は **1,438,576 B** で dict に回せるのは **6,815,744 B** しかなく、
+**entries を 213,000 に落とす**（blob 6,797,056 B / 音素の誤り **1.09%**）。
+表は `esp32/boards/m5unified/partitions_8mb.csv` / 上書きは `sdkconfig.8mb`。
+
 ⚠️ **既定ではない。** 出荷は 16 MB（D-044）で、16 MB で ① を使う理由は無い
 （音素の誤りが 0.63% → 1.01% に悪化するだけ）。
 ⚠️ **余りは 20,336 B（0.28%）しかない。** entries を変えたら必ず測り直すこと。

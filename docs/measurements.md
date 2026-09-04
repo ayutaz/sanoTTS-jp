@@ -8804,7 +8804,60 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 \
 | **M5Unified（CoreS3 構成）** | **1,441,792** | **6,881,280** | ❌ **入らない**（不足 **241,808 B**） |
 
 ⚠️ **AtomS3 も M5Stack の板**なので、画面やボタンを使うなら同じ壁に当たる。
-**8 MB に載せるなら、app 側も削るか、entries をさらに落とす**（未測定）。
+
+### 4b. **entries を落として M5 版でも入れた — 実機で喋った**
+
+**枠を app の実測から組み直した**（`esp32/boards/m5unified/partitions_8mb.csv`）:
+
+| | 値 |
+|---|---:|
+| factory | **1,507,328 B**（app 1,438,576 + 余裕 **68,752 B** = 4.6%） |
+| dict | **6,815,744 B** |
+
+⚠️ **余裕を 4.6% 取ったのは意図的。** M5Unified は版で大きさが変わる。
+
+**辞書は 213,000 entries** で作り直した（`--matrix affine`）:
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 213000 --matrix affine     --out csrc/k1_dict_8mb_m5.bin                 # 6,797,056 B（余り 18,688 B = 0.27%）
+cd esp32/boards/m5unified && idf.py -B build_m58 -DSDKCONFIG=build_m58/sdkconfig     -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3;sdkconfig.8mb"     -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1     -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict_8mb_m5.bin build
+```
+
+⚠️ **entries は 1 回で当たらなかった。** 214,000 で作ったら **6,818,688 B** で
+**2,944 B 超過**した（概算は 22.25 B/entry、実測は **21.74**）。
+**枠の 0.3% を争うときは、概算ではなく作って `stat` すること。**
+
+**実機（CoreS3 に 8 MB の表を焼いた）で動いた:**
+
+| | 値 |
+|---|---|
+| 辞書 | 見出し語 170,189 / エントリ **213,000** / **`matrixa = 行ごとアフィン uint8`** / blob 6,797,056 B |
+| 起動直後の内部 DRAM | free **132,031 B**（⚠️ M5 は PSRAM 8 MB を使うので DevKit 構成より多い） |
+| 漢字 G2P | 30 B / 形態素 6 個 / **21.58 ms** |
+| **定常 xRT** | **0.448** |
+| アンダーラン | **0 / 22 チャンク**、**0 / 19** |
+| `今日は良い天気ですね` | FNV-1a **`0xa69a7ebb…`** ← **基準と一致**（⚠️ **先頭 8 桁のみ**。下記） |
+| 音 | **スピーカーが有効な構成**（`SAAN_SKIP_I2S` 無し） |
+
+⚠️ **M5 版は USB Serial/JTAG のログが溢れて checksum の後半が落ちる**
+（画面とスピーカーのタスクが同時に書く）。**先頭 8 桁 = 32 bit の一致**までしか取れていない。
+
+**読みの精度（n=1,495）**:
+
+```bash
+uv run python scripts/k1/k6_gen_vectors.py --cases 1500 --entries 438750     --out csrc/kanji_e2e_vectors.bin
+uv run python scripts/k1/k9_fit_8mb.py --entries 213000 --matrix affine --out /tmp/v213.bin
+./csrc/label_ids_test /tmp/v213.bin
+```
+
+| 動作点 | entries | blob | 文一致 | **音素の誤り** |
+|---|---:|---:|---:|---:|
+| 現行 16 MB（int16） | 438,750 | 13,702,320 | 1262/1495 | **0.63%** |
+| 8 MB / DevKit app | 228,000 | 7,123,088 | 1117/1495 | **1.01%** |
+| **8 MB / M5 app ← これ** | **213,000** | **6,797,056** | **1118/1495** | **1.09%** |
+
+⚠️ **文一致は 228,000 とほぼ同じ（1117 → 1118）なのに音素の誤りは 1.01% → 1.09%。**
+[C-058](decisions.md#c-058) と同じ形で、**編集距離は大きく崩れた少数の文に支配される**。
 
 ### 5. ⚠️ 何を見ていないか
 
@@ -8813,4 +8866,7 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 \
 - **§3 の比較は 2 文 × n=5 だけ。** 長い文（44 形態素の上限近く）では未測定
 - **読みの精度は測り直していない。** 音素の誤り 1.01%（n=1,495）はホストの値のまま。
   ⚠️ **PCM が一致した 2 文は「差が出なかった文」**であって、1.01% を否定しない
-- **§4 の「app を削れば入る」は測っていない**（どこを削れるか調べていない）
+- ~~§4 の「app を削れば入る」は測っていない~~ → ✅ **entries を落とす方で入れた**（§4b）。
+  ⚠️ **app を削る方は今も測っていない**（M5GFX のどこを外せるか調べていない）
+- **§4b の checksum は先頭 8 桁しか取れていない**（M5 版はログが溢れる）
+- **§4b の音を人が聴いていない。** スピーカーは有効だが、**鳴っていることしか確かめていない**

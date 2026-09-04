@@ -213,3 +213,5 @@ esp32/build_k8/
 csrc/k1_dict_16mb_affine.bin
 esp32/build_k8r/
 esp32/build_a16/
+csrc/k1_dict_8mb_m5.bin
+esp32/boards/m5unified/build_m58/

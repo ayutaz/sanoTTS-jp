@@ -1,0 +1,10 @@
+# M5Stack 系の **8 MB flash** 向け上書き（AtomS3 など。M-105 / D-051 の ①）
+#
+# ⚠️ **出荷構成ではない。** 出荷は 16 MB（sdkconfig.defaults の partitions.csv）。
+# ⚠️ **辞書が別物**（213,000 entries / 行ごとアフィン uint8 / 6,797,056 B）:
+#      uv run python scripts/k1/k1_build_dict.py --entries 213000 --matrix affine \
+#          --out csrc/k1_dict_8mb_m5.bin
+# ⚠️ **重みは app の .rodata に埋める**（-DSAAN_MODEL_RODATA=1）。model 行は無い。
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="8MB"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_8mb.csv"
