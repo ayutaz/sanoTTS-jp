@@ -8276,7 +8276,7 @@ for t in line fft pad erf range jdict-hard; do make -C csrc $t; done
 
 | ゲート | 結果 |
 |---|---|
-| hook の回帰（100 ケース + commit ガード） | OK |
+| hook の回帰（105 ケース + commit ガード） | OK |
 | `test_losses.py` / `test_labelpack.py` / `test_discriminator.py` / `test_sanitize_reports.py` | OK |
 | `kana_g2p.py`（凍結テーブルのドリフト検査） | OK |
 | `test_k1_dict.py`（G1〜G5） / `test_blob_to_header.py` / `k0_verify_dict.py` | OK |

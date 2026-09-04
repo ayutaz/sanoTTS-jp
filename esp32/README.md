@@ -217,13 +217,52 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600
 | model（int8 v2。**DevKit のみ**。M5 は `.rodata`） | 654,032 B | 786,432 B |
 | **dict** | **13,702,320 B** | **13,828,096 B**（99.1%） |
 
-⚠️ **16 MB flash が要る**（`partitions_16mb.csv` / `boards/m5unified/partitions.csv`。
-`dict` の offset は両方 `0x2D0000` にそろえてあるので、**同じ辞書イメージをどちらの板にも焼ける**）。
-8 MB のボードには載らない。
-⚠️ **ホストと違う音素は 0.32%**（n=298。M-77）。差は**辞書の枝刈り**で、
-`上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
+⚠️ **この構成は 16 MB flash が要る**（`partitions_16mb.csv` /
+`boards/m5unified/partitions.csv`。`dict` の offset は両方 `0x2D0000` にそろえてあるので、
+**同じ辞書イメージをどちらの板にも焼ける**）。
+⚠️ **ホストと違う音素は 0.63%**（**n=1,495**。M-99 §4。⚠️ **n=298 では 0.32% に見える** = C-059）。
+差は**辞書の枝刈り**で、`上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
 移植そのものは正確（素性が一致した文でラベル差 0 件）。
 ⚠️ **音は聴いていない**（G32）。
+
+### 8 MB flash の板（**QEMU まで。実機未検証**）
+
+✅ **8 MB でも載る**（M-104 / 2026-09-04）。接続行列を**行ごとアフィン uint8**
+（セクション `matrixa`）にし、エントリを 228,000 に絞る。
+
+```bash
+# 1. 8 MB 用の辞書 blob（⚠️ **--out を必ず別名にする**。csrc/k1_dict.bin は 16 MB 用）
+uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \
+    --out csrc/k1_dict_8mb.bin                      # 7,123,088 B
+
+# 2. C リーダが生 int16 と一致するか（全 1,896,129 要素）
+make -C csrc matrixa
+
+# 3. ビルド（⚠️ **-DSAAN_MODEL_RODATA=1 が要る** — 8 MB の表に model 行が無い）
+cd esp32 && idf.py -B build_k8 -DSDKCONFIG=build_k8/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji8mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_8mb.bin build
+```
+
+| | サイズ | 枠 |
+|---|---:|---:|
+| app（重みを `.rodata` に埋めた 8 MB ビルド） | **1,021,248 B** | 1,179,648 B（86.6%） |
+| **dict** | **7,123,088 B** | **7,143,424 B**（99.7%。**余り 20,336 B**） |
+
+| QEMU で見たもの | 値 |
+|---|---:|
+| 起動直後の内部 DRAM | free 103,132 B / 最大ブロック 90,112 |
+| 漢字 G2P 直後の**低水位** | **84,716 B** |
+| 漢字経路とかな経路の PCM | **4 / 4 文で bit 一致** |
+
+⚠️ **PSRAM 無しで動く**（QEMU は octal PSRAM を持たない）= **AtomS3 の条件そのもの**。
+⚠️ **`esp_partition_mmap` で足りる**（7.1 MB < ROM 実装の 8 MB 制限。下の M5 の話は当たらない）。
+⚠️ **既定ではない。** 16 MB で使う理由は無い（音素の誤りが 0.63% → **1.01%** に悪化するだけ）。
+⚠️ **余りが 0.28% しかない。** entries を変えたら必ず測り直すこと。
+⚠️ **速度を 1 つも測っていない**（QEMU では測れない）。
+**アフィンの逆量子化が Viterbi を何倍遅くするかは未測定。**
+⚠️ **実機に焼いていない。** ⚠️ **音も聴いていない。**
 
 ### ⚠️ M5 構成では `esp_partition_mmap` で辞書を貼れない — **`esp_mmu_map` を使う**
 

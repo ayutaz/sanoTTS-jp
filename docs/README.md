@@ -12,10 +12,20 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 **残っているのは聴取（G32）だけで、それは人を待っている。**
 ⚠️ **この音はまだ対照つきでは聴かれていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
 
-**8 MB 板の調査（2026-09-03）**: **辞書は 8 MB に載る。代償は読みの精度**
-（音素の誤り 0.32% → **0.55〜0.66%**。M-97）。**438,750 entries のままは不可能**
-（既知の削減を全部入れても枠を 1,248,835 B 超える）。
-あわせて **PSRAM 無しの板の穴**を塞いだ（M-98。Open JTalk の一時ヒープを
+**8 MB 板の漢字対応（2026-09-04）**: ✅ **成立した**（[M-104](measurements.md#m-104)）。
+接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にして 228,000 entries に絞ると
+blob は **7,123,088 B** で枠 7,143,424 B に入り、**8 MB のイメージが QEMU で起動して漢字文を合成しきる**。
+4 文とも**漢字経路とかな経路の PCM が bit 一致**した（かな行はホストのフル辞書由来）。
+⚠️ **既定ではない。** 出荷は 16 MB（[D-044](decisions.md#d-044)）で、16 MB で使う理由は無い
+（音素の誤りが 0.63% → **1.01%** に悪化するだけ）。
+⚠️ **余りは 20,336 B（0.28%）**。⚠️ **速度を 1 つも測っていない**（QEMU では測れない）。
+⚠️ **実機に焼いていない。** ⚠️ **②〜④ の C リーダは書いていない。**
+
+⚠️ **当初 [D-051](decisions.md#d-051) は「8 MB の実機が入るまで着手しない」としていたが、
+条件の立て方が間違っていた**（[C-065](decisions.md#c-065)）。C リーダの正しさも枠に入ることも
+起動も、**板なしで確かめられた**。
+
+あわせて **PSRAM 無しの板の穴**を塞いだ（[M-98](measurements.md#m-98)。Open JTalk の一時ヒープを
 G2P の前に形態素数で縛る。低水位 2,760 → 40,468 B）。
 
 **2026-09-03、W トラック（ブラウザで動くデモ）を足した**（[D-050](decisions.md#d-050) / [M-94](measurements.md#m-94)）。
@@ -513,7 +523,7 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（100 ケース + commit ガードのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（105 ケース + commit ガードのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                           student-training / evaluating-quality /
 │                                           verifying-reports / writing-gates
@@ -570,7 +580,7 @@ uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   #
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（100 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（105 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか

@@ -50,7 +50,7 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 3. ゲートは「落ちる壊し方」を言えないと書かない
 
-**緑のまま欠陥が潜んでいた例が 15 件あります**（`.claude/skills/writing-gates/`）。
+**緑のまま欠陥が潜んでいた例が 16 件あります**（`.claude/skills/writing-gates/`）。
 新しいテストを足すなら:
 
 - **陽性対照**（必ず落ちるはずの入力）を一緒に入れる
@@ -87,7 +87,7 @@ hook が止めます。
 ```bash
 uv run python scripts/check_doc_counters.py         # 索引の M/D/C 番号・件数・引用アンカー
 uv run python scripts/check_doc_links.py            # md の相対リンクが実在するか
-uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（100 ケース）
+uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（105 ケース）
 uv run python scripts/test_sanitize_reports.py      # レポートに本文が混じっていないか
 uv run python scripts/test_blob_to_header.py        # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
 make -C csrc line && make -C csrc fft && make -C csrc erf   # C コアの軽いゲート（erf = GELU の近似）
@@ -164,7 +164,7 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 2. **Never delete the correction log.** C-001–C-065 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
-3. **Do not write a gate you cannot break on purpose.** Fifteen defects hid behind green tests
+3. **Do not write a gate you cannot break on purpose.** Sixteen defects hid behind green tests
    (`.claude/skills/writing-gates/`). Include a positive control; if you match
    patterns against real files, print the match count — **zero matches is not a pass**.
    Also: **a speed claim is only valid if that exact code was measured on hardware** —
@@ -180,7 +180,7 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 uv run python scripts/check_doc_counters.py         # index numbers, counts, citation anchors
 uv run python scripts/check_doc_links.py            # relative links in markdown resolve
 uv run python scripts/check_release_assets.py       # assets named in the docs exist in the release
-uv run python .claude/hooks/test_guard_bash.py      # hook regression (100 cases)
+uv run python .claude/hooks/test_guard_bash.py      # hook regression (105 cases)
 uv run python scripts/test_sanitize_reports.py      # no corpus text in reports
 uv run python scripts/test_blob_to_header.py        # blob → .rodata header (positive control: fp32 rejected)
 make -C csrc line && make -C csrc fft && make -C csrc erf   # cheap C-core gates (erf = GELU approximation)

@@ -34,6 +34,7 @@ description: Use when writing or changing a test, an assertion, an acceptance ga
 | **`int8_test` の W8A8 SNR（M-58 以降）** | `qx` を `cin·T` で確保していたが、カーネルは `align16(cin)·T` 書く。**隣のヒープに溢れたまま 5 日間「OK」**。S4 で確保の順番が変わり `nan` で表面化（C-053） | 別の変更で nan が出て |
 | **`jdict_open` の「壊れた blob を弾く」** | **返り値しか見ていなかった。** 長さ検査が無いセクション（louds/classes/char/unk/matrix）は**枠外を読んでも 0 を返す**。「開けた = 健全」と読めるが、実際は**落ちずに読みだけ変わる**。ASan を当てて初めて 2 件の over-read が見えた（M-100） | 敵対的レビュー |
 | **`jdict_hard_test` の陽性対照「まとめて 3 件以上 leak」** | 15 ケースあるのに **3 件通れば合格**。残り 12 件の検査が死んでいても気づけない。**ケースごとに期待エラーコードを持たせ、weak ビルドで 15/15 leak を要求**する形に直した | 自分で書いた直後に |
+| **`matrixa` の「MeCab と 183/184 一致」** | **量子化そのものが 1 文の分割を変える**ので、**リーダにバグがあっても同じ 183/184 が出る**。実際に「生 int16 に格納した逆量子化値」と「matrixa に格納した同じ値」で**同じ数**が出た。切り分けには**同じ値を 2 形式で持った blob の全要素比較**が要った（M-104） | 数が同じで気持ち悪かった |
 | **`make -C csrc oj-heap`** | **`oj_worst.bin` に生成規則が無く**、clean な checkout では**ターゲットが存在せずに落ちる**。手元には過去の生成物が残っていたので通っていた（M-101） | clean で走らせて |
 | **K-6 の「Sudachi の影響 0 / 600」** | `phonemize()` が `lru_cache` を通るので、**1 回目に固まった値が返り続けていた**。**陽性対照ごと 0** だった。`cache_clear()` を挟んだら 12 / 600 | 陽性対照を足して発覚 |
 
@@ -275,6 +276,57 @@ n=1,495 では 0.63%** だった（C-059。**2 倍楽観的**）。
 - **前提にするファイルには必ず生成規則を書く**（無いなら `all-test` から外す理由を Makefile に書く）
 - **フラグで挙動が変わるターゲットは、出力名にフラグを含めるか、警告コメントを置く**
 
+### 14. ゲート自身が落ちたとき、**出力が消える**
+
+`matrixa_test` に陰性対照（同じ blob を 2 回渡す）を通したら **SIGSEGV** した。
+⚠️ **printf がバッファに残ったまま消えたので、「何も出さずに exit 139」に見えた。**
+どの検査で落ちたのか分からず、原因を探すのに余計な時間がかかった。
+
+```c
+/* ✓ 落ちても、そこまでの出力は残る */
+setvbuf(stdout, NULL, _IONBF, 0);
+```
+
+原因は**後段の検査が前段の前提を信じていた**こと（G-A4 が「第2引数は matrixa」と
+決めつけて NULL に書いた）。**前提が崩れたら以降を走らせない**:
+
+```c
+if (ng) { printf("⚠️ 前提が崩れたので以降は走らせない\n"); return 1; }
+```
+
+⚠️ **陰性対照を通していなければ、この欠陥は本番でだけ出た。**
+
+### 15. 拒否だけを並べたゲートは「全部拒む」実装で満点を取る
+
+`jdict-hard` に `matrixa` の壊し方を 4 つ足したが、それだけでは
+**「`matrixa` は常に拒まれる」実装でも 4/4 通る**。
+
+```
+/* 17 */ {"**正しい matrixa 単独**（開けること）",     0},   ← これが要る
+/* 18 */ {"matrix と matrixa の両方がある",          -11},
+/* 19 */ {"matrixa の bits = 4",                    -11},
+/* 20 */ {"matrixa の宣言長 -1",                    -11},
+/* 21 */ {"matrixa の実体ごと消す",                  -11},
+```
+
+**hook の `allow` ケースと同じ理由**（deny だけのテストは「全部 deny」で満点）。
+**新しい形式を足したら、「正しいものが通る」ケースを必ず 1 本入れる。**
+
+### 16. ゲートを足したら、**ゲートを数えるゲート**も回す
+
+`make -C csrc matrixa` を足して all-test / doc_counters / doc_links / hook /
+esp32_template を回したが、**`scripts/check_ci_coverage.py` を忘れて CI が落ちた**。
+新しい `.PHONY` は「CI で回る」か「回らない理由が `EXCLUDED_TARGETS` に書いてある」の
+どちらかでなければならない。
+
+```bash
+uv run --no-project python scripts/check_ci_coverage.py           # 本体
+uv run --no-project python scripts/check_ci_coverage.py --self-test
+```
+
+⚠️ **除外表は免除ではなく「言い訳を残す場所」。** 理由を書けば通るので、
+**書いた理由が本当かは誰も見ていない。**
+
 ## 陽性対照は「実行して落ちるのを見た」ものだけを書く
 
 **計画に書いた陽性対照が、実際には落ちないことがある。** S2 計画で 2 回踏んだ。
@@ -307,7 +359,7 @@ n=1,495 では 0.63%** だった（C-059。**2 倍楽観的**）。
 ./int8_e2e_test student.bin student.bin golden.bin ids_heldout.bin /dev/null   # NG! が出ること
 
 # 例: hook の回帰は allow と deny を両方持つ
-uv run python .claude/hooks/test_guard_bash.py     # 100/100 + commit ガード 6 件
+uv run python .claude/hooks/test_guard_bash.py     # 105/105 + commit ガード 6 件
 ```
 
 ⚠️ **`allow` 側のケースを必ず入れる。** deny だけのテストは

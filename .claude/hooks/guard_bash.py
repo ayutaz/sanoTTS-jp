@@ -21,6 +21,7 @@ stdin に hook の JSON を受け取り、判定を JSON で返す。
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import os
 import sys
@@ -368,6 +369,38 @@ def check_stale_ckpt_export(cmd: str) -> None:
         f"戻すなら: uv run python scripts/export_c_weights.py --ckpt {CURRENT_CKPT}")
 
 
+def check_dict_blob_overwrite(cmd: str) -> None:
+    """8 MB 用の辞書で **16 MB の出荷辞書を上書きする**のを止める（M-104）。
+
+    ⚠️ **落ちずに読みだけ変わる。** `jdict_open` は `matrixa` を正しく受けるので、
+       `csrc/k1_dict.bin` が 228,000 entries のアフィン版に差し替わっても
+       **ファームは普通に起動して普通に喋る**。違うのは読みだけ
+       （音素の誤り 0.63% → 1.01%）で、**どのゲートも捕まえない**。
+       これは M-100 で潰した欠陥と同じ形である。
+
+    ⚠️ **止めるのは「既定の名前へ書く」場合だけ。** 8 MB 版を別名で作るのは通す。
+    """
+    if "k1_build_dict.py" not in cmd:
+        return
+    if not re.search(r"--matrix\s+affine", cmd):
+        return
+    m = re.search(r"--out\s+(\S+)", cmd)
+    if not m:
+        return                       # --out が無ければ書き出さない（実害なし）
+    out = m.group(1).strip("\"'")
+    if pathlib.Path(out).name != "k1_dict.bin":
+        return                       # 別名なら通す
+    deny(
+        f"`--matrix affine`（8 MB 用）の出力先が **{out}** になっています。\n"
+        f"⚠️ **その名前は 16 MB の出荷辞書**（438,750 entries / 13,702,320 B。D-044）です。\n"
+        f"⚠️ **上書きしても何も落ちません。** `jdict_open` は `matrixa` を正しく受けるので、\n"
+        f"   ファームは普通に起動して普通に喋り、**読みだけが変わります**\n"
+        f"   （ホストと違う音素 0.63% → 1.01%）。M-100 で潰した欠陥と同じ形です。\n\n"
+        f"8 MB 版は別名で作ってください:\n"
+        f"  uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \\\n"
+        f"      --out csrc/k1_dict_8mb.bin")
+
+
 def check_label_regeneration(cmd: str) -> None:
     """既にある本番パックへの再生成を止める（D-015: ラベルは一度だけ）。
 
@@ -545,6 +578,7 @@ def main() -> int:
     check_label_regeneration(cmd)
     check_frozen_artifacts(cmd)
     check_stale_ckpt_export(cmd)
+    check_dict_blob_overwrite(cmd)
     check_upstream_gpl(cmd)
     check_upstream_package(cmd)
     check_corpus_text_commit(cmd)
