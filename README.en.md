@@ -3,10 +3,20 @@
 *[日本語](README.md) · **English***
 
 [![CI](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml/badge.svg)](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml)
+[![Demo](https://img.shields.io/badge/demo-try%20in%20browser-brightgreen.svg)](https://ayutaz.github.io/sanoTTS-jp/)
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Model license](https://img.shields.io/badge/model-not%20MIT-orange.svg)](LICENSE-MODEL.md)
 
 **A 559 K-parameter Japanese TTS, aimed at a $3 microcontroller (ESP32-S3).**
+
+### 🔊 Try it in a browser → **<https://ayutaz.github.io/sanoTTS-jp/>**
+
+Nothing to install. **Type Japanese text with kanji and it speaks.**
+⚠️ It is the **same C99 code that runs on the microcontroller**, compiled to WebAssembly
+(the arena is the same 180,224 B). It is not a replacement for piper-plus's WASM build —
+it is a way to touch the code that runs on hardware ([D-050](docs/decisions.md#d-050)).
+⚠️ **The first load pulls a 5.5 MB dictionary** (gzip).
+⚠️ **No browser has been measured, not one** ([M-94](docs/measurements.md#m-94) §10).
 
 This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/abs/2608.21378)
 ("sanoTTS") to Japanese, distilling [piper-plus](https://github.com/ayutaz/piper-plus)
@@ -72,7 +82,7 @@ evaluation (see [`MODEL_CARD.md`](MODEL_CARD.md)).
 | **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
 | **C** | **Make an ESP32-S3 speak** | A board (DAC optional). **Flashing alone needs no ESP-IDF** | 15–30 min |
 | **D** | **Run the code gates** | Minimal setup only | 5 min |
-| **E** | **Try it in a browser** (⚠️ **waiting on `main`**) | A browser. **Nothing to install** | 1 min |
+| **E** | **Try it in a browser** | A browser. **Nothing to install** | 1 min |
 
 ### Minimal setup (B / D)
 
@@ -178,14 +188,14 @@ uv run --no-project python scripts/test_labelpack.py
 `csrc/*.bin` (the exported weights). Export them from the downloaded `.pt` with
 `scripts/export_c_weights.py` and it passes.
 
-### E. Try it in a browser (⚠️ **not live until this lands on `main`**)
+### E. Try it in a browser
 
-**`https://ayutaz.github.io/sanoTTS-jp/`** hosts the same C99 core compiled to
-WebAssembly. **GitHub Pages is enabled** (2026-09-04, Source = GitHub Actions), but
-⚠️ **[`pages.yml`](.github/workflows/pages.yml) only runs on a push to `main`**, so the link
-does not open until this feature is merged.
+**<https://ayutaz.github.io/sanoTTS-jp/>** hosts the same C99 core compiled to WebAssembly.
+It is published by [`pages.yml`](.github/workflows/pages.yml) (runs on a push to `main`;
+weights and dictionary are pulled from release **v0.3.0 at a pinned tag and checked against
+their SHA-256**).
 
-Once it is up, it needs no install and no setup: type `今日は良い天気ですね。` into the box
+It needs no install and no setup: type `今日は良い天気ですね。` into the box
 and it speaks. It takes **kanji, katakana and hiragana** directly — no marker character is
 needed, because the C side decides the route (`saan_g2p_classify()`).
 

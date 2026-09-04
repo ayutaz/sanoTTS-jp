@@ -3,10 +3,18 @@
 ***日本語** · [English](README.en.md)*
 
 [![CI](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml/badge.svg)](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml)
+[![Demo](https://img.shields.io/badge/demo-ブラウザで試す-brightgreen.svg)](https://ayutaz.github.io/sanoTTS-jp/)
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Model license](https://img.shields.io/badge/model-not%20MIT-orange.svg)](LICENSE-MODEL.md)
 
 **559 K パラメータの日本語 TTS を、$3 のマイコン（ESP32-S3）で動かす試み。**
+
+### 🔊 ブラウザで試す → **<https://ayutaz.github.io/sanoTTS-jp/>**
+
+インストール不要。**漢字かな交じり文をそのまま打つと喋る**。
+⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもので（arena も同じ 180,224 B）、
+piper-plus の WASM の置き換えではなく**実機のコードを触れる形にした入口**（[D-050](docs/decisions.md#d-050)）。
+⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。⚠️ **ブラウザでの速度は 1 種類も測っていない**（[M-94](docs/measurements.md#m-94) §10）。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
@@ -69,7 +77,7 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 | **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v3-stage4.pt` | 10 分 |
 | **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
 | **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
-| **E** | **ブラウザで試す**（⚠️ **`main` 待ち**） | ブラウザだけ。**インストール不要** | 1 分 |
+| **E** | **ブラウザで試す** | ブラウザだけ。**インストール不要** | 1 分 |
 
 ### 最小セットアップ（B / D）
 
@@ -173,14 +181,13 @@ uv run --no-project python scripts/test_labelpack.py
 ⚠️ **`make -C csrc all-test` は通らない** — golden との突き合わせに `csrc/*.bin`
 （重みの書き出し）が要る。落とした `.pt` から `scripts/export_c_weights.py` で書き出せば通る。
 
-### E. ブラウザで試す（⚠️ **`main` にマージされるまで開けません**）
+### E. ブラウザで試す
 
-**`https://ayutaz.github.io/sanoTTS-jp/`** に、この C99 コアをそのまま WebAssembly にした
-デモを置く。**GitHub Pages は有効化済み**（2026-09-04。Source = GitHub Actions）だが、
-⚠️ **デプロイする [`pages.yml`](.github/workflows/pages.yml) は `main` への push でしか走らない**
-ので、この機能が `main` に入るまでこのリンクは開かない。
+**<https://ayutaz.github.io/sanoTTS-jp/>** — この C99 コアをそのまま WebAssembly にしたデモ。
+配っているのは [`pages.yml`](.github/workflows/pages.yml)（`main` への push で走り、
+重みと辞書は**リリース v0.3.0 からタグ固定で落として SHA-256 を照合**している）。
 
-開けるようになれば、**インストールも設定も要らず**、入力欄に
+**インストールも設定も要らず**、入力欄に
 `今日は良い天気ですね。` と打つだけで鳴る。**漢字・カタカナ・ひらがな**をそのまま受ける
 （`!` のような印は要らない。経路は C 側の `saan_g2p_classify()` が決める）。
 
