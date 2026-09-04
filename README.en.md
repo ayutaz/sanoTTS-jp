@@ -167,6 +167,19 @@ native-USB-only board such as a CoreS3 or AtomS3 needs the `-usbjtag` one.
 
 ⚠️ **Images before v0.3.0 need the `!` prefix and read UART0.** Replace them.
 
+⚠️ **"16 MB required" applies to the released images.** Kanji also runs on an 8 MB board
+if you **build from source** (verified on hardware 2026-09-05, [M-105](docs/measurements.md#m-105)).
+No 8 MB image is published, so you build it yourself:
+
+| | Partition table | entries | **Phoneme error** (n=1,495) |
+|---|---|---:|---:|
+| **16 MB** (released) | `partitions_16mb.csv` | 438,750 | **0.63%** |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% |
+| 8 MB / **M5Stack** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** |
+
+Steps: the "8 MB flash の板" section of [`esp32/README.md`](esp32/README.md).
+⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened to it.**
+
 **Two ways to get sound out.**
 
 | Board | How to flash | Audio out |

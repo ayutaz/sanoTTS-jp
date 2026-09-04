@@ -225,10 +225,25 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600
 移植そのものは正確（素性が一致した文でラベル差 0 件）。
 ⚠️ **音は聴いていない**（G32）。
 
-### 8 MB flash の板（**QEMU まで。実機未検証**）
+### 8 MB flash の板（✅ **実機で喋った**。M-104 = QEMU / M-105 = 実機）
 
-✅ **8 MB でも載る**（M-104 / 2026-09-04）。接続行列を**行ごとアフィン uint8**
-（セクション `matrixa`）にし、エントリを 228,000 に絞る。
+✅ **8 MB でも載る。** 接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にし、
+エントリを絞る。**画面 + スピーカーを積んだ M5Unified 版でも動く。**
+
+⚠️ **枠は app の大きさで変わる。板ごとに表と辞書が違う**（M-105 §4 / §4b）:
+
+| | `esp32/partitions_8mb_kanji.csv` | `esp32/boards/m5unified/partitions_8mb.csv` |
+|---|---:|---:|
+| 想定 | **DevKit**（M5Unified 無し） | **M5Stack 系**（AtomS3 など） |
+| app | 1,021,248 B | **1,438,576 B** |
+| factory | 1,179,648 | **1,507,328**（余裕 68,752 = 4.6%） |
+| dict | 7,143,424 | **6,815,744** |
+| entries | 228,000 | **213,000** |
+| blob | 7,123,088（余り 20,336） | **6,797,056**（余り 18,688） |
+| **音素の誤り**（n=1,495） | 1.01% | **1.09%** |
+
+⚠️ **DevKit 用の辞書を M5 版に焼くと 241,808 B 入らない。** 逆も余るだけで動くが、
+**entries が減るぶん読みが落ちる**。**表と辞書は必ずセットで扱うこと。**
 
 ```bash
 # 1. 8 MB 用の辞書 blob（⚠️ **--out を必ず別名にする**。csrc/k1_dict.bin は 16 MB 用）
@@ -250,19 +265,38 @@ cd esp32 && idf.py -B build_k8 -DSDKCONFIG=build_k8/sdkconfig \
 | app（重みを `.rodata` に埋めた 8 MB ビルド） | **1,021,248 B** | 1,179,648 B（86.6%） |
 | **dict** | **7,123,088 B** | **7,143,424 B**（99.7%。**余り 20,336 B**） |
 
-| QEMU で見たもの | 値 |
-|---|---:|
-| 起動直後の内部 DRAM | free 103,132 B / 最大ブロック 90,112 |
-| 漢字 G2P 直後の**低水位** | **84,716 B** |
-| 漢字経路とかな経路の PCM | **4 / 4 文で bit 一致** |
+M5Unified 版はこちら（**スピーカーと画面が生きる**）:
 
-⚠️ **PSRAM 無しで動く**（QEMU は octal PSRAM を持たない）= **AtomS3 の条件そのもの**。
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 213000 --matrix affine \
+    --out csrc/k1_dict_8mb_m5.bin                   # 6,797,056 B
+cd esp32/boards/m5unified && idf.py -B build_m58 -DSDKCONFIG=build_m58/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3;sdkconfig.8mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict_8mb_m5.bin build
+```
+
+**実機で測った値**（⚠️ **16 MB の CoreS3 に 8 MB の表を焼いたもの**。M-105）:
+
+| | DevKit 構成 | M5Unified 構成 |
+|---|---:|---:|
+| 起動直後の内部 DRAM | free 104,112 B | free **132,031 B**（PSRAM を使うぶん多い） |
+| 漢字 G2P（53 ids） | — | **21.58 ms** |
+| **定常 xRT** | **0.445** | **0.448** |
+| アンダーラン | **0 / 14** | **0 / 22・0 / 19** |
+| checksum | `0xa69a7ebbb5ccb05f` | `0xa69a7ebb…`（⚠️ 先頭 8 桁のみ） |
+| 音 | 出さない（`SAAN_SKIP_I2S=1`） | **スピーカー有効** |
+
+⚠️ **M5 版は USB Serial/JTAG のログが溢れて checksum の後半が落ちる**
+（画面とスピーカーのタスクが同時に書く）。**ファームの欠陥ではない。**
+⚠️ **アフィン行列の速度代償は +0.3%**（entries を 438,750 に揃えて実機で測った。M-105 §3。
+20.08 → 20.14 ms / **PCM は bit 一致**）。
+⚠️ **PSRAM 無しでも動く**（QEMU は octal PSRAM を持たない = AtomS3 の条件）。
 ⚠️ **`esp_partition_mmap` で足りる**（7.1 MB < ROM 実装の 8 MB 制限。下の M5 の話は当たらない）。
-⚠️ **既定ではない。** 16 MB で使う理由は無い（音素の誤りが 0.63% → **1.01%** に悪化するだけ）。
-⚠️ **余りが 0.28% しかない。** entries を変えたら必ず測り直すこと。
-⚠️ **速度を 1 つも測っていない**（QEMU では測れない）。
-**アフィンの逆量子化が Viterbi を何倍遅くするかは未測定。**
-⚠️ **実機に焼いていない。** ⚠️ **音も聴いていない。**
+⚠️ **既定ではない。** 16 MB で使う理由は無い（音素の誤りが 0.63% → 1.01% に悪化するだけ）。
+⚠️ **余りが 0.3% しかない。** entries を変えたら必ず**作って `stat`** すること
+（214,000 で作ったら 2,944 B 超過した。概算 22.25 B/entry に対し実測 21.74）。
+⚠️ **8 MB flash のチップそのものでは測っていない。** ⚠️ **音を人が聴いていない。**
 
 ### ⚠️ M5 構成では `esp_partition_mmap` で辞書を貼れない — **`esp_mmu_map` を使う**
 
