@@ -1,0 +1,233 @@
+# W-4: ブラウザデモを GitHub Pages に配る（計画 `docs/plan/web-demo-plan.md`）
+#
+# ✅ **Pages は 2026-09-04 に有効化された**（`build_type: workflow` / Source = GitHub Actions）。
+#    ⚠️ **これはコードでは解決できない手作業だった**（計画 W-8）:
+#
+#        Settings → Pages → Build and deployment → Source を「GitHub Actions」にする
+#
+#    `actions/configure-pages` の `enablement: true` は**既定の GITHUB_TOKEN では効かない**
+#    （Pages の有効化には別のスコープが要る）。だからここでは configure-pages を
+#    そもそも使わない — ページ内のパスは全部相対（`./main.js` など）で、
+#    `base_url` を要らないため。
+#    ⚠️ **リポジトリを fork した人は同じ手作業をやり直す必要がある**（設定は fork に引き継がれない）。
+#
+# ⚠️ **`ci.yml` を写さないこと。** ci.yml は `cancel-in-progress: true` だが、
+#    ここは **false**。本番デプロイが後続の push で途中で切れると、
+#    「緑なのに古いページが出ている」形の壊れ方をする。
+#
+# ⚠️ **`check_ci_coverage.py` は `ci.yml` しか読まない。** ここに書いたゲートは
+#    その監査の対象外（計画 §5-17）。ゲートの本体は `scripts/check_web_gates.sh` にある。
+#
+# ⚠️ **ここが緑でもブラウザでは 1 種類も測っていない。** node の wasm はブラウザの
+#    wasm ではないし、**出音は誰も聴いていない**（計画 §8 / C-055）。
+name: Pages（ブラウザデモ）
+
+on:
+  push:
+    # ✅ **マージ前に 1 度、実ブランチで build job を回して緑を確認した**
+    #    （run 33828197417 / 2026-09-04。`upload-pages-artifact` まで通り、
+    #    artifact 6,237,222 B。`deploy` は下の `if` で skip された）。
+    #    そのとき一時的に `'worktree-feat*'` を足していたが、**用が済んだので外した**。
+    #
+    # ⚠️ **もう一度やるならブランチ名をそのまま書かないこと。** GitHub のフィルタパターンでは
+    #    `+` が「直前の文字の 1 回以上の繰り返し」という**メタ文字**なので、
+    #    `worktree-feat+gh-...` と書くと `worktree-fea` + `t`×n + `gh-...` と解釈され、
+    #    **リテラルの `+` を含むブランチ名には一生マッチしない**（実測: run が 0 件だった）。
+    #    `*` なら `+` も拾える。
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# ⚠️ **cancel-in-progress は false**（上の理由）。group は Pages の作法どおり単一。
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+env:
+  # ⚠️ **タグを固定する。** 省くと `latest` を引き、リリースを切った瞬間に
+  #    配っているモデルと辞書が黙って別物になる（ci.yml の golden job と同じ理由）。
+  #    **リリースを出したらここを上げること。**
+  RELEASE_TAG: v0.3.0
+  # ⚠️ **emcc の版を固定する。** `setup-emsdk` の `version` 既定は `latest` で、
+  #    固定しないと M-94 に記録した数値（速度・サイズ・bit 一致）が再現しない。
+  EMSDK_VERSION: 6.0.9
+
+jobs:
+  build:
+    name: ビルドとゲート（wasm ゲート 8 本）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # `check_web_gates.sh` が `csrc/g2p_vectors.bin` を生成するのに使う
+      # （凍結テーブル `csrc/g2p_table.json` から作るので stdlib だけで走る）
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+
+      # ⚠️ **`ci.yml` の web job と同じ入れ方にしてある。**
+      #    かつて `emscripten-core/setup-emsdk@v16` + `version: ${{ env.EMSDK_VERSION }}` を
+      #    使っていたが、**この経路は 1 度も実行されていなかった**。
+      #    `pages.yml` は `push: main` でしか走らないので、**初回実行が本番**になる。
+      #    ci.yml 側の `git clone` + `emsdk install` は**この リポジトリの CI で実際に通っている**ので、
+      #    確かめようのない経路を本番に置くより、通っている方に揃える。
+      # ⚠️ **`latest` にしない。** 版が変わると M-94 に記録した数値が再現しない。
+      - name: emcc 6.0.9 を入れる（⚠️ latest にしない）
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      # ⚠️ **版を必ずログに残す。** 「6.0.9 のつもりで別の版だった」は
+      #    ログを見ない限り気づけない形で通る（スクリプトも警告は出すが落ちはしない）。
+      - name: emcc / node の版を記録に残す
+        run: |
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          emcc --version | head -1
+          node --version
+
+      # ---------------------------------------------------------------- 資産
+      # ⚠️ **`--pattern` はタグ固定の `gh release download` で引く。**
+      #    ページに載せるもの（モデル・辞書・帰属表示）と、ゲートが要るもの
+      #    （fp32 blob と golden 2 本）を **1 回で**落とす。
+      #    ⚠️ 辞書 13.7 MB は CI では再生成できない（凍結 sys.dic 103 MB が git 管理外）。
+      - name: リリース資産を落とす（タグ固定）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -eu
+          mkdir -p rel
+          gh release download "$RELEASE_TAG" -R ${{ github.repository }} --dir rel --clobber \
+            --pattern 'saanotts-jp-v3-int8.bin' \
+            --pattern 'saanotts-jp-v3-fp32.bin' \
+            --pattern 'golden-v3-int8.bin' \
+            --pattern 'golden-v3-fp32.bin' \
+            --pattern 'k1-dict-438750.bin' \
+            --pattern 'NOTICE.txt' \
+            --pattern 'NOTICE-openjtalk.txt' \
+            --pattern 'NOTICE-dictionary.txt' \
+            --pattern 'LICENSE-MODEL.md' \
+            --pattern 'SHA256SUMS.txt'
+          ls -l rel
+
+      # ⚠️ **名前が在ることと中身が正しいことは別**（C-052 で踏んだ形）。
+      #    `SHA256SUMS.txt` と突き合わせ、**違ったらここで落とす**。
+      #    ⚠️ 「行が無い」も落とす — 行が無いものを黙って通すと、この検査は空虚になる。
+      - name: 落とした資産の SHA-256 を SHA256SUMS.txt と突き合わせる（陽性対照つき）
+        run: |
+          set -u
+          cd rel
+          # $1 = 実ファイル / $2 = SHA256SUMS.txt に載っている名前。一致で 0、違えば非 0
+          verify() {
+            want="$(awk -v n="$2" '{ m=$2; sub(/^\*/,"",m); sub(/.*\//,"",m); if (m==n) print $1 }' \
+                    SHA256SUMS.txt | head -1)"
+            if [ -z "$want" ]; then
+              echo "  NG! SHA256SUMS.txt に $2 の行が無い"; return 1
+            fi
+            got="$(sha256sum "$1" | cut -d' ' -f1)"
+            if [ "$want" != "$got" ]; then
+              echo "  NG! $1 の SHA-256 が違う: 期待 $want / 実際 $got"; return 1
+            fi
+            printf '  OK  %-28s %s\n' "$2" "$got"
+          }
+          bad=0
+          for f in saanotts-jp-v3-int8.bin saanotts-jp-v3-fp32.bin \
+                   golden-v3-int8.bin golden-v3-fp32.bin k1-dict-438750.bin \
+                   NOTICE.txt NOTICE-openjtalk.txt NOTICE-dictionary.txt LICENSE-MODEL.md; do
+            verify "$f" "$f" || bad=1
+          done
+          # ⚠️ **陽性対照。** 中身を 1 バイト変えた複製を **同じ名前で**照合し、落ちることを見る。
+          #    これが無いと「9 件 OK」は「verify が常に 0 を返す」でも成立してしまう。
+          cp NOTICE.txt probe.txt
+          printf 'x' >> probe.txt
+          if verify probe.txt NOTICE.txt > /dev/null 2>&1; then
+            echo "  NG! 陽性対照: 1 バイト足した複製が通った（この突き合わせは空虚）"; bad=1
+          else
+            echo "  OK  陽性対照: 1 バイト足すと SHA-256 の突き合わせが落ちる"
+          fi
+          rm -f probe.txt
+          exit "$bad"
+
+      # ------------------------------------------------------------ ゲート
+      # ⚠️ **デプロイの前に回す。落ちたらデプロイしない**（job の依存で止まる）。
+      #    ゲートは `csrc/` の名前でファイルを探すので、そこに置き直す。
+      - name: ゲートが読む名前で重みを置く
+        run: |
+          set -eu
+          cp rel/saanotts-jp-v3-fp32.bin csrc/student.bin
+          cp rel/golden-v3-fp32.bin      csrc/golden.bin
+          cp rel/saanotts-jp-v3-int8.bin csrc/student_i8.bin
+          cp rel/golden-v3-int8.bin      csrc/golden_i8.bin
+          # 大きさで取り違えを止める（この先では「数値が合わない」形でしか出てこない）
+          test "$(wc -c < csrc/student.bin)"    -eq 2249792
+          test "$(wc -c < csrc/golden.bin)"     -eq 779584
+          test "$(wc -c < csrc/student_i8.bin)" -eq 654032
+          test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
+
+      - name: wasm ゲート 8 本（帰属ブロック・golden 一致・ストリーミング経路・SIMD の bit 一致・経路判定・fp32 拒否・出荷バイナリの実行）
+        env:
+          PYTHON: uv run --no-project --python 3.12 python
+        run: |
+          # ⚠️ **`set -u` を emsdk_env.sh より前に立てない。** 未定義の環境変数を触るので
+          #    「PATH は通ったのに step が落ちる」形になる（Actions は既定で `bash -e`）
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          bash scripts/check_web_gates.sh
+
+      # ------------------------------------------------------------- ビルド
+      # ⚠️ 上のゲート（G-W6）も中で build.sh を回すが、**わざと重ねてある**。
+      #    独立した step にしておくと、ビルドが壊れたのか実行が壊れたのかが 1 目で分かる。
+      - name: wasm を作る（W8A32 / W8A8 の 2 レーン）
+        run: |
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          bash web/build.sh
+
+      # ⚠️ **`upload-pages-artifact` はドット始まりを全部除外し、シンボリックリンクを
+      #    許さない。** `ln -s` を使わず実体をコピーする。`.nojekyll` は置いても
+      #    除外されるので置かない（deploy-pages は Jekyll を通さないので要らない）。
+      # ⚠️ 辞書は **`gzip -9` して `.gz` で配る**。Pages が `.bin` に
+      #    `Content-Encoding: gzip` を付けるかは**未確認**なので、server の圧縮に頼らず
+      #    JS 側の `DecompressionStream('gzip')` で展開する（計画 §5-14）。
+      - name: _site を組み立てる
+        run: |
+          set -eu
+          mkdir -p _site
+          cp web/index.html web/main.js _site/
+          cp web/dist/saan_web_w8a32.mjs web/dist/saan_web_w8a32.wasm _site/
+          cp web/dist/saan_web_w8a8.mjs  web/dist/saan_web_w8a8.wasm  _site/
+          cp rel/saanotts-jp-v3-int8.bin _site/student_i8.bin
+          gzip -9 -c rel/k1-dict-438750.bin > _site/k1_dict.bin.gz
+          # ⚠️ **展開して元と bit 一致することを確かめる。** 壊れた .gz は
+          #    ブラウザで初めて分かる（そして辞書が無いと漢字が黙って読めなくなる）
+          gzip -dc _site/k1_dict.bin.gz | cmp - rel/k1-dict-438750.bin
+          cp rel/NOTICE.txt rel/NOTICE-openjtalk.txt rel/NOTICE-dictionary.txt \
+             rel/LICENSE-MODEL.md _site/
+          echo "--- _site（バイト）---"
+          ls -l _site
+
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: _site
+
+  deploy:
+    name: デプロイ
+    needs: build
+    # ⚠️ **main 以外では走らせない。** `github-pages` 環境の
+    #    deployment branch policy が `main` だけを許しているので、他のブランチから
+    #    来ると**環境のゲートで弾かれて job が失敗する**（実測: policy は `main` の 1 件）。
+    #    スキップにしておけば「build は緑・deploy は skip」と読める。
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    # ⚠️ Pages の Source が「GitHub Actions」になっていないと、ここで落ちる。
+    #    それは**設定の手作業**であって、このファイルでは直せない（W-8）。
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

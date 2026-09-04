@@ -1,6 +1,9 @@
-# ⚠️ **ここに入れてよいのは「新規 clone だけで通るゲート」だけ。**
-#    重み・ラベルパック・辞書・pyopenjtalk が要るものは入らない（下の「入れていないもの」）。
+# ⚠️ **ここに入れてよいのは「新規 clone + 公開リリースの資産だけで通るゲート」だけ。**
+#    ラベルパック・コーパス・辞書・pyopenjtalk・ESP-IDF が要るものは入らない
+#    （`.github/workflows/README.md` の「入れていないもの」）。
 #    どれが通るかは推測ではなく、**素の clone + 依存ゼロの venv で実測して決めた**。
+#    ⚠️ 「新規 clone **だけ**で通るもの」と書いていたが、`golden` / `web` job は
+#    リリースの重みを落とすので**もう正確ではない**。線引きは「公開されているものだけで足りるか」。
 name: CI
 
 on:
@@ -48,47 +51,96 @@ jobs:
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 
   # ------------------------------------------------- 参照実装との一致（重みを落とす）
-  # リリースの **fp32** 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）で
+  # リリース **v0.3.0** の fp32 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）と
+  # **int8 資産**（`saanotts-jp-v3-int8.bin` 654,032 B + `golden-v3-int8.bin` 0.8 MB）で
   # ゴールデンテストと arena ストレスを回す。**C コアの数値が参照実装と合うか**を PR ごとに見る。
   #
-  # ⚠️ **int8 レーンは入れられない。** リリースの `saanotts-jp-v3-int8.bin` は **blob v1** で、
-  #    S4 以降のコアが `SAAN_ERR_VERSION` で拒む。v2 を配ったらここに足すこと。
-  # ⚠️ **held-out 24 文の多文 G2 も入れられない。** `ids_heldout.bin` はコーパス由来で
+  # ⚠️ **訂正（C-057）。** ここには長らく
+  #    「リリースの `saanotts-jp-v3-int8.bin` は **blob v1** なので int8 レーンは入れられない
+  #     （S4 以降のコアが `SAAN_ERR_VERSION` で拒む）」
+  #    と書いてあった。**これは v0.2.0 までの話で、今は誤り。**
+  #    v0.3.0 の `saanotts-jp-v3-int8.bin` は **blob v2**（654,032 B。SHA-256 の頭は 2d2b8543）で、
+  #    手元の v2 blob と bit 一致する（`docs/release-notes/v0.3.0.md` も v2 と書いている）。
+  #    → int8 レーンを**この job に足した**（下の 2 ステップ）。
+  #    ⚠️ **消さずに残してある。** 同じ思い込みを繰り返さないため。
+  #
+  # ⚠️ **タグを `v0.3.0` に固定した**（前はタグ無し = `latest` 追従だった）。理由:
+  #    (a) int8 が v2 なのは **v0.3.0 以降**なので、latest 追従だと
+  #        「int8 レーンが何を測っているか」がリリースのたびに黙って変わる、
+  #    (b) latest 追従だと**リリースを切った瞬間に、無関係な PR の CI の意味が変わる**。
+  #    ⚠️ **代償**: 新しいリリースの重みはこの job では 1 度も試されない。
+  #    **リリースを出したらこのタグを上げること。** latest 側は `release-assets` job が見ている。
+  #
+  # ⚠️ **held-out 24 文の多文 G2 は入れられない。** `ids_heldout.bin` はコーパス由来で
   #    git にもリリースにも無い（`scripts/check_ci_coverage.py` の EXCLUDED_TARGETS に理由がある）。
   golden:
-    name: 参照実装との一致（fp32・重みはリリースから）
+    name: 参照実装との一致（fp32 + int8・重みはリリース v0.3.0 から）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: 重みと参照出力を落とす
+      - name: 重みと参照出力を落とす（タグ固定）
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download -R ${{ github.repository }} \
+          gh release download v0.3.0 -R ${{ github.repository }} \
             --pattern 'saanotts-jp-v3-fp32.bin' --pattern 'golden-v3-fp32.bin' \
+            --pattern 'saanotts-jp-v3-int8.bin' --pattern 'golden-v3-int8.bin' \
             --dir csrc --clobber
           mv csrc/saanotts-jp-v3-fp32.bin csrc/student.bin
           mv csrc/golden-v3-fp32.bin      csrc/golden.bin
-          ls -l csrc/student.bin csrc/golden.bin
-      - name: ゴールデンテスト（参照実装との一致）
+          mv csrc/saanotts-jp-v3-int8.bin csrc/student_i8.bin
+          mv csrc/golden-v3-int8.bin      csrc/golden_i8.bin
+          ls -l csrc/student.bin csrc/golden.bin csrc/student_i8.bin csrc/golden_i8.bin
+          # ⚠️ 大きさを固定で確かめる。落とし損ね・資産の取り違えは、この先では
+          #    「数値が合わない」という原因の分かりにくい形でしか出てこない
+          test "$(wc -c < csrc/student.bin)"    -eq 2249792
+          test "$(wc -c < csrc/golden.bin)"     -eq 779584
+          test "$(wc -c < csrc/student_i8.bin)" -eq 654032
+          test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
+      - name: ゴールデンテスト（fp32・参照実装との一致）
         run: make -C csrc test
+      # int8 統合の**主ゲート**: int8 コアが PyTorch の fake-quant と一致するか。
+      # ⚠️ 波形 SNR のゲートだけでは層の載せ忘れを見逃す（csrc/Makefile の注記）
+      - name: ゴールデンテスト（int8・量子化した参照出力との一致）
+        run: make -C csrc int8-golden
+      - name: int8 カーネル（逆量子化 fp32 との一致 / v2 配置 / ディスパッチ）
+        run: make -C csrc int8
       - name: arena ストレス（黙った確保失敗の検出）
         run: make -C csrc arena
       # ⚠️ **陽性対照。** 重みを壊した blob でゲートが**落ちる**ことを見る。
       #    これが無いと「通った」が何も測っていないことを意味しうる（C-056 で実際に踏んだ:
       #    NaN が Pearson 1.0 / SNR inf に化けて PASS していた）。
-      - name: 陽性対照（重みを壊すとゴールデンテストが落ちる）
+      - name: 陽性対照（重みを壊すと fp32 / int8 の両方でゴールデンテストが落ちる）
         run: |
-          cp csrc/student.bin csrc/broken.bin
-          printf '\x7f\x7f\x7f\x7f' | dd of=csrc/broken.bin bs=1 seek=1200000 conv=notrunc
-          if (cd csrc && ./golden_test broken.bin golden.bin); then
-            echo "NG! 壊した重みでゴールデンテストが通った（ゲートが空虚）"; exit 1
-          fi
-          echo "OK  壊した重みでは落ちる"
+          set -eu
+          cd csrc
+          # ⚠️ **旧版の `dd ... seek=1200000` を int8 に流用してはいけない。**
+          #    int8 blob は 654,032 B しかないので seek がファイル末尾を越え、
+          #    dd は**ファイルを 1,200,004 B に伸ばすだけ**になる。重みは 1 バイトも壊れず、
+          #    ゴールデンテストは **PASS する**（この worktree で実測した）。
+          # ⚠️ 「どこか 4 バイト叩く」でも足りない。blob v2 は int8 conv 重みを
+          #    `align16(cin)` に 0 埋めしてあるので、**padding を叩くと出力が 1 bit も動かない**
+          #    （実測: 654,032 B の offset 400,000 に 4 バイト書いても PASS した）。
+          #    だから **ファイルの真ん中 64 KB を 0x7f で塗りつぶす**（padding だけには収まらない）。
+          broken_must_fail() {      # $1 = 重み blob / $2 = 参照出力
+            sz=$(wc -c < "$1")
+            cp "$1" broken.bin
+            head -c 65536 /dev/zero | tr '\0' '\177' \
+              | dd of=broken.bin bs=1 seek=$(( sz / 2 )) conv=notrunc 2>/dev/null
+            # ⚠️ 「伸びていないこと」自体をゲートにする。伸ばすだけの壊し方をここで止める
+            test "$(wc -c < broken.bin)" -eq "$sz"
+            if ./golden_test broken.bin "$2" > /dev/null 2>&1; then
+              echo "NG! 壊した重み（$1）でゴールデンテストが通った（ゲートが空虚）"; exit 1
+            fi
+            echo "OK  $1 を壊すと落ちる（大きさは $sz B のまま）"
+          }
+          broken_must_fail student.bin    golden.bin
+          broken_must_fail student_i8.bin golden_i8.bin
 
   # ------------------------------------------------------------------- C99 コア
-  # ⚠️ **重みが要るもの（int8 / stream の多文レーン）はここには入れられない。**
-  #    `csrc/*.bin` は git 管理外。fp32 で回せるものは上の `golden` job が見ている。
+  # ⚠️ **重みが要るものはここには入れられない。** `csrc/*.bin` は git 管理外。
+  #    重みを落として回すもの（fp32 / int8 のゴールデンと arena）は上の `golden` job が見ている。
+  #    ⚠️ `stream` の多文レーンだけはどちらにも入らない（`ids_heldout.bin` がコーパス由来）。
   csrc:
     name: csrc（重み不要のゲート）
     runs-on: ubuntu-latest
@@ -154,3 +206,94 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: uv run --no-project --python 3.12 python scripts/check_release_assets.py
+
+  # ------------------------------------------------------------ wasm（W トラック）
+  # ブラウザデモ（`web/`）の受け入れゲート G-W1〜G-W7 を `scripts/check_web_gates.sh` で回す。
+  #
+  # ⚠️ **訂正（審査 2026-09-04）。** この job は長らく `web/build.sh` を回しておらず、
+  #    `pages.yml` は **push to main でしか走らない**ので、**PR では `web/` が 1 行も
+  #    コンパイルされていなかった**。しかも `web/saan_web.c` に `#error` を入れても
+  #    `check_web_gates.sh` は exit 0 のままだった（あれは `csrc/` だけを建てていた）。
+  #    → **`bash web/build.sh` を独立した step として足し、ゲート側にも G-W6 を入れた。**
+  #
+  # ⚠️ **重みが要る**ので `golden` job と同じくリリース **v0.3.0** の資産を落とす
+  #    （タグを固定する理由は `golden` job の注記と同じ）。
+  # ⚠️ **emcc は 6.0.9 に固定する。** `emsdk install latest` にすると M-94 の実測
+  #    （`-msimd128` の有無での bit 一致 / SNR / 速度）が再現しなくなる。
+  #    ⚠️ **setup-emsdk アクションは使わない。** 計画 §1 が「`version` の既定は `latest`」と
+  #    書いており、固定を忘れた形は「動いてはいる」ので気づけない。**emsdk を直接入れて版を明示する**
+  #    （手元も `~/emsdk` の直叩きなので、CI と手元で入れ方が揃う）。
+  #    ⚠️ 版が違っても `check_web_gates.sh` は落ちない（警告を出すだけ）。**ログの `emcc --version` を見ること。**
+  # ⚠️ **ここで回らないもの**（理由つき）:
+  #    - **G-W6 の「漢字 == かな」と「ids 350 超えの拒否」** … 辞書 `csrc/k1_dict.bin`
+  #      （13,702,320 B）が git にもリリースにも無い。⚠️ **skip とは書かせない** —
+  #      ゲートの出力に「回せなかった」と理由が出る。
+  #      ⚠️ かな経路は 512 B の行上限で最大 343 ids にしか届かないので（実測）、
+  #      **ids 350 の拒否は辞書経路でしか踏めない**。辞書なしでは構造的に測れない
+  #    - **漢字経路の全段一致**（K-7 の G25 相当） … `kanji_e2e_vectors.bin`（19 MB）が
+  #      git にもリリースにも無い
+  #    - **G-W2b の多文レーン** … `ids_heldout.bin` がコーパス由来。回るのは golden の 1 文だけ
+  #      で、**残差 % SAAN_CHUNK が 1 通りしか出ない**（obuf を縮めた壊れ方は 1 文では捕まらない）
+  #    - **`web/main.js`** … JS は 1 行も走らせていない。G-W6 が叩くのは wasm の凍結 ABI だけ
+  #    - **ブラウザでの実測** … ⚠️ **node の値はブラウザの値ではない**（C-055）。
+  #      この job が緑でも「ブラウザで鳴った」の証拠には 1 ミリもならない
+  #    - **聴取** … ⚠️ ブラウザの音は誰も聴いていない（G32 と同じ空白）
+  web:
+    name: web（wasm ゲート・emcc 6.0.9）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # ⚠️ **uv が要る。** G-W4 の凍結ベクタ `csrc/g2p_vectors.bin` は git 管理外で、
+      #    `scripts/gen_g2p_vectors.py` が毎回作る（`csrc` job の `make g2p` と同じ）
+      - uses: astral-sh/setup-uv@v5
+        with: { enable-cache: true }
+
+      - name: 重みと参照出力を落とす（タグ固定。golden job と同じ資産）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release download v0.3.0 -R ${{ github.repository }} \
+            --pattern 'saanotts-jp-v3-fp32.bin' --pattern 'golden-v3-fp32.bin' \
+            --pattern 'saanotts-jp-v3-int8.bin' --pattern 'golden-v3-int8.bin' \
+            --dir csrc --clobber
+          mv csrc/saanotts-jp-v3-fp32.bin csrc/student.bin
+          mv csrc/golden-v3-fp32.bin      csrc/golden.bin
+          mv csrc/saanotts-jp-v3-int8.bin csrc/student_i8.bin
+          mv csrc/golden-v3-int8.bin      csrc/golden_i8.bin
+          test "$(wc -c < csrc/student.bin)"    -eq 2249792
+          test "$(wc -c < csrc/golden.bin)"     -eq 779584
+          test "$(wc -c < csrc/student_i8.bin)" -eq 654032
+          test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
+
+      - name: emcc 6.0.9 を入れる（⚠️ latest にしない）
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install 6.0.9
+          "$HOME/emsdk/emsdk" activate 6.0.9
+
+      # ⚠️ **出荷する `web/` を PR でコンパイルする step。** `pages.yml` は push to main で
+      #    しか走らないので、これが無いと `web/saan_web.c` の壊れは main に入るまで出ない。
+      # ⚠️ **下の `check_web_gates.sh` も G-W6 の中で build.sh を回す**（わざと重ねてある）。
+      #    独立した step にしておくと、**ビルドが壊れたのか実行が壊れたのか**が
+      #    Actions の画面で 1 目で分かる。4 秒しかかからないので重ねる価値がある（実測）。
+      - name: web/build.sh（出荷する wasm を建てる。⚠️ PR ではここが唯一のコンパイル）
+        run: |
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          bash web/build.sh
+
+      - name: wasm ゲート G-W1〜G-W7（陽性対照つき）
+        env:
+          # `csrc` job の `make g2p` と同じ渡し方。⚠️ Python は stdlib しか使わない
+          PYTHON: uv run --no-project --python 3.12 python
+        run: |
+          # ⚠️ **`set -u` を emsdk_env.sh より前に立てない。** 未定義の環境変数を触るので
+          #    「PATH は通ったのに step が落ちる」形になる（GitHub Actions は既定で `bash -e`）
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          # ⚠️ **版を必ず出力に残す。** 「6.0.9 のつもりで latest だった」は
+          #    ログを見ない限り気づけない形で通る。
+          #    （スクリプト側も版を見て、違えば警告を出す。落ちはしない）
+          emcc --version | head -n 1
+          node --version
+          bash scripts/check_web_gates.sh

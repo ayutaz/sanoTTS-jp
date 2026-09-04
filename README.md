@@ -3,10 +3,18 @@
 ***日本語** · [English](README.en.md)*
 
 [![CI](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml/badge.svg)](https://github.com/ayutaz/sanoTTS-jp/actions/workflows/ci.yml)
+[![Demo](https://img.shields.io/badge/demo-ブラウザで試す-brightgreen.svg)](https://ayutaz.github.io/sanoTTS-jp/)
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Model license](https://img.shields.io/badge/model-not%20MIT-orange.svg)](LICENSE-MODEL.md)
 
 **559 K パラメータの日本語 TTS を、$3 のマイコン（ESP32-S3）で動かす試み。**
+
+### 🔊 ブラウザで試す → **<https://ayutaz.github.io/sanoTTS-jp/>**
+
+インストール不要。**漢字かな交じり文をそのまま打つと喋る**。
+⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもので（arena も同じ 180,224 B）、
+piper-plus の WASM の置き換えではなく**実機のコードを触れる形にした入口**（[D-050](docs/decisions.md#d-050)）。
+⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。⚠️ **ブラウザでの速度は 1 種類も測っていない**（[M-94](docs/measurements.md#m-94) §10）。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
@@ -61,7 +69,7 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 
 ## はじめかた
 
-**入口は 4 つ。A / B / D は piper-plus も教師モデルも要らない**（新規 clone で実測）。
+**入口は 5 つ。A / B / D / E は piper-plus も教師モデルも要らない**（新規 clone で実測）。
 
 | | やりたいこと | 要るもの | 所要 |
 |---|---|---|---|
@@ -69,6 +77,7 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 | **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v3-stage4.pt` | 10 分 |
 | **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
 | **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
+| **E** | **ブラウザで試す** | ブラウザだけ。**インストール不要** | 1 分 |
 
 ### 最小セットアップ（B / D）
 
@@ -171,6 +180,48 @@ uv run --no-project python scripts/test_labelpack.py
 ⚠️ **`PYTHON=...` を省くと `uv run python` になり、piper-plus を要求する。**
 ⚠️ **`make -C csrc all-test` は通らない** — golden との突き合わせに `csrc/*.bin`
 （重みの書き出し）が要る。落とした `.pt` から `scripts/export_c_weights.py` で書き出せば通る。
+
+### E. ブラウザで試す
+
+**<https://ayutaz.github.io/sanoTTS-jp/>** — この C99 コアをそのまま WebAssembly にしたデモ。
+配っているのは [`pages.yml`](.github/workflows/pages.yml)（`main` への push で走り、
+重みと辞書は**リリース v0.3.0 からタグ固定で落として SHA-256 を照合**している）。
+
+**インストールも設定も要らず**、入力欄に
+`今日は良い天気ですね。` と打つだけで鳴る。**漢字・カタカナ・ひらがな**をそのまま受ける
+（`!` のような印は要らない。経路は C 側の `saan_g2p_classify()` が決める）。
+
+- **ESP32 と同じコードが動く。** `csrc/` の C99 と `esp32/main/saan_kanji.c` を書き換えずに
+  wasm にしただけで、**arena も実機と同じ 180,224 B**（→ [D-050](docs/decisions.md#d-050)）
+- 初回は**辞書 13,702,320 B（gzip -9 で 5,476,122 B）**を落とす。⚠️ 回線が細いと待たされる
+- ⚠️ **ブラウザでは 1 種類も速度を測っていない**（測ったのは node だけ。[M-94](docs/measurements.md#m-94)）
+- ⚠️ **ブラウザの音は誰も聴いていない。** `AudioContext` のリサンプルが挟まるので、
+  **鳴っている音は checksum と一致しない**
+- ⚠️ **成果物は今も ESP32。** Web は入口であって、このプロジェクトの目的ではない（[D-007](docs/decisions.md#d-007)）
+
+手元で動かすなら（emcc が要る）。⚠️ **`index.html` と同じ階層に全部を平らに並べる**
+（`.github/workflows/pages.yml` が CI でやっているのと同じ形）:
+
+```bash
+bash web/build.sh                                   # → web/dist/*.wasm と *.mjs
+mkdir -p /tmp/saan-site
+cp web/index.html web/main.js web/dist/*.mjs web/dist/*.wasm /tmp/saan-site/
+cp csrc/student_i8.bin /tmp/saan-site/              # = リリースの saanotts-jp-v3-int8.bin
+gzip -9 -c csrc/k1_dict.bin > /tmp/saan-site/k1_dict.bin.gz   # = k1-dict-438750.bin
+
+# ⚠️ **ここまでで止めると footer の 4 本が全部 404 になる**（実測。音は鳴るので、
+#    リンクを踏むまで気づかない）: NOTICE.txt / NOTICE-openjtalk.txt /
+#    NOTICE-dictionary.txt / LICENSE-MODEL.md
+cp LICENSE-MODEL.md /tmp/saan-site/                 # リポジトリのものでよい
+#   （リリース資産 LICENSE-MODEL.md と SHA-256 が一致する。実測で確認済み）
+# ⚠️ NOTICE*.txt 3 本は**リポジトリにその名前では無い**ので、リリースから落とす。
+#    ⚠️ **ネットワークが要る**（CI の pages.yml も同じ 3 本を落としている）
+gh release download v0.3.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
+    -p 'NOTICE.txt' -p 'NOTICE-openjtalk.txt' -p 'NOTICE-dictionary.txt'
+
+uv run --no-project python -m http.server -d /tmp/saan-site 8000
+#   ⚠️ `python3 -m http.server` は hook が止める（D-012）
+```
 
 ### フルセットアップ（漢字→かな変換 / 学習 / ラベル生成）
 

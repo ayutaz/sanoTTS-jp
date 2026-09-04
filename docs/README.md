@@ -12,21 +12,30 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 **残っているのは聴取（G32）だけで、それは人を待っている。**
 ⚠️ **この音はまだ誰も聴いていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
 
+**2026-09-03、W トラック（ブラウザで動くデモ）を足した**（[D-050](decisions.md#d-050) / [M-94](measurements.md#m-94)）。
+`csrc/` の C99 コアと漢字経路を**書き換えずに** wasm にしたもので、
+**成果物は今も ESP32**（[D-007](decisions.md#d-007) は撤回していない）。
+⚠️ **ブラウザでは 1 種類も測っていない**（測ったのは node だけ）／**ブラウザの音も誰も聴いていない**。
+**GitHub Pages は 2026-09-04 に有効化された**（Source = GitHub Actions。⚠️ 設定画面での手作業だった）が、
+[`pages.yml`](../.github/workflows/pages.yml) は **`main` への push でしか走らない**ので、
+URL が開くのはマージ後。
+
 ## 読む順序
 
 | # | ドキュメント | 内容 | 更新頻度 |
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-048 と**訂正履歴 C-001〜C-056** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-93。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-050（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-058** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-94。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
 | 4.5 | [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) | **K-1 の結論レポート**。B-0 の否定的結論のうち 4 つが崩れた。辞書は mmap / TTS 専用バイナリで 1 エントリ 28.29 B / アクセント天井は 126 行。**§0 に「その後どうなったか」**（実装で分かったずれ 3 件） | 固定（§0 だけ追記） |
 | 4.6 | [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) | **K トラックの実装計画**。K-0〜K-8 に目的・ゴール・受け入れ条件（G1〜G32。⚠️ G15/G16 は欠番）。**K-8 まで完了**（M-83 / M-90）。残りは **G32 聴取**と、エントリ数・接続行列の判断 | 固定（判断待ち 2 件） |
 | 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現・S1 前）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。⚠️ **§4 の仮説は半分が外れた**（C-054。§5 は「直し方」で、そちらは全部入った） | 固定 |
-| 4.9 | [`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) | **いちばん新しい計画**。⚠️ **§10 に S-1（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5a）の前史**を畳んである（旧 `plan/s1-speed-implementation-plan.md` は削除）。T1（末尾 pull の早期終了）/ T2（S9）/ T3（S6）/ T4（arena）/ T5（GELU）/ 64 B 行 と、M5 への漢字搭載。**要件 RTF ≤ 0.5 を達成して完了**（M-88 → M-90）。残りは聴取 | 固定 |
+| 4.9 | [`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) | 速度の計画。⚠️ **§10 に S-1（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5a）の前史**を畳んである（旧 `plan/s1-speed-implementation-plan.md` は削除）。T1（末尾 pull の早期終了）/ T2（S9）/ T3（S6）/ T4（arena）/ T5（GELU）/ 64 B 行 と、M5 への漢字搭載。**要件 RTF ≤ 0.5 を達成して完了**（M-88 → M-90）。残りは聴取 | 固定 |
+| 4.95 | [`plan/web-demo-plan.md`](plan/web-demo-plan.md) | **いちばん新しい計画**。**W トラック**（GitHub Pages のランタイムデモ）。W-0〜W-8 と受け入れゲート **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7**（8 本）。⚠️ **成果物は今も ESP32**（[D-050](decisions.md#d-050)）で、Web は入口。実測は [M-94](measurements.md#m-94)。⚠️ **ブラウザでは 1 種類も測っていない / 音は誰も聴いていない** | 固定 |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -282,16 +291,22 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 **v0.2.0 で焼くだけの 16 MB イメージを配布した**（`esp32s3-firmware-kanji-16mb.bin`）。
 ⚠️ **配布した時点では QEMU でしか動かしていなかった。** その後 CoreS3 で焼いて起動と辞書 OK を確認したが、
 **UART0 入力でビルドされていて native USB だけの板では `かな>` に届かない**（M-83 §1）。
-⚠️ **モデルは v0.1.1 と bit 同一**（再学習していない）。**blob はまだ v1** で、S4 以降のコアは拒む。
+⚠️ **モデルは v0.1.1 と bit 同一**（再学習していない）。~~**blob はまだ v1** で、S4 以降のコアは拒む。~~
+→ **v0.2.0 の話。[C-057](decisions.md#c-057) で訂正**: **v0.3.0 の `saanotts-jp-v3-int8.bin` は blob v2**（version フィールド = 2）。
+⚠️ **v0.2.0 以前を掴んでいる人は今も v1** なので `SAAN_ERR_VERSION` が出る。
 
 **2026-09-01、v0.2.0 の資産を 8 本 → 15 本にした**（D-045）。
 当初「モデルは v0.1.1 と bit 同一だから再配布しない」としたが、
 **`releases/latest` が v0.2.0 に移った瞬間に README のダウンロード 5 本が壊れた**（C-052）。
 `scripts/check_release_assets.py` が**README の表を読んで**在るかを CI で検査する。
 
-**CI を入れた**（[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)、4 job）。
+**CI を入れた**（[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)、**6 job**）。
 ⚠️ **新規 clone だけで通るゲートに限ってある** — 品質・速度・音は 1 つも見ていない。
 範囲と「入れていない理由」は [`.github/workflows/README.md`](../.github/workflows/README.md)。
+⚠️ **「4 job」と書いていたが、数えたら違った**（docs / golden / csrc / python / release-assets / web）。
+**job は増えるので、この数字は書いた瞬間から古くなる**（C-042 と同じ形）。
+Pages への配置は**別のワークフロー** [`pages.yml`](../.github/workflows/pages.yml)。
+⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない** ので、`pages.yml` のゲートは誰も監査しない。
 
 ⚠️ **QEMU の `xRT 0.661` は使えない数字**（サイクル精度ではない）。実機は
 **W8A32 で 4.28〜4.62**（DIO。M-83）、**W8A8+PIE で 0.446**（M-90）。
@@ -394,13 +409,14 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-048 + 訂正履歴 C-001〜C-056
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-93
+│   ├── decisions.md                       決定記録 D-001〜D-050（D-049 は欠番）+ 訂正履歴 C-001〜C-058
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-94
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/k1-kanji-implementation-plan.md  K トラックの実装計画（K-0〜K-8）
 │   ├── plan/s2-fast-kanji-m5-plan.md        **S2（T1〜T5 / 64 B 行 / M5 への漢字搭載）+ §10 に S-1 の前史**
+│   ├── plan/web-demo-plan.md                **W トラック**（GitHub Pages のデモ。W-0〜W-8 / ゲート 8 本）
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
 │       ├── k1-kanji-katakana-ondevice.md  K-1 の結論（B-0 を測り直した）
@@ -477,6 +493,12 @@ sanoTTS-jp/
 │   ├── host_stub/                         IDF API の偽ヘッダ。**デバイスには載らない**
 │   ├── TESTING.md                         **実機を持っている人向けの手順**
 │   └── README.md                          ビルドと設計判断
+├── web/                                   **W トラック: ブラウザデモ**（D-050 / M-94）
+│   ├── saan_web.c                         wasm の入口。**新規に書いた C はこれ 1 本だけ**
+│   │                                        （`csrc/` と `esp32/main/saan_kanji.c` は書き換えない）
+│   ├── build.sh                           emcc 6.0.9 で 2 レーン（W8A32 / W8A8）を焼く
+│   ├── index.html / main.js               最小 UI。⚠️ **経路判定を JS に書かない**（C 側の `saan_g2p_classify`）
+│   └── dist/                              ⚠️ **生成物。追跡しない**（CI が `web/build.sh` で作り直す）
 ├── deploy/                                リモート実行の材料（⚠️ 手順書は削除済み。D-027 の追記）
 │   ├── vastai_bootstrap.sh                setup → parity → labels → train
 │   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す

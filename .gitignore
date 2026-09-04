@@ -178,3 +178,17 @@ csrc/k6_vectors.bin
 /esp32/boards/*/build*/
 /esp32/boards/*/managed_components/
 /esp32/boards/*/dependencies.lock
+
+# --- W トラック: ブラウザデモ（D-050 / M-94）---
+# **追跡するのはソース 4 本だけ**（`web/saan_web.c` / `build.sh` / `index.html` / `main.js`）。
+# `web/dist/*.wasm` と `*.mjs` は emcc が作る生成物で、CI（`.github/workflows/pages.yml`）が
+# `bash web/build.sh` で作り直す。⚠️ **追跡すると「手元で焼いた wasm」と
+# 「CI が作った wasm」のどちらが Pages に出ているのか分からなくなる**（重みと違い再生成が 1 コマンド）。
+/web/dist/
+# 手元プレビュー用に落としてきた重み・辞書。**`/csrc/*.bin` と同じ理由で追跡しない**
+# （再生成できる / 数 MB〜13.7 MB ある）。⚠️ **モデルの重みは MIT ではない**（LICENSE-MODEL.md）。
+/web/*.bin
+/web/*.bin.gz
+# `pages.yml` と同じ手順を手元でなぞると出るディレクトリ（配置用のコピーとリリース資産）
+/_site/
+/rel/
