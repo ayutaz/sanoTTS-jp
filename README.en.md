@@ -16,7 +16,8 @@ Nothing to install. **Type Japanese text with kanji and it speaks.**
 (the arena is the same 180,224 B). It is not a replacement for piper-plus's WASM build —
 it is a way to touch the code that runs on hardware ([D-050](docs/decisions.md#d-050)).
 ⚠️ **The first load pulls a 5.5 MB dictionary** (gzip).
-⚠️ **No browser has been measured, not one** ([M-94](docs/measurements.md#m-94) §10).
+Measured in Chrome at **0.008–0.019 ×RT** ([M-95](docs/measurements.md#m-95)).
+⚠️ **Nobody has listened to it, and neither mobile nor Safari has been measured.**
 
 This applies the distillation recipe from [arXiv:2608.21378](https://arxiv.org/abs/2608.21378)
 ("sanoTTS") to Japanese, distilling [piper-plus](https://github.com/ayutaz/piper-plus)
@@ -204,7 +205,9 @@ needed, because the C side decides the route (`saan_g2p_classify()`).
   (→ [D-050](docs/decisions.md#d-050))
 - The first load pulls the **13,702,320 B dictionary (5,476,122 B with `gzip -9`)**.
   ⚠️ Expect a wait on a slow link
-- ⚠️ **No browser has been measured, not one** — the timings are from node only
+- Measured in **Chrome 152** (headless): PCM is **bit-identical to node**, and a short
+  utterance synthesizes in **9.6–23.0 ms** ([M-95](docs/measurements.md#m-95)).
+  ⚠️ **No audio was played, nobody has listened, and neither mobile nor Safari was measured**
   ([M-94](docs/measurements.md#m-94))
 - ⚠️ **Nobody has listened to it in a browser.** `AudioContext` resamples the output, so what
   you hear does **not** match the checksums

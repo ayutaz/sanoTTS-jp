@@ -14,7 +14,7 @@
 インストール不要。**漢字かな交じり文をそのまま打つと喋る**。
 ⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもので（arena も同じ 180,224 B）、
 piper-plus の WASM の置き換えではなく**実機のコードを触れる形にした入口**（[D-050](docs/decisions.md#d-050)）。
-⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。⚠️ **ブラウザでの速度は 1 種類も測っていない**（[M-94](docs/measurements.md#m-94) §10）。
+⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。速度は Chrome で **0.008〜0.019 ×RT**（[M-95](docs/measurements.md#m-95)）。⚠️ **音は誰も聴いていない / モバイルと Safari は未測定**。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
