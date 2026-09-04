@@ -24,7 +24,11 @@ name: Pages（ブラウザデモ）
 
 on:
   push:
-    branches: [main]
+    # ⚠️ **一時的にこのブランチを足してある**（マージ前に build job を 1 度走らせるため）。
+    #    `pages.yml` は本来 main でしか走らないので、**初回実行が本番**になってしまう。
+    #    ubuntu の `sha256sum` / GNU `gzip` / `upload-pages-artifact` を実際に通したいので、
+    #    マージ前に 1 度だけ回す。**回したらこの行は消すこと。**
+    branches: [main, worktree-feat+gh-pages-runtime-demo]
   workflow_dispatch:
 
 permissions:
@@ -207,6 +211,11 @@ jobs:
   deploy:
     name: デプロイ
     needs: build
+    # ⚠️ **main 以外では走らせない。** `github-pages` 環境の
+    #    deployment branch policy が `main` だけを許しているので、他のブランチから
+    #    来ると**環境のゲートで弾かれて job が失敗する**（実測: policy は `main` の 1 件）。
+    #    スキップにしておけば「build は緑・deploy は skip」と読める。
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     # ⚠️ Pages の Source が「GitHub Actions」になっていないと、ここで落ちる。
     #    それは**設定の手作業**であって、このファイルでは直せない（W-8）。
