@@ -144,9 +144,13 @@ bool saan_dict_open(jdict_t *d) {
         ESP_LOGE(TAG, "jdict_open: %d — %s", r, why);
         return false;
     }
+    /* ⚠️ **行列の形式を必ず出す。** これが無いと、辞書を差し替えたつもりで
+     *    差し替わっていない状態（= 前後で差が出ない）を**区別できない**。
+     *    実際に affine の速度を測るとき、blob 長で判別するはめになった（M-105）。 */
     ESP_LOGI(TAG, "辞書 OK: 見出し語 %" PRIu32 " / エントリ %" PRIu32
-                  " / 行列 %ux%u / blob %u B（パーティション %u B。余り %u B）",
+                  " / 行列 %ux%u（%s）/ blob %u B（パーティション %u B。余り %u B）",
              d->n_surfaces, d->n_entries, (unsigned)d->lsize, (unsigned)d->rsize,
+             d->matrix ? "生 int16" : "matrixa = 行ごとアフィン uint8",
              (unsigned)d->blob_len, (unsigned)part->size,
              (unsigned)(part->size - d->blob_len));
     return true;

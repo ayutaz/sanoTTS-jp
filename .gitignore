@@ -210,3 +210,6 @@ csrc/jdict_vectors_aff.bin
 csrc/k1_dict_8mb.bin
 csrc/matrixa_test
 esp32/build_k8/
+csrc/k1_dict_16mb_affine.bin
+esp32/build_k8r/
+esp32/build_a16/
