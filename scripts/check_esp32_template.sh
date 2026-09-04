@@ -183,7 +183,11 @@ grep -ohE '\b(i2s_[a-z0-9_]+|esp_partition_[a-z0-9_]+|esp_timer_[a-z0-9_]+|heap_
 
 # ---------------------------------------------------------------- 10
 hdr "10. 静的 arena が漢字経路の作業領域 + T10 で移す .bss を収められるか（計画 T4 のゲート）"
-# `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + 14,464`。main.c は SAAN_KANJI ビルドで同じ式を
+# `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES`。
+# ⚠️ **`T10_BSS_BYTES` は `0u`**（main.c:157）。T10 で .bss へ移す予定だった 14,464 B は
+#    結局 arena に置いたので、足すと二重計上になる。**「+ 14,464」と書いていたのは古い**
+#    — 下の陽性対照（arena 1,024 B）にリテラルが残っているだけ。
+# main.c は SAAN_KANJI ビルドで同じ式を
 # 配列の typedef（負のサイズでコンパイルが止まる）として持つ。ここではホストで
 #   (a) 数値を出して比較する（両方ともソースから取る。手で書き写さない）
 #   (b) main.c を -DSAAN_KANJI=1 で構文検査し、typedef が通ることを見る

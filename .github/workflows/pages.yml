@@ -1,14 +1,15 @@
 # W-4: ブラウザデモを GitHub Pages に配る（計画 `docs/plan/web-demo-plan.md`）
 #
-# ⚠️ **Pages はまだ有効化されていない**（API の `has_pages` が false）。
-#    **コードでは解決できない手作業が要る**（計画 W-8）:
+# ✅ **Pages は 2026-09-04 に有効化された**（`build_type: workflow` / Source = GitHub Actions）。
+#    ⚠️ **これはコードでは解決できない手作業だった**（計画 W-8）:
 #
 #        Settings → Pages → Build and deployment → Source を「GitHub Actions」にする
 #
 #    `actions/configure-pages` の `enablement: true` は**既定の GITHUB_TOKEN では効かない**
 #    （Pages の有効化には別のスコープが要る）。だからここでは configure-pages を
 #    そもそも使わない — ページ内のパスは全部相対（`./main.js` など）で、
-#    `base_url` を要らないため。**有効化されるまでこのワークフローは deploy で落ちる。**
+#    `base_url` を要らないため。
+#    ⚠️ **リポジトリを fork した人は同じ手作業をやり直す必要がある**（設定は fork に引き継がれない）。
 #
 # ⚠️ **`ci.yml` を写さないこと。** ci.yml は `cancel-in-progress: true` だが、
 #    ここは **false**。本番デプロイが後続の push で途中で切れると、
@@ -47,7 +48,7 @@ env:
 
 jobs:
   build:
-    name: ビルドとゲート（G-W1〜G-W5）
+    name: ビルドとゲート（wasm ゲート 8 本）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -144,7 +145,7 @@ jobs:
           test "$(wc -c < csrc/student_i8.bin)" -eq 654032
           test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
 
-      - name: G-W1〜G-W5（wasm の一致・SIMD の bit 一致・経路判定・fp32 拒否）
+      - name: wasm ゲート 8 本（帰属ブロック・golden 一致・ストリーミング経路・SIMD の bit 一致・経路判定・fp32 拒否・出荷バイナリの実行）
         env:
           PYTHON: uv run --no-project --python 3.12 python
         run: bash scripts/check_web_gates.sh

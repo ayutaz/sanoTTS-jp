@@ -72,7 +72,7 @@ evaluation (see [`MODEL_CARD.md`](MODEL_CARD.md)).
 | **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
 | **C** | **Make an ESP32-S3 speak** | A board (DAC optional). **Flashing alone needs no ESP-IDF** | 15–30 min |
 | **D** | **Run the code gates** | Minimal setup only | 5 min |
-| **E** | **Try it in a browser** (⚠️ **not live yet**) | A browser. **Nothing to install** | 1 min |
+| **E** | **Try it in a browser** (⚠️ **waiting on `main`**) | A browser. **Nothing to install** | 1 min |
 
 ### Minimal setup (B / D)
 
@@ -178,11 +178,12 @@ uv run --no-project python scripts/test_labelpack.py
 `csrc/*.bin` (the exported weights). Export them from the downloaded `.pt` with
 `scripts/export_c_weights.py` and it passes.
 
-### E. Try it in a browser (⚠️ **not live yet — the link does not open**)
+### E. Try it in a browser (⚠️ **not live until this lands on `main`**)
 
-**`https://ayutaz.github.io/sanoTTS-jp/`** will host the same C99 core compiled to
-WebAssembly. ⚠️ **As of 2026-09-03 GitHub Pages is not enabled on this repository, so the
-link does not open yet** (enabling it is a manual step in the settings UI).
+**`https://ayutaz.github.io/sanoTTS-jp/`** hosts the same C99 core compiled to
+WebAssembly. **GitHub Pages is enabled** (2026-09-04, Source = GitHub Actions), but
+⚠️ **[`pages.yml`](.github/workflows/pages.yml) only runs on a push to `main`**, so the link
+does not open until this feature is merged.
 
 Once it is up, it needs no install and no setup: type `今日は良い天気ですね。` into the box
 and it speaks. It takes **kanji, katakana and hiragana** directly — no marker character is

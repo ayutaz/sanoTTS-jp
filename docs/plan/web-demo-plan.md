@@ -69,15 +69,15 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 
 | # | 何 | 受け入れゲート |
 |---|---|---|
-| **W-0** | `web/saan_web.c` — arena / blob / 経路判定 / 合成 | G-W6（漢字 == かな） |
+| **W-0** | `web/saan_web.c` — arena / blob / 経路判定 / 合成 | **G-W6**（出荷バイナリを実際に走らせる） |
 | **W-1** | `web/build.sh` — emcc 6.0.9 で 2 レーン × SIMD | 2 本の `.wasm` と `.mjs` が出る |
 | **W-2** | `web/index.html` + `web/main.js` — 最小 UI | 手元プレビューで鳴る |
-| **W-3** | ライセンス表示 | LICENSE-MODEL.md:68-89 の 22 行が**一字一句**載る |
+| **W-3** | ライセンス表示 | **G-W7**（LICENSE-MODEL.md §3.1 の 22 行と一字一句一致） |
 | **W-4** | `.github/workflows/pages.yml` | Actions が緑・成果物ができる |
-| **W-5** | `scripts/check_web_gates.sh` — G-W1〜G-W6 | 陽性対照が落ちる |
+| **W-5** | `scripts/check_web_gates.sh` — **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7** | 陽性対照が落ちる |
 | **W-6** | `ci.yml` に web job と **int8 レーン**を追加 | C-057 とセット |
 | **W-7** | ドキュメント（D-050 / M-94 / C-057 / README / CLAUDE.md） | `check_doc_counters.py` / `check_doc_links.py` |
-| **W-8** | Pages の有効化 | ⚠️ **手作業。コードでは解決できない** |
+| ~~**W-8**~~ | ~~Pages の有効化~~ → ✅ **2026-09-04 に有効化された** | ⚠️ **手作業だった**（`configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ URL が開くのは **`main` にマージされてから**（`pages.yml` は push: main だけ） |
 
 ---
 
@@ -85,23 +85,41 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 
 ### CI で回せる（リリースの資産だけで足りる）
 
+実装は `scripts/check_web_gates.sh`（節番号はスクリプトの `hdr` と同じ）。
+
 | | 何を見るか | 陽性対照 |
 |---|---|---|
-| **G-W1** | wasm(fp32) が `golden-v3-fp32.bin` と一致 | 重みを壊すと落ちる |
+| **G-W7** | `web/index.html` の帰属ブロックが `LICENSE-MODEL.md` §3.1 と**一字一句一致** | 1 行消すと落ちる。⚠️ **行番号で切らない**（§3.1 の上に 1 行入ると黙ってずれる） |
+| **G-W1** | wasm(fp32) が `golden-v3-fp32.bin` と一致 | 重みの真ん中 64 KB を塗ると落ちる |
 | **G-W2** | wasm(int8 / W8A32) が `golden-v3-int8.bin` と一致 | 同上 |
+| **G-W2b** | **ブラウザが通るストリーミング経路**が一括版と bit 一致（`stream_test` を 3 レーン） | — |
 | **G-W3** | `-msimd128` の有無で PCM が **bit 一致** | 1 サンプルずらすと落ちる |
 | **G-W4** | 経路判定（`saan_g2p_classify`）が凍結ベクタと一致 | 手書き文字集合版が落ちる |
-| **G-W5** | fp32 blob を W8A8 レーンに渡すと**拒否される** | 拒否が無いと落ちる |
+| **G-W5** | fp32 blob を W8A8 レーンに渡すと**拒否される** | 検査を外すと黙って通る |
+| **G-W6** | **`web/saan_web.c` を実際にビルドし、出荷する `web/dist/*.mjs` を叩く** | `#error` / `saan_pcm_reset()` を消すと落ちる |
 
-⚠️ **G-W1 の陽性対照を `ci.yml:80` からコピペしない。**
-`dd seek=1200000` は 654,032 B の blob ではファイルを伸ばすだけで **PASS してしまう**。
+⚠️ **G-W1 の陽性対照を `ci.yml` の旧版からコピペしない。**
+`dd seek=1200000` は 654,032 B の blob では**ファイルを伸ばすだけで PASS する**。
+1 バイト・4 バイトの書き換えも、blob v2 の 0 埋めに当たると PASS する（実測）。
+だから**真ん中 64 KB を塗り、サイズが変わっていないことも見る**。
+
+⚠️ **G-W2b が要る理由**: `golden_test.c` は**一括版** `saan_synthesize` を呼ぶ。
+`web/saan_web.c` は `saan_stream_init` / `saan_stream_pull` を使う。
+G-W1/G-W2 が緑でも、**ブラウザが通る経路は 1 行も検査されていなかった**。
+
+⚠️ **G-W6 が要る理由**: これを入れるまで `web/saan_web.c` は
+**どのゲートでも 1 度もコンパイルされていなかった**（`#error` を入れても exit 0）。
+出荷バイナリを `instantiateWasm` で読むので、node 向けに組み直した「別のもの」ではない。
 
 ### CI で回せない（理由を残す）
 
 | | なぜ |
 |---|---|
-| **G-W6** 漢字経路の一致（K-7 G25） | `kanji_e2e_vectors.bin` 19 MB が git にもリリースにも無い |
+| **G-W6 の「漢字 == かな」と「ids 350 超えの拒否」** | 辞書 13.7 MB が CI に無い。⚠️ **skip せず「回せなかった」と理由つきで出る** |
+| **G-W2b の多文レーン** | `ids_heldout.bin` がコーパス由来。CI で回るのは golden の 1 文だけ |
+| 漢字経路の**全段一致**（K-7 の G25 相当） | `kanji_e2e_vectors.bin` 19 MB が git にもリリースにも無い。⚠️ **番号は振っていない**（未実装） |
 | held-out 24 文の SNR | `ids_heldout.bin` がコーパス由来 |
+| **`web/main.js`** | どのゲートも 1 行も走らせていない。⚠️ **`saan_web_message()` の表示を消しても全ゲートは緑** |
 | **ブラウザでの実測** | ⚠️ **ブラウザは 1 種類も測っていない。node の値はブラウザの値ではない**（C-055） |
 | **聴取** | ⚠️ **ブラウザの音は誰も聴いていない** |
 
@@ -139,7 +157,19 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 15. **`upload-pages-artifact` はドット始まりを全部除外し、シンボリックリンクを許さない。**
 16. **`python3 -m http.server` は hook が deny する。** `uv run python -m http.server` を使う。
 17. **`check_ci_coverage.py` は `ci.yml` しか読まない。** `pages.yml` に書いたゲートは誰も監査しない。
-    しかも **ci.yml のコメントに書いただけで「CI で回っている」判定になる**。
+    しかも **ci.yml のコメントに書いただけで「CI で回っている」判定になっていた**
+    （2026-09-04 に `strip_comments()` で塞いだ）。
+18. ⚠️ **辞書経路は「入力から音素が 1 つも作れなかった」を自分では言わない。**
+    `saan_kanji_to_ids()` は `SAAN_KANJI_OK` を返し、`n_ids` が `{^,_,$}` の 3 個になる。
+    そのまま合成すると **0.116 秒の無音**（`|max|` は正常発話の約 1/60 = −36 dB）が出て、
+    **rc も 0・メッセージも空**。`Hello` `test` `2026` `。` が全部これ。
+    → `n_ids <= 3` を見て**呼び出し側が警告を出す**（`web/saan_web.c`）。
+    ⚠️ かな経路の `n_dropped_long` / `n_dropped_devoice` と同じ規約に揃えること。
+19. ⚠️ **入力に NUL が混じると `nbytes` と `strlen` で判定が割れる。**
+    下流の `question_type()`（`csrc/label_ids.c`）が `strlen` を見るので、
+    凍結 ABI の `(ptr, nbytes)` をそのまま渡すと EOS が `?.` と `?` に分かれ、
+    **サンプル数が変わる**（実測 25,600 / 22,784）。NUL 終端が無ければ**後続ヒープを読む**。
+    → NUL を検出したら拒否し、**必ず NUL 終端した写しを下流へ渡す**。
 
 ---
 
@@ -156,7 +186,9 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 ⚠️ 番号を足したら `docs/README.md:21,22,397,398` / `CONTRIBUTING.md:47,164` /
 `.claude/skills/recording-measurements/SKILL.md:12` を直す。
 ⚠️ 見出しの直前に `<a id="m-94"></a>` を置く（どのゲートも見ていない）。
-⚠️ **「CI は 4 job」は既に嘘**（実際は 5）。`CLAUDE.md:564` / `docs/README.md:292` も直す。
+⚠️ **「CI は 4 job」は既に嘘だった**（W トラック着手時点で 5、web job を足して **6**）。
+`CLAUDE.md` / `docs/README.md` / `.github/workflows/README.md` の 3 か所とも **6 job に直した**。
+⚠️ **この数を検査するゲートは無い**ので、job を増減したら手で直すこと。
 
 ---
 
