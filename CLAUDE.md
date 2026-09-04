@@ -661,7 +661,7 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 GitHub Pages で「漢字文を打つと喋る」デモを配る（[`docs/plan/web-demo-plan.md`](docs/plan/web-demo-plan.md)）。
 **成果物は今も ESP32 の 567 K で、Web は触れる入口**でしかない
 （piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 180,224 B）。
-実測は M-94。⚠️ **ブラウザでは 1 種類も測っていない**（node だけ）／ **ブラウザの音は誰も聴いていない**。
+実測は M-94（node）と **M-95（Chrome 152）**。**ブラウザで PCM が node と bit 一致**し、短文が **0.008〜0.019 ×RT** で合成できた。⚠️ **音は出していない / 人は聴いていない / モバイルと Safari は未測定**。
 ⚠️ 上流も WASM デモを配っているが、**D-032（GPL ソースを読まない）は維持**する。
 
 したがって:

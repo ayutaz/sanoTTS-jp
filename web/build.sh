@@ -119,4 +119,5 @@ for f in "$OUT"/saan_web_w8a32.mjs "$OUT"/saan_web_w8a32.wasm \
     printf '%12d  %s\n' "$(wc -c < "$f")" "${f#"$ROOT"/}"
 done
 echo
-echo "⚠️ ブラウザでは 1 種類も測っていない。node の値はブラウザの値ではない（C-055）。"
+echo "⚠️ node の値はブラウザの値ではない（C-055）。ブラウザの実測は M-95（Chrome 152）。"
+echo "⚠️ 音は誰も聴いていない / モバイルと Safari は未測定。"
