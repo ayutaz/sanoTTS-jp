@@ -128,14 +128,27 @@ bool saan_dict_open(jdict_t *d) {
         ESP_LOGE(TAG, "辞書が 16 バイト境界に無い (ptr=%p)", ptr);
         return false;
     }
+    /* ⚠️ **渡しているのはパーティション長であって blob 長ではない。**
+     *    dict パーティション 13,828,096 B に対し実 blob は 13,702,320 B で、
+     *    境界検査が 125,776 B ゆるい。jdict_open は**セクション表から実 extent を
+     *    復元して d->blob_len に入れる**ので（M-100）、以後はそちらが効く。 */
     int r = jdict_open(d, (const uint8_t *)ptr, part->size);
     if (r != 0) {
-        ESP_LOGE(TAG, "jdict_open: %d（辞書 blob を焼いていないか、別物を焼いた）", r);
+        /* ⚠️ **エラーごとに言い分けないと切り分けられない。** 以前は 1 行だった。 */
+        const char *why =
+            (r == JDICT_ERR_MAGIC)   ? "先頭が K1D1 でない（焼いていない / 別物）" :
+            (r == JDICT_ERR_VERSION) ? "blob の版がこのファームに合わない（辞書を焼き直すこと）" :
+            (r == JDICT_ERR_MATRIX)  ? "接続行列が無い / 長さが合わない（辞書が壊れている）" :
+            (r == JDICT_ERR_SECTAB)  ? "セクション表が壊れている（焼き損ね）" :
+                                       "必須セクションが無い";
+        ESP_LOGE(TAG, "jdict_open: %d — %s", r, why);
         return false;
     }
     ESP_LOGI(TAG, "辞書 OK: 見出し語 %" PRIu32 " / エントリ %" PRIu32
-                  " / 行列 %ux%u",
-             d->n_surfaces, d->n_entries, (unsigned)d->lsize, (unsigned)d->rsize);
+                  " / 行列 %ux%u / blob %u B（パーティション %u B。余り %u B）",
+             d->n_surfaces, d->n_entries, (unsigned)d->lsize, (unsigned)d->rsize,
+             (unsigned)d->blob_len, (unsigned)part->size,
+             (unsigned)(part->size - d->blob_len));
     return true;
 }
 

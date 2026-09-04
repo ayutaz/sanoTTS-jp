@@ -85,6 +85,8 @@ __pycache__/
 /csrc/dump_pcm_a8
 /csrc/int8_e2e_test_a8
 /csrc/prof_test
+/csrc/jdict_hard_test
+/csrc/jdict_hard_test_weak
 /csrc/erf_test
 /csrc/erf_test_linear
 /csrc/erf_test_clamp
@@ -168,6 +170,7 @@ csrc/label_ids_ext.txt
 esp32/build_kanji/
 esp32/build_nokanji/
 csrc/k1_dict.bin
+csrc/*.bin.manifest.json
 csrc/k6_vectors.bin
 
 # K-8 の聴取セット（コーパス由来の音声。**生成物は配布しない**方針に合わせて追跡しない）
@@ -192,3 +195,11 @@ csrc/k6_vectors.bin
 # `pages.yml` と同じ手順を手元でなぞると出るディレクトリ（配置用のコピーとリリース資産）
 /_site/
 /rel/
+/csrc/jdict_hard_test_asan
+/csrc/jdict_hard_test_asan_weak
+/csrc/jdict_asan.log
+/csrc/jdict_asan_weak.log
+/csrc/*.dSYM/
+/csrc/oj_worst_texts.txt
+/csrc/oj_worst.bin
+/csrc/label_ids_test_ext

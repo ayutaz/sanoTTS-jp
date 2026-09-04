@@ -135,7 +135,8 @@ needed for kanji→kana.
 
 ⚠️ **The device (`-DSAAN_KANJI=1`) has no such constraint** — a board with the dictionary
 takes kanji as it comes. OpenJTalk is needed on the host because the host uses the **full**
-dictionary, which differs from the device's pruned one by 0.32% of phonemes.
+dictionary, which differs from the device's pruned one by **0.63% of phonemes**
+(n=1,495; M-96 §4). ⚠️ **Always state n** — the same quantity reads as 0.32% at n=298 (C-057).
 
 ⚠️ **The model weights are not MIT.** Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) first.
 

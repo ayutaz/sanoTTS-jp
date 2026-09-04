@@ -10,6 +10,8 @@
   G3 common-prefix-search が総当りと一致（ヒット数を併記）
   G4 実際にヒットした経路上のラベルを壊すと G3 が落ちる
   G5 チェックポイント復元 == materialise
+  G6 `--out` を指定したとき、`<out>.manifest.json` を書き、
+     `scripts/check_dict_blob.py` で読み直して照合する（陽性対照 5 件つき）
 
 ⚠️ **最初に G0-2（辞書の同一性）を通す。** このマシンには sys.dic が
 3 リビジョン同居していて、取り違えると測定が別物になる（C-045 / D-042）。
@@ -26,8 +28,12 @@ from collections import Counter, defaultdict
 
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+sys.path.insert(0, str(HERE.parent))          # scripts/check_dict_blob.py
 sys.path.insert(0, str(HERE.parent.parent / "src"))
 
+from check_dict_blob import (build_manifest, manifest_path_for,  # noqa: E402
+                             write_manifest)
+from check_dict_blob import main as check_blob_main    # noqa: E402
 from dump_entries_lib import load_entries          # noqa: E402
 from k1_paths import HELDOUT, TARGET_ENTRIES, TRAIN   # noqa: E402
 from saanotts_jp.jdict import (CharProperty, ConnMatrix,  # noqa: E402
@@ -228,6 +234,29 @@ def main() -> int:
     if a.out:
         pathlib.Path(a.out).write_bytes(body)
         print(f"\n書き出した → {a.out} ({len(body):,d} B)")
+
+        # --- G6: manifest を横に書く ---------------------------------------
+        # ⚠️ **blob 自身は「どの辞書から / どの動作点で作られたか」を持たない。**
+        #    manifest が無いと、別物を焼いても例外は出ず「動くが読みが違う」だけになる。
+        #    照合は `uv run python scripts/check_dict_blob.py <blob>`。
+        mp = manifest_path_for(a.out)
+        man = build_manifest(
+            body, blob_name=pathlib.Path(a.out).name, provenance="build",
+            build={
+                "target_entries": a.entries,
+                "argv": sys.argv[1:],
+                "dict_dir": str(dic),
+                "skip_verify_dict": bool(a.skip_verify_dict),
+                "source_entries_read": len(raw),
+            })
+        write_manifest(man, mp)
+        print(f"manifest    → {mp}")
+
+        # 書いた対を、その場で読み直して照合する（陽性対照つき）。
+        # ⚠️ ここで落ちたら blob と manifest の**どちらか**が壊れている。
+        print()
+        rc = check_blob_main([str(a.out), "--manifest", str(mp)])
+        check("G6 manifest 照合（書いた直後に読み直す）", rc == 0)
 
     print()
     if FAILED:

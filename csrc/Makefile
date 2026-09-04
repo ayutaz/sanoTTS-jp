@@ -85,6 +85,11 @@ fft_test: fft_test.c fft.c fft.h
 int8_test: int8_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ int8_test.c $(CORE) $(LDLIBS)
 
+# ⚠️ **`CFLAGS_EXTRA` はターゲットの同一性に入らない。**
+#    `make int8_e2e_test CFLAGS_EXTRA=-DSAAN_INT8_ACT=1`（M-55 の再現）で建てた W8A8 版が
+#    そのまま残り、次の `make int8-e2e` が**作り直さずに再利用する**。
+#    結果、W8A32 のゲートが W8A8 を測って **28.11 → 24.23 dB で落ちる**（M-102 で実測）。
+#    ⚠️ **フラグを変えて建てたら `rm -f int8_e2e_test` してから戻すこと。**
 int8_e2e_test: int8_e2e_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ int8_e2e_test.c $(CORE) $(LDLIBS)
 
@@ -143,7 +148,7 @@ kb-parity: route_tool
 
 # 自己完結ベクタ。mora テーブルだけから機械生成するので**コーパス本文を含まない**。
 # ⚠️ `/csrc/*.bin` は .gitignore 済み。クリーン clone では毎回生成する
-g2p_vectors.bin:
+g2p_vectors.bin: ../scripts/gen_g2p_vectors.py ../scripts/kana_g2p.py
 	cd .. && $(PYTHON) scripts/gen_g2p_vectors.py --closed \
 	    --out csrc/g2p_vectors.bin --manifest csrc/g2p_vectors.json
 
@@ -155,7 +160,7 @@ g2p_vectors_corpus.bin:
 	cd .. && $(PYTHON) scripts/gen_g2p_vectors.py --closed --corpus \
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
-.PHONY: test golden stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus \
+.PHONY: test golden stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus jdict-hard \
         line range all-test clean
 # ⚠️ **`golden` は `test` の別名。** README / リリースノート v0.2.0 / .github/workflows/README.md が
 #    `make -C csrc golden` と書いているのに、そのターゲットが**存在しなかった**
@@ -201,6 +206,41 @@ arena: arena_stress
 
 range: range_test
 	./range_test
+
+# ---------------------------------------------------------------- M-100
+# jdict_open の入力検査。**辞書ファイルが要らない**ので all-test と CI に入る。
+# ⚠️ **陽性対照は別バイナリ**（erf / range と同じ作法）。`-DJDICT_TEST_WEAK=1` で
+#    検査を外したコアを建て、**同じ壊れた blob を通してしまう**ことを示す。
+#    これが無いと「全部拒んだ」は「そもそも blob が組めていない」と区別できない。
+jdict_hard_test: jdict_hard_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ jdict_hard_test.c jdict.c $(LDLIBS)
+
+jdict_hard_test_weak: jdict_hard_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DJDICT_TEST_WEAK=1 -o $@ jdict_hard_test.c jdict.c $(LDLIBS)
+
+# ⚠️ **ASan も建てる。** 「宣言長を見る前にヘッダを読む」越境は返り値に出ないので、
+#    返り値の検査だけでは捕まらない（レビューで実際に見つかった）。
+#    **陽性対照は「検査を外すと ASan が鳴る」こと** — 強い版で 0 件、weak で 2 件。
+jdict_hard_test_asan: jdict_hard_test.c jdict.c jdict.h
+	$(CC) -std=gnu17 -O1 -g -fsanitize=address -I. -o $@ jdict_hard_test.c jdict.c $(LDLIBS)
+
+jdict_hard_test_asan_weak: jdict_hard_test.c jdict.c jdict.h
+	$(CC) -std=gnu17 -O1 -g -fsanitize=address -DJDICT_TEST_WEAK=1 -I. -o $@ jdict_hard_test.c jdict.c $(LDLIBS)
+
+jdict-hard: jdict_hard_test jdict_hard_test_weak jdict_hard_test_asan jdict_hard_test_asan_weak
+	./jdict_hard_test
+	@echo ""
+	./jdict_hard_test_weak
+	@echo ""
+	@echo "=== G-H4: 範囲外読み（ASan）==="
+	@./jdict_hard_test_asan > jdict_asan.log 2>&1; \
+	 n=$$(grep -c heap-buffer-overflow jdict_asan.log || true); \
+	 if [ "$$n" = "0" ]; then echo "  OK  検査ありは越境 0 件"; \
+	 else echo "  NG  越境 $$n 件"; grep -m2 '#0 ' jdict_asan.log; exit 1; fi
+	@./jdict_hard_test_asan_weak > jdict_asan_weak.log 2>&1; \
+	 n=$$(grep -c heap-buffer-overflow jdict_asan_weak.log || true); \
+	 if [ "$$n" != "0" ]; then echo "  OK  陽性対照: 検査を外すと越境 $$n 件（$$(grep -m1 -o 'jdict.c:[0-9]*' jdict_asan_weak.log)）"; \
+	 else echo "  NG  陽性対照が鳴らない（ASan が効いていないか、壊し方が越境を作れていない）"; exit 1; fi
 
 # G-1: W8A8 のパディング部のゼロ埋め（**陽性対照つき**）。
 # ⚠️ 4 通りのビルドを比べる検査なので、単一バイナリでは書けない。
@@ -282,20 +322,26 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress jdict_test accent_test \
 	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
+	      jdict_hard_test jdict_hard_test_weak jdict_hard_test_asan jdict_hard_test_asan_weak jdict_asan*.log \
 	      g2p_test line_test route_tool njd_rules_test njd_rules_stderr.log oj_heap_test oj_heap_stderr.log kanji_e2e_test kanji_e2e_stderr.log label_ids_test label_ids_stderr.log \
-	      oj_labels*.txt oj_heap_ctrl oj_worst.bin *.o openjtalk/*.o
-	rm -rf oj_heap_ctrl_src
+	      oj_labels*.txt oj_heap_ctrl oj_worst.bin oj_worst_texts.txt *.o openjtalk/*.o
+	rm -f *vectors*.bin
+	rm -rf oj_heap_ctrl_src *.dSYM
 
 
 # ---------------------------------------------------------------- K-2
 # 辞書リーダ + Viterbi。参照は MeCab そのもの（未知語を含む文は除く = K-3）。
 # ベクタは大きい（blob 込みで数 MB）ので **生成物**。リポジトリには入れない。
-jdict_vectors.bin:
+# ⚠️ **依存を書く。** かつては前提が 1 つも無く、生成器や blob 形式を直しても
+#    `make jdict` が**古い blob を測って通った**（M-100 §4。`.k1work/` に version 1 の
+#    ベクタが実在し、現行リーダがそのまま 1977/1977 OK を出していた）。
+jdict_vectors.bin: ../scripts/k1/k2_gen_vectors.py ../scripts/k1/k9_fit_8mb.py \
+                   ../src/saanotts_jp/jdict.py
 	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --out $@
 
 jdict_test: jdict_test.c jdict.c jdict.h
@@ -305,7 +351,7 @@ jdict_test: jdict_test.c jdict.c jdict.h
 jdict: jdict_test jdict_vectors.bin
 	./jdict_test jdict_vectors.bin
 
-accent_vectors.bin:
+accent_vectors.bin: ../scripts/k1/k4_gen_vectors.py
 	$(PYTHON) ../scripts/k1/k4_gen_vectors.py --out $@
 
 accent_test: accent_test.c accent.c accent.h
@@ -323,7 +369,7 @@ accent: accent_test accent_vectors.bin
 # ⚠️ **k2 / k4 と同じく all-test には入れない**（ベクタ生成に pyopenjtalk が要る）。
 OJT_SRC := $(wildcard openjtalk/*.c)
 
-njd_rules_vectors.bin:
+njd_rules_vectors.bin: ../scripts/k1/k4b_gen_vectors.py
 	$(PYTHON) ../scripts/k1/k4b_gen_vectors.py --out $@
 
 njd_rules_test: njd_rules_test.c njd_rules.c njd_rules.h $(OJT_SRC)
@@ -364,6 +410,17 @@ oj_heap_test: oj_heap_test.c oj_heap_probe.c oj_heap_probe.h njd_rules.c njd_rul
 #    残っていたのは**陽性対照 `oj_heap_ctrl` も G22/G24 も無い弱い版**だった。
 #    ⚠️ 二重定義は「直したつもりで死んだ recipe を直す」事故になる。
 # ホストのラベル（basis）。**経路は oj_heap_test と同じ** = make_label(run_njd_from_mecab)
+# ⚠️ **かつて生成規則が無かった**（M-100 §14）。`clean` は消すのに作り直せず、
+#    **M-71 の再現コマンド `make -C csrc oj-heap` が clean な checkout から必ず失敗する**
+#    状態だった（C-040 と同じ形）。復元が正しいかは、G22 のヒープ最大が
+#    **M-71 の 97,325 B** を再現するかで判定する。
+# ⚠️ oj_worst_texts.txt は**コーパス本文**なので git に入れない（.gitignore）。
+oj_worst_texts.txt: ../scripts/k1/oj_worst_texts.py
+	$(PYTHON) ../scripts/k1/oj_worst_texts.py --out $@
+
+oj_worst.bin: oj_worst_texts.txt ../scripts/k1/k4b_gen_vectors.py
+	$(PYTHON) ../scripts/k1/k4b_gen_vectors.py --only-texts oj_worst_texts.txt --out $@
+
 oj_labels_host.txt: njd_rules_vectors.bin
 	cd .. && $(PYTHON) scripts/k1/k5_gen_labels.py \
 	    --vectors csrc/njd_rules_vectors.bin --out csrc/oj_labels_host.txt
@@ -411,7 +468,8 @@ oj-heap: oj_heap_test oj_heap_ctrl njd_rules_vectors.bin oj_worst.bin oj_labels_
 #    辞書の枝刈りの代償は**測って出すだけで、閾値は置かない** —
 #    D-043 の 0.60% は同形異音語 14 文から出た数で、枝刈りの話ではない（C-050）。
 # ⚠️ k2 / k4 / k4b と同じく all-test には入れない（辞書と pyopenjtalk が要る）。
-kanji_e2e_vectors.bin:
+# ⚠️ **依存を書く**（M-100 §4）。blob 形式や生成器を直しても古いベクタを測って通っていた。
+kanji_e2e_vectors.bin: ../scripts/k1/k6_gen_vectors.py ../src/saanotts_jp/jdict.py
 	cd .. && $(PYTHON) scripts/k1/k6_gen_vectors.py --out csrc/kanji_e2e_vectors.bin
 
 kanji_e2e_test: kanji_e2e_test.c jdict.c accent.c njd_rules.c $(OJT_SRC)

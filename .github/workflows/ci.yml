@@ -167,6 +167,13 @@ jobs:
       - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
         run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
 
+      # ⚠️ **K トラックで唯一 CI に載るゲート。** 辞書も pyopenjtalk も要らず、
+      #    合成 blob だけで jdict_open の入力検査を叩く（M-97）。
+      #    陽性対照（-DJDICT_TEST_WEAK=1 の別バイナリ）が同じ壊れた blob を
+      #    **通してしまう**ことまで見るので、空虚には通らない。
+      - name: 辞書 blob の入力検査（jdict_open・陽性対照つき。辞書不要）
+        run: make -C csrc jdict-hard
+
   # -------------------------------------------------------------------- Python
   # ⚠️ torch は **CPU ビルドを明示する**。既定だと Linux で CUDA 版（数 GB）を引く。
   python:

@@ -126,7 +126,8 @@ uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
 
 ⚠️ **端末（`-DSAAN_KANJI=1`）はこの制約を受けない。** 辞書を載せた板は漢字文を
 そのまま受ける。ホストで OpenJTalk が要るのは、**端末より広いフル辞書**を使うため
-（端末の枝刈り辞書とは音素の 0.32% が違う）。
+（端末の枝刈り辞書とは**音素の 0.63% が違う**。n=1,495。M-96 §4）。
+⚠️ **n を必ず添えること。** 同じ量が n=298 では 0.32% に見える（C-057）。
 
 ⚠️ **モデルの重みは MIT ではない。** 使う前に [`LICENSE-MODEL.md`](LICENSE-MODEL.md) を読むこと。
 

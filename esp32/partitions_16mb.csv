@@ -1,5 +1,7 @@
 # saanoTTS-jp / 漢字対応版のパーティション表（**16 MB flash 前提** = N16R8）
 #
+# flash: 16MB   ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+#
 # ⚠️ **8 MB の partitions.csv では辞書が入らない。** K-1 の blob は
 #    370,863 entries で 12,153,280 B ある（接続行列 3.79 MB 込み）。
 #
