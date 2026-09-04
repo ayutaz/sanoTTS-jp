@@ -53,17 +53,30 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: emscripten-core/setup-emsdk@v16
-        with:
-          version: ${{ env.EMSDK_VERSION }}
-
       # `check_web_gates.sh` が `csrc/g2p_vectors.bin` を生成するのに使う
       # （凍結テーブル `csrc/g2p_table.json` から作るので stdlib だけで走る）
       - uses: astral-sh/setup-uv@v5
         with: { enable-cache: true }
 
+      # ⚠️ **`ci.yml` の web job と同じ入れ方にしてある。**
+      #    かつて `emscripten-core/setup-emsdk@v16` + `version: ${{ env.EMSDK_VERSION }}` を
+      #    使っていたが、**この経路は 1 度も実行されていなかった**。
+      #    `pages.yml` は `push: main` でしか走らないので、**初回実行が本番**になる。
+      #    ci.yml 側の `git clone` + `emsdk install` は**この リポジトリの CI で実際に通っている**ので、
+      #    確かめようのない経路を本番に置くより、通っている方に揃える。
+      # ⚠️ **`latest` にしない。** 版が変わると M-94 に記録した数値が再現しない。
+      - name: emcc 6.0.9 を入れる（⚠️ latest にしない）
+        run: |
+          git clone --depth 1 https://github.com/emscripten-core/emsdk.git "$HOME/emsdk"
+          "$HOME/emsdk/emsdk" install "$EMSDK_VERSION"
+          "$HOME/emsdk/emsdk" activate "$EMSDK_VERSION"
+
+      # ⚠️ **版を必ずログに残す。** 「6.0.9 のつもりで別の版だった」は
+      #    ログを見ない限り気づけない形で通る（スクリプトも警告は出すが落ちはしない）。
       - name: emcc / node の版を記録に残す
         run: |
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
           emcc --version | head -1
           node --version
 
@@ -148,11 +161,21 @@ jobs:
       - name: wasm ゲート 8 本（帰属ブロック・golden 一致・ストリーミング経路・SIMD の bit 一致・経路判定・fp32 拒否・出荷バイナリの実行）
         env:
           PYTHON: uv run --no-project --python 3.12 python
-        run: bash scripts/check_web_gates.sh
+        run: |
+          # ⚠️ **`set -u` を emsdk_env.sh より前に立てない。** 未定義の環境変数を触るので
+          #    「PATH は通ったのに step が落ちる」形になる（Actions は既定で `bash -e`）
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          bash scripts/check_web_gates.sh
 
       # ------------------------------------------------------------- ビルド
+      # ⚠️ 上のゲート（G-W6）も中で build.sh を回すが、**わざと重ねてある**。
+      #    独立した step にしておくと、ビルドが壊れたのか実行が壊れたのかが 1 目で分かる。
       - name: wasm を作る（W8A32 / W8A8 の 2 レーン）
-        run: bash web/build.sh
+        run: |
+          . "$HOME/emsdk/emsdk_env.sh"
+          set -u
+          bash web/build.sh
 
       # ⚠️ **`upload-pages-artifact` はドット始まりを全部除外し、シンボリックリンクを
       #    許さない。** `ln -s` を使わず実体をコピーする。`.nojekyll` は置いても
