@@ -20,7 +20,7 @@
 > | RTF | **満チャンク 1 pull で 0.446**（W8A8+PIE）。要件 ≤ 0.5 を満たす。⚠️ 発話全体では 0.541〜0.712 で未達（分母は未決 = D-049） |
 > | 品質 | SCOREQ 教師比 **0.6444**（目標 0.55）/ DNSMOS OVRL 教師比 0.7969 / アクセント符号一致 37/37（[M-61](../measurements.md#m-61) / M-59） |
 > | G2P（§3.1 の最大の障壁） | **かな中間表現なら端末側 877 B**。さらに **漢字も端末で扱える**（辞書 13.7 MB を mmap。`b0-g2p-footprint.md` の結論は [`k1-kanji-katakana-ondevice.md`](k1-kanji-katakana-ondevice.md) で覆った） |
-> | 残っていること | **聴取（G32）だけ。音は誰も聴いていない。** |
+> | 残っていること | **対照つきの聴取（G32）だけ。** ⚠️ ざっとした聴取は済んでいる（[M-91](../measurements.md#m-91) / [M-93](../measurements.md#m-93) = 実機 / [M-96](../measurements.md#m-96) = ブラウザ。どれも**1 名・対照なし・盲検なし**）。残るのは `reports/k8_listen/` の 12 組と `reports/d4_accent/` |
 
 ---
 
@@ -577,7 +577,7 @@ piper-plus の日本語は **duration predictor に OpenJTalk full-context label
 
 | リスク | 深刻度 | 内容 / 対応 |
 |---|---|---|
-| **教師コーパスのライセンス** | **本プロジェクトでは非ブロッカー** | 検証目的・生成物を配布しないため着手を止めない（2026-08-26 ユーザー判断）。**公開する段になったら要再確認**: `data-sources.yml` によると つくよみちゃんコーパスは `CC-BY-4.0 / verified: false`（規約は [tyc.rei-yumesaki.net/about/terms/](https://tyc.rei-yumesaki.net/about/terms/)）、MOE-Speech (20 speakers) は `CC-BY-SA-4.0 / verified: false` で、**CC-BY-SA は蒸留物への継承の議論がある** |
+| **教師コーパスのライセンス** | **本プロジェクトでは非ブロッカー** | 検証目的・生成物を配布しないため着手を止めない（2026-08-26 ユーザー判断 = [D-006](../decisions.md#d-006)）。⚠️ **この前提は既に古い。** 「公開する段になったら要再確認」は **[D-035](../decisions.md#d-035) で実際に行われ**、方針は「配布する」に変わった（[D-039](../decisions.md#d-039) で重みを `LicenseRef-sanoTTS-jp-Model-1.0` に）。当時の懸案（つくよみちゃん `CC-BY-4.0 / verified: false`、MOE-Speech `CC-BY-SA-4.0 / verified: false`、**CC-BY-SA の継承**）は一次ソースで調べ直して解消している（C-029〜031） |
 | ~~**日本語 G2P が MCU に載らない**~~ | **解消済み** | 辞書枝刈りは 40 MiB 必要で不成立だったが、入力を「ひらがな + アクセント記号 + 無声化マーク」に変更して**端末側 877 B** で解決した（D-009 〜 D-011、`scripts/kana_g2p.py`） |
 | ~~ESP32 のメモリ~~ | **解消済み** | 実機で測った: arena は**静的確保 180,224 B / used 157,360 B**、起動直後の内部 DRAM の空き **132,039 B**（[M-89](../measurements.md#m-89) / [M-90](../measurements.md#m-90)）。⚠️ 当時の見積り「約 96 KB」（M-16）より大きいのは、ストリーミングの窓と int8 の作業領域を含むため |
 | 参照実装をコードとして使えない | 中 | ⚠️ **当初「404」と書いたのは綴り間違い（C-024）。公式実装は実在するが GPL-3.0 で、MIT の本リポジトリには取り込めない。**論文の数値からの clean-room 再実装になる。`λ₂, λ_n, λ_Δ, λ_s` など**論文に書かれていないハイパーパラメータがある** |
