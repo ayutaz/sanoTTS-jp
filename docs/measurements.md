@@ -7417,3 +7417,587 @@ M-94 §2）。⚠️ **SNR が低いことと、耳で聞いて悪いことは�
 - ⚠️ **実機の G32（対照つきの聴取）は別物で、まだ残っている** —
   `reports/k8_listen/` の 12 組（枝刈りの誤読）と `reports/d4_accent/`（アクセントの過剰強調
   `magnitude_ratio` 1.193）。**あれは「気づけるか」を測るもので、ここで代替できない**
+
+---
+
+<a id="m-105"></a>
+## M-105. **Dependabot アラート 5 件への対応を実測で決めた** — transformers 4.57.6 → 5.16.1 で教師の `yT`/`zT`/`dT` の sha256 が動かない / 脆弱 API の発火 **0 / 10**（陽性対照つき）/ nltk は修正版のリリースが無い（**自己実測とワークフロー報告値の混在。項目ごとに明示した** / M4 Max）
+
+決定は [D-053](decisions.md#d-053)。`uv.lock` 由来のアラート 5 件（transformers 4 件 / nltk 1 件。
+すべて open・すべて `manifest_path = "uv.lock"` / `scope = runtime`）。
+
+⚠️ **どこが自己実測か**: 「後」（transformers 5.16.1）の状態は §1 / §3 / §4 / §5 / §6 のコマンドを
+**この節を書いた側が実際に打って観測した**（各節に出力を貼ってある）。
+**「前」（transformers 4.57.6）の列・yank の確認・nltk の上流 develop の状態・
+`.github/dependabot.yml` の構造検査は前段のワークフロー報告値で、私は再検証していない。**
+その行には「前段の調査」「前段の測定」と明記した。
+
+⚠️ **番号について**: この節は当初 M-104 として書かれたが、**M-97〜M-104 は PR #14 が使用中**
+（`gh api /repos/ayutaz/sanoTTS-jp/pulls/14/files` の `docs/measurements.md` patch に
+`## M-104.` が実在する）だったので **M-105 に振り直した**。
+⚠️ **`scripts/check_doc_counters.py` は最大番号しか見ないので、この衝突は捕まえられなかった**
+（衝突したままでもゲートは緑だった）。
+
+⚠️ **環境は 1 通りだけ**: macOS arm64 / Python 3.14.0 / torch 2.13.0 / この worktree
+（`.claude/worktrees/fix+dependabot-deps`）。CI（ubuntu）や他の Python 版では測っていない。
+
+⚠️ **この worktree で素の `uv run python …`（project モード）を 1 回打つと、`uv.lock` の editable 相対パス
+7 行が worktree の深さに書き換わる**（`../../Documents/piper-plus` → `../../../../../Documents/piper-plus`）。
+**依存の差分を見る前に必ず戻す**:
+
+```bash
+git diff uv.lock | grep -c editable          # 0 でなければ書き換わっている
+grep -c '= "\.\./\.\./Documents/piper-plus' uv.lock   # 7 が正しい（アンカーつきで数える。
+                                                      # アンカー無しの grep は部分一致で
+                                                      # 壊れた状態でも 7 を返す）
+```
+
+✅ **本節の Python は全部 `uv run --no-project --python .venv/bin/python python …` で回した**
+（worktree の `.venv` をそのまま使い、project の解決をしない形）。**この形は `uv.lock` を書き換えない**
+（各コマンドの前後で `cmp` を取り、`uv.lock unchanged` を確認した）。
+
+### 1. 版（前 → 後）
+
+`pyproject.toml` の `huggingface-hub>=0.36.2,<1.0` → **`>=1.5.0,<2.0`** の 1 行だけを変えて `uv lock`。
+
+| | 前 | 後 |
+|---|---|---|
+| transformers | 4.57.6 | **5.16.1** |
+| huggingface-hub | 0.36.2 | **1.30.0** |
+| tokenizers | 0.22.2 | **0.23.2** |
+| nltk | 3.10.3 | **3.10.3**（不動） |
+| torch / numpy / onnxruntime | 2.13.0 / 2.4.6 / 1.29.0 | 同じ |
+| `uv.lock` の packages | **143** | **150**（+7） |
+| `uv.lock` の差分 | — | **140 行**（112 挿入 / 28 削除。editable のパス書き換えを戻した後） |
+
+**新規 7 件**（hf-hub 1.x の httpx 化と typer 依存）: `httpx` 0.28.1 / `httpcore` 1.0.9 / `h11` 0.16.0 /
+`anyio` 4.15.0 / `typer` 0.27.2 / `shellingham` 1.5.4 / `annotated-doc` 0.0.5。
+**消えたパッケージは 0 件** — `requests` 2.34.2 は残る（要求元は `pooch` 1.9.0 / `wandb` 0.29.0 /
+**`saanotts-jp` 0.1.0 自身の eval extra**（`uv.lock` の `specifier = ">=2.34.2"` / `extra == 'eval'`）の
+**3 件**。hf-hub / transformers からの依存辺だけが消えた）。要求元の数え方（自己実測）:
+
+```bash
+uv run --no-project --python .venv/bin/python python - <<'PY'
+import re, pathlib
+for b in pathlib.Path("uv.lock").read_text().split("[[package]]")[1:]:
+    if re.search(r'^\s*\{ name = "requests"', b, re.M):
+        n = re.search(r'name = "([^"]+)"', b).group(1)
+        v = re.search(r'version = "([^"]+)"', b)
+        print(n, v.group(1) if v else "-")
+PY
+# → pooch 1.9.0 / saanotts-jp 0.1.0 / wandb 0.29.0
+```
+
+再現:
+
+```bash
+for p in transformers huggingface-hub tokenizers nltk torch numpy onnxruntime; do
+  printf "%s " "$p"; grep -A1 "^name = \"$p\"\$" uv.lock | grep '^version'; done
+grep -c '^\[\[package\]\]' uv.lock                       # 150
+git show HEAD:uv.lock > /tmp/uv.lock.head
+grep -c '^\[\[package\]\]' /tmp/uv.lock.head             # 143
+git diff --stat uv.lock                                  # 140 行（112 挿入 / 28 削除）
+git diff uv.lock | grep -c '^-name = '                   # 0 = 消えた package は無い
+git diff uv.lock | grep    '^+name = '                   # 増えた 7 件がそのまま出る
+```
+
+⚠️ **`grep -e '^-' | grep 'name = '` で数えてはいけない**（一度そう書いていた）。
+それは `{ name = "requests" }` のような**依存辺の削除行**も拾うので **5 行**返り、
+「5 package 消えた」と読み違える。**package の増減は行頭に錨を張った `^-name = ` / `^+name = ` で数える。**
+実際の出力は前者が 0、後者が `annotated-doc` / `anyio` / `h11` / `httpcore` / `httpx` /
+`shellingham` / `typer` の 7 行。
+
+⚠️ **`uv lock --check` はこの worktree では NG になる**（`requires-dist` の editable が
+親チェックアウトの深さなので、worktree の深さで解決した lock と食い違う）。**実際の出力**:
+
+```
+Resolved 150 packages in 379ms
+The lockfile at `uv.lock` needs to be updated, but `--locked` was provided. To update the lockfile, run `uv lock`.
+```
+
+exit=1。**この `--check` の結果を可否の根拠にしてはいけない。**
+親チェックアウトで通るかは worktree の外に出られないため**未検証**。
+⚠️ `uv lock --check` 自体は `uv.lock` を書き換えなかった（前後で `cmp` 一致を確認）。
+
+⚠️ **`uv pip list` の行数は書かない。** `uv run` が同期するたびに動くので、
+「前 N 行 / 後 M 行」と書いても再現しない。前後の集合を比べたいなら
+`uv pip freeze` の出力をファイルに落として `diff` を取ること（本節では取っていない）。
+
+### 2. yank の確認（GitHub が言う「修正版 5.10.0」は yank 版だった）
+
+```bash
+curl -sS https://pypi.org/pypi/transformers/5.16.1/json     | grep -o '"yanked":[^,]*' | head -3
+curl -sS https://pypi.org/pypi/huggingface-hub/1.30.0/json  | grep -o '"yanked":[^,]*' | head -3
+# → 両方とも "yanked":false（自己実測。sdist / wheel の各エントリが出るので head で足りる）
+```
+
+⚠️ **transformers 5.10.0 が yank されていることは前段の調査**で、この節では引き当てていない。
+
+### 3. 教師の実走と出力の指紋（⚠️ **n=1 文 / 90 ids**）
+
+疎通そのものはリポジトリのスクリプト 1 本で再現する:
+
+```bash
+uv run --no-project --python .venv/bin/python python scripts/phase0_verify_teacher.py
+```
+
+出力（transformers 5.16.1 / 自分で実行して観測。exit=0。**⚠️ 抜粋** — 6 本の `[PASS]` 行を 1 行に畳んである）:
+
+```
+snapshot: /Users/s19447/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsukuyomi/snapshots/c3f236e068b95356b871842b4ae7cec2a86c50ea/
+教師を構築:
+  state_dict: missing=0 unexpected=0  normalize stats={'stripped': 0, 'cond_migrated': 0}
+  EMA: decay=0.9995 num_updates=11000 shadow=53 params → 適用
+音素ID 90 個 (max=64), prosody 90 個
+yT audio    : (1, 1, 57600)  (2.612 s)
+zT latent   : (1, 192, 225)
+dT durations: (1, 90)
+発話速度    : 8.4 mora/s (22 モーラ)
+  [PASS] ×6 → Phase 0 疎通 OK
+```
+
+**指紋（sha256 / `|max|` / Σx²）は phase0 が出さない**ので、別に取る。
+**リポジトリにそのスクリプトは無い**（`scripts/` を増やす判断はしていない）ので、
+**再現に必要なコードを丸ごとここに置く**（scratchpad の一時ファイルに依存させない）:
+
+```bash
+uv run --no-project --python .venv/bin/python python - <<'PY'
+import hashlib, importlib.util, json
+import torch
+spec = importlib.util.spec_from_file_location("p0", "scripts/phase0_verify_teacher.py")
+p0 = importlib.util.module_from_spec(spec); spec.loader.exec_module(p0)
+snap = p0.snapshot_dir()
+ckpt = torch.load(snap + p0.CKPT_NAME, map_location="cpu", weights_only=False)
+cfg = json.load(open(snap + "config.json"))
+t = p0.build_teacher(ckpt)
+lim = cfg.get("language_id_map") or {c: i for i, c in enumerate(["ja","en","zh","es","fr","pt"])}
+ids, pi = p0.text_to_phoneme_ids_and_prosody(
+    "今日は良い天気ですね。散歩に行きましょう。", cfg["phoneme_id_map"],
+    language="ja", language_id_map=lim)
+pv = [[p["a1"], p["a2"], p["a3"]] if p else [0, 0, 0] for p in pi]   # ⚠️ 実 prosody。ゼロではない
+with torch.no_grad():
+    o = t.infer(torch.tensor([ids]), torch.tensor([len(ids)]), lid=torch.tensor([0]),
+                noise_scale=0.0, noise_scale_w=0.0, length_scale=1.0,
+                prosody_features=torch.tensor([pv], dtype=torch.float32),
+                speaker_embeddings=None)
+def fp(name, a):
+    a = a.contiguous().to(torch.float32)
+    print(f"{name} shape={tuple(a.shape)} sha256={hashlib.sha256(a.numpy().tobytes()).hexdigest()[:12]}"
+          f" absmax={a.abs().max().item():.10e} sumsq={(a.double()**2).sum().item():.10e}")
+print("n_ids", len(ids), "max_id", max(ids),
+      "ids_sha256", hashlib.sha256(bytes(str(ids), "utf8")).hexdigest()[:12])
+fp("yT", o.audio); fp("zT", o.latents[0]); fp("dT", o.durations)
+pcm = (o.audio.flatten().clamp(-1, 1) * 32767.0).to(torch.int16)
+print("i16 absmax=", int(pcm.abs().max()), "n=", pcm.numel())
+PY
+```
+
+出力（transformers 5.16.1。**この 5 行は自分で実行して観測した**）:
+
+```
+n_ids 90 max_id 64 ids_sha256 06d2ceb77830
+yT shape=(1, 1, 57600) sha256=564570048b19 absmax=3.9555743337e-01 sumsq=3.1337658059e+02
+zT shape=(1, 192, 225) sha256=0f40c2f8c2e2 absmax=3.3939018250e+01 sumsq=9.8423742877e+04
+dT shape=(1, 90) sha256=6fc31ccc0f94 absmax=1.9537841797e+01 sumsq=8.0187532033e+02
+i16 absmax= 12961 n= 57600
+```
+
+| | 前（transformers 4.57.6） | 後（transformers 5.16.1） |
+|---|---|---|
+| `phase0_verify_teacher.py` | 6/6 PASS・exit=0 | **6/6 PASS・exit=0**（自己実測）。**標準出力が前と差分 0**（⚠️ 前の出力は前段の測定） |
+| ids | 90 個（max=64）/ 発話速度 8.4 mora/s | 同じ（自己実測） |
+| `yT` | (1,1,57600) = 2.612 s / sha256 `564570048b19` / \|max\| 3.9555743337e-01 / Σx² 3.1337658059e+02 | **同値**（後の値は自己実測） |
+| `zT` | (1,192,225) / sha256 `0f40c2f8c2e2` / \|max\| 3.3939018250e+01 / Σx² 9.8423742877e+04 | **同値**（同上） |
+| `dT` | (1,90) / sha256 `6fc31ccc0f94` / \|max\| 1.9537841797e+01 / Σx² 8.0187532033e+02 | **同値**（同上） |
+| int16 PCM | \|max\| 12961 / n=57600 | **同値**（同上） |
+| state_dict / EMA | missing 0 / unexpected 0 / shadow 53 適用 | 同じ（自己実測） |
+
+⚠️ **「前」の列は前段の測定で、私はそちらを再検証していない**（transformers 4.57.6 に戻して測り直してはいない）。
+**私が独立に確認したのは「後」の状態の 5 行**で、それが前段の記録と一致した。
+
+⚠️ **かつてここに int16 PCM の 64 bit checksum `0x6f8b3f364bdd2fa8` を載せていたが、削除した。**
+同じ記述どおりに指紋を書き直すと `yT`/`zT`/`dT` の sha256・`|max|`・Σx²・`|max|_i16`=12961・n=57600 は
+**全部一致する**のに、checksum だけ再現しなかった（int16 化と FNV の取り方を 18 通り試しても一致しない）。
+**取り方が記録されていない値は、一致しても不一致でも意味が読めない**ので落とした。
+PCM を比べたいなら上の `i16 absmax` / `n` と、`yT` の sha256 を見ること。
+
+⚠️ **これは「transformers を上げても教師ラベルが同一」ではない。** 測ったのは
+**phase0 の 1 文**（実 prosody / `length_scale=1` / noise 0）で、
+**ラベル生成の本番経路**（`scripts/gen_teacher_labels.py` = かな中間表現 → `kana_g2p` → 教師、prosody ゼロ）
+では取っていない。`data/pack` にも触っていない。
+⚠️ **そもそも transformers は import されるだけで教師の forward には 1 行も関与しない**（下記 §6 の経路①。
+`torchmetrics` の BERTScore が読むだけ）。**この節は「上げても壊れない」の確認であって、
+「上げると同じラベルが出る」の証明ではない。**
+
+### 4. CER スタックの疎通（⚠️ **n=3。品質の再測定ではない**）
+
+faster-whisper large-v3（cpu / int8）が hf-hub 1.30.0 でキャッシュから読めるか。
+
+⚠️ **この節はリポジトリだけでは再現できない。** 入力が 2 つとも git に無い:
+
+| 要るもの | リポジトリの状態 |
+|---|---|
+| `reports/student_wav_v3/*.wav`（生徒の音） | **git 追跡 wav は 0 本**（`git ls-files \| grep -c '\.wav$'` = 0）。作るには `runs/v3/stage4.pt` が要る |
+| `data/splits/corpus_heldout.tsv`（参照テキスト） | **`.gitignore:7` の `/data/splits/*` で意図的に除外**（コーパス本文は配らない） |
+
+そのため**測定に使ったのは親チェックアウトの `reports/student_wav_v3/`（wav 24 本）と
+`data/splits/corpus_heldout.tsv` を読み取りで借りたもの**。この 2 つが手元にある人だけが、
+下のコマンドで**リポジトリのコード**（`scripts/measure_cer.py` の `normalize` / `to_kana` / `cer`）を使って再現できる:
+
+```bash
+WAV_DIR=…/reports/student_wav_v3      # wav 24 本（git には無い）
+TSV=…/data/splits/corpus_heldout.tsv  # 参照テキスト（git には無い）
+HF_HUB_OFFLINE=1 uv run --no-project --python .venv/bin/python python - "$WAV_DIR" "$TSV" <<'PY'
+import hashlib, pathlib, sys
+sys.path.insert(0, "scripts"); sys.path.insert(0, "src")
+import measure_cer as M
+from faster_whisper import WhisperModel
+WAV = pathlib.Path(sys.argv[1]); TSV = pathlib.Path(sys.argv[2])
+texts = {}
+for line in TSV.read_text().splitlines()[1:]:          # 列は source / id / text
+    f = line.split("\t")
+    if len(f) >= 3:
+        texts[f[1]] = f[2]
+uids = [p.stem for p in sorted(WAV.glob("*.wav")) if p.stem in texts][:3]
+m = WhisperModel("large-v3", device="cpu", compute_type="int8")
+for u in uids:
+    w = WAV / f"{u}.wav"
+    segs, _ = m.transcribe(str(w), language="ja", beam_size=5, condition_on_previous_text=False)
+    hyp = "".join(s.text for s in segs).strip()
+    ref = texts[u]
+    print(f"{u}  kana={M.cer(M.to_kana(ref), M.to_kana(hyp)):.6f}  "
+          f"surface={M.cer(M.normalize(ref), M.normalize(hyp)):.6f}  "
+          f"wav={hashlib.sha256(w.read_bytes()).hexdigest()[:16]}  "
+          f"hyp={hashlib.sha256(hyp.encode()).hexdigest()[:16]}")
+PY
+```
+
+出力（**自分で実行して観測した**。選び方は「wav の uid を昇順にし、`corpus_heldout.tsv` に本文があるものの先頭 3 件」）:
+
+```
+BASIC5000_0083  kana=0.135135  surface=0.185185  wav=4bf742a7c72e05b2  hyp=9c8176dcdfa3fd46
+BASIC5000_0123  kana=0.047619  surface=0.125000  wav=07d1256bbf70bdb1  hyp=6db85bb15e51b872
+BASIC5000_0377  kana=0.062500  surface=0.160000  wav=daafc222b7216c0c  hyp=e7407afa9057b5a5
+```
+
+| uid | かな CER | 表層 CER |
+|---|---:|---:|
+| BASIC5000_0083 | 0.135135 | 0.185185 |
+| BASIC5000_0123 | 0.047619 | 0.125000 |
+| BASIC5000_0377 | 0.062500 | 0.160000 |
+
+**6 値すべてと、書き起こし文字列の sha256 3 件が前後で一致**（= whisper の出力そのものが同一）。
+`HF_HUB_OFFLINE=1` で成功 = **新規ダウンロードは起きていない**。
+⚠️ **「後」の 3 行は上のコマンドを自分で打って観測した値**で、**「前」（transformers 4.57.6）は前段の測定**。
+私は 4.57.6 に戻して測り直してはいない。
+
+⚠️ **前後で prefix が違う。** 前は worktree の `.venv` に faster-whisper / ctranslate2 / av が
+入っていなかった（eval extra 未同期）ため**親チェックアウトの `.venv` の interpreter を読み取りで借りた**。
+後は `uv sync --all-extras` 済みの worktree の `.venv`。torch / numpy / nltk / transformers の版は
+両 venv で同一だったが、**パッケージ集合は同じではない**（`uv run` が同期するたびに動くので行数は書かない。
+`uv pip freeze` の差分は取っていない）。**同一 prefix での前後比較ではない。**
+
+⚠️ **この 3 値を品質の指標として引用してはいけない。** held-out 24 文の値・平均・教師比は測っておらず、
+公表値の かな CER **0.1671**（[M-61](#m-61)）の再現でもない。**n=3 のスタック疎通確認である。**
+生徒の音は作り直していない（`runs/v3/stage4.pt` は worktree に無く、
+`synthesize_student.py` は 1 度も走らせていない）。
+
+### 5. 脆弱 API の到達性 — **発火 0 / 10**（陽性対照つき）
+
+```bash
+uv run --no-project --python .venv/bin/python python scripts/test_cve_reach.py               # 本体
+uv run --no-project --python .venv/bin/python python scripts/test_cve_reach.py --self-test   # ゲート自身の陽性対照
+```
+
+⚠️ **所要時間は書かない。** 一度 `4.8〜5.0 s` / `20.7〜21.7 s` と書いたが、別の測り手が
+同じ起動形で壁時計を測ると `6.5〜9.2 s` / `26.8〜29.1 s`（n=3）で範囲外だった。
+記録していた値は **user CPU 時間**にほぼ一致しており、**壁時計だと書いたのが誤り**。
+このホストのベンチは他プロセスとの競合で 1.5 倍ずれるので、
+**負荷条件を書けない時間は数値として残さない**（[C-019](decisions.md#c-019) と同じ形）。
+
+| 節 | 何を見るか | nltk 3.10.3 + tfm 4.57.6 | nltk 3.10.3 + **tfm 5.16.1** |
+|---|---|---|---|
+| G1 | 10 sink + 陰性対照 1 個が実物に存在しラップできたか | **11/11** | **11/11** |
+| G2 | 陽性対照（nltk）: `AveragedPerceptron.save`/`.load` を故意に呼ぶ | **2 件**（他 sink への漏れ 0） | 同じ |
+| G3 | 陽性対照（transformers）: 4 sink を故意に呼ぶ | **4 件**（他 sink への漏れ 0） | 同じ |
+| G1b | 実経路の**直前**にラッパが生きているか | **11 個生存** | 同じ |
+| G4 | 実経路に流した量 | **10 文（ラテン 9 + 純日本語 1）/ 音素 ID 810 個** | 同じ |
+| G5a | 実経路の**後**もラッパが生きているか | **11 個生存** | 同じ |
+| **G5** | **10 sink の発火** | **0 件** | **0 件** |
+| G6 | 陰性対照 `PerceptronTagger.load_from_json`（advisory 自身がガード済みと挙げる） | **1 件** | 同じ |
+| G7 | 対照: 純日本語 2 文だけを新規プロセスで通す | **0 件** | 同じ |
+| — | ネットワーク試行（`connect` / `connect_ex` / `create_connection` / `getaddrinfo` を潰す） | **0 件** | 同じ |
+| — | exit | **0** | **0** |
+| `--self-test` | 5 つの壊し方が本当にゲートを落とすか | **5/5**（`missing`→G1 WRAP-MISSING / `dead-counter`→G2 / `route`→G5 / `ja-route`→G6 / `unwrap`→G5a） | **5/5** |
+
+⚠️ **右列（tfm 5.16.1）は自分で 2 回実行して観測した**（本体 exit=0 / `--self-test` exit=0 で
+「陽性対照 5/5 件すべてがゲートを落とした」）。**左列（tfm 4.57.6）は前段の測定で、再検証していない。**
+
+**10 sink**: `TransitionParser.train` / `.parse` / `AveragedPerceptron.save` / `.load` /
+`PerceptronTagger.save_to_json` / `nltk.classify.maxent.save_maxent_params` /
+`PreTrainedModel.from_pretrained` / `.save_pretrained` / `PretrainedConfig.from_pretrained` /
+`Trainer.__init__`。
+
+⚠️ **G6 の 1 件は飽和値。** tagger のロードはプロセス内 1 回なので、ラテン文字の文を増やしても 1 件のまま。
+「ラテン文字の文ごとに英語経路に入る」ことを文単位で数えてはいない。
+
+**実コーパスのラテン文字行**: `data/splits/corpus_embedded.tsv` の **9 / 183 = 4.9%**
+（EMB_numstring_002/007/009/010/011/012/013/015/016）。
+
+```bash
+uv run --no-project --python .venv/bin/python python -c "import pathlib,re; rows=[l.split(chr(9)) for l in pathlib.Path('data/splits/corpus_embedded.tsv').read_text().splitlines()[1:] if l.strip()]; print(sum(1 for r in rows if re.search(r'[A-Za-z]', r[2])), len(rows))"
+# → 9 183
+```
+
+⚠️ **`data/splits/corpus_embedded.tsv` は git 管理内**（`git ls-files -s` が blob を返す・184 行）。
+`scripts/test_cve_reach.py` と `scripts/check_ci_coverage.py` に「git 管理外」と書いてあるのは**誤り**。
+
+⚠️ **`transformers` 5.x で sink クラス名がリネームされている**: 4.57.6 では `PretrainedConfig`
+（`PreTrainedConfig` は存在しない）。5.16.1 では **`PreTrainedConfig` が正名**で、`PretrainedConfig` は
+**同一オブジェクトを指すエイリアス**（`a is b` = True / `__qualname__` は `PreTrainedConfig`）。
+ゲートは旧名で `getattr` するのでエイリアス経由で通り、G1 の出力も正名を表示する
+（実際に `→ transformers.configuration_utils.PreTrainedConfig.from_pretrained` と出る）。
+**将来エイリアスが消えたら G1 が WRAP-MISSING で落ちる = 正しい壊れ方**なので、ゲートは直していない。
+⚠️ **この段落を消すと、その日に G1 が落ちたとき理由が誰にも分からなくなる。**
+
+### 6. パッケージが実際に import されている経路
+
+**判定は「未 import を assert → 目的のモジュールだけ import → `sys.modules` を見る」で行う。**
+⚠️ **先に `import transformers` してから `sys.modules` を見る形は何をしても True になる**（空虚なゲート）。
+
+経路①（教師側 / `piper_train.export_onnx` → pytorch_lightning → torchmetrics）:
+
+```bash
+uv run --no-project --python .venv/bin/python python -c 'import sys; assert "transformers" not in sys.modules; sys.path.insert(0,"/Users/s19447/Documents/piper-plus/src/python"); import piper_train.export_onnx; print("transformers in sys.modules:", "transformers" in sys.modules); import transformers; print("version:", transformers.__version__); print("nltk in sys.modules:", "nltk" in sys.modules)'
+# → transformers in sys.modules: True
+#   version: 5.16.1
+#   nltk in sys.modules: False
+```
+
+経路②（評価側 / `faster_whisper` → ctranslate2 の `converters/transformers.py`）:
+
+```bash
+uv run --no-project --python .venv/bin/python python -c 'import sys; assert "transformers" not in sys.modules; import faster_whisper; print("transformers in sys.modules:", "transformers" in sys.modules); import transformers; print("version:", transformers.__version__)'
+# → transformers in sys.modules: True
+#   version: 5.16.1
+```
+
+| 経路 | 何が起きるか |
+|---|---|
+| ① `import piper_train.export_onnx` → pytorch_lightning → `torchmetrics/functional/text/bert.py` のトップレベル `from transformers import AutoModel, AutoTokenizer` | **transformers 5.16.1 が `sys.modules` に入る**（`import transformers` を書く前に True）。**nltk は入らない** |
+| ② `import faster_whisper` → ctranslate2 → `converters/transformers.py` | **transformers 5.16.1 が入る**（同じく import を書く前に True） |
+
+**⇒ §3 と §4 の実走はどちらも「transformers を読み込んだ状態」で通っている。**
+⚠️ **`faster_whisper` 自身のソースに `import transformers` は 1 行も無い**（grep では見つからない。
+入るのは ctranslate2 のコンバータ経由）。
+⚠️ **どちらも「import される」だけで、transformers の関数を呼んだ痕跡は §5 のゲートで 0 件。**
+
+### 7. アラート 5 件の照合（⚠️ **GitHub の再スキャンは未観測**）
+
+CVE 番号・severity・脆弱範囲・`first_patched` はすべて**自己実測**（下のコマンドの出力）。
+
+| # | CVE | 脆弱範囲 | パッケージ | 5.16.1 / 3.10.3 は範囲外か |
+|---|---|---|---|---|
+| 1 | CVE-2026-1839（medium） | transformers `< 5.0.0rc3` | transformers 5.16.1 | **外**（照合） |
+| 2 | CVE-2026-4372（high） | `< 5.3.0` | 同 | **外**（照合） |
+| 3 | CVE-2026-5241（high） | `< 5.5.0` | 同 | **外**（照合） |
+| 4 | CVE-2026-9856（high） | `< 5.10.0` | 同 | **外**（照合） |
+| 5 | CVE-2026-81726（high） | nltk `<= 3.10.3` | nltk **3.10.3** | **内 = 範囲内のまま**（[D-053](decisions.md#d-053) の方針 2） |
+
+脆弱範囲・`manifest_path` / `scope` / 「修正版があるか」は **API から直接取れる**（自己実測）:
+
+```bash
+gh api /repos/ayutaz/sanoTTS-jp/dependabot/alerts -q '.[] | "\(.number) \(.dependency.package.name) vuln=\(.security_vulnerability.vulnerable_version_range) first_patched=\(.security_vulnerability.first_patched_version.identifier // "none") manifest=\(.dependency.manifest_path) scope=\(.dependency.scope)"'
+```
+
+出力（自己実測）:
+
+```
+5 nltk vuln=<= 3.10.3 first_patched=none manifest=uv.lock scope=runtime
+4 transformers vuln=< 5.10.0 first_patched=5.10.0 manifest=uv.lock scope=runtime
+3 transformers vuln=< 5.5.0 first_patched=5.5.0 manifest=uv.lock scope=runtime
+2 transformers vuln=< 5.3.0 first_patched=5.3.0 manifest=uv.lock scope=runtime
+1 transformers vuln=< 5.0.0rc3 first_patched=5.0.0rc3 manifest=uv.lock scope=runtime
+```
+
+⚠️ **`first_patched=none`（#5 = nltk）は「上流に修正版のリリースが無い」を API 側から裏づける**
+（実装が develop にあるかどうかは前段の調査で、私は引き当てていない）。
+⚠️ **#4 の `first_patched=5.10.0` は yank 版**（§2 の注記）。**GitHub が言う「修正版」を鵜呑みにしない。**
+
+lock 側の版と、Dependabot 作の PR が無いことの確認:
+
+```bash
+for p in transformers huggingface-hub tokenizers nltk; do grep -A1 "^name = \"$p\"\$" uv.lock | grep '^version'; done
+gh api /repos/ayutaz/sanoTTS-jp/dependabot/alerts \
+  -q '.[] | "\(.number) \(.state) \(.security_advisory.severity) \(.dependency.package.name)"'
+gh pr list --repo ayutaz/sanoTTS-jp --state open --json number,author,headRefName
+gh api /repos/ayutaz/sanoTTS-jp/automated-security-fixes
+```
+
+⚠️ **測ったのは「`uv.lock` の版が advisory の脆弱範囲の外に出たこと」だけ。**
+**Dependabot が実際にアラートを閉じるかは未マージ・未 push のため観測していない。**
+だから次の 3 つは**書けない**:
+
+| ❌ 書けない | ✅ 書けること |
+|---|---|
+| 「#1〜#4 が閉じる」 | 「#1〜#4 が指す版が脆弱範囲の外になった」 |
+| 「4 件閉・1 件残」 | 「4 件が範囲外・1 件が範囲内のまま」 |
+| 「これで安全になった」 | 「advisory の名指し関数は実経路で 0 件（§5）」 |
+
+**設定側の実測**（自己実測）: `automated-security-fixes` は `{"enabled":true,"paused":false}`
+（= security update は既に有効）。それでも 5 件すべてが `open` のまま **Dependabot 作の PR は 0 本**
+（`gh pr list --state open` の返りは **#14 の 1 本だけ** = 人間の PR / author `ayutaz` /
+`feat/8mb-survey-jdict-hardening`）。⚠️ **理由は API から見えない**（[D-053](decisions.md#d-053) の
+「pip / uv のレーンを置かない理由」は手元の再現からの推論）。
+
+### 8. `.github/dependabot.yml`（Actions のみ）
+
+`github-actions` 1 レーン / `directory: "/"` / `monthly` / `open-pull-requests-limit: 3` /
+`commit-message: prefix "chore" + include "scope"` / **groups・labels・ignore なし**。
+SchemaStore の `GitHub Dependabot v2 config`（`https://json.schemastore.org/dependabot-2.0.json` /
+HTTP 200 / 50,840 B）に当てて **VALID（エラー 0 件）**。**陽性対照**は 2 件で、どちらも落ちた:
+`interval: "monthly"` → `"montly"` が **2 件**、`package-ecosystem: "github-actions"` → `"github-action"`
+が **1 件**（どちらも enum 不一致）。→ 「VALID」が検出漏れではないと言える。
+
+**再現コマンドは `.github/dependabot.yml` のコメント内に置いてある**（`curl` +
+`jsonschema` の 6 行。⚠️ **ネットワークが要る**）。⚠️ **ただしゲートではない** —
+`.github/dependabot.yml` を検査するテストは CI にも `all-test` にも 1 本も無く
+（このファイルは `scripts/check_ci_coverage.py` の監査外 = `ci.yml` しか読まない）、
+**上の VALID は 1 回の手作業**である。
+
+⚠️ **一度ここに「PyYAML で parse / 陽性対照 3 種で 6 件検出 / この検査は再現しない」と
+書いたが誤り**だった。(1) 出荷したのは PyYAML の構造確認ではなく上記の schema 検証、
+(2) 陽性対照は 3 種ではなく 2 種（3 つ目に挙げた「`groups` あり」は schema では
+**0 件** = 妥当な設定なので対照にならない。2+1+0 は 6 にならない）、
+(3) 手順は `dependabot.yml` に残してあるので**再現する**（再現しないのは「ゲートがある」ことだけ）。
+
+**enum の一次ソース**（GitHub Docs の Dependabot options reference）: `version` は 2 が必須 /
+`interval` は `daily` `weekly` `monthly` `quarterly` `semiannually` `yearly` `cron` /
+`github-actions` と `uv` はどちらも実在 / `commit-message` は `prefix` `prefix-development` `include`
+（`include` は `"scope"` のみ）。
+
+**使用中の 4 アクションと moving major tag の上限**（`groups` を書かない根拠 = minor/patch の差は
+major tag 固定では見えないので**一度も発火しないゲート**になる）:
+
+| 使用中 | moving major tag | 更新が来るか |
+|---|---|---|
+| `actions/checkout@v4` | **v1〜v7**（上流の最新も v7.0.1） | ✅ v7 まで |
+| `astral-sh/setup-uv@v5` | **v1〜v7** | ✅ v7 まで |
+| `actions/upload-pages-artifact@v5` | **v0〜v5** | ❌ すでに最上位 |
+| `actions/deploy-pages@v5` | **v1〜v5** | ❌ すでに最上位 |
+
+**この 4 行は自己実測**（4 リポジトリぶん打った）:
+
+```bash
+gh api /repos/astral-sh/setup-uv/git/matching-refs/tags --paginate -q '.[].ref' \
+  | sed 's|refs/tags/||' | grep -E '^v[0-9]+$' | sort -V | tr '\n' ' '
+# actions/checkout               → v1 v2 v3 v4 v5 v6 v7
+# astral-sh/setup-uv             → v1 v2 v3 v4 v5 v6 v7
+# actions/upload-pages-artifact  → v0 v1 v2 v3 v4 v5
+# actions/deploy-pages           → v1 v2 v3 v4 v5
+gh api /repos/actions/checkout/releases/latest   -q '.tag_name'   # v7.0.1
+gh api /repos/astral-sh/setup-uv/releases/latest -q '.tag_name'   # v10.0.1
+```
+
+⚠️ **`setup-uv` の moving major tag は v7 が上限**。v8.0.0〜v8.3.2 / v9.0.0 / v10.0.0 / v10.0.1 は
+**full version としてしか存在せず**、上流の最新は v10.0.1 だが **tag 固定のままでは v7 で止まる**。
+⇒ 初回に来る PR は**最大 2 本**（`limit 3` はその余裕）。
+
+⚠️ **前段の調査の「moving major tag は v3〜v7」は下限が誤り**で、実測は **v1〜v7**（上限 v7 は一致）。
+
+### 9. 既存ゲートへの副作用（**7/7 exit=0**）
+
+```bash
+uv run --no-project python scripts/check_doc_counters.py
+uv run --no-project python scripts/check_doc_links.py          # 相対リンクが全部実在する（陽性対照つき）
+uv run --no-project python scripts/check_ci_coverage.py        # EXCLUDED すべて実体あり
+uv run --no-project python scripts/check_ci_coverage.py --self-test   # 陽性対照 2/2 が落ちる
+uv run --no-project python .claude/hooks/test_guard_bash.py
+uv run --no-project python scripts/test_sanitize_reports.py
+uv run --no-project python scripts/test_blob_to_header.py      # 回帰 4 件
+```
+
+⚠️ **`check_doc_links.py` が数えるリンク本数はここに書かない。** ゲートが出す件数を doc に固定すると、
+**この節にリンクを 1 本足すだけで doc が古くなる**（実際に「420 本」と書いた直後に 431 本になった）。
+見るべきは**「全部実在する」と陽性対照が落ちること**であって、本数ではない。
+同じ理由で `check_ci_coverage.py` の EXCLUDED 件数も書かない。
+
+⚠️ `scripts/test_cve_reach.py` を `EXCLUDED_SCRIPTS` に登録する**前**は
+`check_ci_coverage.py` が「CI で回らず理由も無い」で **NG 1 件**を出した（= 登録が空虚でないことの確認）。
+
+⚠️ **`make -C csrc all-test` を回すと `csrc/fft_bench.json` と `reports/d3c_int8.json` が毎回書き換わる**
+（ベンチの時刻と時間値）。この 2 ファイルの現在の内容は検証ランの産物で、commit 対象ではない。
+
+### 10. ⚠️ 何を見ていないか
+
+- **本番のラベル生成・学習・評価を 1 つも回していない。** `scripts/gen_teacher_labels.py`（13 ゲート）/
+  `train_student.py` / `synthesize_student.py` / `eval_student.py` は未実行。`data/pack` に触っていない。
+- **SCOREQ / UTMOS / DNSMOS / speechmos / jiwer / pyworld / torchaudio は `uv sync --all-extras` で
+  入っただけで 1 度も実行していない。** scoreq 1.0.1 と torch 2.13 / hf-hub 1.30.0 の相性は未測定。
+  **解決が通ることは実行時 API の互換を意味しない。**
+- **WavLM 判別器は 1 度も走らせていない。** 前段が「4.57.6 と 5.16.1 で同形・同 dtype だが
+  sha256 は一致しない（max\|diff\| 9.537e-07 / 陽性対照の同版読み直しは 0.000e+00）」を測っているが、
+  本プロジェクトは判別器を自前実装なので実害なしという前段の判断をそのまま引いている。
+  **forward 引数や layer index の同一性は未検証**で、「WavLM 判別器も将来使える」とは言えない。
+- **hf-hub 1.x の proxy / retry / timeout 挙動（requests → httpx）は未測定。** 前後どちらも
+  `HF_HUB_OFFLINE=1` のキャッシュ読みで、ダウンロード経路を 1 度も踏んでいない。
+  リポジトリ側に `proxies` / `HTTP(S)_PROXY` / `max_retries` / `HF_HUB_*_TIMEOUT` /
+  `requests.exceptions` / `urllib3` / `local_dir_use_symlinks` は **`.py` / `.toml` / `.yml` で
+  コードのヒット 0**（自己実測。唯一のヒットは `pyproject.toml:17` の**コメント行**。
+  ⚠️ `--include` に `*.md` を入れていないので docs は数えていない）、`hf_hub_download` の
+  呼び出しは **2 ファイル**（`scripts/phase0_verify_teacher.py` = キャッシュから成功 /
+  `scripts/b12_moe_overlap.py` = **今回未実行**）、`WhisperModel(...)` は **2 箇所**
+  （`scripts/measure_cer.py:103` / `scripts/e2_lane_cer.py:65`）でどちらも `download_root` を渡さない。
+  ⚠️ **grep で 0 ヒットなのは「今のコードが踏まない」だけで、httpx への移行が無害である証拠ではない。**
+
+  ```bash
+  grep -rn "hf_hub_download" --include="*.py" . | grep -v "/.venv/"
+  grep -rniE "proxies|HTTPS?_PROXY|max_retries|HF_HUB_[A-Z_]*TIMEOUT|local_dir_use_symlinks|requests\.exceptions|urllib3" \
+      --include="*.py" --include="*.toml" --include="*.yml" . | grep -v "/.venv/"
+  ```
+- **この worktree では `uv lock --check` が NG になる**（§1）。**親チェックアウトで通るかは未検証**
+  （worktree の外に cd しない制約のため）。⚠️ **worktree で `uv lock` / `uv sync` / 素の
+  `uv run python` を回すと editable の相対パス 7 行が worktree の深さに書き換わる**ので、
+  親で `--check` を試す人は先に `git diff uv.lock` を見ること。
+  **「`uv lock --check` が NG」を lock の壊れの証拠に使ってはいけない。**
+- **速度の基準を取っていない。** 教師の構築・推論の壁時計を前後で測っていないので、
+  「遅くなった / 速くなった」は言えない。
+- **nltk / `g2p_en` の英語経路は §5 のゲート内でしか踏んでいない。** 英語経路に入りうる呼び出しは
+  ゲート自身を除いて **7 ファイル 10 箇所**（`a1_path_unification.py` / `a2_prosody.py` /
+  `b5_teacher_baseline.py` / `d6_ema_ablation.py` / `phase0_verify_teacher.py` /
+  `a3/phonemize_all.py` / `a3/gen_labels_sample.py`）あるが、ゲートが通すのは
+  `text_to_phoneme_ids_and_prosody` の 1 経路だけで、**各スクリプトを実走させてはいない**。
+  ⚠️ **行番号は書かない**（引数を 1 行足すたびにずれる。[C-042](decisions.md#c-042) と同じ形）。
+  数え方（自己実測。**代入形に錨を張り**、ゲート自身を除く）:
+
+  ```bash
+  grep -rn '= text_to_phoneme_ids_and_prosody(' scripts/ | grep -v test_cve_reach | wc -l        # 10
+  grep -rn '= text_to_phoneme_ids_and_prosody(' scripts/ | grep -v test_cve_reach \
+      | cut -d: -f1 | sort -u | wc -l                                                            # 7
+  ```
+
+  ⚠️ **`grep -rn "text_to_phoneme_ids_and_prosody(" --include="*.py" scripts/ | grep -v "import\|#"`
+  では数えられない**（14 行 / 8 ファイルになる）。docstring 内の言及と関数定義側の参照を拾うため。
+  ⚠️ 一度ここに「`scripts/test_cve_reach.py` の docstring に『5 本 8 箇所』と書いてあるのは過小計数」と
+  書いたが、**同じコミットの docstring は既に「7 ファイル 10 箇所」に直してある**ので、その注記は
+  自分の変更を無視した虚偽だった（`grep -n '7 ファイル 10 箇所' scripts/test_cve_reach.py` で崩れる）。
+- **transformers 側は実経路を通していない。** G3 が示すのは「その属性を呼ぶとラッパを通る」だけで、
+  引数を意図的に不正にしているので `from_pretrained` の中身は 1 行も走らない。§6 の 2 経路を
+  ゲート内で踏ませてはいない。
+- **10 sink 以外は見ていない。** 新しい CVE が別の関数を名指ししたら `NLTK_SINKS` / `TFM_SINKS` に
+  足さないと見えない。transformers 5.x で新設された API も見ていない。
+- **`nltk_data` が無い環境（cold cache）では回していない。** `g2p_en` の import 時 `nltk.download` が
+  ネットワーク遮断下でどう振る舞うかは未観測。
+- **ラテン文字行の代表性は `corpus_embedded.tsv` だけで見た**（9/183）。train 側 20,894 文では数えていない。
+- **piper-plus 自身のテストを 1 本も回していない。** あちらは読み取り専用（[D-003](decisions.md#d-003)）で
+  `.venv` は transformers 4.57.6 のまま。transformers 5.16.1 が piper-plus のテストを通すかは未測定。
+- **`csrc` の C ゲートは transformers と無関係だが、回していない。**
+- **GitHub 上の Dependabot の挙動は一切見ていない。** 未マージなので `dependabot.yml` は読まれておらず、
+  `chore(deps): bump …` になるか / `monthly` が発火するか / `limit 3` が効くか / `@v4` → `@v7` を
+  1 本にまとめるか 3 本に割るかは**すべて未観測**。`labels:` に無い custom label が黙って無視される、も
+  Docs の記述に依拠しており実験していない。
+- **`.github/dependabot.yml` を検査するゲートはリポジトリに無い。** CI にも `all-test` にも
+  1 本も無く、このファイルは `scripts/check_ci_coverage.py` の監査外（`ci.yml` しか読まない）。
+  ⚠️ **§8 の schema 検証（VALID / 陽性対照 2 件）は手順が `dependabot.yml` に残っているので再現する**
+  （⚠️ ネットワークが要る）が、**それは 1 回の手作業であってゲートではない。**
+  誰も自動では検査していないので、**このファイルの typo は黙って無視される**。

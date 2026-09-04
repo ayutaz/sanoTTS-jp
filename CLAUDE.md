@@ -569,6 +569,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | CI | `.github/workflows/ci.yml` | push / PR で **6 job**（docs / golden / csrc / python / release-assets / **web**）。⚠️ **かつて「4 job」と書いてあったが、数えたら違った**（job は増える）。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
 | CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
+| テスト | `scripts/test_cve_reach.py` | **Dependabot が名指しした脆弱 API が実経路で呼ばれないか**（nltk 6 + transformers 4 の 10 sink / 陰性対照 `load_from_json` / 陽性対照は `--self-test` の 5 件）。実測は発火 **0 / 10**（[`docs/measurements.md`](docs/measurements.md) M-105 / 決定は D-053）。⚠️ **主張は「呼ばれない」だけで「パッケージが安全」ではない**。⚠️ **CI では回らない** — piper-plus の checkout / `nltk_data` / 教師 snapshot の `config.json` が要り、**最後のものが private**（`scripts/check_ci_coverage.py` の `EXCLUDED_SCRIPTS` に理由つきで登録）。⚠️ **手で走らせるゲートはいずれ走らせなくなる** |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**94 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
