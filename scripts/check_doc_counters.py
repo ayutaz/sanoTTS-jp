@@ -122,7 +122,9 @@ GATE_SECTION = "## 実際に空虚だったゲート"
 GATE_CLAIM_JA = re.compile(r"欠陥が潜んでいた例が\s*\*{0,2}(\d+) 件")
 GATE_CLAIM_EN = re.compile(r"\*{0,2}(\w+)\*{0,2} defects hid behind green tests")
 EN_NUM = {"Six": 6, "Seven": 7, "Eight": 8, "Nine": 9, "Ten": 10,
-          "Eleven": 11, "Twelve": 12}
+          "Eleven": 11, "Twelve": 12, "Thirteen": 13, "Fourteen": 14,
+          "Fifteen": 15, "Sixteen": 16, "Seventeen": 17, "Eighteen": 18,
+          "Nineteen": 19, "Twenty": 20}
 
 
 def vacuous_gate_rows() -> int:

@@ -34,7 +34,7 @@ URL が開くのはマージ後。
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-061** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-063** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-103。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -417,7 +417,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-052（D-049 は欠番）+ 訂正履歴 C-001〜C-061
+│   ├── decisions.md                       決定記録 D-001〜D-052（D-049 は欠番）+ 訂正履歴 C-001〜C-063
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-103
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
@@ -513,7 +513,7 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（94 ケース + commit ガードのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（100 ケース + commit ガードのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                           student-training / evaluating-quality /
 │                                           verifying-reports / writing-gates
@@ -570,7 +570,7 @@ uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   #
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（94 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（100 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
