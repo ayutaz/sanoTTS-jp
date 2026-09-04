@@ -238,6 +238,48 @@ else
     ok "陽性対照: 同じ typedef を arena 1,024 B で書くとコンパイルが止まる"
 fi
 
+# ---------------------------------------------------------------- 11
+hdr "11. Open JTalk の一時ヒープが予算に収まるか（M-98 のゲート）"
+# `SAAN_KANJI_OJ_MAX_BYTES ≤ SAAN_KANJI_OJ_BUDGET_BYTES`。saan_kanji.c は同じ式を
+# _Static_assert で持つ。ここではホストで
+#   (a) 両方の値をソースから出して比べる（手で書き写さない）
+#   (b) 陽性対照: 上限を 1 だけ上げると **コンパイルが止まる**
+#       （止まらなければ _Static_assert が空虚 = 予算を守っていない）
+cat > "$TMP/oj.c" <<'C'
+#include <stdio.h>
+#include "saan_kanji.h"
+int main(void) {
+    printf("%zu %zu %d\n", (size_t)SAAN_KANJI_OJ_MAX_BYTES,
+           (size_t)SAAN_KANJI_OJ_BUDGET_BYTES, SAAN_KANJI_MAX_INPUT_TOK);
+    return 0;
+}
+C
+if cc -std=gnu17 -I csrc -I esp32/main -o "$TMP/oj" "$TMP/oj.c" 2>"$TMP/ojw"; then
+    read -r OJ_MAX OJ_BUD OJ_TOK <<EOF
+$("$TMP/oj")
+EOF
+    if [ "$OJ_MAX" -le "$OJ_BUD" ]; then
+        ok "形態素 $OJ_TOK 個までなら OJ ヒープ $OJ_MAX B ≤ 予算 $OJ_BUD B（余り $(( OJ_BUD - OJ_MAX )) B）"
+    else
+        ng "OJ ヒープ $OJ_MAX B > 予算 $OJ_BUD B（$(( OJ_MAX - OJ_BUD )) B 超過）"
+    fi
+else
+    ng "SAAN_KANJI_OJ_MAX_BYTES をソースから取れない"; sed 's/^/      /' "$TMP/ojw"
+fi
+# (b) 陽性対照。⚠️ **saan_kanji.c ではなく同じ _Static_assert を書いた小さな C** で見る
+#     （saan_kanji.c は取り込んだ Open JTalk のヘッダを要求してホストでは重い）。
+cat > "$TMP/oj_neg.c" <<'C'
+#include "saan_kanji.h"
+_Static_assert(SAAN_KANJI_OJ_MAX_BYTES <= SAAN_KANJI_OJ_BUDGET_BYTES, "budget");
+int main(void) { return 0; }
+C
+if cc -fsyntax-only -std=gnu17 -I csrc -I esp32/main \
+      -DSAAN_KANJI_MAX_INPUT_TOK=$(( OJ_TOK + 1 )) "$TMP/oj_neg.c" 2>/dev/null; then
+    ng "陽性対照: 上限を $(( OJ_TOK + 1 )) に上げてもコンパイルが通る（_Static_assert が効いていない）"
+else
+    ok "陽性対照: 上限を $(( OJ_TOK + 1 )) に上げるとコンパイルが止まる"
+fi
+
 # ---------------------------------------------------------------- 結果
 printf '\n'
 if [ "$FAIL" = "0" ]; then

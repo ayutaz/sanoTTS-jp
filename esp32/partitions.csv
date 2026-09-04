@@ -1,5 +1,7 @@
 # saanoTTS-jp のパーティション表（8 MB flash 前提）
 #
+# flash: 8MB   ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+#
 # ⚠️ **既定の partitions_singleapp.csv では足りない。** あれは factory app が
 #    1 MB しかなく、fp32 blob 2,249,792 B はそもそも app に入らない。
 #

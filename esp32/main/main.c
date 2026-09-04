@@ -282,10 +282,15 @@ static void prof_report(void) {
 }
 #endif
 
+/* ⚠️ **空きだけでは足りない。** Open JTalk の一時ヒープ（1 文ピーク 97,325 B。M-71）は
+ *    G2P の間だけ確保して直後に解放するので、発話の前後で free を見ても素通りする。
+ *    PSRAM が無い板ではこれが**内部 DRAM に来る**ので、
+ *    `minimum_free`（起動からの低水位）を併記しないと「載るか」を判断できない。 */
 static void log_heap(const char *when) {
-    ESP_LOGI(TAG, "%s: 内部 DRAM free %u B / 最大ブロック %u B", when,
+    ESP_LOGI(TAG, "%s: 内部 DRAM free %u B / 最大ブロック %u B / **低水位 %u B**", when,
              (unsigned)heap_caps_get_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
-             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
+             (unsigned)heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT),
+             (unsigned)heap_caps_get_minimum_free_size(MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT));
 }
 
 /* --- 1 発話 ---------------------------------------------------------------
@@ -550,6 +555,9 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
     }
     ESP_LOGI(TAG, "漢字 G2P: %u B -> 形態素 %d 個 / ids %d 個 / %.2f ms", (unsigned)nbytes, n_tok,
              (int)n_ids, kg2p_ms);
+    /* ⚠️ **合成の前に見る。** ここで見ないと Open JTalk の一時ヒープのピークが
+     *    arena の使用と混ざる。PSRAM 無しの板ではこれが内部 DRAM に来る（Lane D）。 */
+    log_heap("漢字 G2P 直後");
     if (n_ids > SAAN_MAX_IDS) {
         ESP_LOGE(TAG, "ids が %d 個で上限 %d を超えた。**喋らない**（短く区切ること）",
                  (int)n_ids, (int)SAAN_MAX_IDS);
@@ -753,8 +761,9 @@ static void print_usage(void) {
     ESP_LOGI(TAG, "**漢字対応ビルド**: 漢字・カタカナの文はそのまま入力する。");
     ESP_LOGI(TAG, "  例:  今日は良い天気ですね。");
     ESP_LOGI(TAG, "  （`!` を前置すると辞書経路に強制する。**試験用**）");
-    ESP_LOGI(TAG, "⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 15.44%% の文で"
-                  "読みが変わる**（音素では 0.32%%。M-77）。⚠️ 音は誰も聞いていない。");
+    /* ⚠️ **n を書く。** 同じ量が n=298 では 0.32%% に見える（C-059）。 */
+    ESP_LOGI(TAG, "⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 15.6%% の文で"
+                  "読みが変わる**（音素では 0.63%%。n=1,495。M-99）。⚠️ 音は誰も聞いていない。");
 #else
     ESP_LOGI(TAG, "⚠️ **この構成は辞書を持たない**ので、漢字・カタカナ・句読点は喋れない。");
     ESP_LOGI(TAG, "   端末で読ませるなら -DSAAN_KANJI=1 でビルドする。");
@@ -822,7 +831,12 @@ static void tts_task(void *arg) {
     if (!g_dict_ok)
         ESP_LOGW(TAG, "辞書を開けなかった（または作業領域を取れなかった）。"
                       "**かな入力だけ**で続ける");
-    else
+    else {
+        /* M-98: PSRAM の無い板ではここが効く。**起動ログに出して人が見られるようにする。** */
+        ESP_LOGI(TAG, "漢字の入力上限 形態素 %d 個 → Open JTalk の一時ヒープ最大 %u B "
+                      "（予算 %u B）。⚠️ PSRAM が無ければこれは内部 DRAM から来る",
+                 (int)SAAN_KANJI_MAX_INPUT_TOK, (unsigned)SAAN_KANJI_OJ_MAX_BYTES,
+                 (unsigned)SAAN_KANJI_OJ_BUDGET_BYTES);
         /* ⚠️ **2 つとも出す。** workbytes は「最低限これだけ要る」、
          *    Viterbi バイト数は「実際に渡る」。T10(a) で固定長の配列を
          *    arena へ移したぶん後者が減るので、減りすぎ（16 KB 未満で
@@ -832,6 +846,7 @@ static void tts_task(void *arg) {
                  (unsigned)saan_kanji_workbytes(),
                  (unsigned)saan_kanji_vitbytes(SAAN_ARENA_BYTES),
                  (int)SAAN_ARENA_BYTES);
+    }
     log_heap("辞書 mmap 後");
 #endif
 

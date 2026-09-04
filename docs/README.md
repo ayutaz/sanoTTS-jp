@@ -10,7 +10,37 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 **現在地（2026-09-03）**: **速度の要件に届き**（満チャンク 1 pull の xRT **0.446**。M-90）、
 **スタックチャン（M5 CoreS3）で漢字・カタカナ・ひらがなを喋る**ところまで来た。
 **残っているのは聴取（G32）だけで、それは人を待っている。**
-⚠️ **この音はまだ誰も聴いていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
+⚠️ **この音はまだ対照つきでは聴かれていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
+
+**8 MB 板の漢字対応（2026-09-05）**: ✅ **実機で喋った**
+（[M-104](measurements.md#m-104) = QEMU / [M-105](measurements.md#m-105) = **実機**）。
+接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にし、entries を絞ると枠に入る。
+**画面 + スピーカーを積んだ M5Unified 版でも動く。**
+
+| | DevKit の app | **M5Unified の app** |
+|---|---:|---:|
+| app | 1,021,248 B | **1,438,576 B** |
+| dict の枠 | 7,143,424 | **6,815,744** |
+| entries | 228,000 | **213,000** |
+| blob | 7,123,088（余り 20,336） | **6,797,056**（余り 18,688） |
+| 定常 xRT（実機） | **0.445** | **0.448** |
+| アンダーラン | **0** | **0** |
+| **音素の誤り**（n=1,495） | 1.01% | **1.09%** |
+
+⚠️ **枠は app の大きさで変わる。** M-97 の 7,143,424 B は DevKit 前提で、
+**M5Unified を積むと 241,808 B 足りない**（M-105 §4）。**AtomS3 も M5Stack の板。**
+⚠️ **アフィン行列の速度代償は +0.3%**（entries を揃えて実機で測った。M-105 §3）。
+⚠️ **既定ではない。** 出荷は 16 MB（[D-044](decisions.md#d-044)）で、16 MB で使う理由は無い
+（音素の誤りが 0.63% → 1.01% に悪化するだけ。⚠️ ただし**根拠は変わった** = [C-066](decisions.md#c-066)）。
+⚠️ **8 MB flash のチップそのものでは測っていない**（16 MB の板に 8 MB の表を焼いた）。
+⚠️ **音を人が聴いていない。** ⚠️ **②〜④ の C リーダは書いていない。**
+
+⚠️ **当初 [D-051](decisions.md#d-051) は「8 MB の実機が入るまで着手しない」としていたが、
+条件の立て方が間違っていた**（[C-065](decisions.md#c-065)）。C リーダの正しさも枠に入ることも
+起動も、**板なしで確かめられた**（その後 [M-105](measurements.md#m-105) で実機にも載せた）。
+
+あわせて **PSRAM 無しの板の穴**を塞いだ（[M-98](measurements.md#m-98)。Open JTalk の一時ヒープを
+G2P の前に形態素数で縛る。低水位 2,760 → 40,468 B）。
 
 **2026-09-03、W トラック（ブラウザで動くデモ）を足した**（[D-050](decisions.md#d-050) / [M-94](measurements.md#m-94)）。
 `csrc/` の C99 コアと漢字経路を**書き換えずに** wasm にしたもので、
@@ -28,8 +58,8 @@ URL が開くのはマージ後。
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-050（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-058** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-96。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-066** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-105。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -411,8 +441,8 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-050（D-049 は欠番）+ 訂正履歴 C-001〜C-058
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-96
+│   ├── decisions.md                       決定記録 D-001〜D-052（D-049 は欠番）+ 訂正履歴 C-001〜C-066
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-105
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── plan/phase0-1-implementation-plan.md
@@ -507,7 +537,7 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（94 ケース + commit ガードのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（105 ケース + commit ガードのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                           student-training / evaluating-quality /
 │                                           verifying-reports / writing-gates
@@ -564,7 +594,7 @@ uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   #
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（94 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（105 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか

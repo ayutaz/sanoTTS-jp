@@ -42,7 +42,7 @@ CI = ROOT / ".github" / "workflows" / "ci.yml"
 # ⚠️ **「面倒だから」は理由にならない。** 何が無いから回せないのかを書く。
 #    その「無いもの」が CI で手に入るようになったら、ここから外して CI に入れる。
 EXCLUDED_TARGETS: dict[str, str] = {
-    # ⚠️ **訂正（C-057）。** ここには
+    # ⚠️ **訂正（C-059）。** ここには
     #    「重み blob が要る。しかも **リリースの int8 資産は blob v1 のまま**なので
     #     S4 以降のコアが SAAN_ERR_VERSION で拒む」という理由で
     #    `int8` と `int8-golden` が**除外されていた**。**これは v0.2.0 までの話で、今は誤り。**
@@ -66,6 +66,9 @@ EXCLUDED_TARGETS: dict[str, str] = {
     "kb-parity": "pyopenjtalk と piper-plus（ホスト側 G2P との突き合わせ）",
     # 辞書 13.7 MB（k1_dict.bin）と pyopenjtalk が要る
     "jdict": "辞書 blob（13.7 MB）と pyopenjtalk",
+    # M-104: 8 MB 板向けの matrixa。⚠️ **同じ逆量子化値を 2 形式で持った blob を 2 本**
+    #    作るので、辞書と pyopenjtalk に加えて **生成に数分**かかる。
+    "matrixa": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-104）",
     "accent": "辞書 blob と pyopenjtalk",
     "njd-rules": "辞書 blob と pyopenjtalk",
     "oj-heap": "辞書 blob と pyopenjtalk",
@@ -84,6 +87,7 @@ EXCLUDED_TARGETS: dict[str, str] = {
 }
 
 EXCLUDED_SCRIPTS: dict[str, str] = {
+    "scripts/check_dict_blob.py": "辞書 blob 13.7 MB（git 管理外）。⚠️ **構造の検査だけなら CI に載っている** — `make -C csrc jdict-hard` が合成 blob で jdict_open の入力検査を陽性対照つきで叩く（M-100）",
     "scripts/check_esp32_template.sh": "ESP-IDF の xtensa toolchain（約 2 GB）と重み blob",
     "scripts/check_partitions.py": "重み blob と辞書 blob（大きさを突き合わせる）",
     "scripts/test_discriminator.py": "ラベルパック data/pack_sibdense（git 管理外）",

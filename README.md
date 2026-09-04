@@ -126,7 +126,8 @@ uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
 
 ⚠️ **端末（`-DSAAN_KANJI=1`）はこの制約を受けない。** 辞書を載せた板は漢字文を
 そのまま受ける。ホストで OpenJTalk が要るのは、**端末より広いフル辞書**を使うため
-（端末の枝刈り辞書とは音素の 0.32% が違う）。
+（端末の枝刈り辞書とは**音素の 0.63% が違う**。n=1,495。M-99 §4）。
+⚠️ **n を必ず添えること。** 同じ量が n=298 では 0.32% に見える（C-059）。
 
 ⚠️ **モデルの重みは MIT ではない。** 使う前に [`LICENSE-MODEL.md`](LICENSE-MODEL.md) を読むこと。
 
@@ -156,6 +157,19 @@ CoreS3 / AtomS3 のような **native USB だけの板は `-usbjtag` の方**を
 | **M5 CoreS3** | `m5-cores3-firmware-kanji-16mb.bin` | 同上。**内蔵スピーカーで鳴る** | **16 MB 必須** |
 
 ⚠️ **v0.2.0 以前のイメージは `!` の前置が要り、入力が UART0**。必ず入れ替えること。
+
+⚠️ **「16 MB 必須」は配布イメージの話。** **8 MB の板でもソースからなら漢字が動く**
+（2026-09-05 に実機で確認。[M-105](docs/measurements.md#m-105)）。
+**配布はしていない**ので、自分でビルドすることになる:
+
+| | 表 | entries | **音素の誤り**（n=1,495） |
+|---|---|---:|---:|
+| **16 MB**（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% |
+| 8 MB / **M5Stack 系** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** |
+
+手順は [`esp32/README.md`](esp32/README.md) の「8 MB flash の板」。
+⚠️ **読みが落ちる**（枝刈りを深くするため）。⚠️ **音を人が聴いていない。**
 
 **音の出口は 2 通り。**
 

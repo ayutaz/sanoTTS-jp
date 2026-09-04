@@ -21,6 +21,7 @@ stdin に hook の JSON を受け取り、判定を JSON で返す。
 from __future__ import annotations
 
 import json
+import pathlib
 import re
 import os
 import sys
@@ -328,6 +329,78 @@ def check_frozen_artifacts(cmd: str) -> None:
             deny(f"リダイレクトが凍結物 `{path}` を上書きしようとしています。\n" + why)
 
 
+# 成果物を作り直すスクリプトと、いま正しい ckpt（D-037）。
+# ⚠️ **M 番号の再現コマンドは古い ckpt を指す**（例 M-41 の `--ckpt runs/v2/stage4.pt`）。
+#    それは**記録としては正しい**が、`export_c_weights.py` は**既定で
+#    `csrc/student.bin` / `csrc/golden.bin` / `csrc/export.json` を上書きする**ので、
+#    走らせると**出荷している成果物が v2 に戻る**（M-102 で実際に踏んだ。
+#    `make int8` が §2c で落ちて初めて気づいた）。
+CURRENT_CKPT = "runs/v3/stage4.pt"
+
+
+def check_stale_ckpt_export(cmd: str) -> None:
+    """古い ckpt で共有の成果物を上書きするのを止める（M-102）。
+
+    ⚠️ **測定そのものは止めない。** `--out` / `--report` で別の場所に書くなら通す。
+       止めるのは「既定の置き場（csrc/）を古い ckpt で上書きする」場合だけ。
+    """
+    if "export_c_weights.py" not in cmd:
+        return
+    m = re.search(r"--ckpt\s+(\S+)", cmd)
+    if not m:
+        return
+    ckpt = m.group(1).strip("\"'")
+    if ckpt == CURRENT_CKPT:
+        return
+    # 出力先を全部そらしているなら通す（測定の再現は妨げない）
+    diverted = all(re.search(rf"--{opt}\s+(?!csrc/)\S+", cmd)
+                   for opt in ("out", "report"))
+    if diverted:
+        return
+    deny(
+        f"`export_c_weights.py --ckpt {ckpt}` が**既定の置き場**に書こうとしています。\n"
+        f"⚠️ **既定は `csrc/student.bin` / `csrc/golden.bin` / `csrc/export.json` を上書きします。**\n"
+        f"いまの成果物は **{CURRENT_CKPT}**（D-037）なので、これを走らせると\n"
+        f"**出荷している重みが {ckpt} に戻ります**（M-102 で実際に踏み、\n"
+        f"`make -C csrc int8` が §2c で落ちて初めて気づきました）。\n\n"
+        f"古い M 番号を再現したいなら、**出力先をそらしてください**:\n"
+        f"  uv run python scripts/export_c_weights.py --ckpt {ckpt} \\\n"
+        f"      --out /tmp/repro --report /tmp/repro/export.json\n\n"
+        f"戻すなら: uv run python scripts/export_c_weights.py --ckpt {CURRENT_CKPT}")
+
+
+def check_dict_blob_overwrite(cmd: str) -> None:
+    """8 MB 用の辞書で **16 MB の出荷辞書を上書きする**のを止める（M-104）。
+
+    ⚠️ **落ちずに読みだけ変わる。** `jdict_open` は `matrixa` を正しく受けるので、
+       `csrc/k1_dict.bin` が 228,000 entries のアフィン版に差し替わっても
+       **ファームは普通に起動して普通に喋る**。違うのは読みだけ
+       （音素の誤り 0.63% → 1.01%）で、**どのゲートも捕まえない**。
+       これは M-100 で潰した欠陥と同じ形である。
+
+    ⚠️ **止めるのは「既定の名前へ書く」場合だけ。** 8 MB 版を別名で作るのは通す。
+    """
+    if "k1_build_dict.py" not in cmd:
+        return
+    if not re.search(r"--matrix\s+affine", cmd):
+        return
+    m = re.search(r"--out\s+(\S+)", cmd)
+    if not m:
+        return                       # --out が無ければ書き出さない（実害なし）
+    out = m.group(1).strip("\"'")
+    if pathlib.Path(out).name != "k1_dict.bin":
+        return                       # 別名なら通す
+    deny(
+        f"`--matrix affine`（8 MB 用）の出力先が **{out}** になっています。\n"
+        f"⚠️ **その名前は 16 MB の出荷辞書**（438,750 entries / 13,702,320 B。D-044）です。\n"
+        f"⚠️ **上書きしても何も落ちません。** `jdict_open` は `matrixa` を正しく受けるので、\n"
+        f"   ファームは普通に起動して普通に喋り、**読みだけが変わります**\n"
+        f"   （ホストと違う音素 0.63% → 1.01%）。M-100 で潰した欠陥と同じ形です。\n\n"
+        f"8 MB 版は別名で作ってください:\n"
+        f"  uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \\\n"
+        f"      --out csrc/k1_dict_8mb.bin")
+
+
 def check_label_regeneration(cmd: str) -> None:
     """既にある本番パックへの再生成を止める（D-015: ラベルは一度だけ）。
 
@@ -504,6 +577,8 @@ def main() -> int:
     check_production_pack(cmd)
     check_label_regeneration(cmd)
     check_frozen_artifacts(cmd)
+    check_stale_ckpt_export(cmd)
+    check_dict_blob_overwrite(cmd)
     check_upstream_gpl(cmd)
     check_upstream_package(cmd)
     check_corpus_text_commit(cmd)

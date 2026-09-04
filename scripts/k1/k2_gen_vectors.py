@@ -41,6 +41,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrix-int8", choices=["sym", "affine"], default=None,
                     help="接続行列を 1 B に丸める（K-5 の精度影響を測る）。\n                          sym=行ごと対称 int8 / affine=行ごとアフィン uint8")
+    ap.add_argument("--matrix-affine", action="store_true",
+                    help="接続行列を**セクション `matrixa`（行ごとアフィン uint8）として"
+                         "実際に blob に入れる**（D-051 の ①）。\n"
+                         "⚠️ **--matrix-mode affine とは別物**: あちらは値だけ丸めて"
+                         "int16 のまま入れる（精度だけを測る）。\n"
+                         "こちらは **C リーダの `matrixa` 経路を実際に走らせる**")
+    ap.add_argument("--matrix-mode", default=None,
+                    help="k9_fit_8mb.make_matrix の方式をそのまま使う"
+                         "（int16 / affine / cluster:K[:u8] / lowrank:R）。"
+                         "⚠️ **--matrix-int8 とは別物**: あちらは float スケールの旧形、"
+                         "こちらは C リーダが再現できる整数式（M-99）。"
+                         "⚠️ **定義を 2 つ持たないため make_matrix を import する**")
     ap.add_argument("--entries", type=int, default=120_000,
                     help="ベクタ用は小さめで良い（C の正しさを見るのが目的）")
     ap.add_argument("--cases", type=int, default=300)
@@ -84,7 +96,23 @@ def main() -> int:
                for r in sub]
     matrix = ConnMatrix.from_matrix_bin(
         (pathlib.Path(dic) / "matrix.bin").read_bytes())
-    if a.matrix_int8:
+    if a.matrix_mode:
+        if a.matrix_int8:
+            print("NG! --matrix-int8 と --matrix-mode は同時に使えない")
+            return 1
+        import numpy as np
+        import k9_fit_8mb
+        matrix, msize = k9_fit_8mb.make_matrix(a.matrix_mode)
+        M0 = np.frombuffer(
+            (pathlib.Path(dic) / "matrix.bin").read_bytes()[4:],
+            dtype="<i2").astype(np.int64)
+        M2 = np.frombuffer(matrix.data, dtype="<i2").astype(np.int64)
+        nd = int((M2 != M0).sum())
+        print(f"⚠️ 行列を {a.matrix_mode} にした: {nd:,d} / {M0.size:,d} 要素が変化"
+              f"（{100*nd/M0.size:.2f}%）/ 最大誤差 {int(np.abs(M2-M0).max())}"
+              f" / 実装時の行列サイズ {msize:,d} B")
+        print("   ⚠️ **値は int16 のまま入れている**。ここで測るのは精度への影響だけ")
+    elif a.matrix_int8:
         # K-5: 行ごとスケールの int8 に丸めた「値」を、**int16 のまま**入れる。
         # ⚠️ ここで測るのは**精度への影響だけ**。サイズの削減は別の話
         #    （形式を int8 にして初めて縮む）。混ぜて報告しないこと。
@@ -106,6 +134,21 @@ def main() -> int:
               f"（{100*n_diff/M.size:.2f}%）/ 最大誤差 "
               f"{int(np.abs(M2.astype(np.int32)-M).max())}")
         matrix = ConnMatrix(matrix.lsize, matrix.rsize, M2.tobytes())
+    if a.matrix_affine:
+        if a.matrix_mode or a.matrix_int8:
+            print("NG! --matrix-affine は --matrix-mode / --matrix-int8 と同時に使えない")
+            return 1
+        from saanotts_jp.jdict import ConnMatrixAffine
+        aff = ConnMatrixAffine.from_int16(matrix)
+        import numpy as np
+        M0 = np.frombuffer(matrix.data, dtype="<i2").astype(np.int64)
+        M2 = np.frombuffer(aff.to_int16().data, dtype="<i2").astype(np.int64)
+        print(f"⚠️ 接続行列を `matrixa`（行ごとアフィン uint8）にした: "
+              f"セクション {len(aff.to_section()):,d} B"
+              f"（生 int16 {len(matrix.to_section()):,d} B）/ "
+              f"最大誤差 {int(np.abs(M2-M0).max())} / "
+              f"{int((M2 != M0).sum()):,d} / {M0.size:,d} 要素が変化")
+        matrix = aff
     char_prop = CharProperty.from_char_bin((pathlib.Path(dic) / "char.bin").read_bytes())
     unkd = UnkDict.from_unk_dic((pathlib.Path(dic) / "unk.dic").read_bytes())
     blob = DictBlob.build(entries, matrix=matrix, char_prop=char_prop, unk=unkd)

@@ -135,7 +135,8 @@ needed for kanji→kana.
 
 ⚠️ **The device (`-DSAAN_KANJI=1`) has no such constraint** — a board with the dictionary
 takes kanji as it comes. OpenJTalk is needed on the host because the host uses the **full**
-dictionary, which differs from the device's pruned one by 0.32% of phonemes.
+dictionary, which differs from the device's pruned one by **0.63% of phonemes**
+(n=1,495; M-99 §4). ⚠️ **Always state n** — the same quantity reads as 0.32% at n=298 (C-059).
 
 ⚠️ **The model weights are not MIT.** Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) first.
 
@@ -165,6 +166,19 @@ native-USB-only board such as a CoreS3 or AtomS3 needs the `-usbjtag` one.
 | **M5 CoreS3** | `m5-cores3-firmware-kanji-16mb.bin` | Same, through the **built-in speaker** | **16 MB required** |
 
 ⚠️ **Images before v0.3.0 need the `!` prefix and read UART0.** Replace them.
+
+⚠️ **"16 MB required" applies to the released images.** Kanji also runs on an 8 MB board
+if you **build from source** (verified on hardware 2026-09-05, [M-105](docs/measurements.md#m-105)).
+No 8 MB image is published, so you build it yourself:
+
+| | Partition table | entries | **Phoneme error** (n=1,495) |
+|---|---|---:|---:|
+| **16 MB** (released) | `partitions_16mb.csv` | 438,750 | **0.63%** |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% |
+| 8 MB / **M5Stack** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** |
+
+Steps: the "8 MB flash の板" section of [`esp32/README.md`](esp32/README.md).
+⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened to it.**
 
 **Two ways to get sound out.**
 

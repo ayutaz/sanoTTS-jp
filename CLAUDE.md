@@ -125,9 +125,8 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 ⚠️ 一致はすべて「OpenJTalk と同じ出力か」であって正しさではなく、**聴取はゼロ**。
 
 ⚠️ **ホストと違う音素は 0.32%**（n=298・438,750 entries。M-77）。
-⚠️ **文単位で数えると 14.77% になる**（一致 254/298 = 違うのは 44 文）。
-~~15.44%~~ は **C-058 で訂正した**（46/298 に相当し、どの動作点にも無い数だった）。
-**1 音素の差も全崩れも同じ 1 件**になるので、判断には**編集距離の方**を使うこと（D-044 はそれで決めた）。
+⚠️ **文単位で数えると 14.77% になる**（一致 254/298 = 違うのは 44 文。~~15.44%~~ は C-058 で訂正）。
+⚠️ **n=1,495 では 15.59%**（1262/1495）= [C-059](docs/decisions.md#c-059)。
 **食い違いは全部が辞書の枝刈り**で、
 移植の誤りではない（「素性が同じなのにラベルが違う」は 3 つの動作点すべてで **0 件**）。
 ⚠️ **計画にあった「0.60% 以下」は取り下げた**（C-050）。あれは同形異音語
@@ -266,12 +265,15 @@ uv run python scripts/kana_g2p.py                  # 変換器 10 ケース + **
 uv run python scripts/test_losses.py               # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（94 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（105 ケース + commit ガード）
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
 uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **引用アンカー**
                                                    #   （陽性対照つき。C-042 / C-052）
 uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
-uv run python scripts/check_release_assets.py      # 表の資産がリリースに在るか（要ネットワーク）
+GH_TOKEN="$(gh auth token)" \
+  uv run python scripts/check_release_assets.py    # 表の資産がリリースに在るか
+                                                   #   ⚠️ **トークン必須**。素で回すと GitHub の
+                                                   #   rate limit (403) で **NG を返す**（M-101）
 uv run python scripts/k1/k0_verify_dict.py         # 使う辞書が D-042 の凍結物か（陰性対照 2 種。C-045）
 uv run python scripts/test_k1_dict.py              # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
 make -C csrc jdict                                    # K-2/K-3 辞書リーダ + Viterbi + 未知語
@@ -555,27 +557,28 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
 | テスト | `make -C csrc njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
+| テスト | `make -C csrc jdict-hard` | **辞書リーダの入力検査**（M-100）。⚠️ **返り値だけでは越境が見えない**ので **ASan ビルドを同居**させ、`JDICT_TEST_WEAK` で検査を外した**陽性対照が 15/15 leak** することを要求する。`all-test` と CI に入っている |
+| テスト | `scripts/check_dict_blob.py` | blob の自己整合と manifest の照合（**陽性対照 5 種を内蔵**） |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
 | テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない** |
-| テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークが要る**。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
+| テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークと GitHub のトークンが要る** — 素で回すと rate limit (403) で **NG を返し、「資産が無い」と読み違える**（M-101）。`GH_TOKEN="$(gh auth token)"` を付ける。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
 | テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
-| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（10 節）。**§10 は `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES`** を両方ソースから取って比べ、足りない arena ではコンパイルが止まることを**陽性対照**で示す。⚠️ **`T10_BSS_BYTES` は `0u`**（`esp32/main/main.c:157`。T10 で .bss に移す予定だった 14,464 B は結局 arena に置いたので二重計上になる）。**「+ 14,464 B」と書いていたのは古い** — 残っているのは陽性対照のリテラルだけ |
-| テスト | `scripts/check_web_gates.sh` | **W トラックの受け入れゲート 8 本**（G-W7 / G-W1 / G-W2 / **G-W2b** / G-W3 / G-W4 / G-W5 / **G-W6**）。⚠️ **全部に陽性対照**。**G-W6 が出荷する `web/dist/*.mjs` を実際に叩く** — これを入れるまで `web/saan_web.c` は**どのゲートでもコンパイルされていなかった**（`#error` を入れても exit 0。M-94 §11）。⚠️ **辞書 13.7 MB が要る部分**（漢字 == かな）は CI で回らず、**skip せず「回せなかった」と出る** |
+| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**11 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98） |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で **6 job**（docs / golden / csrc / python / release-assets / **web**）。⚠️ **かつて「4 job」と書いてあったが、数えたら違った**（job は増える）。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
 | CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
-| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** を deny（**94 ケース + commit ガード 6 件**の回帰テスト付き） |
+| hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** / **古い ckpt での成果物の上書き**（M-102）を deny（**105 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
 
 hook を変えたら必ず回帰テストを通すこと（誤検知があると全 Bash が止まる）:
 
 ```bash
-uv run python .claude/hooks/test_guard_bash.py     # 83/83 + commit ガード 6 件
+uv run python .claude/hooks/test_guard_bash.py     # 105/105 + commit ガード 6 件
 ```
 
 ⚠️ **誤検知は 5 回踏んでいる**（C-011 で 3 回、C-020 で 1 回、C-025 で 1 回）。C-020 と C-025 はどちらも **C-015 で直したはずの「走査範囲を 1 コマンドに閉じる」が別の場所に残っていた**再発。
@@ -847,7 +850,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-04 更新。**対照つきの聴取と、判断が 2 つ**）
+## 残っているタスク（2026-09-05 更新。**対照つきの聴取と、判断が 4 つ**）
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
 K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約）。
@@ -859,9 +862,12 @@ K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計�
 | 2 | RTF の分母（満チャンク 1 pull = 0.446 で達成 / 発話全体 = 0.54〜0.71 で未達） | 判断 | **未決。D-049 で決める**（`docs/requirements.md` §6.2） |
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ → ✅ **v0.3.0 で既に v2 だった**（誤りだった。C-057） | — | — |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ → ✅ **v0.3.0 で配っている**（`esp32s3-firmware-kanji-16mb-usbjtag.bin` / `esp32s3-firmware-w8a8-pie-usbjtag.bin` の実在をリリースで確認）。⚠️ **v0.2.0 以前のイメージは UART0 のまま**なので、CoreS3 / AtomS3 では入れ替えが要る（M-83） | — | — |
-| 5 | K トラックのエントリ数・接続行列（今は 438,750 / int16） | 判断 | D-044 を見直すか |
+| ~~5~~ | ~~K トラックのエントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](docs/decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | — | — |
 | ~~6~~ | ~~GitHub Pages の有効化~~ → ✅ **2026-09-04 に有効化された**（`build_type: workflow`。⚠️ **手作業だった** — `configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ **`pages.yml` は `main` への push でしか走らない**ので、URL が開くのはマージ後 | — | — |
 | ~~7~~ | ~~ブラウザでの実測と聴取~~ → ✅ **測った**（**M-95** Chrome 152）**+ 聴いてもらった**（**M-96** 両レーンとも「問題なかった」/ 途切れ無し）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | — | — |
+| **8** | **辞書 blob の完全性を端末で検査するか**（M-100 §8 の 1・2。いま端末は blob 長も SHA-256 も見ていない） | 判断 | 版を上げる / firmware に SHA-256 を焼く / CRC。⚠️ **13.7 MB を起動時に舐めるコストが未測定** |
+| **9** | **`？` + `〜`(U+301C) 終わりの文が端末で疑問にならない**（M-103 §2）。ホストは `normalize_input()` で U+FF5E に寄せるが端末は寄せない。held-out 2 文 / train 8 文（全部 `curated/question_eos`） | 判断 | ⚠️ **「端末では正規化も推定もしない」と正面から衝突**。(a) 端末に足す (b) コーパスを U+FF5E に直す (c) 受け入れる |
+| **10** | **8 MB 版を配布するか**（M-105。DevKit 用と M5 用の 2 本が要る。⚠️ **読みが 0.63% → 1.01% / 1.09% に落ちる**） | 判断 | 配る / 「ソースからどうぞ」のまま。⚠️ **配るなら 8 MB の実機で 1 度は確かめたい**（いまは 16 MB 板に 8 MB の表を焼いただけ） |
 
 **素材はそろっている。** 端末の ids はホストの生徒モデルにそのまま入るので、
 **端末の音とホストの音は実機なしで直接比べられる**（M-78）:
@@ -882,7 +888,75 @@ checksum が一致しても、M5.Speaker の DMA の実挙動は別（M-90 §5�
 **かなトラック / K トラックに実装として書くものは残っていない。** 1〜5 は「聴く」「決める」。
 ⚠️ **6 と 7 は W トラック**（D-050）で、**6 はコードでは解決できない**（GitHub の設定画面）。
 
-⚠️ **これから板を買うなら N16R8。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
+⚠️ **これから板を買うなら N16R8。** 8 MB flash では**現行の辞書（13.7 MB）はそのままでは入らない**。
+✅ **ただし 8 MB でも漢字は動く。実機で喋った**（M-104 = QEMU / **M-105 = 実機**。2026-09-05）。
+**エントリ数を落とせば入る。代償は読みの精度**（⚠️ **数値は n=1,495**。M-99 §4 / M-105 §4b）。
+
+⚠️ **枠は app の大きさで変わる**（M-105 §4。M-97 の 7,143,424 B は**DevKit 前提**だった）:
+
+| 板 | app | 表 | dict の枠 | entries | blob | **音素の誤り** |
+|---|---:|---|---:|---:|---:|---:|
+| 16 MB（出荷） | — | `partitions_16mb.csv` | 13,828,096 | 438,750 | 13,702,320 | **0.63%** |
+| 8 MB / DevKit | 1,021,248 | `partitions_8mb_kanji.csv` | 7,143,424 | 228,000 | 7,123,088 | 1.01% |
+| 8 MB / **M5Stack 系** | **1,438,576** | `boards/m5unified/partitions_8mb.csv` | **6,815,744** | **213,000** | **6,797,056** | **1.09%** |
+
+⚠️ **DevKit 用の辞書を M5 版に焼くと 241,808 B 入らない。表と辞書は必ずセット。**
+✅ **アフィン行列の速度代償は +0.3%**（entries を揃えて実機で測った。M-105 §3。**PCM は bit 一致**）。
+
+**②〜④ は今も未実装**（サイズは形式からの算術）:
+
+| 案 | 新規に書く C | entries | イメージ | 音素の誤り |
+|---|---|---:|---:|---:|
+| ④' ① + char レンジ表 + レコード dedup | + ID 展開 | 290,000 | 7,024,421 | 0.98% |
+| ③ ① + char + 行列クラスタ 768 | + 索引 2 本 | 295,000 | 7,073,884 | 0.99% |
+| ④ ③ + レコード dedup 18bit | 全部 | **372,000** | 7,129,514 | **0.89%** |
+
+⚠️ **438,750 のままは不可能**（既知の削減を全部入れても 8,392,259 B で枠を 1,248,835 B 超える）。
+⚠️ **「音素の 0.32%」は n=298 の値で、n=1,495 では 0.63%**（C-059）。**編集距離の比を書くときは n を必ず添える。**
+⚠️ **クラスタは n=298 では無害に見えるが、MeCab 一致（n=1,696）では 1,696 → 1,680**
+（affine は 1,693）。**③ は ① にほぼ何も足さない**（1.01% → 0.99%）。
+⚠️ **逆量子化は整数式で閉じてある**（M-99 §1。float だと C リーダが再現できない）。
+⚠️ **§6-4 の「−9.76 MB」は使えない** — trie の idvar も値プールの E1/E3 も**既に実装済み**で、
+残っていたのは**レコード dedup だけ**（−1,855,625 B）。⚠️ **プールの dedup は純損。**
+✅ **① は書いて実機まで通した**（M-104 = QEMU / **M-105 = 実機**。C-065）。
+
+```bash
+# --- 8 MB / DevKit の app ---
+uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \
+    --out csrc/k1_dict_8mb.bin                       # 7,123,088 B（枠 7,143,424。余り 20,336）
+make -C csrc matrixa                                 # C リーダが生 int16 と全 1,896,129 要素で一致するか
+cd esp32 && idf.py -B build_k8 -DSDKCONFIG=build_k8/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji8mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_8mb.bin build   # ⚠️ MODEL_RODATA=1 が要る（model 行が無い）
+#   ⚠️ QEMU で回すなら -DSAAN_QEMU=1 / DAC の無い実機で測るなら -DSAAN_SKIP_I2S=1（音は出ない）
+
+# --- 8 MB / M5Stack 系（画面 + スピーカーが生きる。AtomS3 など）---
+uv run python scripts/k1/k1_build_dict.py --entries 213000 --matrix affine \
+    --out csrc/k1_dict_8mb_m5.bin                    # 6,797,056 B（枠 6,815,744。余り 18,688）
+cd esp32/boards/m5unified && idf.py -B build_m58 -DSDKCONFIG=build_m58/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3;sdkconfig.8mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict_8mb_m5.bin build
+```
+
+**実機（CoreS3 に 8 MB の表を焼いた）の実測**: DevKit 構成 **xRT 0.445 / アンダーラン 0 / 14**、
+M5 構成 **xRT 0.448 / アンダーラン 0 / 22**。どちらも checksum が **16 MB の基準と一致**。
+
+⚠️ **既定ではない。** 出荷は 16 MB（D-044）で、16 MB で ① を使う理由は無い
+（音素の誤りが 0.63% → 1.01% に悪化するだけ。⚠️ **根拠は C-066 で変わった** —
+「得るものが無い」ではなく「**得るもの 1.8 MB の使い道が決まっていない**」）。
+⚠️ **余りは 0.3% しかない。** entries を変えたら**概算ではなく作って `stat`** すること
+（214,000 で作ったら 2,944 B 超過した。概算 22.25 B/entry に対し実測 21.74。M-105 §4b）。
+⚠️ **8 MB flash のチップそのものでは測っていない**（16 MB の板に 8 MB の表を焼いた）。
+⚠️ **音を人が聴いていない。** ⚠️ **②〜④ の C リーダは今も無い。**
+
+⚠️ **PSRAM 無しの板（AtomS3 など）は辞書とは別の壁がある**（M-98）。Open JTalk の
+一時ヒープは **197.6 B × ids + 924 B**（QEMU 実測 / R²=0.99905）で、PSRAM があれば
+PSRAM に落ちるが**無ければ内部 DRAM から来る**。最長文で 99,668 B / 空き 103,140 B = **余裕 2,760 B** だった。
+✅ **塞いだ**: `SAAN_KANJI_MAX_INPUT_TOK`（44）で **NJD 段に入る前に形態素数で縛る**
+（低水位 2,760 → **40,468 B**。checksum 不変）。⚠️ **`SAAN_KANJI_MAX_TOK`(96) は下げてはいけない**
+（NJD 段の配列の寸法も兼ねており、`njd_set_digit` がノードを増やすので、下げるとアクセント段が黙って切れる）。
 16 MB なら**かなトラックの構成もそのまま焼ける**（`partitions.csv` は 5.06 MB）。
 **別々に取りに行くと 2 回焼き直しになる。** 実測に使っているのはユーザーの M5 CoreS3（16 MB / PSRAM 8 MB Quad。D-047）。
 
