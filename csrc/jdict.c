@@ -211,18 +211,39 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
      *    して読み進めても境界検査に当たらなかった（M-100 §1: 10/10 文が 1 文字ずつに
      *    刻まれ、それでも jdict_open は 0 を返した）。 */
 #if !defined(JDICT_TEST_WEAK) || !JDICT_TEST_WEAK
-    if (find_sec(blob, d->blob_len, "matrix", &s) != 0) return JDICT_ERR_MATRIX;
+    /* ⚠️ **`matrix` と `matrixa` はどちらか一方。両方あれば拒む。**
+     *    黙って片方を選ぶと、焼き損ねた blob が「動くが読みだけ違う」形になる
+     *    （M-100 で見た欠陥そのもの）。 */
     {
-        /* ⚠️ **rd16 より前に長さを見る。** find_sec は len == 0 のセクションを
-         *    正常に返すので、matrix が blob の末尾にあると 4 B 越境してから拒んでいた
-         *    （ASan で再現。M-100 §8）。 */
-        JD_CHECK(s.len >= 4u, JDICT_ERR_MATRIX);
-        uint32_t L = rd16(s.p), R = rd16(s.p + 2);
-        if (L == 0 || R == 0) return JDICT_ERR_MATRIX;
-        /* 64 bit で組む（2*65535*65535 は uint32 に入らない）。 */
-        if ((uint64_t)s.len != 4ull + 2ull * L * R) return JDICT_ERR_MATRIX;
-        d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
-        d->matrix = (const int16_t *)(const void *)(s.p + 4);
+        struct sec sa;
+        const int has_i16 = (find_sec(blob, d->blob_len, "matrix",  &s)  == 0);
+        const int has_aff = (find_sec(blob, d->blob_len, "matrixa", &sa) == 0);
+        if (has_i16 == has_aff) return JDICT_ERR_MATRIX;   /* 両方 / どちらも無い */
+        if (has_i16) {
+            /* ⚠️ **rd16 より前に長さを見る。** find_sec は len == 0 のセクションを
+             *    正常に返すので、matrix が blob の末尾にあると 4 B 越境してから拒んでいた
+             *    （ASan で再現。M-100 §8）。 */
+            JD_CHECK(s.len >= 4u, JDICT_ERR_MATRIX);
+            uint32_t L = rd16(s.p), R = rd16(s.p + 2);
+            if (L == 0 || R == 0) return JDICT_ERR_MATRIX;
+            /* 64 bit で組む（2*65535*65535 は uint32 に入らない）。 */
+            if ((uint64_t)s.len != 4ull + 2ull * L * R) return JDICT_ERR_MATRIX;
+            d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+            d->matrix = (const int16_t *)(const void *)(s.p + 4);
+        } else {
+            /* matrixa: lsize u16 / rsize u16 / bits u16 / reserved u16
+             *          / lo i16[rsize] / span u16[rsize] / q u8[lsize*rsize] */
+            JD_CHECK(sa.len >= 8u, JDICT_ERR_MATRIX);
+            uint32_t L = rd16(sa.p), R = rd16(sa.p + 2), bits = rd16(sa.p + 4);
+            if (L == 0 || R == 0) return JDICT_ERR_MATRIX;
+            if (bits != 8u) return JDICT_ERR_MATRIX;       /* 未知の量子化幅 */
+            if ((uint64_t)sa.len != 8ull + 4ull * R + (uint64_t)L * R)
+                return JDICT_ERR_MATRIX;
+            d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+            d->matrix_lo   = (const int16_t  *)(const void *)(sa.p + 8);
+            d->matrix_span = (const uint16_t *)(const void *)(sa.p + 8 + 2u * R);
+            d->matrix_q    = sa.p + 8u + 4u * R;
+        }
     }
     /* M-100 §8 の 4: エントリの lc / rc が行列の寸法に収まるか。
      * ⚠️ **誰も見ていなかった。** `jdict_trans` は `matrix[rc_prev + lsize*lc_cur]` を
@@ -236,6 +257,12 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
     if (find_sec(blob, n, "matrix", &s) == 0) {
         d->lsize = rd16(s.p); d->rsize = rd16(s.p + 2);
         d->matrix = (const int16_t *)(const void *)(s.p + 4);
+    } else if (find_sec(blob, n, "matrixa", &s) == 0) {
+        uint32_t R = rd16(s.p + 2);
+        d->lsize = rd16(s.p); d->rsize = (uint16_t)R;
+        d->matrix_lo   = (const int16_t  *)(const void *)(s.p + 8);
+        d->matrix_span = (const uint16_t *)(const void *)(s.p + 8 + 2u * R);
+        d->matrix_q    = s.p + 8u + 4u * R;
     }
 #endif
     return 0;
@@ -639,8 +666,19 @@ int jdict_entry_feature(const jdict_t *d, uint32_t entry,
 }
 
 int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
-    if (!d->matrix) return 0;
-    return d->matrix[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
+    if (d->matrix) return d->matrix[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
+    if (!d->matrix_q) return 0;
+    /* 行ごとアフィン uint8（`matrixa`）。⚠️ **整数だけで閉じる。**
+     *    float スケールにするとホスト（float64）と C で値が食い違い、
+     *    Viterbi の判断が変わりうる（M-99 §1 / C-060）。
+     * ⚠️ span == 0 の行は lo をそのまま返す（ゼロ除算を踏まない）。
+     *    実辞書では 0/1377 行だが、他の辞書では起きうる。 */
+    const int32_t sp = (int32_t)d->matrix_span[lc_cur];
+    const int32_t lo = (int32_t)d->matrix_lo[lc_cur];
+    if (sp == 0) return (int16_t)lo;
+    const int32_t q = (int32_t)d->matrix_q[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
+    /* 中間値は最大 255*17,342*2 = 8,844,420。int32 に収まる */
+    return (int16_t)(lo + (q * sp * 2 + 255) / 510);
 }
 
 /* ---------------------------------------------------------------- 未知語 */

@@ -203,3 +203,9 @@ csrc/k6_vectors.bin
 /csrc/oj_worst_texts.txt
 /csrc/oj_worst.bin
 /csrc/label_ids_test_ext
+
+# 8 MB 版の検証で作る中間物（大きいので追跡しない）
+csrc/jdict_vectors_deq.bin
+csrc/jdict_vectors_aff.bin
+csrc/k1_dict_8mb.bin
+csrc/matrixa_test

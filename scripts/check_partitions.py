@@ -28,10 +28,14 @@ def parse_size(s: str) -> int:
     return int(s, 0)
 
 
-def _declared(path: pathlib.Path, key: str):
+def _declared(path: pathlib.Path, key: str, *, raw: bool = False):
     """CSV 先頭のコメントから `# <key>: <値>` を読む。無ければ None。
 
     ⚠️ **推定しないための仕組み。** 表が自分で名乗る。
+
+    `raw=True` なら**数に直さず文字列のまま**返す（パスの宣言用）。
+    ⚠️ これが無いと `# dict-blob: csrc/...` が `int()` に落ちて例外になる
+       （実際に踏んだ）。
     """
     for ln in path.read_text(encoding="utf-8").splitlines():
         t = ln.strip()
@@ -42,7 +46,10 @@ def _declared(path: pathlib.Path, key: str):
         t = t.lstrip("#").strip()
         if t.lower().startswith(key + ":"):
             # ⚠️ 値の後ろの注記を拾わないよう **先頭トークンだけ**取る
-            v = t.split(":", 1)[1].strip().split()[0].upper().replace("_", "").replace(",", "")
+            v = t.split(":", 1)[1].strip().split()[0]
+            if raw:
+                return v
+            v = v.upper().replace("_", "").replace(",", "")
             if v.endswith("MB"):
                 return int(v[:-2]) * 1024 * 1024
             if v.endswith("KB"):
@@ -185,11 +192,18 @@ def main(argv=None) -> int:
             bad += 1
         else:
             print(f"  OK  dict の offset 0x{d['offset']:08x} は 64 KB 境界")
-        blob = ROOT / "csrc" / "k1_dict.bin"
+        # ⚠️ **既定の 16 MB blob と比べない。** 8 MB 版は別の blob を焼くので、
+        #    CSV 自身に `# dict-blob: <パス>` を書かせる（`# flash:` と同じ形）。
+        #    無ければ従来どおり csrc/k1_dict.bin を見る。
+        decl = _declared(CSV, "dict-blob", raw=True)
+        blob = (ROOT / decl) if decl else (ROOT / "csrc" / "k1_dict.bin")
+        if not blob.exists():
+            print(f"  --  {blob.name} が無いので大きさを比べていない"
+                  f"（{'CSV が名指ししている' if decl else '既定'}）")
         if blob.exists():
             n = blob.stat().st_size
             ok = n <= d["size"]
-            print(f"  {'OK ' if ok else 'NG!'} k1_dict.bin {n:,} B "
+            print(f"  {'OK ' if ok else 'NG!'} {blob.name} {n:,} B "
                   f"{'<=' if ok else '>'} dict {d['size']:,} B")
             if not ok:
                 bad += 1

@@ -39,8 +39,19 @@ typedef struct {
     const uint8_t *classes;      /* 8 B: lc u16, rc u16, pos6 u16, posid u16 */
     uint32_t       n_classes;
 
-    const int16_t *matrix;       /* 接続コスト。flat[rc_prev + lsize*lc_cur] */
+    const int16_t *matrix;       /* 接続コスト（生 int16）。flat[rc_prev + lsize*lc_cur] */
     uint16_t       lsize, rsize;
+
+    /* 接続コストを**行ごとアフィン uint8** で持つ形（セクション `matrixa`。D-051 の ①）。
+     * ⚠️ **`matrix` と排他。** どちらか一方だけが非 NULL になる。
+     *    2 つの形式を 1 つのセクション名に入れないのは、`matrix` の長さ検査
+     *    `len == 4 + 2*L*R` を厳密なまま残すため（M-100）。
+     * 逆量子化は**整数で閉じる**（float を使うとホストと C で値が食い違う。C-060）:
+     *     v = span ? lo[lc] + (q*span[lc]*2 + 255) / 510 : lo[lc]
+     * 中間値は最大 255*17,342*2 = 8,844,420 で int32 に収まる。 */
+    const uint8_t  *matrix_q;    /* q[rc_prev + lsize*lc_cur] */
+    const int16_t  *matrix_lo;   /* lo[lc_cur]   行数 = rsize */
+    const uint16_t *matrix_span; /* span[lc_cur] 行数 = rsize */
 
     const uint8_t *keytab;       /* NUL 区切りの文字表（1 B 符号） */
     uint32_t       keytab_len;
@@ -84,7 +95,7 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n);
 #define JDICT_ERR_MAGIC    (-1)
 #define JDICT_ERR_VERSION  (-2)
 /* -3 〜 -10 = 必須セクション（louds/counts/surfck/records/pool/classes/keytab/keyesc）が無い */
-#define JDICT_ERR_MATRIX   (-11)  /* matrix が無い / 長さが合わない / 寸法が 0 */
+#define JDICT_ERR_MATRIX   (-11)  /* matrix / matrixa が無い / 長さが合わない / 寸法が 0 */
 #define JDICT_ERR_SECTAB   (-12)  /* セクション表が壊れている（blob の外を指す等） */
 #define JDICT_ERR_CHAR     (-13)  /* char セクションの長さが宣言と合わない */
 #define JDICT_ERR_UNK      (-14)  /* unk セクションの長さが宣言と合わない */

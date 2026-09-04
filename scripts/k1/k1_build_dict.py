@@ -52,6 +52,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--entries", type=int, default=TARGET_ENTRIES)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--matrix", choices=["int16", "affine"], default="int16",
+                    help="接続行列の持ち方。**既定は int16**（16 MB 板の出荷構成 D-044）。\n"
+                         "affine = 行ごとアフィン uint8（セクション `matrixa`。8 MB 板向けの ①）。\n"
+                         "⚠️ **精度が落ちる**（最大誤差 34 / MeCab 一致 1,696 → 1,693）。\n"
+                         "⚠️ **サイズは行列だけで −1,890,617 B**（3,792,262 → 1,901,645）")
     ap.add_argument("--skip-verify-dict", action="store_true")
     a = ap.parse_args()
 
@@ -114,9 +119,15 @@ def main() -> int:
     #    **サイズも 8.1 MB と 12.2 MB で 1.5 倍違う**。
     import k1_paths
     _D = pathlib.Path(str(k1_paths.DICT_VENV))
+    mat = ConnMatrix.from_matrix_bin((_D / "matrix.bin").read_bytes())
+    if a.matrix == "affine":
+        from saanotts_jp.jdict import ConnMatrixAffine
+        mat = ConnMatrixAffine.from_int16(mat)
+        print(f"⚠️ 接続行列を**行ごとアフィン uint8** にした（セクション `matrixa`）: "
+              f"{len(mat.to_section()):,d} B")
     blob = DictBlob.build(
         entries,
-        matrix=ConnMatrix.from_matrix_bin((_D / "matrix.bin").read_bytes()),
+        matrix=mat,
         char_prop=CharProperty.from_char_bin((_D / "char.bin").read_bytes()),
         unk=UnkDict.from_unk_dic((_D / "unk.dic").read_bytes()))
     body = blob.to_bytes()

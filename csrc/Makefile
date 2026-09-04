@@ -347,9 +347,31 @@ jdict_vectors.bin: ../scripts/k1/k2_gen_vectors.py ../scripts/k1/k9_fit_8mb.py \
 jdict_test: jdict_test.c jdict.c jdict.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ jdict_test.c jdict.c $(LDLIBS)
 
-.PHONY: jdict
+.PHONY: jdict matrixa
 jdict: jdict_test jdict_vectors.bin
 	./jdict_test jdict_vectors.bin
+
+# --- matrixa（行ごとアフィン uint8 の接続行列。D-051 の ①）--------------------
+# ⚠️ **2 本とも同じ逆量子化値**を持つ。違うのは**持ち方だけ**:
+#      _deq = 生 int16（セクション `matrix`） / _aff = `matrixa`
+#    リーダが正しければ jdict_trans は全要素で一致する。
+# ⚠️ **辞書が要る**ので all-test には入れていない（jdict / accent と同じ扱い）。
+jdict_vectors_deq.bin: ../scripts/k1/k2_gen_vectors.py ../scripts/k1/k9_fit_8mb.py \
+                       ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --matrix-mode affine --out $@
+
+jdict_vectors_aff.bin: ../scripts/k1/k2_gen_vectors.py ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --matrix-affine --out $@
+
+matrixa_test: matrixa_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ matrixa_test.c jdict.c $(LDLIBS)
+
+.PHONY: matrixa
+matrixa: matrixa_test jdict_vectors_deq.bin jdict_vectors_aff.bin
+	./matrixa_test jdict_vectors_deq.bin jdict_vectors_aff.bin
+	@echo ""
+	@echo "=== 参考: 同じベクタで MeCab との一致（量子化の代償）==="
+	./jdict_test jdict_vectors_aff.bin || true
 
 accent_vectors.bin: ../scripts/k1/k4_gen_vectors.py
 	$(PYTHON) ../scripts/k1/k4_gen_vectors.py --out $@

@@ -471,6 +471,103 @@ class ConnMatrix:
         return cls.from_matrix_bin(blob)
 
 
+class ConnMatrixAffine:
+    """接続コスト行列を**行ごとアフィン uint8** で持つ形（8 MB 板向け。D-051 の ①）。
+
+    ⚠️ **`ConnMatrix` とはセクション名が違う**（`matrixa`）。
+       既存の blob は `matrix`（生 int16）のままで、C リーダは両方を読める。
+       **1 つのセクション名に 2 つの形式を入れない** — `matrix` の長さ検査
+       `len == 4 + 2*L*R` を厳密なまま残すため（M-100）。
+
+    ⚠️ **量子化も逆量子化も整数で閉じる。** float スケールを持つと
+       ホスト（float64）と C（float / 別の丸め）で値が食い違い、
+       Viterbi の判断が変わりうる（M-99 §1 / C-060）:
+
+        span = hi - lo                              行ごと。実測 1,188..17,342
+        q    = ((v - lo)*510 + span) // (span*2)     量子化
+        v'   = lo + (q*span*2 + 255) // 510          逆量子化
+
+    中間値は最大 255*17,342*2 = **8,844,420** で int32 に収まる。
+    ⚠️ **`span == 0` の行は q=0 / v'=lo**（ゼロ除算を踏まない。実データでは 0/1377 行）。
+
+    ⚠️ **行は `lc_cur`、行の長さは `lsize`。** 索引が
+       `flat[rc_prev + lsize*lc_cur]` なので、行数は `rsize` である
+       （名前は紛らわしいが、1377×1377 なので値では気づけない）。
+
+    セクションの形（合計 `8 + 4*rsize + lsize*rsize` B）:
+
+        0      u16  lsize
+        2      u16  rsize
+        4      u16  bits       = 8（いまは 8 のみ。将来 4bit などに広げる余地）
+        6      u16  reserved   = 0
+        8      i16  lo[rsize]
+        8+2R   u16  span[rsize]
+        8+4R   u8   q[rsize * lsize]
+    """
+
+    BITS = 8
+
+    def __init__(self, lsize: int, rsize: int, lo, span, q: bytes) -> None:
+        self.lsize, self.rsize = lsize, rsize
+        self.lo, self.span, self.q = lo, span, q
+        if len(q) != lsize * rsize:
+            raise ValueError(f"q の大きさが合わない: {len(q)} != {lsize}*{rsize}")
+        if len(lo) != rsize or len(span) != rsize:
+            raise ValueError("lo / span の長さは rsize でなければならない")
+
+    @classmethod
+    def from_int16(cls, m: "ConnMatrix") -> "ConnMatrixAffine":
+        """生の int16 行列から量子化する。**整数演算だけを使う。**"""
+        import numpy as np
+        M = np.frombuffer(m.data, dtype="<i2").reshape(m.rsize, m.lsize).astype(np.int64)
+        lo = M.min(axis=1)
+        span = M.max(axis=1) - lo
+        sp = np.where(span == 0, 1, span)[:, None]
+        q = np.clip(((M - lo[:, None]) * 510 + sp) // (2 * sp), 0, 255)
+        return cls(m.lsize, m.rsize, lo.astype(np.int64), span.astype(np.int64),
+                   q.astype(np.uint8).tobytes())
+
+    def trans(self, rc_prev: int, lc_cur: int) -> int:
+        """C リーダと同じ整数式で 1 要素を復元する（照合用）。"""
+        sp = int(self.span[lc_cur])
+        if sp == 0:
+            return int(self.lo[lc_cur])
+        qv = self.q[rc_prev + self.lsize * lc_cur]
+        return int(self.lo[lc_cur]) + (qv * sp * 2 + 255) // 510
+
+    def to_int16(self) -> "ConnMatrix":
+        """逆量子化した値を **int16 の生行列として**返す（精度だけを測る用）。
+
+        ⚠️ **サイズは縮まない。** 縮むのは `to_section()` の形にしたときだけ。
+        """
+        import numpy as np
+        q = np.frombuffer(self.q, dtype=np.uint8).reshape(self.rsize, self.lsize)
+        sp = np.asarray(self.span, dtype=np.int64)[:, None]
+        lo = np.asarray(self.lo, dtype=np.int64)[:, None]
+        deq = np.where(sp == 0, lo, lo + (q.astype(np.int64) * sp * 2 + 255) // 510)
+        return ConnMatrix(self.lsize, self.rsize, deq.astype("<i2").tobytes())
+
+    def to_section(self) -> bytes:
+        import numpy as np
+        head = struct.pack("<HHHH", self.lsize, self.rsize, self.BITS, 0)
+        lo = np.asarray(self.lo, dtype="<i2").tobytes()
+        sp = np.asarray(self.span, dtype="<u2").tobytes()
+        return head + lo + sp + self.q
+
+    @classmethod
+    def from_section(cls, blob: bytes) -> "ConnMatrixAffine":
+        import numpy as np
+        L, R, bits, _ = struct.unpack("<HHHH", blob[:8])
+        if bits != cls.BITS:
+            raise ValueError(f"未知の bits: {bits}")
+        want = 8 + 4 * R + L * R
+        if len(blob) != want:
+            raise ValueError(f"matrixa の長さが合わない: {len(blob)} != {want}")
+        lo = np.frombuffer(blob[8:8 + 2 * R], dtype="<i2").astype(np.int64)
+        sp = np.frombuffer(blob[8 + 2 * R:8 + 4 * R], dtype="<u2").astype(np.int64)
+        return cls(L, R, lo, sp, blob[8 + 4 * R:])
+
+
 class Entry(NamedTuple):
     """辞書 1 エントリ。sys.dic の token + feature 11 列に対応する。"""
     surface: str
@@ -771,7 +868,7 @@ class DictBlob:
     # ⚠️ 見出し語の文字列表は持たない。trie の鍵がそれ自身なので冗長
     #    （370,863 entries では 3,881,011 B = blob の 33%）。
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
-                  "classes", "chains", "records", "pool", "matrix", "surfck",
+                  "classes", "chains", "records", "pool", "matrix", "matrixa", "surfck",
                   "poolck", "termck", "char", "unk")
 
     @staticmethod
@@ -808,7 +905,8 @@ class DictBlob:
             "chains": self._pack_strtab(self.chains),
             "records": self.records,
             "pool": self.pool,
-            **({"matrix": self.matrix.to_section()} if self.matrix else {}),
+            **({("matrixa" if isinstance(self.matrix, ConnMatrixAffine)
+                 else "matrix"): self.matrix.to_section()} if self.matrix else {}),
             "surfck": self.surface_checkpoints(),
             "poolck": self.pool_checkpoints_bytes(),
             "termck": self.terminal_rank_checkpoints(),
