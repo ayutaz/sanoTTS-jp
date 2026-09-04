@@ -66,6 +66,9 @@ EXCLUDED_TARGETS: dict[str, str] = {
     "kb-parity": "pyopenjtalk と piper-plus（ホスト側 G2P との突き合わせ）",
     # 辞書 13.7 MB（k1_dict.bin）と pyopenjtalk が要る
     "jdict": "辞書 blob（13.7 MB）と pyopenjtalk",
+    # M-104: 8 MB 板向けの matrixa。⚠️ **同じ逆量子化値を 2 形式で持った blob を 2 本**
+    #    作るので、辞書と pyopenjtalk に加えて **生成に数分**かかる。
+    "matrixa": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-104）",
     "accent": "辞書 blob と pyopenjtalk",
     "njd-rules": "辞書 blob と pyopenjtalk",
     "oj-heap": "辞書 blob と pyopenjtalk",
