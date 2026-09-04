@@ -94,6 +94,8 @@ static uint8_t g_keyesc[4];
 static uint8_t g_char[4 + 32 + 4 * 8];      /* n_char_cats=1 + 名前 32 B + info 8 件 */
 static uint8_t g_unk[4 + 8];
 static uint8_t g_matrix[4 + 2 * LS * RS];
+/* matrixa（行ごとアフィン uint8。M-104）: 8 + 4*RS + LS*RS */
+static uint8_t g_matrixa[8 + 4 * RS + LS * RS];
 
 static void init_payloads(void) {
     memset(g_louds, 0, sizeof g_louds);          /* bitlen/n_nodes/... は 0 でよい */
@@ -115,6 +117,18 @@ static void init_payloads(void) {
         int16_t v = (int16_t)(100 * (int)(i / LS) + (int)(i % LS));
         g_matrix[4 + 2 * i]     = (uint8_t)((uint16_t)v & 0xFF);
         g_matrix[4 + 2 * i + 1] = (uint8_t)((uint16_t)v >> 8);
+    }
+    /* matrixa: lo = 0 / span = 100 / q は 0..255 を巡回。
+     * ⚠️ **値の正しさはここでは見ない**（それは make -C csrc matrixa の仕事）。
+     *    ここで見るのは**壊れた blob を拒むか**だけ。 */
+    g_matrixa[0] = (uint8_t)LS; g_matrixa[2] = (uint8_t)RS;
+    g_matrixa[4] = 8;                                  /* bits */
+    for (unsigned r = 0; r < RS; r++) {
+        g_matrixa[8 + 2 * r] = 0; g_matrixa[8 + 2 * r + 1] = 0;         /* lo  = 0 */
+        g_matrixa[8 + 2 * RS + 2 * r] = 100;                            /* span = 100 */
+    }
+    for (unsigned i = 0; i < LS * RS; i++) {
+        g_matrixa[8 + 4 * RS + i] = (uint8_t)(i * 37u);
     }
 }
 
@@ -173,6 +187,31 @@ static int open_case(int which, size_t extra_n, jdict_t *d_out, size_t *blob_len
     case 14: secs[MATRIX_IDX].len = 0; break;
     /* M-100 §8 の 3: 層をまたぐ相互検証（宣言長をそのまま使うセクション） */
     case 15: fudge_idx = 3; fudge = +9; break;    /* records を 1 件ぶん増やす（counts と合わない） */
+    /* --- matrixa（行ごとアフィン uint8。M-104）--- */
+    /* ⚠️ **17 は「開ける」ことを見る唯一のケース。** これが無いと、
+     *    18〜21 が全部通っても「matrixa は常に拒まれる」だけかもしれない。 */
+    case 17:                                                  /* 正しい matrixa 単独 */
+        secs[MATRIX_IDX] = (sec_in){"matrixa", g_matrixa, (uint32_t)sizeof g_matrixa};
+        strcpy(secs[MATRIX_IDX].name, "matrixa");
+        break;
+    case 18:                                                  /* matrix と matrixa の両方 */
+        secs[n_sec++] = (sec_in){"matrixa", g_matrixa, (uint32_t)sizeof g_matrixa};
+        strcpy(secs[n_sec - 1].name, "matrixa");
+        break;
+    case 19:                                                  /* bits = 4（未知の量子化幅） */
+        secs[MATRIX_IDX] = (sec_in){"matrixa", g_matrixa, (uint32_t)sizeof g_matrixa};
+        strcpy(secs[MATRIX_IDX].name, "matrixa");
+        g_matrixa[4] = 4;
+        break;
+    case 20:                                                  /* 宣言長 -1 */
+        secs[MATRIX_IDX] = (sec_in){"matrixa", g_matrixa, (uint32_t)sizeof g_matrixa};
+        strcpy(secs[MATRIX_IDX].name, "matrixa");
+        fudge_idx = MATRIX_IDX; fudge = -1;
+        break;
+    case 21:                                                  /* 実体ごと消す（ASan で見る） */
+        secs[MATRIX_IDX] = (sec_in){"matrixa", g_matrixa, 0u};
+        strcpy(secs[MATRIX_IDX].name, "matrixa");
+        break;
     case 16: fudge_idx = 2; fudge = +4; break;    /* surfck を 4 B 増やす（見出し語数から計算した値と合わない） */
     default: break;
     }
@@ -242,6 +281,11 @@ static const caze CASES[] = {
     /* 14 */ {"matrix の実体ごと消す（offset が blob 末尾。ASan で見る）", JDICT_ERR_MATRIX},
     /* 15 */ {"records が counts の合計と合わない",                 -6},
     /* 16 */ {"surfck の長さが見出し語数から計算した値と合わない",   -5},
+    /* 17 */ {"**正しい matrixa 単独**（開けること）",              0},
+    /* 18 */ {"matrix と matrixa の両方がある",                     JDICT_ERR_MATRIX},
+    /* 19 */ {"matrixa の bits = 4（未知の量子化幅）",              JDICT_ERR_MATRIX},
+    /* 20 */ {"matrixa の宣言長 -1",                               JDICT_ERR_MATRIX},
+    /* 21 */ {"matrixa の実体ごと消す（ASan で見る）",              JDICT_ERR_MATRIX},
 };
 #define N_CASES ((int)(sizeof CASES / sizeof CASES[0]))
 
@@ -255,7 +299,8 @@ int main(void) {
      *    **死んでいる検査を 1 本見逃す**（レビューで指摘。ある壊し方が
      *    名前どおりの検査ではなく別の検査に拾われていても気づけない）。
      * ⚠️ 版検査（ケース 5）だけは JD_CHECK の外にあるので weak でも落ちる。 */
-    static const int WEAK_MUST_LEAK[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16};
+    static const int WEAK_MUST_LEAK[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
+                                        18, 19, 20, 21};
     int n_must = (int)(sizeof WEAK_MUST_LEAK / sizeof WEAK_MUST_LEAK[0]);
     int leaked = 0;
     for (int k = 0; k < n_must; k++) {

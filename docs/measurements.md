@@ -8686,5 +8686,16 @@ qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
 - **読みの比較は 4 文だけ**（漢字/かな 8 入力）。**n=4 では 1.01% は検出できない**。
   **音素の誤り 1.01%（n=1,495）はホストで測った値**で、端末で測り直していない
 - **音は誰も聴いていない**（G32）。1.01% がどう聞こえるかは分からない
-- **`matrixa` は `jdict-hard` の入力検査にまだ入れていない**（長さを削った / bits を変えた
-  blob を拒むかは未検証）
+- ~~`matrixa` は `jdict-hard` の入力検査に入れていない~~ → ✅ **入れた**（ケース 17〜21）:
+
+| ケース | 期待 | 結果 |
+|---|---|---|
+| **正しい matrixa 単独**（開けること） | 0 | OK |
+| matrix と matrixa の**両方**がある | `JDICT_ERR_MATRIX` | OK |
+| matrixa の bits = 4（未知の量子化幅） | `JDICT_ERR_MATRIX` | OK |
+| matrixa の宣言長 −1 | `JDICT_ERR_MATRIX` | OK |
+| matrixa の実体ごと消す（ASan で見る） | `JDICT_ERR_MATRIX` | OK |
+
+⚠️ **「正しい matrixa 単独」が要る。** これが無いと、残り 4 つが全部通っても
+「**matrixa は常に拒まれる**」だけかもしれない。
+陽性対照（`JDICT_TEST_WEAK`）は **19 / 19 で leak** する（新しい 4 件も含む）。
