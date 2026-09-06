@@ -25,7 +25,7 @@
 #
 # ⚠️ **読みの精度が大きく落ちる**（n=1,495。M-106 §2 / §10）:
 #      438,750 entries + 生 int16    … 音素の誤り 0.63%
-#       44,000 entries + クラスタ 256 … 音素の誤り **3.27%**（**16 MB の 5.2 倍**）
+#       44,000 entries + クラスタ 256 … 音素の誤り **3.86%**（**16 MB の 6.1 倍**。M-107 で訂正）
 #
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="4MB"

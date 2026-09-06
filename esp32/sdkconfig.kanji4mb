@@ -6,7 +6,7 @@
 # ⚠️ **辞書が違う。** 接続行列を**行・列クラスタ**（セクション `matrixc`）に、
 #    文字カテゴリを**レンジ表**（セクション `charr`）にし、エントリを 100,000 に絞る:
 #
-#      uv run python scripts/k1/k1_build_dict.py --entries 100000 \
+#      uv run python scripts/k1/k1_build_dict.py --entries 135000 \
 #          --matrix cluster:256 --char-range --out csrc/k1_dict_4mb.bin
 #
 #    ⚠️ **`charr` が無いと入らない**（char.bin 262,496 B のままだと枠を超える。M-106 §10）。
@@ -15,7 +15,7 @@
 # ⚠️ **読みの精度が落ちる**（M-106 §2 / §10。すべて n=1,495）:
 #      438,750 entries + 生 int16    … 音素の誤り 0.63%
 #      228,000 entries + アフィン     … 音素の誤り 1.01%
-#      100,000 entries + クラスタ 256 … 音素の誤り **2.69%**
+#      135,000 entries + クラスタ 256 … 音素の誤り **1.94%**（M-107 で訂正。旧記録 1.64% は charr のバグ）
 #
 CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
 CONFIG_ESPTOOLPY_FLASHSIZE="4MB"

@@ -177,8 +177,8 @@ No small-flash image is published, so you build it yourself:
 | **16 MB** (released) | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ hardware |
 | 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ hardware |
 | 8 MB / **M5Stack** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ hardware |
-| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.64%** | ⚠️ QEMU only |
-| **2 MB budget** | `partitions_2mb_kanji.csv` | 44,000 | **3.27%** | ⚠️ QEMU only |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ QEMU only |
+| **2 MB budget** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ QEMU only |
 
 Steps: the "8 MB flash の板" and "4 MB / 2 MB 枠" sections of [`esp32/README.md`](esp32/README.md).
 ⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened to it.**

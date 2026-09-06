@@ -96,6 +96,15 @@ static uint8_t g_unk[4 + 8];
 static uint8_t g_matrix[4 + 2 * LS * RS];
 /* matrixa（行ごとアフィン uint8。M-104）: 8 + 4*RS + LS*RS */
 static uint8_t g_matrixa[8 + 4 * RS + LS * RS];
+/* matrixc（行・列クラスタ + 代表行列。M-106 §10）: 12 + 4*KR + KR*KC + 2*RS + 2*LS */
+#define KR 2u
+#define KC 2u
+static uint8_t g_matrixc[12 + 4 * KR + KR * KC + 2 * RS + 2 * LS];
+/* charr（文字カテゴリの run 表。M-106 §10）: 8 + 32*ncat + 4*nval + 4*nrun */
+#define CHR_NCAT 1u
+#define CHR_NVAL 2u
+#define CHR_NRUN 2u
+static uint8_t g_charr[8 + 32 * CHR_NCAT + 4 * CHR_NVAL + 4 * CHR_NRUN];
 
 static void init_payloads(void) {
     memset(g_louds, 0, sizeof g_louds);          /* bitlen/n_nodes/... は 0 でよい */
@@ -129,6 +138,36 @@ static void init_payloads(void) {
     }
     for (unsigned i = 0; i < LS * RS; i++) {
         g_matrixa[8 + 4 * RS + i] = (uint8_t)(i * 37u);
+    }
+    /* matrixc: kr=kc=2 の最小構成。rmap / cmap は必ず kr / kc 未満に収める。
+     * ⚠️ **ここでも値の正しさは見ない**（それは make -C csrc matrixc の仕事）。 */
+    g_matrixc[0] = (uint8_t)LS; g_matrixc[2] = (uint8_t)RS;
+    g_matrixc[4] = 8;                                      /* bits */
+    g_matrixc[6] = (uint8_t)KR; g_matrixc[8] = (uint8_t)KC;
+    for (unsigned r = 0; r < KR; r++) {
+        g_matrixc[12 + 2 * r] = 0;                         /* lo   = 0 */
+        g_matrixc[12 + 2 * KR + 2 * r] = 100;              /* span = 100 */
+    }
+    for (unsigned i = 0; i < KR * KC; i++) {
+        g_matrixc[12 + 4 * KR + i] = (uint8_t)(i * 37u);
+    }
+    {
+        unsigned base = 12 + 4 * KR + KR * KC;
+        for (unsigned i = 0; i < RS; i++) g_matrixc[base + 2 * i] = (uint8_t)(i % KR);
+        base += 2 * RS;
+        for (unsigned i = 0; i < LS; i++) g_matrixc[base + 2 * i] = (uint8_t)(i % KC);
+    }
+    /* charr: run は開始位置の昇順で、run[0] の開始は 0 でなければならない。 */
+    g_charr[0] = (uint8_t)CHR_NCAT;                        /* ncat u32 */
+    g_charr[4] = (uint8_t)CHR_NRUN;                        /* nrun u32 */
+    {
+        unsigned vb = 8 + 32 * CHR_NCAT;
+        g_charr[vb + 0] = 0x11;                            /* 値表 [0] */
+        g_charr[vb + 4] = 0x22;                            /* 値表 [1] */
+        unsigned rb = vb + 4 * CHR_NVAL;
+        /* run[0] = 開始 0 / 値 ID 0、run[1] = 開始 16 / 値 ID 1 */
+        g_charr[rb + 0] = 0x00;
+        g_charr[rb + 4] = 0x01; g_charr[rb + 6] = 0x01;    /* (16 << 12) | 1 */
     }
 }
 
@@ -212,6 +251,54 @@ static int open_case(int which, size_t extra_n, jdict_t *d_out, size_t *blob_len
         secs[MATRIX_IDX] = (sec_in){"matrixa", g_matrixa, 0u};
         strcpy(secs[MATRIX_IDX].name, "matrixa");
         break;
+    /* --- matrixc（行・列クラスタ + 代表行列。M-106 §10）--- */
+    /* ⚠️ **22 は「開ける」ことを見る唯一のケース。** これが無いと、
+     *    23〜26 が全部通っても「matrixc は常に拒まれる」だけかもしれない（17 と同じ理由）。 */
+    case 22:                                                  /* 正しい matrixc 単独 */
+        secs[MATRIX_IDX] = (sec_in){"matrixc", g_matrixc, (uint32_t)sizeof g_matrixc};
+        strcpy(secs[MATRIX_IDX].name, "matrixc");
+        break;
+    case 23:                                                  /* matrix と matrixc の両方 */
+        secs[n_sec++] = (sec_in){"matrixc", g_matrixc, (uint32_t)sizeof g_matrixc};
+        strcpy(secs[n_sec - 1].name, "matrixc");
+        break;
+    case 24:                                                  /* kr > rsize（クラスタ数が寸法を超える） */
+        secs[MATRIX_IDX] = (sec_in){"matrixc", g_matrixc, (uint32_t)sizeof g_matrixc};
+        strcpy(secs[MATRIX_IDX].name, "matrixc");
+        g_matrixc[6] = (uint8_t)(RS + 1u);
+        break;
+    case 25:                                                  /* rmap が代表行列の外を指す */
+        secs[MATRIX_IDX] = (sec_in){"matrixc", g_matrixc, (uint32_t)sizeof g_matrixc};
+        strcpy(secs[MATRIX_IDX].name, "matrixc");
+        g_matrixc[12 + 4 * KR + KR * KC] = (uint8_t)KR;       /* rmap[0] = kr（範囲外） */
+        break;
+    case 26:                                                  /* 宣言長 -1 */
+        secs[MATRIX_IDX] = (sec_in){"matrixc", g_matrixc, (uint32_t)sizeof g_matrixc};
+        strcpy(secs[MATRIX_IDX].name, "matrixc");
+        fudge_idx = MATRIX_IDX; fudge = -1;
+        break;
+    /* --- charr（文字カテゴリの run 表。M-106 §10）--- */
+    /* ⚠️ **char と charr は排他ではない**（jdict_open は両方読む）。ここで見るのは
+     *    **壊れた charr を拒むか**だけ。CHAR_IDX は char セクションの位置。 */
+    case 27:                                                  /* 正しい charr（char の代わり） */
+        strcpy(secs[CHAR_IDX].name, "charr");
+        secs[CHAR_IDX].data = g_charr; secs[CHAR_IDX].len = (uint32_t)sizeof g_charr;
+        break;
+    case 28:                                                  /* run[0] の開始が 0 でない */
+        strcpy(secs[CHAR_IDX].name, "charr");
+        secs[CHAR_IDX].data = g_charr; secs[CHAR_IDX].len = (uint32_t)sizeof g_charr;
+        g_charr[8 + 32 * CHR_NCAT + 4 * CHR_NVAL + 1] = 0x10; /* run[0] = (1 << 12) */
+        break;
+    case 29:                                                  /* run の値 ID が値表の外 */
+        strcpy(secs[CHAR_IDX].name, "charr");
+        secs[CHAR_IDX].data = g_charr; secs[CHAR_IDX].len = (uint32_t)sizeof g_charr;
+        g_charr[8 + 32 * CHR_NCAT + 4 * CHR_NVAL] = (uint8_t)CHR_NVAL;
+        break;
+    case 30:                                                  /* nrun = 0 */
+        strcpy(secs[CHAR_IDX].name, "charr");
+        secs[CHAR_IDX].data = g_charr; secs[CHAR_IDX].len = (uint32_t)sizeof g_charr;
+        g_charr[4] = 0;
+        break;
     case 16: fudge_idx = 2; fudge = +4; break;    /* surfck を 4 B 増やす（見出し語数から計算した値と合わない） */
     default: break;
     }
@@ -286,6 +373,16 @@ static const caze CASES[] = {
     /* 19 */ {"matrixa の bits = 4（未知の量子化幅）",              JDICT_ERR_MATRIX},
     /* 20 */ {"matrixa の宣言長 -1",                               JDICT_ERR_MATRIX},
     /* 21 */ {"matrixa の実体ごと消す（ASan で見る）",              JDICT_ERR_MATRIX},
+    /* --- matrixc / charr（M-106 §10）--- */
+    /* 22 */ {"正しい matrixc だけを置く（開けること）",             0},
+    /* 23 */ {"matrix と matrixc の両方を置く",                     JDICT_ERR_MATRIX},
+    /* 24 */ {"matrixc の kr が rsize を超える",                    JDICT_ERR_MATRIX},
+    /* 25 */ {"matrixc の rmap が代表行列の外を指す",               JDICT_ERR_MATRIX},
+    /* 26 */ {"matrixc の宣言長 -1",                                JDICT_ERR_MATRIX},
+    /* 27 */ {"正しい charr を char の代わりに置く（開けること）",   0},
+    /* 28 */ {"charr の run[0] の開始が 0 でない",                  -13},
+    /* 29 */ {"charr の run が値表の外を指す",                      -13},
+    /* 30 */ {"charr の nrun = 0",                                  -13},
 };
 #define N_CASES ((int)(sizeof CASES / sizeof CASES[0]))
 
@@ -299,8 +396,11 @@ int main(void) {
      *    **死んでいる検査を 1 本見逃す**（レビューで指摘。ある壊し方が
      *    名前どおりの検査ではなく別の検査に拾われていても気づけない）。
      * ⚠️ 版検査（ケース 5）だけは JD_CHECK の外にあるので weak でも落ちる。 */
+    /* ⚠️ **matrixc / charr の新設ケースもここに入れる。** これを「weak でも落ちる側」に
+     *    分類して除外すると、**新しい検査が陽性対照から抜け落ちて空虚に通る**
+     *    （`writing-gates` の言う形。M-107 の検証で指摘された）。 */
     static const int WEAK_MUST_LEAK[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-                                        18, 19, 20, 21};
+                                        18, 19, 20, 21, 23, 24, 25, 26, 28, 29, 30};
     int n_must = (int)(sizeof WEAK_MUST_LEAK / sizeof WEAK_MUST_LEAK[0]);
     int leaked = 0;
     for (int k = 0; k < n_must; k++) {

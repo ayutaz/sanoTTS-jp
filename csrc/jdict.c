@@ -913,7 +913,12 @@ static int analyze_impl(const jdict_t *d, const uint8_t *key, size_t key_n,
          * ⚠️ wcost は unk.dic の値を**そのまま**使う（実測で確認。スケールしない）。 */
         uint32_t unk_len_list[MAX_GROUPING + 2];
         int n_unk_len = 0;
-        if (d->unk && d->char_info) {
+        /* ⚠️ **`char_info` だけを見てはいけない。** `charr`（レンジ表。M-106 §10）では
+         *    `char_info` が NULL になり、**未知語ノード生成が丸ごと飛んでいた**。
+         *    落ちも警告も出ず、経路なしの文が増えるだけなので、
+         *    **ゲートがその文を分母から落として精度が良く見える**（M-107）。
+         *    `char_raw()` は両方を扱うので、条件も両方を見ること。 */
+        if (d->unk && (d->char_info || d->char_runs)) {
             uint32_t sb = 0;
             uint32_t cp0 = key_codepoint(d, key, i, &sb);
             uint32_t v0 = char_raw(d, cp0);

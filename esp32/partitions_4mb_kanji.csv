@@ -15,13 +15,13 @@
 # ⚠️ **この表で入るのは `matrixc`（行・列クラスタ）+ `charr`（文字カテゴリの run 表）
 #    を使った辞書だけ。** 8 MB 版（`matrixa` / 7,123,088 B）も 16 MB 版（13,702,320 B）も
 #    **入らない**。作り方:
-#      uv run python scripts/k1/k1_build_dict.py --entries 100000 \
+#      uv run python scripts/k1/k1_build_dict.py --entries 135000 \
 #          --matrix cluster:256 --char-range --out csrc/k1_dict_4mb.bin
 #
 # ⚠️ **読みの精度が落ちる**（M-106 §2 / §10。すべて n=1,495）:
 #      438,750 entries + 生 int16    … 音素の誤り 0.63%
 #      228,000 entries + アフィン     … 音素の誤り 1.01%
-#      100,000 entries + クラスタ 256 … 音素の誤り **2.69%**
+#      135,000 entries + クラスタ 256 … 音素の誤り **1.94%**（M-107 で訂正。旧記録 1.64% は charr のバグ）
 #
 # ⚠️ **k-means は環境が変われば別の解になりうる**（M-99 §1 は「このマシンで 2 回」だけ）。
 #    **作った blob そのものを配ること。** 再ビルドで一致する保証は無い。
