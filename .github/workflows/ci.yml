@@ -47,6 +47,9 @@ jobs:
       - name: レポートの本文検出ゲート
         run: uv run --no-project --python 3.12 python scripts/test_sanitize_reports.py
 
+      - name: rec5（5 B レコード）の往復と畳み込み（合成エントリ。辞書は要らない）
+        run: uv run --no-project --python 3.12 python scripts/test_rec5.py
+
       - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 

@@ -167,9 +167,15 @@ def self_check(raw: bytes) -> list[str]:
         return raw[o:o + l]
 
     for req in ("keytab", "moratab", "louds", "counts", "classes",
-                "chains", "records", "pool", "surfck", "poolck", "termck"):
+                "chains", "pool", "surfck", "poolck", "termck"):
         if req not in secs:
             bad.append(f"必須セクション {req} が無い")
+    # ⚠️ **レコードは `records`(9 B) か `rec5`(5 B) の**どちらか一方**（M-107 §4a）。
+    #    「どちらも無い」も「両方ある」も blob として壊れている。
+    if ("records" in secs) == ("rec5" in secs):
+        bad.append("`records` と `rec5` は**どちらか一方**でなければならない"
+                   f"（records={'有' if 'records' in secs else '無'} / "
+                   f"rec5={'有' if 'rec5' in secs else '無'}）")
     # ⚠️ **ここで早期 return しない。** 範囲外のセクションが 1 つあるだけで
     #    以降の検査を全部飛ばすと、**別の壊れ方が見えなくなる**（対照で踏んだ:
     #    末尾を切った blob では records / matrix の壊し方が 1 件も増えなかった）。
@@ -201,18 +207,21 @@ def self_check(raw: bytes) -> list[str]:
             bad.append(f"trie の終端 {n_term:,d} != counts の見出し語数 {n_surf:,d}")
 
     # --- records / pool / チェックポイント ---
-    rec = sec("records")
+    # ⚠️ **`records`(9 B) と `rec5`(5 B) のどちらか**（M-107 §4a）。
+    #    決め打ちにすると rec5 の blob を素通しする（= 検査が何も見ない）。
+    rec_name = "rec5" if "rec5" in secs else "records"
+    rsize = 5 if rec_name == "rec5" else DictBlob.RECORD_SIZE
+    rec = sec(rec_name)
     pool = sec("pool")
     if rec is not None:
-        if len(rec) % DictBlob.RECORD_SIZE:
-            bad.append(f"records: 長さ {len(rec)} が "
-                       f"{DictBlob.RECORD_SIZE} の倍数でない")
-        elif n_entry is not None and len(rec) // DictBlob.RECORD_SIZE != n_entry:
-            bad.append(f"records: {len(rec) // DictBlob.RECORD_SIZE:,d} 件 != "
+        if len(rec) % rsize:
+            bad.append(f"{rec_name}: 長さ {len(rec)} が {rsize} の倍数でない")
+        elif n_entry is not None and len(rec) // rsize != n_entry:
+            bad.append(f"{rec_name}: {len(rec) // rsize:,d} 件 != "
                        f"counts の合計 {n_entry:,d} 件")
         elif pool is not None:
             ck = sec("poolck")
-            n = len(rec) // DictBlob.RECORD_SIZE
+            n = len(rec) // rsize
             tot = 0
             miss = 0
             for i in range(n):
@@ -221,8 +230,15 @@ def self_check(raw: bytes) -> list[str]:
                     if j + 4 <= len(ck) and \
                             struct.unpack("<I", ck[j:j + 4])[0] != tot:
                         miss += 1
-                b = rec[DictBlob.RECORD_SIZE * i:DictBlob.RECORD_SIZE * (i + 1)]
-                tot += b[7] + b[8]              # pron 長 + extra 長
+                b = rec[rsize * i:rsize * (i + 1)]
+                # ⚠️ **長さ欄の位置が形式で違う**（M-107 §4a）。
+                #    records(9 B): b[7] = pron長 / b[8] = extra長
+                #    rec5(5 B):    pron長 = (b[3] >> 4) | ((b[4] & 1) << 4)
+                #                  extra長 = (b[4] >> 1) & 0x3F
+                if rec_name == "rec5":
+                    tot += ((b[3] >> 4) | ((b[4] & 1) << 4)) + ((b[4] >> 1) & 0x3F)
+                else:
+                    tot += b[7] + b[8]          # pron 長 + extra 長
             if tot != len(pool):
                 bad.append(f"pool: レコード長の合計 {tot:,d} != セクション長 "
                            f"{len(pool):,d}")
@@ -422,11 +438,12 @@ def _mutations(raw: bytes) -> tuple[list, list]:
                 "値の中身。自己整合は素通り（層の限界）／sha256 が捕まえる"))
 
     # 2. セクションの宣言長を 1 ずらす
-    if "records" in secs:
+    _rn = "rec5" if "rec5" in secs else "records"
+    if _rn in secs:
         b = bytearray(raw)
-        assert _set_table_field(b, "records", "length", secs["records"][1] + 1)
-        out.append(("records の宣言長 +1", bytes(b), True,
-                    "9 の倍数でなくなる / counts の合計と合わなくなる"))
+        assert _set_table_field(b, _rn, "length", secs[_rn][1] + 1)
+        out.append((f"{_rn} の宣言長 +1", bytes(b), True,
+                    "9（rec5 なら 5）の倍数でなくなる / counts の合計と合わなくなる"))
 
     # 3. セクションの offset をファイルの外へ
     last = max(secs, key=lambda k: secs[k][0])

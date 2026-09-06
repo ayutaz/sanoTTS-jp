@@ -52,6 +52,11 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--entries", type=int, default=TARGET_ENTRIES)
     ap.add_argument("--out", default=None)
+    ap.add_argument("--rec5", action="store_true",
+                    help="レコードを **`rec5`（5 B）**にする（M-107 §4a）。\n"
+                         "(class, chain, flags) を 12 bit の class2 に畳む。**完全に無損失**\n"
+                         "（MeCab 一致 184/184。`make -C csrc rec5` が全エントリで確かめる）。\n"
+                         "⚠️ **9 B → 5 B で 4 B/entry 浮く**（クラス表が少し太る）。")
     ap.add_argument("--char-range", action="store_true",
                     help="文字カテゴリを **`charr`（レンジ表）**にする（M-106 §10）。\n"
                          "**完全に無損失**で 262,496 B → 832 B。\n"
@@ -148,6 +153,9 @@ def main() -> int:
         matrix=mat,
         char_prop=cp,
         unk=UnkDict.from_unk_dic((_D / "unk.dic").read_bytes()))
+    if a.rec5:
+        blob.rec5 = True
+        print("⚠️ レコードを **`rec5`（5 B）**にした（classes は 10 B）")
     if a.char_range:
         blob.char_range = True
         print(f"⚠️ 文字カテゴリを **`charr`（レンジ表）**にした: "

@@ -41,6 +41,10 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrix-int8", choices=["sym", "affine"], default=None,
                     help="接続行列を 1 B に丸める（K-5 の精度影響を測る）。\n                          sym=行ごと対称 int8 / affine=行ごとアフィン uint8")
+    ap.add_argument("--rec5", action="store_true",
+                    help="レコードを **`rec5`（5 B）**にする（M-107 §4a）。"
+                         "(class, chain, flags) を 12 bit の class2 に畳み、"
+                         "classes 表は 8 → 10 B になる。**無損失**。")
     ap.add_argument("--char-range", action="store_true",
                     help="文字カテゴリを **`charr`（レンジ表）**として blob に入れる"
                          "（M-106 §5）。**完全に無損失**で 262,496 B → 832 B。")
@@ -176,6 +180,9 @@ def main() -> int:
     char_prop = CharProperty.from_char_bin((pathlib.Path(dic) / "char.bin").read_bytes())
     unkd = UnkDict.from_unk_dic((pathlib.Path(dic) / "unk.dic").read_bytes())
     blob = DictBlob.build(entries, matrix=matrix, char_prop=char_prop, unk=unkd)
+    if a.rec5:
+        blob.rec5 = True
+        print("⚠️ レコードを `rec5`（5 B）にした（classes は 10 B）")
     if a.char_range:
         # ⚠️ `char_range` は DictBlob のインスタンス属性で見る（_section_payloads が読む）
         blob.char_range = True

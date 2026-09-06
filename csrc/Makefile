@@ -347,7 +347,7 @@ jdict_vectors.bin: ../scripts/k1/k2_gen_vectors.py ../scripts/k1/k9_fit_8mb.py \
 jdict_test: jdict_test.c jdict.c jdict.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ jdict_test.c jdict.c $(LDLIBS)
 
-.PHONY: jdict matrixa matrixc charr
+.PHONY: jdict matrixa matrixc charr rec5
 jdict: jdict_test jdict_vectors.bin
 	./jdict_test jdict_vectors.bin
 
@@ -414,6 +414,27 @@ charr_test: charr_test.c jdict.c jdict.h
 .PHONY: charr
 charr: charr_test jdict_vectors_cfull.bin jdict_vectors_crng.bin
 	./charr_test jdict_vectors_cfull.bin jdict_vectors_crng.bin
+
+# --- rec5（5 B レコード。M-107 §4a）----------------------------------------------
+# ⚠️ **2 本とも同じエントリ**。違うのは持ち方だけ:
+#      _r9 = records(9 B) + classes 8 B / _r5 = rec5(5 B) + classes 10 B
+#    リーダが正しければ entry_conn / entry_feature が全エントリで一致する。
+# ⚠️ **辞書と pyopenjtalk が要る**ので all-test には入れていない。
+jdict_vectors_r9.bin: ../scripts/k1/k2_gen_vectors.py ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --out $@
+
+jdict_vectors_r5.bin: ../scripts/k1/k2_gen_vectors.py ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --rec5 --out $@
+
+rec5_test: rec5_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ rec5_test.c jdict.c $(LDLIBS)
+
+.PHONY: rec5
+rec5: rec5_test jdict_vectors_r9.bin jdict_vectors_r5.bin
+	./rec5_test jdict_vectors_r9.bin jdict_vectors_r5.bin
+	@echo ""
+	@echo "=== 参考: 同じベクタで MeCab との一致（畳み込みの代償があれば出る）==="
+	./jdict_test jdict_vectors_r5.bin || true
 
 accent_vectors.bin: ../scripts/k1/k4_gen_vectors.py
 	$(PYTHON) ../scripts/k1/k4_gen_vectors.py --out $@

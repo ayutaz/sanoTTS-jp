@@ -189,6 +189,7 @@ static int base_secs(sec_in *out) {
     return n;
 }
 #define LOUDS_IDX   0
+#define REC_IDX     3        /* records（M-107 §4a で rec5 に差し替える） */
 #define CLASSES_IDX 5
 #define CHAR_IDX    8
 #define UNK_IDX     9
@@ -299,6 +300,20 @@ static int open_case(int which, size_t extra_n, jdict_t *d_out, size_t *blob_len
         secs[CHAR_IDX].data = g_charr; secs[CHAR_IDX].len = (uint32_t)sizeof g_charr;
         g_charr[4] = 0;
         break;
+    /* --- rec5（5 B レコード。M-107 §4a）--- */
+    /* ⚠️ **ここでは「拒むか」だけを見る**（値の一致は make -C csrc rec5 の仕事）。
+     *    ⚠️ 正しい rec5 を開けるケースは置かない — この test の g_records は
+     *    counts / poolck と辻褄を合わせた 9 B 前提の合成データで、
+     *    5 B に組み直すと**別の検査に引っかかって「拒めた」が偽陽性になる**。
+     *    **開けることは make -C csrc rec5 の G-F2 が見ている。** */
+    case 31:                                                  /* records と rec5 の両方 */
+        secs[n_sec++] = (sec_in){"rec5", g_records, (uint32_t)sizeof g_records};
+        strcpy(secs[n_sec - 1].name, "rec5");
+        break;
+    case 32:                                                  /* rec5 だけ / 長さが 5 の倍数でない */
+        strcpy(secs[REC_IDX].name, "rec5");
+        fudge_idx = REC_IDX; fudge = -1;
+        break;
     case 16: fudge_idx = 2; fudge = +4; break;    /* surfck を 4 B 増やす（見出し語数から計算した値と合わない） */
     default: break;
     }
@@ -383,6 +398,9 @@ static const caze CASES[] = {
     /* 28 */ {"charr の run[0] の開始が 0 でない",                  -13},
     /* 29 */ {"charr の run が値表の外を指す",                      -13},
     /* 30 */ {"charr の nrun = 0",                                  -13},
+    /* --- rec5（M-107 §4a）--- */
+    /* 31 */ {"records と rec5 の両方を置く",                       -6},
+    /* 32 */ {"rec5 の宣言長が 5 の倍数でない",                     -6},
 };
 #define N_CASES ((int)(sizeof CASES / sizeof CASES[0]))
 
@@ -400,7 +418,11 @@ int main(void) {
      *    分類して除外すると、**新しい検査が陽性対照から抜け落ちて空虚に通る**
      *    （`writing-gates` の言う形。M-107 の検証で指摘された）。 */
     static const int WEAK_MUST_LEAK[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16,
-                                        18, 19, 20, 21, 23, 24, 25, 26, 28, 29, 30};
+                                        18, 19, 20, 21, 23, 24, 25, 26, 28, 29, 30,
+                                        32};
+    /* ⚠️ **31（records と rec5 の両方）は入れない。** 排他検査は `return -6` を
+     *    直接書いていて `JD_CHECK` の外なので、**weak ビルドでも落ちる**
+     *    （版検査 = ケース 5 と同じ側）。入れると陽性対照が「漏れなかった」で落ちる。 */
     int n_must = (int)(sizeof WEAK_MUST_LEAK / sizeof WEAK_MUST_LEAK[0]);
     int leaked = 0;
     for (int k = 0; k < n_must; k++) {

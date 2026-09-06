@@ -31,8 +31,17 @@ typedef struct {
     const uint8_t *counts;       /* 見出し語ごとのエントリ数 */
     uint32_t       n_surfaces;
 
-    const uint8_t *records;      /* 9 B 固定 */
+    const uint8_t *records;      /* `records` なら 9 B 固定 / `rec5` なら 5 B */
     uint32_t       n_entries;
+    /* `rec5`（5 B レコード。M-107 §4a）なら 1。**`records` と排他。**
+     * (class, chain, flags) を 12 bit の class2 に畳んである:
+     *     b0..b1  wcost i16
+     *     b2..b3  u16 = class2(bit 0-11) | pron長 下位 4bit(bit 12-15)
+     *     b4      pron長 bit4(bit 0) | extra長(bit 1-6) | 予備(bit 7)
+     * ⚠️ **classes のストライドも 8 → 10 B になる**（chain u8 / flags u8 が末尾に付く）。
+     *    片方だけ直すと黙って別のエントリを読む。 */
+    int            rec5;
+    uint32_t       cls_stride;   /* 8（records） / 10（rec5） */
     const uint8_t *pool;
     uint32_t       pool_len;
 

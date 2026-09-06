@@ -1001,7 +1001,7 @@ class DictBlob:
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
                   "classes", "chains", "records", "pool", "matrix", "matrixa",
                   "matrixc", "surfck",
-                  "poolck", "termck", "char", "charr", "unk")
+                  "poolck", "termck", "char", "charr", "unk", "rec5")
 
     @staticmethod
     def _pack_strtab(items) -> bytes:
@@ -1017,25 +1017,80 @@ class DictBlob:
             parts.pop()
         return [p.decode("utf-8") for p in parts]
 
-    def _section_payloads(self) -> dict:
-        cls_blob = bytearray()
+    def _pack_rec5(self) -> tuple[bytes, bytes, list[str]]:
+        """`rec5`（5 B レコード）と 10 B の classes 表を組む。M-107 §4a。
+
+        **(class, chain, flags) の 3 つ組を 12 bit の class2 に畳む。**
+        フル辞書 789,388 entries でも 2,251 種しか出ないので 4,096 枠に収まる。
+
+            b0..b1  wcost i16
+            b2..b3  u16 = class2(bit 0-11) | pron長 下位 4bit(bit 12-15)
+            b4      pron長 bit4(bit 0) | extra長(bit 1-6) | 予備(bit 7)
+            classes = 10 B: lc u16 / rc u16 / pos6 u16 / posid u16 / chain u8 / flags u8
+
+        ⚠️ **wcost は 1 bit も削れない**（実データで min −32,750 = 16 bit 丸ごと）。
+        ⚠️ **切り捨てない。** 溢れたら例外にする — 長さ欄は値プールの索引そのもので、
+           1 bit 削るだけで下流のエントリが黙ってずれる（M-107 §4a の risks）。
+        """
         pos6_strs: list[str] = []
         pos6_id: dict[tuple, int] = {}
-        for lc, rc, pos6, posid in self.classes:
+        cls2: dict[tuple, int] = {}
+        recs = bytearray()
+        for i in range(len(self.records) // 9):
+            cid, wcost, chid, flags, pl, el = struct.unpack(
+                "<HhHBBB", self.records[9 * i:9 * i + 9])
+            if pl > 31:
+                raise ValueError(f"pron長 {pl} が 5 bit を超えた（entry {i}）")
+            if el > 63:
+                raise ValueError(f"extra長 {el} が 6 bit を超えた（entry {i}）")
+            if chid > 255:
+                raise ValueError(f"chain ID {chid} が u8 を超えた（entry {i}）")
+            key = (cid, chid, flags)
+            c2 = cls2.setdefault(key, len(cls2))
+            if c2 > 4095:
+                raise ValueError(f"class2 の種類が 12 bit を超えた: {len(cls2)}")
+            recs += struct.pack("<hHB", wcost,
+                                (c2 & 0xFFF) | ((pl & 0xF) << 12),
+                                ((pl >> 4) & 1) | ((el & 0x3F) << 1))
+        inv2 = [None] * len(cls2)
+        for k, v in cls2.items():
+            inv2[v] = k
+        cls_blob = bytearray()
+        for cid, chid, flags in inv2:
+            lc, rc, pos6, posid = self.classes[cid]
             if pos6 not in pos6_id:
                 pos6_id[pos6] = len(pos6_strs)
                 pos6_strs.append(",".join(pos6))
-            cls_blob += struct.pack("<HHHH", lc, rc, pos6_id[pos6], posid)
+            cls_blob += struct.pack("<HHHHBB", lc, rc, pos6_id[pos6], posid,
+                                    chid, flags)
+        return bytes(recs), bytes(cls_blob), pos6_strs
+
+    def _section_payloads(self) -> dict:
+        if getattr(self, "rec5", False):
+            recs, cls_blob, pos6_strs = self._pack_rec5()
+            head = {"rec5": recs,
+                    "classes": (struct.pack("<I", len(cls_blob) // 10)
+                                + cls_blob + self._pack_strtab(pos6_strs))}
+        else:
+            cls_blob = bytearray()
+            pos6_strs = []
+            pos6_id: dict[tuple, int] = {}
+            for lc, rc, pos6, posid in self.classes:
+                if pos6 not in pos6_id:
+                    pos6_id[pos6] = len(pos6_strs)
+                    pos6_strs.append(",".join(pos6))
+                cls_blob += struct.pack("<HHHH", lc, rc, pos6_id[pos6], posid)
+            head = {"records": self.records,
+                    "classes": (struct.pack("<I", len(self.classes))
+                                + bytes(cls_blob) + self._pack_strtab(pos6_strs))}
         return {
+            **head,
             "keytab": self._pack_strtab(self.keys.table),
             "keyesc": self._pack_strtab(self.keys.esc_table),
             "moratab": self._pack_strtab(self.moras.table),
             "louds": self.louds.to_bytes(),
             "counts": bytes(self.counts),
-            "classes": (struct.pack("<I", len(self.classes)) + bytes(cls_blob)
-                        + self._pack_strtab(pos6_strs)),
             "chains": self._pack_strtab(self.chains),
-            "records": self.records,
             "pool": self.pool,
             **({("matrixc" if isinstance(self.matrix, ConnMatrixCluster)
                  else "matrixa" if isinstance(self.matrix, ConnMatrixAffine)
@@ -1084,8 +1139,13 @@ class DictBlob:
 
     @classmethod
     def record_region(cls, raw: bytes) -> tuple:
-        """レコード領域の (開始, 終了)。陰性対照が壊す場所を知るために使う。"""
-        o, l = cls.sections(raw)["records"]
+        """レコード領域の (開始, 終了)。陰性対照が壊す場所を知るために使う。
+
+        ⚠️ **`records`(9 B) と `rec5`(5 B) のどちらかしか無い。** 決め打ちにすると
+           rec5 の blob で KeyError になる（M-107 §4a で踏んだ）。
+        """
+        secs = cls.sections(raw)
+        o, l = secs["rec5"] if "rec5" in secs else secs["records"]
         return o, o + l
 
     @classmethod
@@ -1098,12 +1158,47 @@ class DictBlob:
 
         cb = sec("classes")
         n_cls = struct.unpack("<I", cb[:4])[0]
-        pos6_strs = cls._unpack_strtab(cb[4 + 8 * n_cls:])
+        # `rec5`（M-107 §4a）では classes が 10 B / エントリで chain と flags を持つ。
+        # ⚠️ **メモリ上は 9 B レコードに展開して返す** — 既存の reader
+        #    （`_lens` / `all_entries` / check_dict_blob）を 1 行も変えずに済む。
+        is5 = "rec5" in secs
+        stride = 10 if is5 else 8
+        pos6_strs = cls._unpack_strtab(cb[4 + stride * n_cls:])
         pos6 = [tuple(x.split(",")) for x in pos6_strs]
         classes = []
+        cls2: list[tuple] = []
         for i in range(n_cls):
-            lc, rc, p6, posid = struct.unpack("<HHHH", cb[4 + 8 * i: 12 + 8 * i])
-            classes.append((lc, rc, pos6[p6], posid))
+            o = 4 + stride * i
+            if is5:
+                lc, rc, p6, posid, chid, flags = struct.unpack(
+                    "<HHHHBB", cb[o:o + 10])
+                cls2.append((lc, rc, pos6[p6], posid, chid, flags))
+            else:
+                lc, rc, p6, posid = struct.unpack("<HHHH", cb[o:o + 8])
+                classes.append((lc, rc, pos6[p6], posid))
+        if is5:
+            # class2 を (lc, rc, pos6, posid) の重複なし表へ戻し、
+            # レコードを 9 B に展開する。
+            seen: dict[tuple, int] = {}
+            cid_of = []
+            for lc, rc, p6, posid, _ch, _fl in cls2:
+                k = (lc, rc, p6, posid)
+                cid_of.append(seen.setdefault(k, len(seen)))
+            classes = [None] * len(seen)
+            for k, v in seen.items():
+                classes[v] = k
+            r5 = sec("rec5")
+            recs = bytearray()
+            for i in range(len(r5) // 5):
+                wcost, packed, b4 = struct.unpack("<hHB", r5[5 * i:5 * i + 5])
+                c2 = packed & 0xFFF
+                pl = ((packed >> 12) & 0xF) | ((b4 & 1) << 4)
+                el = (b4 >> 1) & 0x3F
+                recs += struct.pack("<HhHBBB", cid_of[c2], wcost,
+                                    cls2[c2][4], cls2[c2][5], pl, el)
+            records = bytes(recs)
+        else:
+            records = sec("records")
 
         return cls(
             keys=KeyCodec(cls._unpack_strtab(sec("keytab")),
@@ -1113,7 +1208,7 @@ class DictBlob:
             classes=classes,
             chains=cls._unpack_strtab(sec("chains")),
             counts=list(sec("counts")),
-            records=sec("records"),
+            records=records,
             pool=sec("pool"),
             surfaces=None,            # trie から復元する
             matrix=(ConnMatrix.from_section(sec("matrix"))

@@ -213,6 +213,9 @@ csrc/matrixa_test
 # M-106 の C リーダ（matrixc = 行・列クラスタ / charr = 文字カテゴリのレンジ表）
 csrc/matrixc_test
 csrc/charr_test
+csrc/rec5_test
+csrc/jdict_vectors_r9.bin
+csrc/jdict_vectors_r5.bin
 csrc/jdict_vectors_cdeq.bin
 csrc/jdict_vectors_clu.bin
 csrc/jdict_vectors_cfull.bin

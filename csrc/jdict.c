@@ -19,6 +19,7 @@
 #define CHECKPOINT    32u
 #define TERM_CHECKPOINT 512u
 #define REC_SIZE       9u
+#define REC5_SIZE      5u        /* `rec5`（M-107 §4a）*/
 #define BOS_RC         0u
 #define EOS_LC         0u
 #define COST_INF   0x3FFFFFFF
@@ -29,6 +30,43 @@ static uint32_t rd32(const uint8_t *p) {
 }
 static uint16_t rd16(const uint8_t *p) {
     return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
+}
+
+/* レコード 1 件を展開する。**`records`(9 B) と `rec5`(5 B) の唯一の差はここ**（M-107 §4a）。
+ * ⚠️ **読み口ごとに展開を書かない。** char の 916 行を直し忘れて未知語生成を殺した
+ *    のと同じ形になる（M-107 §1）。**必ずこの 1 関数を通す。**
+ * NULL を渡した出力は書かない。 */
+static void rec_unpack(const jdict_t *d, uint32_t entry,
+                       uint16_t *cid, int16_t *wcost, uint8_t *pl, uint8_t *el) {
+    const uint8_t *r;
+    if (d->rec5) {
+        r = d->records + (size_t)entry * REC5_SIZE;
+        uint16_t packed = rd16(r + 2);
+        if (cid)   *cid   = (uint16_t)(packed & 0x0FFFu);
+        if (wcost) *wcost = (int16_t)rd16(r);
+        if (pl)    *pl    = (uint8_t)(((packed >> 12) & 0x0Fu) | ((r[4] & 1u) << 4));
+        if (el)    *el    = (uint8_t)((r[4] >> 1) & 0x3Fu);
+    } else {
+        r = d->records + (size_t)entry * REC_SIZE;
+        if (cid)   *cid   = rd16(r);
+        if (wcost) *wcost = (int16_t)rd16(r + 2);
+        if (pl)    *pl    = r[7];
+        if (el)    *el    = r[8];
+    }
+}
+
+/* chain ID と flags。`rec5` では classes 表の末尾 2 B に入っている。 */
+static void rec_chain_flags(const jdict_t *d, uint32_t entry, uint16_t cid,
+                            uint16_t *chid, uint8_t *flags) {
+    if (d->rec5) {
+        const uint8_t *c = d->classes + d->cls_stride * cid;
+        *chid  = c[8];
+        *flags = c[9];
+    } else {
+        const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
+        *chid  = rd16(r + 4);
+        *flags = r[6];
+    }
 }
 
 /* 入力検査（M-100）。⚠️ **JDICT_TEST_WEAK=1 で全部消える** —
@@ -130,8 +168,20 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
     d->counts = s.p; d->n_surfaces = s.len;
     if (find_sec(blob, d->blob_len, "surfck", &s) != 0) return -5;
     d->surfck = s.p; surfck_len = s.len;
-    if (find_sec(blob, d->blob_len, "records", &s) != 0) return -6;
-    d->records = s.p; d->n_entries = s.len / REC_SIZE; records_len = s.len;
+    /* ⚠️ **`records`(9 B) と `rec5`(5 B) はどちらか一方。** 両方あれば拒む
+     *    （matrix / matrixa / matrixc と同じ流儀。M-100 / M-107 §4a）。 */
+    {
+        struct sec s5;
+        const int has9 = (find_sec(blob, d->blob_len, "records", &s) == 0);
+        const int has5 = (find_sec(blob, d->blob_len, "rec5",    &s5) == 0);
+        if (has9 == has5) return -6;                    /* 両方 / どちらも無い */
+        d->rec5       = has5;
+        d->cls_stride = has5 ? 10u : 8u;
+        if (has5) s = s5;
+    }
+    d->records = s.p;
+    d->n_entries = s.len / (d->rec5 ? REC5_SIZE : REC_SIZE);
+    records_len = s.len;
     if (find_sec(blob, d->blob_len, "pool", &s) != 0) return -7;
     d->pool = s.p; d->pool_len = s.len;
     if (find_sec(blob, d->blob_len, "classes", &s) != 0) return -8;
@@ -140,11 +190,11 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
     /* ⚠️ **符号なし減算の underflow を先に止める。** かつては下限を見ておらず、
      *    n_classes が 1 bit 壊れるだけで pos6tab_len が 2 GB になり、
      *    strtab_find が 1 B ずつ 2 GB 走った（端末なら WDT）。jdict_open は 0 を返す。 */
-    JD_CHECK(4ull + 8ull * d->n_classes <= (uint64_t)s.len, -8);
+    JD_CHECK(4ull + (uint64_t)d->cls_stride * d->n_classes <= (uint64_t)s.len, -8);
     d->classes = s.p + 4;
     /* classes セクションは [n u32][8 B × n][pos6 の NUL 区切り表] */
-    d->pos6tab = s.p + 4 + 8u * d->n_classes;
-    d->pos6tab_len = s.len - 4u - 8u * d->n_classes;
+    d->pos6tab = s.p + 4 + d->cls_stride * d->n_classes;
+    d->pos6tab_len = s.len - 4u - d->cls_stride * d->n_classes;
     if (find_sec(blob, d->blob_len, "keytab", &s) != 0) return -9;
     d->keytab = s.p; d->keytab_len = s.len;
     if (find_sec(blob, d->blob_len, "keyesc", &s) != 0) return -10;
@@ -208,7 +258,10 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
      *    `surfck` の最後のチェックポイント + 端数（最大 32 件）で同じ数を出す。
      *    これは `jdict_entry_range` が使っているのと同じ復元式。 */
     JD_CHECK(d->n_surfaces > 0u, -4);
-    JD_CHECK(d->n_entries * REC_SIZE == records_len, -6);   /* 9 の倍数 */
+    JD_CHECK(d->n_entries * (d->rec5 ? REC5_SIZE : REC_SIZE) == records_len, -6);
+    /* ⚠️ **9 の倍数か 5 の倍数か**。出荷 blob の 3,948,750 B は
+     *    **9 でも 5 でも割り切れる**ので、この検査だけでは形式の取り違えを捕まえない。
+     *    捕まえるのは上の排他検査と、下の counts / poolck との突き合わせ（M-107 §4a）。 */
     {
         /* surfck / poolck / termck の長さが、それぞれの件数から計算した値と合うか */
         uint32_t want_surfck = 4u * ((d->n_surfaces + CHECKPOINT - 1u) / CHECKPOINT);
@@ -313,7 +366,7 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
      *    範囲検査なしで引くので、classes が 1 bit 壊れると行列の外を読む。
      * ⚠️ **classes は 5,299 件**（438,750 entries の実辞書）なので開き時 1 周は安い。 */
     for (uint32_t ci = 0; ci < d->n_classes; ci++) {
-        const uint8_t *c = d->classes + 8u * ci;
+        const uint8_t *c = d->classes + d->cls_stride * ci;
         JD_CHECK(rd16(c) < d->rsize && rd16(c + 2) < d->lsize, JDICT_ERR_MATRIX);
     }
 #else
@@ -482,10 +535,9 @@ void jdict_entry_range(const jdict_t *d, uint32_t rank,
 
 void jdict_entry_conn(const jdict_t *d, uint32_t entry,
                    uint16_t *lc, uint16_t *rc, int16_t *wcost) {
-    const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
-    uint16_t cid = rd16(r);
-    *wcost = (int16_t)rd16(r + 2);
-    const uint8_t *c = d->classes + 8u * cid;
+    uint16_t cid;
+    rec_unpack(d, entry, &cid, wcost, NULL, NULL);
+    const uint8_t *c = d->classes + d->cls_stride * cid;
     *lc = rd16(c);
     *rc = rd16(c + 2);
 }
@@ -630,8 +682,9 @@ static uint32_t pool_offset(const jdict_t *d, uint32_t entry) {
     uint32_t off = d->poolck ? rd32(d->poolck + 4u * base) : 0;
     uint32_t from = d->poolck ? base * CHECKPOINT : 0;
     for (uint32_t j = from; j < entry; j++) {
-        const uint8_t *r = d->records + (size_t)j * REC_SIZE;
-        off += r[7] + r[8];                  /* pool_len + extra_len */
+        uint8_t pl, el;
+        rec_unpack(d, j, NULL, NULL, &pl, &el);
+        off += pl + el;                      /* pool_len + extra_len */
     }
     return off;
 }
@@ -664,12 +717,12 @@ static size_t put(char *out, size_t o, size_t out_n, const char *s) {
 int jdict_entry_feature(const jdict_t *d, uint32_t entry,
                      const char *surface, char *out, size_t out_n) {
     if (entry >= d->n_entries) return -1;
-    const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
-    uint16_t cid = rd16(r);
-    uint16_t chid = rd16(r + 4);
-    uint8_t flags = r[6], pl = r[7], el = r[8];
+    uint16_t cid, chid;
+    uint8_t flags, pl, el;
+    rec_unpack(d, entry, &cid, NULL, &pl, &el);
     if (cid >= d->n_classes) return -2;
-    uint16_t p6 = rd16(d->classes + 8u * cid + 4);
+    rec_chain_flags(d, entry, cid, &chid, &flags);
+    uint16_t p6 = rd16(d->classes + d->cls_stride * cid + 4);
 
     uint32_t off = pool_offset(d, entry);
     const uint8_t *pb = d->pool + off;

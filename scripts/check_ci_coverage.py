@@ -71,6 +71,7 @@ EXCLUDED_TARGETS: dict[str, str] = {
     "matrixa": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-104）",
     "matrixc": "辞書 blob と pyopenjtalk と scikit-learn（k-means。ベクタを 2 本生成する。M-106）",
     "charr": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-106）",
+    "rec5": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-107 §4a）。⚠️ **ホスト側の往復は scripts/test_rec5.py が CI で回る**（合成エントリなので辞書が要らない）",
     "accent": "辞書 blob と pyopenjtalk",
     "njd-rules": "辞書 blob と pyopenjtalk",
     "oj-heap": "辞書 blob と pyopenjtalk",
