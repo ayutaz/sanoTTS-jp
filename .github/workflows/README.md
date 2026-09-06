@@ -59,7 +59,8 @@ Linux + glibc の厳密 `-std=c99` では見えない。**出荷するコア 2 �
 | `make -C csrc prof` | **重み blob が要る**。⚠️ リリースから落とせるので `golden` job に足せる（**未着手**。手元では 1.5 s） |
 | `scripts/test_discriminator.py` | **ラベルパックが要る**（`data/pack_sib*`。コーパス由来なので配布しない） |
 | `scripts/kana_g2p.py` | **pyopenjtalk が要る**（凍結テーブルとの突き合わせは live 側が要る） |
-| `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
+| `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `matrixa` / `charr` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
+| `make -C csrc matrixc` | 上に加えて **scikit-learn（k-means）** も要る（M-106 §10） |
 | `scripts/phase0_verify_teacher.py` | **教師 ckpt が private** |
 | ESP-IDF ビルド / QEMU | toolchain が重く、**実機の代わりにならない**（QEMU はサイクル精度ではない） |
 
@@ -86,10 +87,9 @@ held-out 24 文を見る `stream` は下記の理由で回らない。
 | 理由 | 何が回せないか |
 |---|---|
 | **コーパス由来の成果物が git にもリリースにも無い** | `stream` の多文レーン / `int8-e2e`（`ids_heldout.bin`）/ `g2p-corpus` / `test_discriminator.py`（ラベルパック） |
-| **辞書 13.7 MB と pyopenjtalk が要る** | 漢字経路の 6 ゲート（`jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids`）と `kb-parity`、それに `matrixa` |
+| **辞書 13.7 MB と pyopenjtalk が要る** | 漢字経路の **9 ゲート**（`jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `kb-parity` / `matrixa` / `charr`） |
 | **さらに scikit-learn（k-means）も要る** | `matrixc`（M-106 §10。行・列クラスタの C リーダ）。⚠️ **k-means は環境が変われば別の解になりうる**ので、CI で作り直したベクタは手元と一致しない可能性がある |
-| **辞書と pyopenjtalk が要る**（上と同じ） | `charr`（M-106 §10。文字カテゴリの run 表） |
-| **ESP-IDF の xtensa toolchain（約 2 GB）** | `check_esp32_template.sh` |
+| **ESP-IDF の xtensa toolchain（約 2 GB）** | `check_esp32_template.sh`。⚠️ **全 12 節が toolchain を要るわけではない** — §12（`CONFIG_ESPTOOLPY_FLASHSIZE` の宣言漏れ。M-106 §13）は `sdkconfig.*` の grep だけで、**CI に入れられる可能性がある**。⚠️ **未検証**（節ごとの依存を数えていない） |
 
 ⚠️ **訂正（C-057）: ここには 4 つ目として「重み blob の int8 版が古い」があった。**
 「リリースの `saanotts-jp-v3-int8.bin` は **v1** で、S4 以降のコアが `SAAN_ERR_VERSION` で拒む。
