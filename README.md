@@ -158,18 +158,24 @@ CoreS3 / AtomS3 のような **native USB だけの板は `-usbjtag` の方**を
 
 ⚠️ **v0.2.0 以前のイメージは `!` の前置が要り、入力が UART0**。必ず入れ替えること。
 
-⚠️ **「16 MB 必須」は配布イメージの話。** **8 MB の板でもソースからなら漢字が動く**
-（2026-09-05 に実機で確認。[M-105](docs/measurements.md#m-105)）。
+⚠️ **「16 MB 必須」は配布イメージの話。** **8 MB / 4 MB の板でもソースからなら漢字が動く**
+（8 MB は 2026-09-05 に実機で確認 = [M-105](docs/measurements.md#m-105) /
+4 MB は QEMU まで = [M-106](docs/measurements.md#m-106)）。
 **配布はしていない**ので、自分でビルドすることになる:
 
-| | 表 | entries | **音素の誤り**（n=1,495） |
-|---|---|---:|---:|
-| **16 MB**（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** |
-| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% |
-| 8 MB / **M5Stack 系** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** |
+| | 表 | entries | **音素の誤り**（n=1,495） | 確認 |
+|---|---|---:|---:|---|
+| **16 MB**（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ 実機 |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ 実機 |
+| 8 MB / **M5Stack 系** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ 実機 |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.64%** | ⚠️ QEMU のみ |
+| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.27%** | ⚠️ QEMU のみ |
 
-手順は [`esp32/README.md`](esp32/README.md) の「8 MB flash の板」。
+手順は [`esp32/README.md`](esp32/README.md) の「8 MB flash の板」「4 MB / 2 MB 枠」。
 ⚠️ **読みが落ちる**（枝刈りを深くするため）。⚠️ **音を人が聴いていない。**
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限**で、
+2 MB の行は「**枠に収まる**」ことを大きい板の上で確かめただけ。
+⚠️ **4 MB / 2 MB は実機で動かしていない。** 速度も音も未測定。
 
 **音の出口は 2 通り。**
 

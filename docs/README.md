@@ -60,7 +60,9 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 ⚠️ **既定ではない。** 出荷は 16 MB（[D-044](decisions.md#d-044)）で、16 MB で使う理由は無い
 （音素の誤りが 0.63% → 1.01% に悪化するだけ。⚠️ ただし**根拠は変わった** = [C-066](decisions.md#c-066)）。
 ⚠️ **8 MB flash のチップそのものでは測っていない**（16 MB の板に 8 MB の表を焼いた）。
-⚠️ **音を人が聴いていない。** ⚠️ **②〜④ の C リーダは書いていない。**
+⚠️ **音を人が聴いていない。**
+✅ **② char レンジ表（`charr`）と ③ 行列クラスタ（`matrixc`）の C リーダは書いた**（[M-106](measurements.md#m-106) §10）。⚠️ **残るのは ④ レコード dedup だけ**で、しかも
+**動作点によって符号が変わる**（438,750 entries で −4.23 B/entry、21,000 では **+0.95 B/entry の損**。[C-067](decisions.md#c-067)）。
 
 ⚠️ **当初 [D-051](decisions.md#d-051) は「8 MB の実機が入るまで着手しない」としていたが、
 条件の立て方が間違っていた**（[C-065](decisions.md#c-065)）。C リーダの正しさも枠に入ることも
@@ -272,8 +274,12 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 ⚠️ **実機のスピーカーでしか分からないものが残る**（G32 の本体）: **途切れ・音量・実サンプルレートの誤差**。
 checksum が一致しても M5.Speaker の DMA の実挙動は別（M-90 §5）。
 
-⚠️ **これから板を買うなら N16R8。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
-16 MB なら**かなトラックの構成もそのまま焼ける**。**別々に取りに行くと 2 回焼き直しになる。**
+⚠️ **これから板を買うなら N16R8。** 16 MB なら**辞書 13.7 MB がそのまま入り、
+かなトラックの構成もそのまま焼ける**。**別々に取りに行くと 2 回焼き直しになる。**
+✅ **ただし「8 MB では入らない」は古い。** entries を落とせば
+**8 MB（実機。M-105）/ 4 MB / 2 MB の枠（QEMU。[M-106](measurements.md#m-106) §14）**でも動く。
+**代償は読みの精度**で、音素の誤りが 0.63% → 1.01% / 1.64% / 3.27% に落ちる（n=1,495）。
+⚠️ **ESP32-S3 の下限は 4 MB**（WROOM-1 は N4 / N8 / N16。**2 MB の品番は無い**）。
 実測に使っているのはユーザーの M5 CoreS3（16 MB / PSRAM 8 MB Quad。**D-047**）。
 
 **実装として書くものは残っていない。** 1〜5 は「聴く」「決める」「上げ直す」。
@@ -386,9 +392,13 @@ Pages への配置は**別のワークフロー** [`pages.yml`](../.github/workf
 ／ `make -C csrc jdict`（G6〜G11）／ `accent`（G12/G13）／ `njd-rules`（G14a〜c）／ `oj-heap`（G22〜G24）
 ／ `kanji-e2e`（G17）／ `label-ids`（G25〜G27 + **G25b/G25c**: 表を arena に置いても同じ列か）
 ／ `kb-parity`（**K-B の経路判定**がホストと一致するか。596/596）
+／ `matrixa`（**行ごとアフィン uint8** が生 int16 と全 1,896,129 要素で一致するか。M-104）
+／ `matrixc`（**行・列クラスタ**が同じく全要素で一致するか。⚠️ **陽性対照が 2 本**。M-106 §10）
+／ `charr`（**文字カテゴリの run 表**が全 65,535 符号位置で一致するか。M-106 §10）
 ／ `uv run python scripts/k1/k4b_vendor.py --sdist <tgz> --check`（取り込んだ C の同一性）
-⚠️ **jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids / kb-parity は `all-test` に入れていない**
-（辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い）
+⚠️ **jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids / kb-parity /
+matrixa / matrixc / charr は `all-test` に入れていない**
+（辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い。⚠️ **`matrixc` は scikit-learn も要る**）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
@@ -484,12 +494,16 @@ sanoTTS-jp/
 ├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
 │   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）
 │   ├── k1_build_dict.py                   本番の辞書 blob を組んで G1〜G5 を通す
+│   │                                        `--matrix affine|cluster:K` / `--char-range`（M-105 / M-106）
 │   ├── k2_gen_vectors.py                  K-2/K-3 の参照ベクタ（参照は MeCab）
 │   ├── k4_gen_vectors.py                  K-4 の参照ベクタ（参照は Python 版の 4 段）
 │   ├── k4b_gen_vectors.py                 K-4b の参照ベクタ（参照は NJD チェーン）
 │   ├── k4b_vendor.py                      **取り込みと --check**（上流 + PATCHES と突き合わせ）
 │   ├── k5_gen_labels.py                   K-5 の basis（ホストのフルコンテキストラベル）
-│   └── k6_gen_vectors.py                  K-6/K-7 の参照ベクタ（ラベル + ids の 2 基準）
+│   ├── k6_gen_vectors.py                  K-6/K-7 の参照ベクタ（ラベル + ids の 2 基準）
+│   ├── k9_fit_8mb.py                      8 MB 枠の動作点を振る（⚠️ **サイズは算術**。M-97）
+│   ├── k10_ctx_compact.py                 **文脈 ID の詰め直し**が無損失かを測る（M-106 §3）
+│   └── k11_fit_2mb.py                     **実測サイズ**で動作点を決める（`--budget` / `--grid`。M-106 §10）
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
@@ -525,6 +539,9 @@ sanoTTS-jp/
 │   ├── jdict_test.c / accent_test.c              K-2〜K-4 の受け入れ（どちらも陰性対照つき）
 │   ├── njd_rules_test.c / oj_heap_test.c         K-4b / K-5 の受け入れ
 │   ├── kanji_e2e_test.c / label_ids_test.c              K-6 / K-7 の受け入れ
+│   ├── jdict_hard_test.c                  **辞書リーダの入力検査**（M-100。ASan 版と weak 版を同居）
+│   ├── matrixa_test.c                     **`matrixa`** が生 int16 と全要素一致（M-104）
+│   ├── matrixc_test.c / charr_test.c      **`matrixc` / `charr`** が同じく全要素一致（M-106 §10）
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
@@ -542,9 +559,14 @@ sanoTTS-jp/
 │   ├── main/saan_dict.{h,c}               dict パーティションの mmap（**`esp_mmu_map`**。M-90 §4）
 │   ├── main/saan_kanji.{h,c}              **K-7: 漢字文 → 生徒インデックス**（端末の全段）
 │   ├── partitions.csv                     8 MB（かな入力だけの出荷構成）
-│   ├── partitions_16mb.csv                **16 MB + dict 13,828,096 B**（漢字対応）
+│   ├── partitions_16mb.csv                **16 MB + dict 13,828,096 B**（漢字対応・出荷）
+│   ├── partitions_8mb_kanji.csv           8 MB / DevKit（dict 7,143,424。M-105）
+│   ├── partitions_4mb_kanji.csv           **4 MB**（dict 3,014,656。M-106 §11。⚠️ QEMU まで）
+│   ├── partitions_2mb_kanji.csv           **2 MB の枠**（dict 983,040。M-106 §13。⚠️ **品番は無い**）
 │   ├── sdkconfig.defaults                 **QIO + D-cache 64 B 行**（M-84 / M-86）。PIE は S3 で既定（D-048）
 │   ├── sdkconfig.kanji / .qemu / .usb_serial_jtag   漢字 / QEMU（DIO に戻す）/ USB-JTAG コンソール
+│   ├── sdkconfig.kanji8mb / .kanji4mb / .kanji2mb   小容量の上書き。⚠️ **`CONFIG_ESPTOOLPY_FLASHSIZE` は
+│   │                                        焼く板の実容量に**（書き忘れるとブートループ。M-106 §13）
 │   ├── boards/m5unified/                  **M5Stack（スタックチャン）構成**。重みは app の `.rodata`、
 │   │                                        `partitions.csv` に **dict 0x2D0000（DevKit と同じ offset）**、
 │   │                                        `main/saan_audio_m5.cpp` が M5.Speaker、`saan_ui_m5.cpp` が画面
@@ -636,7 +658,8 @@ make -C csrc all-test                            # golden / stream（held-out 24
                                                  #   g2p / pad / line / erf / range
 make -C csrc prof                                # 段別プロファイラ + --expect-* ゲート（S1 / T1〜T3）
 make -C csrc kb-parity                           # 経路の 3 値判定がホストと一致するか（K-B）
-bash scripts/check_esp32_template.sh             # esp32/ 雛形をホストで検査（§10 = arena の余白）
+bash scripts/check_esp32_template.sh             # esp32/ 雛形をホストで検査（**12 節**。§10 = arena の余白 /
+                                                 #   §11 = OJ の一時ヒープ / §12 = FLASHSIZE の宣言漏れ）
 ```
 
 ⚠️ **`make prof` のホストの時間は実機の内訳ではない**（C-055）。速度の判断は

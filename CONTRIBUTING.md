@@ -101,8 +101,10 @@ make -C csrc range                                  # 出力範囲つきカー�
 |---|---|---|
 | `make -C csrc kb-parity` | 端末の経路判定（`saan_g2p_classify`）がホストの `classify_route()` と一致するか（**596/596**。K-B / M-90）。⚠️ **片方だけ直すとここが落ちます** | pyopenjtalk |
 | `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` | K トラック（辞書リーダ・Viterbi・アクセント規則・NJD・RAM・端末とホストの一致） | 辞書 `csrc/k1_dict.bin` と pyopenjtalk |
+| `make -C csrc matrixa` / `charr` | 接続行列の**行ごとアフィン uint8**（M-104）と文字カテゴリの **run 表**（M-106 §10）が、元の形式と**全要素で一致**するか | 辞書と pyopenjtalk |
+| `make -C csrc matrixc` | 接続行列の**行・列クラスタ**が生 int16 と全 1,896,129 要素で一致するか（M-106 §10）。⚠️ **陽性対照が 2 本**（代表行列と写像は別経路） | 辞書と pyopenjtalk と **scikit-learn** |
 | `make -C csrc prof` | 段別プロファイラ。`--expect-no-lookup` が「pull 中のテンソル検索 0 回」を守る（S1） | なし |
-| `scripts/check_esp32_template.sh` | ESP32 雛形の静的検査。§10 は**漢字経路の作業領域が arena に収まるか** | なし |
+| `scripts/check_esp32_template.sh` | ESP32 雛形の静的検査（**12 節**）。§10 は**漢字経路の作業領域が arena に収まるか**、§11 は **Open JTalk の一時ヒープ**（M-98）、§12 は **`CONFIG_ESPTOOLPY_FLASHSIZE` の宣言漏れ**（書き忘れるとブートループ。M-106 §13） | なし |
 
 ⚠️ **ホストのプロファイラは実機の内訳ではありません。** 速度の主張は
 **実機の `idf.py -DSAAN_PROFILE=1` の表**でだけ行ってください。QEMU の命令数が減ったのに
@@ -190,7 +192,7 @@ make -C csrc range                                  # range-limited kernels (S9)
 Two families of gates are **not** in `make -C csrc all-test` because they need external
 assets — run them by hand if you touched the code they cover:
 `make -C csrc kb-parity` (the device's route classifier agrees with the host's,
-**596/596**; needs pyopenjtalk) and `make -C csrc jdict accent njd-rules oj-heap kanji-e2e label-ids` (the kanji track;
+**596/596**; needs pyopenjtalk) and `make -C csrc jdict accent njd-rules oj-heap kanji-e2e label-ids matrixa matrixc charr` (the kanji track;
 needs `csrc/k1_dict.bin` and pyopenjtalk).
 
 Python must go through `uv` — **never `pip install`**. `~/Documents/piper-plus` (the

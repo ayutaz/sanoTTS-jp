@@ -167,18 +167,24 @@ native-USB-only board such as a CoreS3 or AtomS3 needs the `-usbjtag` one.
 
 ⚠️ **Images before v0.3.0 need the `!` prefix and read UART0.** Replace them.
 
-⚠️ **"16 MB required" applies to the released images.** Kanji also runs on an 8 MB board
-if you **build from source** (verified on hardware 2026-09-05, [M-105](docs/measurements.md#m-105)).
-No 8 MB image is published, so you build it yourself:
+⚠️ **"16 MB required" applies to the released images.** Kanji also runs on 8 MB and 4 MB
+boards if you **build from source** (8 MB verified on hardware 2026-09-05,
+[M-105](docs/measurements.md#m-105); 4 MB in QEMU only, [M-106](docs/measurements.md#m-106)).
+No small-flash image is published, so you build it yourself:
 
-| | Partition table | entries | **Phoneme error** (n=1,495) |
-|---|---|---:|---:|
-| **16 MB** (released) | `partitions_16mb.csv` | 438,750 | **0.63%** |
-| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% |
-| 8 MB / **M5Stack** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** |
+| | Partition table | entries | **Phoneme error** (n=1,495) | Verified |
+|---|---|---:|---:|---|
+| **16 MB** (released) | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ hardware |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ hardware |
+| 8 MB / **M5Stack** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ hardware |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.64%** | ⚠️ QEMU only |
+| **2 MB budget** | `partitions_2mb_kanji.csv` | 44,000 | **3.27%** | ⚠️ QEMU only |
 
-Steps: the "8 MB flash の板" section of [`esp32/README.md`](esp32/README.md).
+Steps: the "8 MB flash の板" and "4 MB / 2 MB 枠" sections of [`esp32/README.md`](esp32/README.md).
 ⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened to it.**
+⚠️ **No ESP32-S3 part has 2 MB of flash** (WROOM-1 comes as N4 / N8 / N16), so **4 MB is the floor**.
+The 2 MB row only says the data *fits that budget*, measured on a larger board.
+⚠️ **Neither 4 MB nor 2 MB has run on hardware.** Speed and audio are unmeasured.
 
 **Two ways to get sound out.**
 

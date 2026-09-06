@@ -463,18 +463,25 @@ W8A8 + PIE が **0.446**（M-90）。**PIE 無しでは実時間に間に合い�
 
 ⚠️ **配布イメージは N16R8 / CoreS3 など 16 MB flash が要ります**（辞書 13.7 MB が入らないため）。
 
-ℹ️ **8 MB のボードでも、ソースからビルドすれば漢字は動きます**
-（2026-09-05 に実機で確認。[M-105](../docs/measurements.md#m-105)）。
-接続行列を uint8 に落とし、entries を減らした辞書を使います。**配布はしていません**:
+ℹ️ **8 MB / 4 MB のボードでも、ソースからビルドすれば漢字は動きます**
+（8 MB は 2026-09-05 に実機で確認 = [M-105](../docs/measurements.md#m-105) /
+4 MB は QEMU まで = [M-106](../docs/measurements.md#m-106)）。
+接続行列を小さく持ち、entries を減らした辞書を使います。**配布はしていません**:
 
-| 板 | 表 | entries | **音素の誤り**（n=1,495） |
-|---|---|---:|---:|
-| 16 MB（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** |
-| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% |
-| 8 MB / **M5Stack 系**（AtomS3 など） | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** |
+| 板 | 表 | entries | **音素の誤り**（n=1,495） | 確認 |
+|---|---|---:|---:|---|
+| 16 MB（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ 実機 |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ 実機 |
+| 8 MB / **M5Stack 系**（AtomS3 など） | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ 実機 |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.64%** | ⚠️ QEMU のみ |
+| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.27%** | ⚠️ QEMU のみ |
 
-手順は [`esp32/README.md`](README.md) の「8 MB flash の板」。
+手順は [`esp32/README.md`](README.md) の「8 MB flash の板」「4 MB / 2 MB 枠」。
 ⚠️ **読みが落ちます。** ⚠️ **音を人が聴いていません。**
+
+🙏 **4 MB / 2 MB を実機で試していただけると助かります**（[M-106](../docs/measurements.md#m-106) §12）。
+QEMU では合成まで通り PCM も 16 MB と一致しましたが、**速度もアンダーランも音も未測定**です。
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**ので、2 MB は「表だけ 2 MB にして大きい板に焼く」形になります。
 
 ℹ️ **焼くだけで良いなら [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) に
 現行コードのイメージがあります**（v0.3.0。`!` の前置は要りません）。
@@ -566,7 +573,8 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 | `辞書 OK` が出ない / `esp_partition_mmap` が `ESP_ERR_NO_MEM` | `CONFIG_SPI_FLASH_ROM_IMPL=y` の板では ROM 実装が 8 MB しか貼れません。`saan_dict.c` は自動で `esp_mmu_map` に切り替えます（M-90）。それでも出ないなら 16 MB 版の表を焼けていません |
 | 漢字を打っても「辞書を持たない」と言われる | `-DSAAN_KANJI=1` を付けてビルドしていません（既定は無効） |
 | `G2P の出力が demo_ids.h の錨と一致しない` | ⚠️ **意図的に止めています**。テーブルか実装がずれている状態なので報告してください |
-| 起動すらしない | **8 MB 以上の flash が要ります**（`model` に 3 MB 確保）。4 MB のボードでは入りません |
+| 起動すらしない | **既定の表は 8 MB 以上の flash が要ります**（`model` に 3 MB 確保）。⚠️ **4 MB でも `partitions_4mb_kanji.csv` + `-DSAAN_MODEL_RODATA=1`（重みを app に埋める）なら入ります**（M-106 §11） |
+| `E spi_flash: Detected size(...) smaller than the size in the binary image header(...)` で再起動を繰り返す | `sdkconfig.*` の **`CONFIG_ESPTOOLPY_FLASHSIZE` が板の実容量と食い違っています**（M-106 §13）。小容量の表を使うときは**焼く板の容量**に書き換えてください |
 | `mode:QIO` のあと `ets_loader.c 78` → `rst:0x7 (TG0WDT_SYS_RST)` を繰り返す | `esptool.py write_flash` に **`--flash_mode qio` を渡しています**。渡さないでください（ヘッダが QIO になると ROM ローダが読めません）。`@flash_args` はいつも `dio` で、QIO 対応の板では bootloader が起動後に `qio_mode: Enabling default flash chip QIO` で切り替えます（M-86 で踏んだ） |
 | 同じコードなのに xRT が 15% 遅い（例 0.92 → 1.09） | flash が **DIO** で動いています。起動ログに `qio_mode: Enabling default flash chip QIO` が出ているか確認してください（`esp32/sdkconfig.defaults` は QIO。M-86） |
 | 焼いた firmware で `重み OK: 183 tensors` が出ない | `write_flash 0x0` で**イメージ全体**を焼いたか確認してください（`0x10000` に app だけ焼くと重みが入りません） |

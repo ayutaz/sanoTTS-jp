@@ -87,7 +87,7 @@ newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた�
 
 ### では何を確かめたのか
 
-`bash scripts/check_esp32_template.sh` が通ることだけ。中身は 10 個:
+`bash scripts/check_esp32_template.sh` が通ることだけ。中身は **12 個**:
 
 | # | ゲート | 何が言えるか |
 |---|---|---|
@@ -101,6 +101,8 @@ newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた�
 | 8 | ホスト stub ビルド + **C コアと bit 完全一致** | アプリ側ロジックが正しい（下記） |
 | 9 | IDF API の棚卸し | 実機で最初に照合する一覧 |
 | **10** | **静的 arena が漢字経路の作業領域を収められるか**（`SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES`） | 漢字ビルドで arena が溢れない。**陽性対照つき**（足りない arena の同じ typedef がコンパイルに失敗する） |
+| **11** | **Open JTalk の一時ヒープが予算に収まるか**（M-98） | PSRAM が無い板でも内部 DRAM が足りる。**陽性対照つき**（上限を 45 に上げると `_Static_assert` で止まる） |
+| **12** | **パーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（M-106 §13） | 書き忘れると `sdkconfig.defaults` の値が残り、**イメージ容量と食い違ってブートループする**。**陽性対照つき**（宣言を消した版が落ちる） |
 
 ゲート 8 が実質の主検証。`esp32/host_stub/` に IDF API の偽ヘッダを置いて
 `esp32/main/*.c` をそのままホストでビルドし、I2S に書いたはずの int16 を
@@ -124,7 +126,7 @@ OK  [厳密] C 一括版 → int16 と 27136 sample **bit 完全一致**   （in
 
 | 項目 | 値 |
 |---|---|
-| ターゲット | **ESP32-S3**（内部 SRAM 512 KB / flash **8 MB 以上**。⚠️ **漢字対応は 16 MB 必須**） |
+| ターゲット | **ESP32-S3**（内部 SRAM 512 KB / flash **8 MB 以上**。⚠️ **漢字対応は 16 MB で 438,750 entries**。**4 MB / 8 MB でも entries を落とせば動く** — 下の容量別の表） |
 | ESP-IDF | **v5.5 で実測**。新 I2S ドライバ `driver/i2s_std.h` を使う |
 | 音声出力 | I2S DAC（MAX98357A / PCM5102 など）22.05 kHz / 16 bit / mono。M5 構成は `M5.Speaker` |
 | 実機で測った板 | **M5Stack CoreS3**（ESP32-S3 / 16 MB flash / Quad PSRAM 8 MB / native USB。**D-047**） |
@@ -597,6 +599,7 @@ IDF 既定の **gnu17 のまま**にしてあるが、足しても壊れない�
 |---|---|---|---|
 | 1 | 起動するか | `重み OK: N tensors` | ここで止まるなら partition / アライメント |
 | 2 | 入力がどちらの経路に行ったか | `経路: かな` / `経路: 辞書` | 読み違いを見たとき「辞書が悪いのか判定が悪いのか」の切り分けに要る |
+| 2b | **どの辞書を焼いたか** | `辞書 OK: 見出し語 N / エントリ M / 行列 …（生 int16 \| matrixa … \| matrixc …）/ blob X B（パーティション Y B。余り Z B）` | **焼き間違いはここで見る。** ⚠️ **この表示はかつて 2 値で、`matrixc` の辞書を焼いても「matrixa」と出ていた**（M-106 §11 で 3 値に直した）。entries と blob 長が期待どおりかも合わせて見る |
 | 3 | **アンダーラン** | `アンダーラン N / M チャンク` | **0 が期待値**（M-88 以降。それ以前は末尾 pull で 1 出ていた） |
 | 4 | **満チャンク pull の xRT** | `定常 xRT = X（満チャンク pull の中央値 / 92.88 ms）` | 要件は **≤ 0.5**。CoreS3 の実測は **0.446**（M-90） |
 | 5 | **発話全体の比** | `合成合計 ... / 音声 ... → 合成/音声 X` | **定義に依らない量。版どうしを比べるならこれ**（xRT の定義は T1 で変わった = C-054） |
@@ -752,7 +755,7 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 | `-DSAAN_ENABLE_PIE=0/1` | **ESP32-S3 では 1**（D-048）。それ以外は 0 | W8A8 + PIE（整数 SIMD）。⚠️ int8 blob が要る。**W8A32 で測るには 0 を明示する** |
 | `-DSAAN_W8A8_NOPIE=1` | 無効 | ⚠️ **陰性対照専用**（W8A8 のままスカラ） |
 | `-DSAAN_QEMU=1` | 無効 | I2S への書き込みを外し、**flash を DIO に戻す**（`sdkconfig.qemu`）。⚠️ **音は出ない** |
-| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ 16 MB flash と辞書 13.7 MB が要る |
+| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ **辞書パーティションが要る**（16 MB で 13.7 MB / 8 MB で 7.1 MB / 4 MB で 3.0 MB / 2 MB 枠で 0.98 MB。容量別の表を見ること） |
 | `-DSAAN_DICT_BLOB=<絶対パス>` | `csrc/k1_dict.bin` | 焼く辞書 blob（`SAAN_KANJI=1` のとき） |
 | `-DSAAN_BOOT_SPEAK=1` | 無効（M5 構成と非対話ビルドでは有効） | 起動時に錨の 1 文を喋る（突き合わせ用） |
 | `-DSAAN_MODEL_RODATA=1` | 無効（**M5 構成では常に有効**） | 重みを app の `.rodata` に埋める（`model` パーティションを焼かない） |
@@ -765,7 +768,7 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 検査スクリプト（リポジトリのルートから）:
 
 ```bash
-bash scripts/check_esp32_template.sh    # 10 ゲート全部（§10 = 静的 arena が漢字経路を収めるか）
+bash scripts/check_esp32_template.sh    # 12 ゲート全部（§10 = 静的 arena / §11 = OJ ヒープ / §12 = FLASHSIZE）
 uv run python scripts/check_partitions.py
 uv run python scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv --rodata
 cmake -P scripts/check_cmake_syntax.cmake
