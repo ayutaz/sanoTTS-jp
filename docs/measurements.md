@@ -9268,3 +9268,67 @@ qemu-system-xtensa -nographic -machine esp32s3 -m 4M -drive file=/tmp/flash4.bin
 
 ⚠️ **そもそも 4 MB flash のチップを持っていない**（実測機は 16 MB の CoreS3。D-047）。
 8 MB のときと同じく「16 MB の板に 4 MB の表を焼く」ことはできるが、**それも未実施**。
+
+### 13. ✅ **2 MB 枠でも QEMU で完走した** — ただし **2 MB のチップは存在しない**
+
+ユーザーから「ESP32-S3 で 2 MB 測定を」と言われたので測った。
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）ので、
+**大きい板の上で「2 MB の枠に収まるか」を確かめる**形にした（M-105 の 8 MB と同じ立場）。
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 44000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_2mb.bin       # 977,456 B（枠 983,040。余り 5,584）
+cd esp32 && idf.py -B build_k2 -DSDKCONFIG=build_k2/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji2mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 -DSAAN_QEMU=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_2mb.bin build
+```
+
+**足したもの**: `esp32/partitions_2mb_kanji.csv`（factory 1,048,576 / dict 983,040）/
+`esp32/sdkconfig.kanji2mb`。
+
+**実測**:
+
+| | 値 |
+|---|---:|
+| 辞書 blob | **977,456 B**（枠 983,040。**余り 5,584 B = 0.57%**） |
+| entries / 見出し語 | **44,000 / 28,128** |
+| app | 1,022,704 B（枠 1,048,576。**余り 2% しかない**） |
+| 起動直後の内部 DRAM 空き | 103,108 B / 辞書 mmap 後 102,532 B / 漢字 G2P の低水位 **91,616 B** |
+| 合成 | 53 ids / 106 frames / **27,136 sample**（音声 1.231 s） |
+| **PCM の checksum** | **`0xa69a7ebbb5ccb05f`**（\|max\| 9627 / Σx² 74264237672） |
+| アンダーラン | **0 / 14 チャンク** |
+
+✅ **checksum は 16 MB 出荷構成と bit 一致**（4 MB のときと同じ。§11）。
+
+⚠️ **app の余りが 2% しかない。** ESP-IDF 自身が
+`Warning: The smallest app partition is nearly full (2% free space left)!` を出す。
+**M5Unified を積むと app が 1,438,576 B になり（M-105 §4）、この表では成立しない。**
+
+**⚠️ 踏んだ罠: `CONFIG_ESPTOOLPY_FLASHSIZE` を書き忘れてブートループした。**
+「2MB と書くと ROM ローダと食い違う」と考えて**設定ごと外した**ところ、
+`sdkconfig.defaults` の **8MB が残り**、4 MB のイメージと食い違った:
+
+```
+E spi_flash: Detected size(4096k) smaller than the size in the binary image header(8192k). Probe failed.
+assert failed: 0x4200245a  →  rst:0xc (RTC_SW_CPU_RST) の繰り返し
+```
+
+**正しくは「実際に焼く板の容量」を書く**（枠の検証はパーティション表が担う）。
+⚠️ **8 MB / 16 MB の板に焼くときは、その容量に書き換えること。**
+
+**⚠️ これは 2 MB のチップの記録ではない。** 測ったのは「2 MB の枠に収まること」だけで、
+**2 MB flash の実物では動かしていない**（そもそも品番が無い）。
+⚠️ **実機では測っていない**（§12 のまま。速度も音も未）。
+
+### 14. まとめ — flash 容量ごとの成立状況
+
+| flash | 辞書 | entries | **音素の誤り** | 状態 |
+|---|---:|---:|---:|---|
+| 16 MB（出荷） | 13,702,320 | 438,750 | **0.63%** | ✅ **実機**（M-90） |
+| 8 MB | 7,123,088 | 228,000 | 1.01% | ✅ **実機**（M-105） |
+| **4 MB** | **3,006,656** | **135,000** | **1.64%** | ✅ QEMU（§11） |
+| **2 MB 枠** | **977,456** | **44,000** | **3.27%** | ✅ QEMU（§13）。⚠️ **チップは存在しない** |
+
+⚠️ **4 MB が ESP32-S3 の下限**。2 MB の行は「枠に収まる」ことしか言っていない。
+⚠️ **4 MB / 2 MB とも実機では測っていない**（速度・音・アンダーランの実挙動は未確認）。

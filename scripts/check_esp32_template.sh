@@ -280,6 +280,44 @@ else
     ok "陽性対照: 上限を $(( OJ_TOK + 1 )) に上げるとコンパイルが止まる"
 fi
 
+# ---------------------------------------------------------------- 12
+hdr "12. sdkconfig の上書きが CONFIG_ESPTOOLPY_FLASHSIZE を宣言しているか（M-106 §13）"
+
+# ⚠️ **書き忘れるとブートループする。** sdkconfig.defaults の 8MB が残り、
+#    実際のイメージ容量と食い違って ROM ローダが弾く:
+#      E spi_flash: Detected size(4096k) smaller than the size in the
+#                   binary image header(8192k). Probe failed.
+#    → assert failed → rst:0xc (RTC_SW_CPU_RST) の繰り返し。
+# ⚠️ **パーティション表を差し替える上書きだけを見る。** 表を触らないもの
+#    （sdkconfig.qemu など）は容量に関係しない。
+n_checked=0
+for f in "$ROOT"/esp32/sdkconfig.* "$ROOT"/esp32/boards/*/sdkconfig.*; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in sdkconfig.defaults) continue ;; esac
+    grep -q "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME" "$f" || continue
+    n_checked=$(( n_checked + 1 ))
+    if grep -q "^CONFIG_ESPTOOLPY_FLASHSIZE=" "$f"; then
+        ok "$(basename "$f") は FLASHSIZE を宣言している（$(grep -m1 '^CONFIG_ESPTOOLPY_FLASHSIZE=' "$f" | cut -d'"' -f2)）"
+    else
+        ng "$(basename "$f") はパーティション表を差し替えるのに FLASHSIZE を宣言していない（M-106 §13 でブートループした形）"
+    fi
+done
+# ⚠️ **0 件一致は「合格」ではなく「効いていない」**（C-028 / writing-gates）。
+if [ "$n_checked" = "0" ]; then
+    ng "検査対象が 1 つも見つからない = このゲートは何も見ていない"
+else
+    ok "検査した上書き $n_checked 件"
+fi
+# 陽性対照: FLASHSIZE を消した版を作ると落ちるか
+tmp_cfg="$(mktemp -t saan_cfg).conf"
+grep -v "^CONFIG_ESPTOOLPY_FLASHSIZE" "$ROOT/esp32/sdkconfig.kanji4mb" > "$tmp_cfg"
+if grep -q "^CONFIG_ESPTOOLPY_FLASHSIZE=" "$tmp_cfg"; then
+    ng "陽性対照: FLASHSIZE を消したのに残っている（検査が効いていない）"
+else
+    ok "陽性対照: FLASHSIZE を消した版は判定に落ちる"
+fi
+rm -f "$tmp_cfg"
+
 # ---------------------------------------------------------------- 結果
 printf '\n'
 if [ "$FAIL" = "0" ]; then
