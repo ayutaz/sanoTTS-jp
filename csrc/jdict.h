@@ -49,9 +49,19 @@ typedef struct {
      * 逆量子化は**整数で閉じる**（float を使うとホストと C で値が食い違う。C-060）:
      *     v = span ? lo[lc] + (q*span[lc]*2 + 255) / 510 : lo[lc]
      * 中間値は最大 255*17,342*2 = 8,844,420 で int32 に収まる。 */
-    const uint8_t  *matrix_q;    /* q[rc_prev + lsize*lc_cur] */
-    const int16_t  *matrix_lo;   /* lo[lc_cur]   行数 = rsize */
-    const uint16_t *matrix_span; /* span[lc_cur] 行数 = rsize */
+    const uint8_t  *matrix_q;    /* q[rc_prev + lsize*lc_cur]（matrixa）
+                                  * / q[cmap[rc_prev] + kc*rmap[lc_cur]]（matrixc） */
+    const int16_t  *matrix_lo;   /* lo[lc_cur]（matrixa） / lo[rmap[lc_cur]]（matrixc） */
+    const uint16_t *matrix_span; /* span も同様に索引する */
+
+    /* 接続コストを**行・列クラスタ + 代表行列**で持つ形（セクション `matrixc`。M-106 §2）。
+     * ⚠️ **`matrix` / `matrixa` と排他。** 3 つのうち 1 つだけが有効になる。
+     * `matrix_rmap` が非 NULL なら matrixc で、`matrix_lo` / `matrix_span` / `matrix_q` は
+     * **クラスタ番号で索引する**（行数 = kr、1 行の長さ = kc）。
+     * 逆量子化の式は matrixa と同一（整数で閉じる。C-060）。 */
+    const uint16_t *matrix_rmap; /* lc_cur  → 行クラスタ。長さ rsize */
+    const uint16_t *matrix_cmap; /* rc_prev → 列クラスタ。長さ lsize */
+    uint16_t        matrix_kr, matrix_kc;
 
     const uint8_t *keytab;       /* NUL 区切りの文字表（1 B 符号） */
     uint32_t       keytab_len;
@@ -70,8 +80,18 @@ typedef struct {
     /* K-3: 未知語 */
     const uint8_t *char_names;   /* 32 B ずつのカテゴリ名 */
     uint32_t       n_char_cats;
-    const uint8_t *char_info;    /* 65,535 件の CharInfo (u32) */
+    const uint8_t *char_info;    /* 65,535 件の CharInfo (u32)。`charr` のときは NULL */
     uint32_t       n_codepoints;
+
+    /* 文字カテゴリを**レンジ表**で持つ形（セクション `charr`。M-106 §5）。
+     * ⚠️ **`char` と排他**。65,535 符号位置は 106 run しかないので 262,496 B → 832 B。
+     * ⚠️ **完全に無損失**（run に畳むだけ。ホストの往復で bit 一致を確認済み）。
+     *     run[i] は 上位 20 bit = 開始符号位置 / 下位 12 bit = 値表の添字。
+     *     開始位置の昇順なので二分探索で引く。 */
+    const uint8_t *char_runs;    /* u32 × n_char_runs */
+    uint32_t       n_char_runs;
+    const uint8_t *char_vals;    /* u32 × distinct な CharInfo */
+    uint32_t       n_char_vals;
     const uint8_t *unk;          /* 未知語エントリ（可変長） */
     uint32_t       unk_len;
     uint32_t       n_unk;
@@ -119,6 +139,11 @@ void jdict_entry_conn(const jdict_t *d, uint32_t entry,
 
 /* 遷移コスト。⚠️ 索引は flat[rc_prev + lsize*lc_cur]（K-1 §9-3）。 */
 int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur);
+
+/* 符号位置 cp の CharInfo（生の u32）。表の外は 0 = DEFAULT / group=0 / invoke=0。
+ * ビット割り当て: type:18 / default_type:8 / length:4 / group:1 / invoke:1。
+ * ⚠️ **`char` と `charr` のどちらでも同じ値を返す**（charr_test.c がこれで突き合わせる）。 */
+uint32_t jdict_char_raw(const jdict_t *d, uint32_t cp);
 
 /* 見出し語 rank の表層形を UTF-8 で書き出す。バイト数を返す（負でエラー）。
  * ⚠️ **LOUDS を親へ遡って組み立てる。** 見出し語の文字列表は blob に無い

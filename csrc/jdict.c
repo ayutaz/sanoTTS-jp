@@ -164,6 +164,32 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
         d->char_info   = s.p + 4 + 32u * d->n_char_cats;
         d->n_codepoints = (s.len - 4u - 32u * d->n_char_cats) / 4u;
     }
+    if (find_sec(blob, d->blob_len, "charr", &s) == 0) {
+        /* charr: ncat u32 / nrun u32 / 名前 32B×ncat / 値 u32×nval / run u32×nrun
+         * ⚠️ **値表の長さは残りから逆算する**（形式に持たない）。M-106 §5 */
+        JD_CHECK(s.len >= 8u, -13);
+        uint32_t ncat = rd32(s.p), nrun = rd32(s.p + 4);
+        JD_CHECK(nrun > 0u, -13);
+        JD_CHECK(8ull + 32ull * ncat + 4ull * nrun <= (uint64_t)s.len, -13);
+        d->n_char_cats = ncat;
+        d->char_names  = s.p + 8;
+        d->n_char_runs = nrun;
+        d->char_vals   = s.p + 8 + 32u * ncat;
+        d->char_runs   = s.p + s.len - 4u * nrun;
+        d->n_char_vals = (uint32_t)((d->char_runs - d->char_vals) / 4);
+        JD_CHECK(d->n_char_vals > 0u, -13);
+        /* ⚠️ **値の添字が値表に収まるか、開始位置が昇順かを開き時に見る。**
+         *    `char_raw` は範囲検査なしで引くので、1 bit 壊れると表の外を読む
+         *    （matrixc の rmap / cmap と同じ形）。 */
+        uint32_t prev_cp = 0;
+        for (uint32_t i = 0; i < nrun; i++) {
+            uint32_t r = rd32(d->char_runs + 4u * i);
+            JD_CHECK((r & 0xFFFu) < d->n_char_vals, -13);
+            JD_CHECK(i == 0 ? ((r >> 12) == 0u) : ((r >> 12) > prev_cp), -13);
+            prev_cp = r >> 12;
+        }
+        d->n_codepoints = 65535u;
+    }
     if (find_sec(blob, d->blob_len, "unk", &s) == 0) {
         /* ⚠️ 宣言長 0 だと unk_len が 0xFFFFFFFC になっていた。 */
         JD_CHECK(s.len >= 4u, -14);
@@ -211,14 +237,17 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
      *    して読み進めても境界検査に当たらなかった（M-100 §1: 10/10 文が 1 文字ずつに
      *    刻まれ、それでも jdict_open は 0 を返した）。 */
 #if !defined(JDICT_TEST_WEAK) || !JDICT_TEST_WEAK
-    /* ⚠️ **`matrix` と `matrixa` はどちらか一方。両方あれば拒む。**
+    /* ⚠️ **`matrix` / `matrixa` / `matrixc` はどれか 1 つ。2 つ以上あれば拒む。**
      *    黙って片方を選ぶと、焼き損ねた blob が「動くが読みだけ違う」形になる
      *    （M-100 で見た欠陥そのもの）。 */
     {
-        struct sec sa;
+        struct sec sa, sc;
         const int has_i16 = (find_sec(blob, d->blob_len, "matrix",  &s)  == 0);
         const int has_aff = (find_sec(blob, d->blob_len, "matrixa", &sa) == 0);
-        if (has_i16 == has_aff) return JDICT_ERR_MATRIX;   /* 両方 / どちらも無い */
+        const int has_clu = (find_sec(blob, d->blob_len, "matrixc", &sc) == 0);
+        /* ⚠️ **3 つのうち、ちょうど 1 つ。** 2 つ以上あると「動くが読みだけ違う」
+         *    blob になる（M-100 で見た欠陥そのもの）。0 個は全遷移コスト 0 の Viterbi。 */
+        if (has_i16 + has_aff + has_clu != 1) return JDICT_ERR_MATRIX;
         if (has_i16) {
             /* ⚠️ **rd16 より前に長さを見る。** find_sec は len == 0 のセクションを
              *    正常に返すので、matrix が blob の末尾にあると 4 B 越境してから拒んでいた
@@ -230,7 +259,7 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
             if ((uint64_t)s.len != 4ull + 2ull * L * R) return JDICT_ERR_MATRIX;
             d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
             d->matrix = (const int16_t *)(const void *)(s.p + 4);
-        } else {
+        } else if (has_aff) {
             /* matrixa: lsize u16 / rsize u16 / bits u16 / reserved u16
              *          / lo i16[rsize] / span u16[rsize] / q u8[lsize*rsize] */
             JD_CHECK(sa.len >= 8u, JDICT_ERR_MATRIX);
@@ -243,6 +272,40 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
             d->matrix_lo   = (const int16_t  *)(const void *)(sa.p + 8);
             d->matrix_span = (const uint16_t *)(const void *)(sa.p + 8 + 2u * R);
             d->matrix_q    = sa.p + 8u + 4u * R;
+        } else {
+            /* matrixc: lsize u16 / rsize u16 / bits u16 / kr u16 / kc u16 / reserved u16
+             *          / lo i16[kr] / span u16[kr] / q u8[kr*kc]
+             *          / rmap u16[rsize] / cmap u16[lsize]      （M-106 §2） */
+            /* ⚠️ **rd16 より前に長さを見る。** matrixa と同じ理由（M-100 §8）。
+             *    ⚠️ `if` で書く。`JD_CHECK` は WEAK ビルドで `((void)0)` になり、
+             *    直後の宣言より前に文が来て C99 でコンパイルが通らない（1 回踏んだ）。 */
+            if (sc.len < 12u) return JDICT_ERR_MATRIX;
+            uint32_t L = rd16(sc.p), R = rd16(sc.p + 2), bits = rd16(sc.p + 4);
+            uint32_t kr = rd16(sc.p + 6), kc = rd16(sc.p + 8);
+            if (L == 0 || R == 0 || kr == 0 || kc == 0) return JDICT_ERR_MATRIX;
+            if (bits != 8u) return JDICT_ERR_MATRIX;       /* 未知の量子化幅 */
+            /* ⚠️ **クラスタ数が寸法を超えていないか。** 超えていると rmap / cmap が
+             *    代表行列の外を指しうる（値だけでは気づけない）。 */
+            if (kr > R || kc > L) return JDICT_ERR_MATRIX;
+            if ((uint64_t)sc.len != 12ull + 4ull * kr + (uint64_t)kr * kc
+                                    + 2ull * R + 2ull * L)
+                return JDICT_ERR_MATRIX;
+            d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+            d->matrix_kr = (uint16_t)kr; d->matrix_kc = (uint16_t)kc;
+            d->matrix_lo   = (const int16_t  *)(const void *)(sc.p + 12);
+            d->matrix_span = (const uint16_t *)(const void *)(sc.p + 12 + 2u * kr);
+            d->matrix_q    = sc.p + 12u + 4u * kr;
+            d->matrix_rmap = (const uint16_t *)(const void *)(sc.p + 12u + 4u * kr + kr * kc);
+            d->matrix_cmap = (const uint16_t *)(const void *)
+                             (sc.p + 12u + 4u * kr + kr * kc + 2u * R);
+            /* ⚠️ **写像の値域を開き時に見る。** `jdict_trans` は範囲検査なしで引くので、
+             *    1 bit 壊れると代表行列の外を読む（matrixa の classes 検査と同じ形）。 */
+            for (uint32_t i = 0; i < R; i++)
+                JD_CHECK(rd16((const uint8_t *)(const void *)(d->matrix_rmap + i)) < kr,
+                         JDICT_ERR_MATRIX);
+            for (uint32_t i = 0; i < L; i++)
+                JD_CHECK(rd16((const uint8_t *)(const void *)(d->matrix_cmap + i)) < kc,
+                         JDICT_ERR_MATRIX);
         }
     }
     /* M-100 §8 の 4: エントリの lc / rc が行列の寸法に収まるか。
@@ -263,6 +326,17 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
         d->matrix_lo   = (const int16_t  *)(const void *)(s.p + 8);
         d->matrix_span = (const uint16_t *)(const void *)(s.p + 8 + 2u * R);
         d->matrix_q    = s.p + 8u + 4u * R;
+    } else if (find_sec(blob, n, "matrixc", &s) == 0) {
+        uint32_t L = rd16(s.p), R = rd16(s.p + 2);
+        uint32_t kr = rd16(s.p + 6), kc = rd16(s.p + 8);
+        d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+        d->matrix_kr = (uint16_t)kr; d->matrix_kc = (uint16_t)kc;
+        d->matrix_lo   = (const int16_t  *)(const void *)(s.p + 12);
+        d->matrix_span = (const uint16_t *)(const void *)(s.p + 12 + 2u * kr);
+        d->matrix_q    = s.p + 12u + 4u * kr;
+        d->matrix_rmap = (const uint16_t *)(const void *)(s.p + 12u + 4u * kr + kr * kc);
+        d->matrix_cmap = (const uint16_t *)(const void *)
+                         (s.p + 12u + 4u * kr + kr * kc + 2u * R);
     }
 #endif
     return 0;
@@ -673,10 +747,15 @@ int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
      *    Viterbi の判断が変わりうる（M-99 §1 / C-060）。
      * ⚠️ span == 0 の行は lo をそのまま返す（ゼロ除算を踏まない）。
      *    実辞書では 0/1377 行だが、他の辞書では起きうる。 */
-    const int32_t sp = (int32_t)d->matrix_span[lc_cur];
-    const int32_t lo = (int32_t)d->matrix_lo[lc_cur];
+    /* matrixc（行・列クラスタ）なら、まず写像でクラスタ番号に落とす。
+     * ⚠️ **代表行列の索引は kc 幅**（lsize ではない）。M-106 §2 */
+    const size_t row = d->matrix_rmap ? (size_t)d->matrix_rmap[lc_cur] : (size_t)lc_cur;
+    const size_t col = d->matrix_cmap ? (size_t)d->matrix_cmap[rc_prev] : (size_t)rc_prev;
+    const size_t w   = d->matrix_rmap ? (size_t)d->matrix_kc : (size_t)d->lsize;
+    const int32_t sp = (int32_t)d->matrix_span[row];
+    const int32_t lo = (int32_t)d->matrix_lo[row];
     if (sp == 0) return (int16_t)lo;
-    const int32_t q = (int32_t)d->matrix_q[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
+    const int32_t q = (int32_t)d->matrix_q[col + w * row];
     /* 中間値は最大 255*17,342*2 = 8,844,420。int32 に収まる */
     return (int16_t)(lo + (q * sp * 2 + 255) / 510);
 }
@@ -685,9 +764,21 @@ int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
 
 #define MAX_GROUPING 24u          /* MeCab の MAX_GROUPING_SIZE */
 
+static uint32_t char_raw(const jdict_t *d, uint32_t cp);
+uint32_t jdict_char_raw(const jdict_t *d, uint32_t cp) { return char_raw(d, cp); }
+
 static uint32_t char_raw(const jdict_t *d, uint32_t cp) {
-    if (!d->char_info || cp >= d->n_codepoints) return 0;   /* 表の外は DEFAULT */
-    return rd32(d->char_info + 4u * cp);
+    if (cp >= d->n_codepoints) return 0;                    /* 表の外は DEFAULT */
+    if (d->char_info) return rd32(d->char_info + 4u * cp);
+    if (!d->char_runs) return 0;
+    /* レンジ表（`charr`）: 開始位置 <= cp の最後の run を二分探索で引く。
+     * ⚠️ run[0] の開始位置は 0 と検査済みなので、必ず 1 つは見つかる。 */
+    uint32_t lo = 0, hi = d->n_char_runs;                   /* [lo, hi) */
+    while (hi - lo > 1u) {
+        uint32_t mid = lo + (hi - lo) / 2u;
+        if ((rd32(d->char_runs + 4u * mid) >> 12) <= cp) lo = mid; else hi = mid;
+    }
+    return rd32(d->char_vals + 4u * (rd32(d->char_runs + 4u * lo) & 0xFFFu));
 }
 static uint32_t ci_type(uint32_t v)    { return v & 0x3FFFFu; }
 static uint32_t ci_default(uint32_t v) { return (v >> 18) & 0xFFu; }

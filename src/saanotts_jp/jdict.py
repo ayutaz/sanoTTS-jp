@@ -568,6 +568,137 @@ class ConnMatrixAffine:
         return cls(L, R, lo, sp, blob[8 + 4 * R:])
 
 
+class ConnMatrixCluster:
+    """接続コスト行列を**行・列クラスタ + 代表行列**で持つ形（2 MB 板向け。M-106 §2）。
+
+    ⚠️ **`matrix` / `matrixa` と排他**（セクション名 `matrixc`）。
+       3 つとも別セクションにするのは、それぞれの長さ検査を厳密なまま残すため（M-100）。
+
+    行を `kr` 個・列を `kc` 個のクラスタに畳み、代表行列だけを持つ:
+
+        trans(rc, lc) = deq(q[cmap[rc] + kc * rmap[lc]], lo[rmap[lc]], span[rmap[lc]])
+
+    ⚠️ **代表行列の逆量子化は `ConnMatrixAffine` と同じ整数式**を使う。
+       float スケールにするとホスト（float64）と C で値が食い違う（M-99 §1 / C-060）。
+
+    ⚠️ **`matrixa` より小さくなるのは、`kr*kc` が `lsize*rsize` より十分小さいときだけ。**
+       写像 2 本（`rmap` / `cmap`）に `2*(lsize+rsize)` B 払うので、
+       クラスタ数を大きくすると逆に膨らむ。**必ず実サイズを見て決めること。**
+
+    ⚠️ **精度は動作点で入れ替わる**（M-99 §2 と M-106 §2）:
+       370,863 entries では `matrixa` の 5.3 倍文が壊れるが、
+       44,000 entries では**同じ枠でエントリを増やせるぶん `matrixc` が勝つ**。
+
+    セクションの形（合計 `12 + 4*kr + kr*kc + 2*rsize + 2*lsize` B）:
+
+        0        u16  lsize
+        2        u16  rsize
+        4        u16  bits    = 8
+        6        u16  kr      行クラスタ数（<= rsize）
+        8        u16  kc      列クラスタ数（<= lsize）
+        10       u16  reserved = 0
+        12       i16  lo[kr]
+        12+2kr   u16  span[kr]
+        12+4kr   u8   q[kr*kc]
+        …        u16  rmap[rsize]   lc_cur → 行クラスタ
+        …        u16  cmap[lsize]   rc_prev → 列クラスタ
+    """
+
+    BITS = 8
+
+    def __init__(self, lsize, rsize, kr, kc, lo, span, q, rmap, cmap):
+        self.lsize, self.rsize, self.kr, self.kc = lsize, rsize, kr, kc
+        self.lo, self.span, self.q, self.rmap, self.cmap = lo, span, q, rmap, cmap
+        if len(q) != kr * kc:
+            raise ValueError(f"q の大きさが合わない: {len(q)} != {kr}*{kc}")
+        if len(lo) != kr or len(span) != kr:
+            raise ValueError("lo / span の長さは kr でなければならない")
+        if len(rmap) != rsize or len(cmap) != lsize:
+            raise ValueError("rmap は rsize / cmap は lsize の長さでなければならない")
+
+    @classmethod
+    def from_int16(cls, m: "ConnMatrix", k: int, seed: int = 0) -> "ConnMatrixCluster":
+        """生の int16 行列を k-means で畳む。
+
+        ⚠️ **k-means は `random_state` を固定しても環境が変われば別の解になりうる**
+           （M-99 §1 で「このマシンで 2 回」しか確かめていない）。
+           **blob を配るときは、作った blob そのものを配ること**（再ビルドで一致する保証は無い）。
+        """
+        import numpy as np
+        from sklearn.cluster import KMeans
+        M = np.frombuffer(m.data, dtype="<i2").reshape(m.rsize, m.lsize).astype(np.float64)
+        kr, kc = min(k, m.rsize), min(k, m.lsize)
+        kmr = KMeans(n_clusters=kr, n_init=3, random_state=seed).fit(M)
+        Mr = kmr.cluster_centers_[kmr.labels_]
+        kmc = KMeans(n_clusters=kc, n_init=3, random_state=seed).fit(Mr.T)
+        # ⚠️ `kmc.cluster_centers_.T` は (lsize, kc)。**行クラスタごとの代表行**を
+        #    取り出さないと (kr, kc) にならない（k9_fit_8mb.py で一度間違えた）
+        CC = kmc.cluster_centers_.T
+        rep = np.zeros(kr, dtype=int)
+        for i, aa in enumerate(kmr.labels_):
+            rep[aa] = i
+        # ⚠️ **代表値を先に整数へ丸める。** k-means の重心は float なので、
+        #    丸めておかないとホストと C で別の値になる
+        C = np.rint(CC[rep]).astype(np.int64)
+        lo = C.min(axis=1)
+        span = C.max(axis=1) - lo
+        sp = np.where(span == 0, 1, span)[:, None]
+        q = np.clip(((C - lo[:, None]) * 510 + sp) // (2 * sp), 0, 255)
+        return cls(m.lsize, m.rsize, kr, kc, lo, span,
+                   q.astype(np.uint8).tobytes(),
+                   kmr.labels_.astype(np.int64), kmc.labels_.astype(np.int64))
+
+    def trans(self, rc_prev: int, lc_cur: int) -> int:
+        """C リーダと同じ整数式で 1 要素を復元する（照合用）。"""
+        r = int(self.rmap[lc_cur])
+        sp = int(self.span[r])
+        if sp == 0:
+            return int(self.lo[r])
+        qv = self.q[int(self.cmap[rc_prev]) + self.kc * r]
+        return int(self.lo[r]) + (qv * sp * 2 + 255) // 510
+
+    def to_int16(self) -> "ConnMatrix":
+        """逆量子化した値を **int16 の生行列として**返す（精度だけを測る用）。
+
+        ⚠️ **サイズは縮まない。** 縮むのは `to_section()` の形にしたときだけ。
+        """
+        import numpy as np
+        q = np.frombuffer(self.q, dtype=np.uint8).reshape(self.kr, self.kc).astype(np.int64)
+        sp = np.asarray(self.span, dtype=np.int64)[:, None]
+        lo = np.asarray(self.lo, dtype=np.int64)[:, None]
+        deq = np.where(sp == 0, lo, lo + (q * sp * 2 + 255) // 510)
+        full = deq[np.asarray(self.rmap)][:, np.asarray(self.cmap)]
+        return ConnMatrix(self.lsize, self.rsize, full.astype("<i2").tobytes())
+
+    def to_section(self) -> bytes:
+        import numpy as np
+        head = struct.pack("<HHHHHH", self.lsize, self.rsize, self.BITS,
+                           self.kr, self.kc, 0)
+        return (head
+                + np.asarray(self.lo, dtype="<i2").tobytes()
+                + np.asarray(self.span, dtype="<u2").tobytes()
+                + self.q
+                + np.asarray(self.rmap, dtype="<u2").tobytes()
+                + np.asarray(self.cmap, dtype="<u2").tobytes())
+
+    @classmethod
+    def from_section(cls, blob: bytes) -> "ConnMatrixCluster":
+        import numpy as np
+        L, R, bits, kr, kc, _ = struct.unpack("<HHHHHH", blob[:12])
+        if bits != cls.BITS:
+            raise ValueError(f"未知の bits: {bits}")
+        want = 12 + 4 * kr + kr * kc + 2 * R + 2 * L
+        if len(blob) != want:
+            raise ValueError(f"matrixc の長さが合わない: {len(blob)} != {want}")
+        o = 12
+        lo = np.frombuffer(blob[o:o + 2 * kr], dtype="<i2").astype(np.int64); o += 2 * kr
+        sp = np.frombuffer(blob[o:o + 2 * kr], dtype="<u2").astype(np.int64); o += 2 * kr
+        q = blob[o:o + kr * kc]; o += kr * kc
+        rmap = np.frombuffer(blob[o:o + 2 * R], dtype="<u2").astype(np.int64); o += 2 * R
+        cmap = np.frombuffer(blob[o:o + 2 * L], dtype="<u2").astype(np.int64)
+        return cls(L, R, kr, kc, lo, sp, q, rmap, cmap)
+
+
 class Entry(NamedTuple):
     """辞書 1 エントリ。sys.dic の token + feature 11 列に対応する。"""
     surface: str
@@ -868,8 +999,9 @@ class DictBlob:
     # ⚠️ 見出し語の文字列表は持たない。trie の鍵がそれ自身なので冗長
     #    （370,863 entries では 3,881,011 B = blob の 33%）。
     _SEC_NAMES = ("keytab", "keyesc", "moratab", "louds", "counts",
-                  "classes", "chains", "records", "pool", "matrix", "matrixa", "surfck",
-                  "poolck", "termck", "char", "unk")
+                  "classes", "chains", "records", "pool", "matrix", "matrixa",
+                  "matrixc", "surfck",
+                  "poolck", "termck", "char", "charr", "unk")
 
     @staticmethod
     def _pack_strtab(items) -> bytes:
@@ -905,12 +1037,15 @@ class DictBlob:
             "chains": self._pack_strtab(self.chains),
             "records": self.records,
             "pool": self.pool,
-            **({("matrixa" if isinstance(self.matrix, ConnMatrixAffine)
+            **({("matrixc" if isinstance(self.matrix, ConnMatrixCluster)
+                 else "matrixa" if isinstance(self.matrix, ConnMatrixAffine)
                  else "matrix"): self.matrix.to_section()} if self.matrix else {}),
             "surfck": self.surface_checkpoints(),
             "poolck": self.pool_checkpoints_bytes(),
             "termck": self.terminal_rank_checkpoints(),
-            **({"char": self.char_prop.to_section()} if self.char_prop else {}),
+            **({("charr" if getattr(self, "char_range", False) else "char"):
+                (self.char_prop.to_range_section() if getattr(self, "char_range", False)
+                 else self.char_prop.to_section())} if self.char_prop else {}),
             **({"unk": self.unk.to_section()} if self.unk else {}),
         }
 
@@ -1044,6 +1179,63 @@ class CharProperty:
         head = struct.pack("<I", len(self.names))
         names = b"".join(n.encode("utf-8").ljust(32, b"\0") for n in self.names)
         return head + names + self.info
+
+    def to_range_section(self) -> bytes:
+        """**レンジ表**（セクション `charr`）。65,535 符号位置は 106 run しかない（M-97）。
+
+        ⚠️ **完全に無損失**（run に分けて畳むだけ）。262,496 B → 約 370 B。
+
+        形（合計 `8 + 32*ncat + 4*nval + 4*nrun` B）:
+
+            0        u32  カテゴリ数 ncat
+            4        u32  run 数 nrun         （値表の数 nval は run 数以下）
+            8        …    カテゴリ名 32 B × ncat
+            …        u32  値表 val[nval]      distinct な CharInfo
+            …        u32  run[nrun]           上位 20 bit = 開始符号位置 / 下位 12 bit = 値 ID
+
+        ⚠️ **run は開始位置の昇順**。C は二分探索で引く。
+        ⚠️ **符号位置は 65,535 まで**（20 bit で足りる）。値 ID は 12 bit = 4,095 まで。
+        """
+        vals: list[int] = []
+        vid: dict[int, int] = {}
+        runs: list[tuple[int, int]] = []
+        prev = None
+        for cp in range(self.n_codepoints):
+            v = struct.unpack_from("<I", self.info, 4 * cp)[0]
+            if v != prev:
+                if v not in vid:
+                    vid[v] = len(vals)
+                    vals.append(v)
+                runs.append((cp, vid[v]))
+                prev = v
+        if len(vals) > 4095:
+            raise ValueError(f"値の種類が 12 bit を超えた: {len(vals)}")
+        if self.n_codepoints > (1 << 20):
+            raise ValueError(f"符号位置が 20 bit を超えた: {self.n_codepoints}")
+        head = struct.pack("<II", len(self.names), len(runs))
+        names = b"".join(n.encode("utf-8").ljust(32, b"\0") for n in self.names)
+        vb = b"".join(struct.pack("<I", v) for v in vals)
+        rb = b"".join(struct.pack("<I", (cp << 12) | i) for cp, i in runs)
+        return head + names + vb + rb
+
+    @classmethod
+    def from_range_section(cls, blob: bytes) -> "CharProperty":
+        ncat, nrun = struct.unpack_from("<II", blob, 0)
+        o = 8
+        names = [blob[o + 32 * i: o + 32 * i + 32].split(b"\0")[0].decode()
+                 for i in range(ncat)]
+        o += 32 * ncat
+        # 値表の長さは run から逆算する（最大の値 ID + 1）
+        rb_off = len(blob) - 4 * nrun
+        vals = [struct.unpack_from("<I", blob, o + 4 * i)[0]
+                for i in range((rb_off - o) // 4)]
+        runs = [struct.unpack_from("<I", blob, rb_off + 4 * i)[0] for i in range(nrun)]
+        info = bytearray()
+        for i, r in enumerate(runs):
+            cp, vi = r >> 12, r & 0xFFF
+            end = (runs[i + 1] >> 12) if i + 1 < nrun else cls.N_CODEPOINTS
+            info += struct.pack("<I", vals[vi]) * (end - cp)
+        return cls(names, bytes(info))
 
     @classmethod
     def from_section(cls, blob: bytes) -> "CharProperty":

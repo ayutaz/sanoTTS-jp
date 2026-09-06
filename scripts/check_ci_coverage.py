@@ -69,6 +69,8 @@ EXCLUDED_TARGETS: dict[str, str] = {
     # M-104: 8 MB 板向けの matrixa。⚠️ **同じ逆量子化値を 2 形式で持った blob を 2 本**
     #    作るので、辞書と pyopenjtalk に加えて **生成に数分**かかる。
     "matrixa": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-104）",
+    "matrixc": "辞書 blob と pyopenjtalk と scikit-learn（k-means。ベクタを 2 本生成する。M-106）",
+    "charr": "辞書 blob と pyopenjtalk（ベクタを 2 本生成する。M-106）",
     "accent": "辞書 blob と pyopenjtalk",
     "njd-rules": "辞書 blob と pyopenjtalk",
     "oj-heap": "辞書 blob と pyopenjtalk",

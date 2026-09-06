@@ -347,7 +347,7 @@ jdict_vectors.bin: ../scripts/k1/k2_gen_vectors.py ../scripts/k1/k9_fit_8mb.py \
 jdict_test: jdict_test.c jdict.c jdict.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ jdict_test.c jdict.c $(LDLIBS)
 
-.PHONY: jdict matrixa
+.PHONY: jdict matrixa matrixc charr
 jdict: jdict_test jdict_vectors.bin
 	./jdict_test jdict_vectors.bin
 
@@ -372,6 +372,48 @@ matrixa: matrixa_test jdict_vectors_deq.bin jdict_vectors_aff.bin
 	@echo ""
 	@echo "=== 参考: 同じベクタで MeCab との一致（量子化の代償）==="
 	./jdict_test jdict_vectors_aff.bin || true
+
+# --- matrixc（行・列クラスタ + 代表行列。M-106 §2）------------------------------
+# ⚠️ **2 本とも同じ逆量子化値**を持つ。違うのは**持ち方だけ**:
+#      _cdeq = 生 int16（セクション `matrix`） / _clu = `matrixc`
+#    リーダが正しければ jdict_trans は全要素で一致する。
+# ⚠️ **クラスタ数は 256**（M-106 §2 で 2 MB 枠の最善だった動作点）。
+# ⚠️ **辞書と scikit-learn が要る**ので all-test には入れていない。
+# ⚠️ **k-means は環境が変われば別の解になりうる**（M-99 §1 は「このマシンで 2 回」だけ）。
+#    2 本を**続けて作るので同じ解**になる。片方だけ作り直すと G-C3 が落ちる。
+jdict_vectors_cdeq.bin: ../scripts/k1/k2_gen_vectors.py ../scripts/k1/k9_fit_8mb.py \
+                        ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --matrix-mode cluster:256:u8 --out $@
+
+jdict_vectors_clu.bin: ../scripts/k1/k2_gen_vectors.py ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --matrix-cluster 256 --out $@
+
+matrixc_test: matrixc_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ matrixc_test.c jdict.c $(LDLIBS)
+
+.PHONY: matrixc
+matrixc: matrixc_test jdict_vectors_cdeq.bin jdict_vectors_clu.bin
+	./matrixc_test jdict_vectors_cdeq.bin jdict_vectors_clu.bin
+	@echo ""
+	@echo "=== 参考: 同じベクタで MeCab との一致（クラスタ化の代償）==="
+	./jdict_test jdict_vectors_clu.bin || true
+
+# --- charr（文字カテゴリのレンジ表。M-106 §5）------------------------------------
+# ⚠️ **2 本とも同じ値**を持つ。違うのは持ち方だけ: _cfull = `char` / _crng = `charr`。
+#    レンジ表は**無損失**なので、全 65,535 符号位置で一致しなければならない。
+# ⚠️ **辞書が要る**ので all-test には入れていない。
+jdict_vectors_cfull.bin: ../scripts/k1/k2_gen_vectors.py ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --out $@
+
+jdict_vectors_crng.bin: ../scripts/k1/k2_gen_vectors.py ../src/saanotts_jp/jdict.py
+	$(PYTHON) ../scripts/k1/k2_gen_vectors.py --char-range --out $@
+
+charr_test: charr_test.c jdict.c jdict.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ charr_test.c jdict.c $(LDLIBS)
+
+.PHONY: charr
+charr: charr_test jdict_vectors_cfull.bin jdict_vectors_crng.bin
+	./charr_test jdict_vectors_cfull.bin jdict_vectors_crng.bin
 
 accent_vectors.bin: ../scripts/k1/k4_gen_vectors.py
 	$(PYTHON) ../scripts/k1/k4_gen_vectors.py --out $@
