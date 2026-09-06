@@ -150,7 +150,12 @@ bool saan_dict_open(jdict_t *d) {
     ESP_LOGI(TAG, "辞書 OK: 見出し語 %" PRIu32 " / エントリ %" PRIu32
                   " / 行列 %ux%u（%s）/ blob %u B（パーティション %u B。余り %u B）",
              d->n_surfaces, d->n_entries, (unsigned)d->lsize, (unsigned)d->rsize,
-             d->matrix ? "生 int16" : "matrixa = 行ごとアフィン uint8",
+             /* ⚠️ **3 形式ある。** かつて 2 値で書いていて、matrixc の辞書を焼いても
+              *    「matrixa」と表示していた（M-106 §11 で気づいた）。
+              *    **起動ログは焼き間違いを見つけるためにある**ので、嘘をつくと役に立たない。 */
+             d->matrix     ? "生 int16"
+             : d->matrix_rmap ? "matrixc = 行・列クラスタ + 代表行列"
+                              : "matrixa = 行ごとアフィン uint8",
              (unsigned)d->blob_len, (unsigned)part->size,
              (unsigned)(part->size - d->blob_len));
     return true;

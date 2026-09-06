@@ -902,7 +902,23 @@ checksum が一致しても、M5.Speaker の DMA の実挙動は別（M-90 §5�
 | 8 MB / DevKit（実機済み） | 7,143,424 | affine | 228,000 | 1.01% |
 | 16 MB（出荷） | 13,828,096 | int16 | 438,750 | 0.63% |
 
-⚠️ **cluster の行列サイズは算術で、C リーダはまだ無い**（精度だけ実測）。
+✅ **C リーダを書いた**（`matrixc` = 行・列クラスタ / `charr` = 文字カテゴリの run 表。M-106 §10）。
+**4 MB は QEMU で起動から合成まで通り、PCM の checksum が 16 MB の基準と bit 一致した**（M-106 §11）:
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 135000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_4mb.bin          # 3,006,656 B（枠 3,014,656。余り 8,000）
+cd esp32 && idf.py -B build_k4 -DSDKCONFIG=build_k4/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji4mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 -DSAAN_QEMU=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_4mb.bin build
+```
+
+**4 MB / DevKit は 135,000 entries（音素の誤り 1.64%）まで入る**（枠 3,014,656 B）。
+⚠️ **`charr` が無いと 1 点も入らない**（char.bin 262,496 B のままだと枠を超える）。
+⚠️ **余りは 0.27%。** entries を変えたら**概算ではなく作って `stat`** すること
+（k-means の解が実行ごとに違うので、算術より 4,768 B 大きかった）。
+⚠️ **実機では測っていない**（4 MB のチップを持っていない。M-106 §12）。速度も音も未。
 ⚠️ **`cluster:256` が最善なのはこの帯だけ。** [M-99](docs/measurements.md#m-99) §2 の
 370,863 entries では affine の 5.3 倍文が壊れる。**動作点で最善手が入れ替わる。**
 

@@ -1,0 +1,29 @@
+# **4 MB flash** に漢字辞書を載せる構成の上書き（M-106 §10）
+#
+# ⚠️ **出荷構成ではない。** 出荷は 16 MB（`sdkconfig.kanji` / D-044）で、
+#    こちらは「4 MB でも成立するか」を確かめるための構成である。
+#
+# ⚠️ **辞書が違う。** 接続行列を**行・列クラスタ**（セクション `matrixc`）に、
+#    文字カテゴリを**レンジ表**（セクション `charr`）にし、エントリを 100,000 に絞る:
+#
+#      uv run python scripts/k1/k1_build_dict.py --entries 100000 \
+#          --matrix cluster:256 --char-range --out csrc/k1_dict_4mb.bin
+#
+#    ⚠️ **`charr` が無いと入らない**（char.bin 262,496 B のままだと枠を超える。M-106 §10）。
+#    ⚠️ **k-means は環境が変われば別の解になりうる。作った blob そのものを配ること。**
+#
+# ⚠️ **読みの精度が落ちる**（M-106 §2 / §10。すべて n=1,495）:
+#      438,750 entries + 生 int16    … 音素の誤り 0.63%
+#      228,000 entries + アフィン     … 音素の誤り 1.01%
+#      100,000 entries + クラスタ 256 … 音素の誤り **2.69%**
+#
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_4mb_kanji.csv"
+
+# --- PSRAM は**使わない** ---
+#
+# ⚠️ QEMU が octal PSRAM を持っていないので有効にできない（sdkconfig.kanji と同じ理由）。
+# ⚠️ **4 MB の板は PSRAM 無しが多い**ので、この構成は**その場合の実測にもなっている**
+#    （M-98 / D-052 の軸）。漢字経路の作業領域は `kj_alloc()` が
+#    PSRAM → 内部 RAM の順に取る。

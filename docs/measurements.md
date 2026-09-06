@@ -9206,7 +9206,65 @@ run の長さは最短 1 / 中央 26 / **最長 22,874** とばらばらで、**
 古いバイナリで測っていた。**今回は `jdict_open` が拒否したので気づけたが、
 「通ってしまう変更」なら気づけない。** `k11_fit_2mb.py` は先に `make` を通すようにした。
 
-⚠️ **まだ焼いていない。** パーティション表もイメージも作っておらず、**起動は未確認**。
+⚠️ ~~まだ焼いていない~~ → ✅ **4 MB は QEMU で起動から合成まで通した**（§11）。⚠️ **実機は未**（§12）。2 MB は載る板が無い。
 ⚠️ **速度を測っていない**（行列が小さくなるので悪くはならないはずだが、実機で測るまで言えない。C-055）。
 ⚠️ **k-means は環境が変われば別の解になりうる**（M-99 §1 は「このマシンで 2 回」だけ）。
 **blob を配るときは、作った blob そのものを配ること。**
+
+### 11. ✅ **4 MB 構成を QEMU で起動から合成まで通した** — checksum が 16 MB の基準と bit 一致
+
+§10 で「まだ焼いていない」と書いた部分。**パーティション表と辞書を作り、QEMU で完走させた。**
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 135000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_4mb.bin          # 3,006,656 B（枠 3,014,656。余り 8,000）
+uv run python scripts/check_partitions.py --file esp32/partitions_4mb_kanji.csv --rodata
+cd esp32 && idf.py -B build_k4 -DSDKCONFIG=build_k4/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji4mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 -DSAAN_QEMU=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_4mb.bin build
+cd build_k4 && esptool.py --chip esp32s3 merge_bin --fill-flash-size 4MB -o /tmp/flash4.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M -drive file=/tmp/flash4.bin,if=mtd,format=raw
+# → `かな>` に `今日は良い天気ですね。` と打つ
+```
+
+**足したもの**: `esp32/partitions_4mb_kanji.csv` / `esp32/sdkconfig.kanji4mb`、
+`k1_build_dict.py` の `--matrix cluster:K` と `--char-range`。
+
+**実測**:
+
+| | 値 |
+|---|---:|
+| 辞書 blob | **3,006,656 B**（枠 3,014,656。**余り 8,000 B = 0.27%**） |
+| entries / 見出し語 | **135,000 / 107,771** |
+| app | 1,022,640 B（枠 1,114,112。余り 8%） |
+| 起動直後の内部 DRAM 空き | 103,108 B / 辞書 mmap 後 102,532 B |
+| 合成 | 53 ids / 106 frames / **27,136 sample**（音声 1.231 s） |
+| **PCM の checksum** | **`0xa69a7ebbb5ccb05f`**（\|max\| 9627 / Σx² 74264237672） |
+| アンダーラン | **0 / 14 チャンク** |
+
+✅ **checksum が 16 MB 出荷構成の基準と bit 一致した。**
+**枝刈りとクラスタ化は「どの語をどう切るか」を変えるだけで、同じ列が出れば同じ波形になる**
+（この文は 135,000 entries でも同じ分割になった）。
+
+⚠️ **QEMU の xRT 0.069 は使えない数字**（M-83 と同じ。実機とは無関係）。
+
+**⚠️ 起動ログが嘘をついていた**（この作業で見つけた）:
+`saan_dict.c` の表示が **2 値のまま**で、`matrixc` の辞書を焼いても
+**「matrixa = 行ごとアフィン uint8」と表示していた**。
+**起動ログは焼き間違いを見つけるためにある**ので、嘘をつくと役に立たない。3 値に直した
+（`生 int16` / `matrixc = 行・列クラスタ + 代表行列` / `matrixa = 行ごとアフィン uint8`）。
+
+**⚠️ 予測より 4,768 B 大きかった。** 掃引の算術は 3,001,888 B だったが**実測 3,006,656 B**。
+**k-means の解が実行ごとに違う**ため。**entries を変えたら概算ではなく作って `stat` すること**
+（M-105 §4b で同じ教訓を得ている）。
+
+### 12. ⚠️ 実機では測れていない
+
+**この作業中にユーザーから「実機にも繋がっている」と連絡があったが、
+`/dev/cu.*` にもUSB のツリーにも ESP32 系のデバイスが現れなかった**
+（見えたのは Bluetooth イヤホンと debug-console だけ）。
+**したがって 4 MB 構成の実機実測はしていない。** 速度も音も未測定。
+
+⚠️ **そもそも 4 MB flash のチップを持っていない**（実測機は 16 MB の CoreS3。D-047）。
+8 MB のときと同じく「16 MB の板に 4 MB の表を焼く」ことはできるが、**それも未実施**。

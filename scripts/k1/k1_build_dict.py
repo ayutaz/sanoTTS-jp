@@ -52,11 +52,18 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--entries", type=int, default=TARGET_ENTRIES)
     ap.add_argument("--out", default=None)
-    ap.add_argument("--matrix", choices=["int16", "affine"], default="int16",
+    ap.add_argument("--char-range", action="store_true",
+                    help="文字カテゴリを **`charr`（レンジ表）**にする（M-106 §10）。\n"
+                         "**完全に無損失**で 262,496 B → 832 B。\n"
+                         "⚠️ **4 MB 板ではこれが無いと入らない**（M-106 §10）。")
+    ap.add_argument("--matrix", default="int16",
                     help="接続行列の持ち方。**既定は int16**（16 MB 板の出荷構成 D-044）。\n"
                          "affine = 行ごとアフィン uint8（セクション `matrixa`。8 MB 板向けの ①）。\n"
                          "⚠️ **精度が落ちる**（最大誤差 34 / MeCab 一致 1,696 → 1,693）。\n"
-                         "⚠️ **サイズは行列だけで −1,890,617 B**（3,792,262 → 1,901,645）")
+                         "⚠️ **サイズは行列だけで −1,890,617 B**（3,792,262 → 1,901,645）\n"
+                         "cluster:K = 行・列クラスタ + 代表行列（セクション `matrixc`。M-106 §10）。\n"
+                         "⚠️ **さらに落ちる**（K=256 / 100,000 entries で音素の誤り 2.69%%）。\n"
+                         "⚠️ **k-means は環境が変われば別の解になりうる。作った blob を配ること**")
     ap.add_argument("--skip-verify-dict", action="store_true")
     a = ap.parse_args()
 
@@ -125,11 +132,26 @@ def main() -> int:
         mat = ConnMatrixAffine.from_int16(mat)
         print(f"⚠️ 接続行列を**行ごとアフィン uint8** にした（セクション `matrixa`）: "
               f"{len(mat.to_section()):,d} B")
+    elif a.matrix.startswith("cluster:"):
+        from saanotts_jp.jdict import ConnMatrixCluster
+        k = int(a.matrix.split(":")[1])
+        mat = ConnMatrixCluster.from_int16(mat, k)
+        print(f"⚠️ 接続行列を**行・列クラスタ**にした（セクション `matrixc`。{mat.kr}x{mat.kc}）: "
+              f"{len(mat.to_section()):,d} B")
+        print("   ⚠️ **k-means は環境が変われば別の解になりうる。作った blob そのものを配ること**")
+    elif a.matrix != "int16":
+        print(f"NG! 未知の --matrix: {a.matrix}（int16 / affine / cluster:K）")
+        return 1
+    cp = CharProperty.from_char_bin((_D / "char.bin").read_bytes())
     blob = DictBlob.build(
         entries,
         matrix=mat,
-        char_prop=CharProperty.from_char_bin((_D / "char.bin").read_bytes()),
+        char_prop=cp,
         unk=UnkDict.from_unk_dic((_D / "unk.dic").read_bytes()))
+    if a.char_range:
+        blob.char_range = True
+        print(f"⚠️ 文字カテゴリを **`charr`（レンジ表）**にした: "
+              f"{len(cp.to_range_section()):,d} B（生 {len(cp.to_section()):,d} B）")
     body = blob.to_bytes()
     print(f"\n=== 組み立て ({time.time()-t0:.0f} 秒) ===")
     secs = DictBlob.sections(body)

@@ -1,0 +1,40 @@
+# saanoTTS-jp / 漢字対応版のパーティション表（**4 MB flash 前提**。M-106 §10）
+#
+# flash: 4MB     ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+# app-min: 1021760                  ← M-106 §0 で実測した app（-DSAAN_KANJI=1、DevKit 構成）
+# dict-blob: csrc/k1_dict_4mb.bin   ← ⚠️ **8 MB / 16 MB の blob と比べさせない**（別物）
+#
+# ⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限。**
+#    2 MB は M-106 §10 で「枠 983,040 B に入る」ことを測ったが、**載る板が無い**。
+#
+# ⚠️ **`model` の行が無い。** 生徒の int8 blob 654,032 B は app に `.rodata` として
+#    埋め込む（`scripts/blob_to_header.py`）。4 MB では別パーティションに置く余裕が無い。
+#    検査は `--rodata` を付けて回すこと:
+#      uv run python scripts/check_partitions.py --file esp32/partitions_4mb_kanji.csv --rodata
+#
+# ⚠️ **この表で入るのは `matrixc`（行・列クラスタ）+ `charr`（文字カテゴリの run 表）
+#    を使った辞書だけ。** 8 MB 版（`matrixa` / 7,123,088 B）も 16 MB 版（13,702,320 B）も
+#    **入らない**。作り方:
+#      uv run python scripts/k1/k1_build_dict.py --entries 100000 \
+#          --matrix cluster:256 --char-range --out csrc/k1_dict_4mb.bin
+#
+# ⚠️ **読みの精度が落ちる**（M-106 §2 / §10。すべて n=1,495）:
+#      438,750 entries + 生 int16    … 音素の誤り 0.63%
+#      228,000 entries + アフィン     … 音素の誤り 1.01%
+#      100,000 entries + クラスタ 256 … 音素の誤り **2.69%**
+#
+# ⚠️ **k-means は環境が変われば別の解になりうる**（M-99 §1 は「このマシンで 2 回」だけ）。
+#    **作った blob そのものを配ること。** 再ビルドで一致する保証は無い。
+#
+# ⚠️ **`dict` の offset は 64 KB (0x10000) 境界に置くこと。**
+#    esp_partition_mmap() / esp_mmu_map() は MMU のページ境界で丸める。
+#
+# 割り当て（合計はちょうど 4 MB）:
+#   factory 1,114,112 B … app 1,021,760（余り 92,352 = 8.3%）
+#   dict    3,014,656 B … クラスタ辞書
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x110000,
+dict,     data, 0x41,    0x120000, 0x2E0000,

@@ -1,10 +1,23 @@
-"""M-106 §2 の動作点を **実測サイズ**で決め直す（matrixc を本物の形式で書く）。
+"""M-106 §2 / §10 の動作点を **実測サイズ**で決め直す（matrixc を本物の形式で書く）。
+
+    uv run python scripts/k1/k11_fit_2mb.py [--budget N] [--grid "N:K,N:K,..."]
 
 k9_fit_8mb.py と違い **算術ではなく len(blob)**。文脈 ID の詰め直しも入れる。
 """
 import json, pathlib, struct, subprocess, sys, re
 from collections import defaultdict
 import numpy as np
+import argparse
+_ap = argparse.ArgumentParser()
+_ap.add_argument("--budget", type=int, default=983_040,
+                 help="dict パーティションの枠。既定は 2 MB flash 相当 983,040。"
+                      "4 MB / DevKit は 3014656 / 8 MB は 7143424")
+_ap.add_argument("--grid", default="44000:256,48000:256,52000:256,60000:256",
+                 help='"entries:K" をカンマ区切りで')
+_a = _ap.parse_args()
+BUDGET = _a.budget
+GRID = [tuple(int(x) for x in t.split(":")) for t in _a.grid.split(",")]
+
 REPO = str(pathlib.Path(__file__).resolve().parents[2])
 sys.path.insert(0, REPO + '/scripts/k1'); sys.path.insert(0, REPO + '/src')
 from dump_entries_lib import load_entries
@@ -37,8 +50,8 @@ for _ in range(ndan):
 old, = struct.unpack_from('<I', b, p)
 HEAD, TAIL = b[:p], b[p + 4 + old:]
 
-print("entries\t見出し\t|ctx|\tK\tmatrixc\tcharr\t**blob 実測**\t枠 983,040\t文一致\t音素%")
-for N, K in [(44000,256),(48000,256),(52000,256),(56000,256),(60000,256),(56000,192)]:
+print("entries\t見出し\t|ctx|\tK\tmatrixc\tcharr\t**blob 実測**\t枠\t文一致\t音素%")
+for N, K in GRID:
     sub, n = [], 0
     for s in ranked:
         sub.extend(bysurf[s]); n += len(bysurf[s])
@@ -60,7 +73,7 @@ for N, K in [(44000,256),(48000,256),(52000,256),(56000,256),(60000,256),(56000,
                          capture_output=True).stdout.decode("utf-8","replace")
     m1 = re.search(r"ホスト既定と一致 (\d+) / (\d+)", out)
     m2 = re.search(r"音素だけの列\s+編集距離 (\d+) / ホスト長 (\d+) = \*\*([\d.]+)%", out)
-    fits = "入る" if len(blob) <= 983040 else f"+{len(blob)-983040:,d}"
+    fits = f"余り {BUDGET-len(blob):,d}" if len(blob) <= BUDGET else f"+{len(blob)-BUDGET:,d}"
     print(f"{len(es)}\t{len({e.surface for e in es})}\t{len(lcu)}\t{K}\t{s2['matrixc'][1]}\t"
           f"{s2['charr'][1]}\t{len(blob)}\t{fits}\t{m1.group(1) if m1 else '?'}\t{m2.group(3) if m2 else '?'}",
           flush=True)
