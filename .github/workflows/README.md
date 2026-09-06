@@ -86,7 +86,9 @@ held-out 24 文を見る `stream` は下記の理由で回らない。
 | 理由 | 何が回せないか |
 |---|---|
 | **コーパス由来の成果物が git にもリリースにも無い** | `stream` の多文レーン / `int8-e2e`（`ids_heldout.bin`）/ `g2p-corpus` / `test_discriminator.py`（ラベルパック） |
-| **辞書 13.7 MB と pyopenjtalk が要る** | 漢字経路の 6 ゲート（`jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids`）と `kb-parity` |
+| **辞書 13.7 MB と pyopenjtalk が要る** | 漢字経路の 6 ゲート（`jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids`）と `kb-parity`、それに `matrixa` |
+| **さらに scikit-learn（k-means）も要る** | `matrixc`（M-106 §10。行・列クラスタの C リーダ）。⚠️ **k-means は環境が変われば別の解になりうる**ので、CI で作り直したベクタは手元と一致しない可能性がある |
+| **辞書と pyopenjtalk が要る**（上と同じ） | `charr`（M-106 §10。文字カテゴリの run 表） |
 | **ESP-IDF の xtensa toolchain（約 2 GB）** | `check_esp32_template.sh` |
 
 ⚠️ **訂正（C-057）: ここには 4 つ目として「重み blob の int8 版が古い」があった。**

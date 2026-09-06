@@ -220,6 +220,14 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600
 ⚠️ **この構成は 16 MB flash が要る**（`partitions_16mb.csv` /
 `boards/m5unified/partitions.csv`。`dict` の offset は両方 `0x2D0000` にそろえてあるので、
 **同じ辞書イメージをどちらの板にも焼ける**）。
+✅ **8 MB / 4 MB / 2 MB 枠でも漢字は動く**（下記の節。**代償は読みの精度**）:
+
+| flash | 辞書 | entries | **音素の誤り**（n=1,495） | 状態 |
+|---|---:|---:|---:|---|
+| **16 MB（この構成）** | 13,702,320 | 438,750 | **0.63%** | ✅ 実機 |
+| 8 MB | 7,123,088 | 228,000 | 1.01% | ✅ 実機 |
+| 4 MB | 3,006,656 | 135,000 | 1.64% | ✅ QEMU |
+| 2 MB 枠 | 977,456 | 44,000 | 3.27% | ✅ QEMU |
 ⚠️ **ホストと違う音素は 0.63%**（**n=1,495**。M-99 §4。⚠️ **n=298 では 0.32% に見える** = C-059）。
 差は**辞書の枝刈り**で、`上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
 移植そのものは正確（素性が一致した文でラベル差 0 件）。
@@ -244,6 +252,45 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600
 
 ⚠️ **DevKit 用の辞書を M5 版に焼くと 241,808 B 入らない。** 逆も余るだけで動くが、
 **entries が減るぶん読みが落ちる**。**表と辞書は必ずセットで扱うこと。**
+
+### 4 MB / 2 MB 枠（✅ **QEMU で通った**。M-106 §11 / §13。⚠️ **実機は未**）
+
+さらに小さい板向けに、接続行列を**行・列クラスタ**（セクション `matrixc`）に、
+文字カテゴリを**レンジ表**（セクション `charr`）にした辞書がある。
+
+| | `partitions_4mb_kanji.csv` | `partitions_2mb_kanji.csv` |
+|---|---:|---:|
+| factory | 1,114,112（余り 8%） | **1,048,576（余り 2% しかない）** |
+| dict | 3,014,656 | 983,040 |
+| entries | **135,000** | **44,000** |
+| blob | 3,006,656（余り 8,000） | 977,456（余り 5,584） |
+| **音素の誤り**（n=1,495） | **1.64%** | **3.27%** |
+
+⚠️ **`charr` が無いと入らない。** `char.bin` は 262,496 B あり、
+**レンジ表（832 B）にしないと 4 MB にも 2 MB にも 1 点も収まらない**（M-106 §10）。
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限**で、
+2 MB の表は「**枠に収まる**」ことを大きい板の上で確かめるためのもの。
+⚠️ **2 MB の表は app の余りが 2% しかなく、M5Unified 版（app 1,438,576 B）では成立しない。**
+⚠️ **k-means は環境が変われば別の解になりうる**（M-99 §1）。**作った blob そのものを配ること。**
+
+```bash
+# 4 MB
+uv run python scripts/k1/k1_build_dict.py --entries 135000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_4mb.bin
+idf.py -B build_k4 -DSDKCONFIG=build_k4/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji4mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_4mb.bin build
+
+# 2 MB の枠（⚠️ 焼くのは 4 MB 以上の板。残りは未使用になる）
+uv run python scripts/k1/k1_build_dict.py --entries 44000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_2mb.bin
+```
+
+⚠️ **`sdkconfig.kanji4mb` / `kanji2mb` の `CONFIG_ESPTOOLPY_FLASHSIZE` は
+「実際に焼く板の容量」に書き換えること。** 書き忘れると `sdkconfig.defaults` の 8MB が残り、
+`E spi_flash: Detected size(...) smaller than the size in the binary image header(...)` で
+**ブートループする**（M-106 §13 で踏んだ）。`check_esp32_template.sh` の §12 が宣言漏れを見る。
 
 ```bash
 # 1. 8 MB 用の辞書 blob（⚠️ **--out を必ず別名にする**。csrc/k1_dict.bin は 16 MB 用）
@@ -673,6 +720,9 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 | `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション / **QIO** / **D-cache 64 B 行** |
 | `sdkconfig.qemu` | **QEMU 用の上書き**（flash を DIO に戻す。QEMU は QIO を受け付けない。M-86） |
 | `sdkconfig.kanji` | 漢字対応ビルドの上書き（16 MB flash + 表の差し替え） |
+| `partitions_8mb_kanji.csv` / `sdkconfig.kanji8mb` | **8 MB の DevKit 向け**（`matrixa` の辞書 7,123,088 B。M-105） |
+| `partitions_4mb_kanji.csv` / `sdkconfig.kanji4mb` | **4 MB 向け**（`matrixc` + `charr` の辞書 3,006,656 B。M-106 §11。⚠️ **QEMU まで**） |
+| `partitions_2mb_kanji.csv` / `sdkconfig.kanji2mb` | **2 MB の枠**（同 977,456 B。M-106 §13）。⚠️ **ESP32-S3 に 2 MB の品番は無い**ので、大きい板の上で枠を確かめるための表 |
 | `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
 | `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。**S3 なら PIE を既定で有効**（D-048）。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
 | `components/saanotts_core/saan_port_esp32.h` | 配置の注入点（`SAAN_HOT_DATA` → `DRAM_ATTR` など。erf 表を内部 DRAM に載せる） |
