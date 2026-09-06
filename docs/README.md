@@ -12,6 +12,19 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 **残っているのは聴取（G32）だけで、それは人を待っている。**
 ⚠️ **この音はまだ対照つきでは聴かれていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
 
+**2 MB / 4 MB flash と「ほぼ全てのマイコン」（2026-09-06）**: 調査した（[M-106](measurements.md#m-106)）。
+**予算を接続行列から語彙へ移すと、同じ 966 KB で音素の誤りが 6.75% → 3.86% に半減する**
+（`cluster:256` + 44,000 entries。⚠️ **行列のサイズは算術で、C リーダはまだ無い**）。
+**文脈 ID の詰め直しは完全に無損失で C の変更も要らず**、16 MB で −800,800 B / 8 MB で −583,984 B 効く。
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（N4 / N8 / N16）。**4 MB が下限**で、
+そこなら 100,000 entries / **2.69%** が入る（AquesTalk Small の 2 MB / 約 10 万語と同容量）。
+⚠️ **M5StampC5 は flash ではなく FPU と RAM で落ちる**（ESP32-C5 は `rv32imac` = 浮動小数点ユニットが無く、
+`saanotts.c` にソフト FP の呼び出しが 106 か所出る / 要求 RAM 370,980 B に対し SRAM 393,216 B・PSRAM 無し）。
+**Stamp 型なら M5StampS3（ESP32-S3 / 8 MB）が今日そのまま動く。**
+`/deep-research` も回したが、**1 語 20.5 B を半減した先行事例は商用にも学術にも無かった**
+（AqKanji2Koe-M は 17.6〜20.0 B/語でうちと同密度）。⚠️ **報告の 3 点は再現できず訂正した**
+（[C-067](decisions.md#c-067) / [C-068](decisions.md#c-068)）。
+
 **8 MB 板の漢字対応（2026-09-05）**: ✅ **実機で喋った**
 （[M-104](measurements.md#m-104) = QEMU / [M-105](measurements.md#m-105) = **実機**）。
 接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にし、entries を絞ると枠に入る。
@@ -58,8 +71,8 @@ URL が開くのはマージ後。
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-066** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-105。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-068** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-106。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -441,8 +454,8 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-052（D-049 は欠番）+ 訂正履歴 C-001〜C-066
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-105
+│   ├── decisions.md                       決定記録 D-001〜D-052（D-049 は欠番）+ 訂正履歴 C-001〜C-068
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-106
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── plan/phase0-1-implementation-plan.md
