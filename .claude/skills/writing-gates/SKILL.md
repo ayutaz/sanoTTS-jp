@@ -369,6 +369,28 @@ uv run python .claude/hooks/test_guard_bash.py     # 105/105 + commit ガード 
 ⚠️ **`allow` 側のケースを必ず入れる。** deny だけのテストは
 「全部 deny にする」実装で満点を取れてしまう。hook の誤検知は**5 回踏んでいる**。
 
+## ⚠️ ゲートを足したら、それが載っている場所を全部数える（C-069）
+
+**機械が読む表を直したときが、いちばん危ない。** ゲートが緑になるので終わった気になる。
+
+M-106 で `matrixc` / `charr` を足したとき、`scripts/check_ci_coverage.py` の
+`EXCLUDED_TARGETS` には**その日のうちに登録した**（ゲートが落ちたので直さざるを得なかった）。
+だが**同じ情報が人の読む文書に 4 か所あり、全部古いままだった**:
+
+| 何の表か | 重複している場所 |
+|---|---|
+| `all-test` 外のゲート一覧 | `docs/README.md` / `CONTRIBUTING.md`（日英）/ `.github/workflows/README.md`（2 か所）/ **`check_ci_coverage.py`** |
+| `check_esp32_template.sh` の節数 | `esp32/README.md`（3 か所）/ `CONTRIBUTING.md` / `docs/README.md` |
+
+⚠️ **件数と列挙が別々に古くなる。** `.github/workflows/README.md` は
+「漢字経路の **6 ゲート**」と書きながら **8 本**並べていた（C-042 と同じ形）。
+**列挙を増やすときは、必ず件数を数え直す。**
+
+```bash
+# ゲートを足したら、既存のゲート名で grep して「載せる場所」を数える
+grep -rln "kanji-e2e" --include='*.md' .
+```
+
 ## all-test に入れる
 
 **手で走らせるゲートは、いずれ走らせなくなる。**
