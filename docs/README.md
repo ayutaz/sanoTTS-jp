@@ -39,6 +39,7 @@ URL が開くのはマージ後。
 | 4.9 | [`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) | 速度の計画。⚠️ **§10 に S-1（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5a）の前史**を畳んである（旧 `plan/s1-speed-implementation-plan.md` は削除）。T1（末尾 pull の早期終了）/ T2（S9）/ T3（S6）/ T4（arena）/ T5（GELU）/ 64 B 行 と、M5 への漢字搭載。**要件 RTF ≤ 0.5 を達成して完了**（M-88 → M-90）。残りは聴取 | 固定 |
 | 4.95 | [`plan/web-demo-plan.md`](plan/web-demo-plan.md) | **いちばん新しい計画**。**W トラック**（GitHub Pages のランタイムデモ）。W-0〜W-8 と受け入れゲート **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7**（8 本）。⚠️ **成果物は今も ESP32**（[D-050](decisions.md#d-050)）で、Web は入口。実測は [M-94](measurements.md#m-94)（node）/ [M-95](measurements.md#m-95)（Chrome）/ [M-96](measurements.md#m-96)（聴取）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | 固定 |
 | 4.99 | [`research/l1-commercial-use-licensing.md`](research/l1-commercial-use-licensing.md) | **L-1: 商用利用可能なモデルにするには何を差し替えればよいか**（[D-054](decisions.md#d-054)）。出力の用途制限は **fine-tune の 100 発話だけ**から来ている。つくよみちゃん / MOE-Speech の**規約原文**と、候補教師の実測（[M-109](measurements.md#m-109)）、声の候補 9 件の一次ソース確認。⚠️ **調査のみ・音は聴いていない** | 固定 |
+| 4.995 | [`superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`](superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md) | **設計: 蒸留テキストを CC0 / PD のみにする**（JSUT 6,472 行を外す。[D-054](decisions.md#d-054) の声と独立な半分）。`source` allowlist / held-out は据え置き / **ゲート 2 本 + 統計レポート**。⚠️ **実装は未着手**。⚠️ 判断点あり（学習を今やるか声を待つか） | 実装まで |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -420,6 +421,7 @@ sanoTTS-jp/
 │   ├── plan/k1-kanji-implementation-plan.md  K トラックの実装計画（K-0〜K-8）
 │   ├── plan/s2-fast-kanji-m5-plan.md        **S2（T1〜T5 / 64 B 行 / M5 への漢字搭載）+ §10 に S-1 の前史**
 │   ├── plan/web-demo-plan.md                **W トラック**（GitHub Pages のデモ。W-0〜W-8 / ゲート 8 本）
+│   ├── superpowers/specs/                 設計 (spec)。実装計画の前段
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
 │       ├── k1-kanji-katakana-ondevice.md  K-1 の結論（B-0 を測り直した）
