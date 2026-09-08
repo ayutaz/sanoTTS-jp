@@ -7417,3 +7417,72 @@ M-94 §2）。⚠️ **SNR が低いことと、耳で聞いて悪いことは�
 - ⚠️ **実機の G32（対照つきの聴取）は別物で、まだ残っている** —
   `reports/k8_listen/` の 12 組（枝刈りの誤読）と `reports/d4_accent/`（アクセントの過剰強調
   `magnitude_ratio` 1.193）。**あれは「気づけるか」を測るもので、ここで代替できない**
+
+---
+
+<a id="m-109"></a>
+## M-109. 差し替え候補の教師 2 件を実測した（**構成のみ。音は聴いていない**）
+
+[L-1 調査](research/l1-commercial-use-licensing.md)（商用利用可能なモデル）で、
+[D-035](decisions.md#d-035) が「いずれも未検証」として挙げた 2 つの候補を初めて実測した。
+
+⚠️ **どちらも `gated: manual`** なので、認証つきでないと `raw/main/...` が 401 を返す。
+素で `curl` すると「Access to model ... is restricted」という**本文が 200 バイト弱で返ってくる**ので、
+中身を見ずにパースすると YAML が空として通りうる。
+
+再現:
+
+```bash
+# 公開状態とファイル構成（認証不要）
+curl -sL https://huggingface.co/api/models/ayousanz/piper-plus-moe-speech-top-5speakers
+
+# hparams 本体（⚠️ gated。~/.cache/huggingface/token が要る）
+uv run python -c "
+from huggingface_hub import hf_hub_download
+import pathlib
+p = hf_hub_download('ayousanz/piper-plus-moe-speech-top-5speakers',
+                    'lightning_logs/version_2/hparams.yaml')
+print(pathlib.Path(p).read_text())"
+```
+
+### 1. リポジトリの状態
+
+| repo | public | gated | ファイル数 | `.ckpt` | 最終更新 |
+|---|---|---|---:|---:|---|
+| `ayousanz/piper-plus-moe-speech-top-5speakers` | ✅ | `manual` | 165 | 154 | 2025-12-05 |
+| `ayousanz/piper-plus-zero-shot-multi-7lang-v8` | ✅ | `manual` | 313 | 187 | 2026-08-24 |
+| `ayousanz/piper-plus-zero-shot-tsukuyomi`（現行教師） | ❌ private | — | — | — | — |
+
+### 2. `moe-speech-top-5speakers` の構成（`lightning_logs/version_2/hparams.yaml`）
+
+| 項目 | 現行教師 | 候補 | |
+|---|---|---|---|
+| `inter_channels` | 192 | **192** | ✅ c-line は移植できる |
+| `hop_length` | 256 | **256** | ✅ |
+| `sample_rate` | 22050 | **22050** | ✅ |
+| `gin_channels` | 512 | **512** | ✅ |
+| `num_symbols` | 173 | **58** | ⚠️ **音素表が別系統** |
+| `num_speakers` | 1 | **5** | ⚠️ |
+| `upsample_rates` | (4,4) + MB-iSTFT | **(8,8,4)** | ⚠️ **標準 HiFi-GAN**（3 段） |
+| `upsample_kernel_sizes` | — | **(16,16,8)** | ⚠️ |
+| prosody / zero-shot | `prosody_dim=16` / `use_zero_shot=True` | **どちらも記載なし** | ⚠️ 日本語専用 |
+
+⚠️ **`upsample_rates` の積は 8×8×4 = 256 で hop と一致する。**
+[D-035](decisions.md#d-035) が「MB-iSTFT ではない」と書いたのは正しいが、
+**hop が変わるという意味ではない**（読み違えやすいので明記しておく）。
+
+### 3. 何が言えるか
+
+- **c-line（40 次元の潜在インターフェース）は移植できる** — `inter_channels` / `hop` / `sample_rate` が一致する
+- ⚠️ **`num_symbols=58` は `csrc/g2p_table.json`（端末の 877 B テーブル）と
+  `src/saanotts_jp/vocab.py` の `TEACHER_TO_STUDENT` を作り直しにする**
+- ⚠️ **教師の decoder が MB-iSTFT でなくなる。** 生徒の decoder は自前の iSTFT なので
+  アーキテクチャ上は成立するが、**蒸留先の音の性質が変わる**
+
+### 4. ⚠️ 測っていないこと
+
+- **音を 1 秒も聴いていない / 合成していない**（`.ckpt` を落としてもいない。読んだのは `hparams.yaml` だけ）
+- **`zero-shot-multi-7lang-v8` の `hparams.yaml` は存在しない** — メタは
+  `onnx/*.onnx.json`（piper の config）しか無く、**そちらの構成は確認していない**
+- **ライセンス上の適否は別問題**（[L-1](research/l1-commercial-use-licensing.md) §4）。
+  ⚠️ 構成が合うことは、使ってよいことを意味しない

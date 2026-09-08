@@ -594,6 +594,21 @@ uv add <pkg>                  # 依存追加（pip install しない）
 - **`pip install` を直接使わない。** `uv add` で `pyproject.toml` と `uv.lock` に記録する
 - piper-plus は `[tool.uv.sources]` の **path 依存 (editable)** で参照する。
   **piper-plus のリポジトリは読み取り専用**（checkout / commit / 編集の禁止）
+
+⚠️ **git worktree の中では `uv run` が毎回 `uv.lock` を書き換える。**
+`[tool.uv.sources]` の editable が**相対パス**で記録されているので、worktree
+（`.claude/worktrees/<name>/` = 4 階層深い）から走らせると
+`../../Documents/...` が `../../../../../Documents/...` に書き直される。
+**これをコミットすると main チェックアウト側の lock が壊れる。**
+
+```bash
+git checkout -- uv.lock          # コミット前に必ず戻す
+git status --short uv.lock       # 何度でも戻ってくるので、その都度見る
+```
+
+⚠️ 同じ形で **`make -C csrc fft` が `csrc/fft_bench.json` を書き換える**（実行時間の実測値なので
+マシンの状態で毎回変わる）。**どちらも「走らせただけ」で出る差分**なので、
+`git status` に出たら中身を見て戻すこと。
 - uv 環境には M-1.1 の stale な `piper_train` が存在しないので、
   `sys.path.insert` は不要（既存スクリプトのものは冗長だが害はない）
 
