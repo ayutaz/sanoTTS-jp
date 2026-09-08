@@ -50,6 +50,9 @@ jobs:
       - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 
+      - name: 蒸留テキストのライセンス判定（G-L1a・陽性対照つき）
+        run: uv run --no-project --python 3.12 python scripts/test_corpus_license.py
+
   # ------------------------------------------------- 参照実装との一致（重みを落とす）
   # リリース **v0.3.0** の fp32 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）と
   # **int8 資産**（`saanotts-jp-v3-int8.bin` 654,032 B + `golden-v3-int8.bin` 0.8 MB）で

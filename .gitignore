@@ -192,3 +192,5 @@ csrc/k6_vectors.bin
 # `pages.yml` と同じ手順を手元でなぞると出るディレクトリ（配置用のコピーとリリース資産）
 /_site/
 /rel/
+# superpowers の作業用スクラッチ（SDD の台帳・ブリーフ・レビュー package）
+/.superpowers/
