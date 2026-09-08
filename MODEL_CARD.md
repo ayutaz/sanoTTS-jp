@@ -158,10 +158,16 @@ int8 化のコスト（fp32 経路に対する SNR、n=24）: 平均 **28.11 dB*
 | ソース | 行数（train） | ライセンス |
 |---|---:|---|
 | Common Voice ja (Mozilla) | 9,954 | CC0-1.0 |
-| JSUT ver1.1 | 6,472 | **CC-BY-SA-4.0 ほか（subset 別）** |
+| JSUT ver1.1 | **6,380** | **CC-BY-SA-4.0 ほか（subset 別）** |
 | ROHAN4600 | 4,140 | CC0-1.0 |
 | ITA コーパス | 380 | CC0-1.0 |
 | 自作（疑問文 EOS） | 39 | MIT |
+
+⚠️ **JSUT の行数は 6,380（教師の FT テキストとの重複除外 B-10 を適用済み）。**
+`data/splits/corpus_train.tsv` の生の JSUT 行数は 6,472 だが、うち 92 uid は
+教師の fine-tune テキスト（`jsut/repeat500` 90 行 + `jsut/voiceactress100` 2 行）と
+重複しており、ラベル生成時に既に除外されている（丸暗記を測らないため）。
+他 4 ソースの行数は生の分割数と一致する（重複が無い）。
 
 教師: `ayousanz/piper-plus-zero-shot-tsukuyomi` の `epoch=499-step=22000.ckpt`。
 **つくよみちゃんコーパス**でファインチューンされた 6 言語 base（日本語部分は **MOE-Speech**）。

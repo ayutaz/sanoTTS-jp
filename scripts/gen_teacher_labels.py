@@ -51,7 +51,9 @@ from piper_train.vits.commons import normalize_checkpoint_state_dict  # noqa: E4
 from piper_train.vits.models import SynthesizerTrn  # noqa: E402
 from piper_plus_g2p.encode import pua  # noqa: E402
 from saanotts_jp.labelpack import GateFailure, PackWriter, Utterance  # noqa: E402
-from gen_teacher_labels_filter import filter_by_license  # noqa: E402
+from gen_teacher_labels_filter import (  # noqa: E402
+    filter_by_license, resolve_license_filter,
+)
 
 import piper_train.vits.models as _models  # noqa: E402
 
@@ -160,9 +162,13 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="0 = 全件")
     ap.add_argument("--out", required=True)
     ap.add_argument("--utts-per-shard", type=int, default=128)
+    ap.add_argument("--license-filter", dest="license_filter",
+                    action="store_true", default=None,
+                    help="ライセンス絞り込みを強制 ON にする"
+                         "（既定は --split で自動決定。D-056）")
     ap.add_argument("--no-license-filter", dest="license_filter",
-                    action="store_false",
-                    help="⚠️ ライセンス絞り込みを切る（v3 の再現用。既定は有効）")
+                    action="store_false", default=None,
+                    help="⚠️ ライセンス絞り込みを強制 OFF にする（v3 の再現用）")
     args = ap.parse_args()
 
     global ENCODE_TABLE
@@ -187,14 +193,18 @@ def main() -> int:
 
     # ⚠️ ライセンス絞り込み（D-054）。**下の load_exclusions() とは目的が違う**:
     #    あちらは uid 単位で「教師の FT テキストとの重複」を外す（B-10）。
+    # ⚠️ **既定は `--split` で構造的に決まる**（resolve_license_filter）。
+    #    held-out を絞り込むと評価専用の split が静かに縮む（レビュー指摘）。
+    filter_on, filter_reason = resolve_license_filter(args.split, args.license_filter)
+    print(f"ライセンス絞り込み: {'ON' if filter_on else 'OFF'}  ({filter_reason})")
     n_raw = len(rows)
-    if args.license_filter:
+    if filter_on:
         rows, lic_dropped = filter_by_license(rows)
         for (src, why), n in sorted(lic_dropped.items()):
             print(f"  ライセンス除外 {src:26s} {n:6,} 行  ({why})")
         print(f"  ライセンス除外 合計 {n_raw - len(rows):,} 行 / {n_raw:,} 行")
     else:
-        print("  ⚠️ --no-license-filter: ライセンス絞り込みを **していない**")
+        print("  ⚠️ ライセンス絞り込みを **していない**")
 
     excluded = load_exclusions()
     n_before = len(rows)

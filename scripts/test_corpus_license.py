@@ -128,11 +128,16 @@ def test_applied_in_label_gen() -> int:
         bad += 1
     else:
         print("  OK  jsut/basic5000 の 1 行だけが落ちた")
-    if dropped.get(("jsut/basic5000", "denied")) != 1:
-        print(f"  NG! 内訳が取れていない: {dict(dropped)}")
+    # ⚠️ キーの第2要素は `classify()` の理由文そのもの（`verdict.value` の
+    #    定数 "denied" ではない）。かつてそこに定数を積んでいて、実行ログの
+    #    括弧の中に「なぜ拒否されたか」が一切出ていなかった（レビュー指摘）。
+    basic5000_reason = DENIED["jsut/basic5000"]
+    if dropped.get(("jsut/basic5000", basic5000_reason)) != 1:
+        print(f"  NG! 内訳が取れていない、または理由文が積まれていない: {dict(dropped)}")
         bad += 1
     else:
-        print("  OK  落ちた内訳が source ごとに数えられている")
+        print("  OK  落ちた内訳が source と理由文で数えられている"
+              f"（{basic5000_reason!r}）")
 
     # ⚠️ UNKNOWN は落とさず止める
     try:
@@ -145,10 +150,46 @@ def test_applied_in_label_gen() -> int:
     return bad
 
 
+def test_heldout_default_not_filtered() -> int:
+    """⚠️ **レビュー指摘の再発防止**: `--split heldout` は既定でライセンス絞り込み
+    が **OFF** でなければならない。
+
+    held-out は評価専用で重みに入らないため、ライセンスの論点が発生しない
+    （設計 `docs/superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`
+    §4.3 / D-056）。ON のままにすると `--split heldout --out data/pack_heldout`
+    （`CLAUDE.md` / `docs/README.md` / `docs/measurements.md` /
+    `deploy/vastai_bootstrap.sh` が指示する形そのもの）が
+    2,333 行中 717 行（jsut/*）を黙って落とす。**`train` は既定 ON のまま**
+    でなければならない（そちらは重みに入るので D-054 の絞り込みが必要）。
+    """
+    import importlib
+    m = importlib.import_module("gen_teacher_labels_filter")
+    bad = 0
+    cases = [
+        # (split, 明示指定, 期待する絞り込みの ON/OFF)
+        ("heldout", None, False),   # ← ここが今回のレビュー指摘の核心
+        ("train", None, True),
+        ("heldout", True, True),    # 明示指定は常に勝つ
+        ("heldout", False, False),
+        ("train", False, False),
+        ("train", True, True),
+    ]
+    for split, explicit, expected in cases:
+        on, reason = m.resolve_license_filter(split, explicit)
+        if on != expected:
+            print(f"  NG! resolve_license_filter({split!r}, {explicit!r}) = {on}"
+                  f"（期待 {expected}）/ {reason}")
+            bad += 1
+        else:
+            print(f"  OK  resolve_license_filter({split!r}, {explicit!r})"
+                  f" = {on}  ({reason})")
+    return bad
+
+
 def main() -> int:
     bad = (test_allowed() + test_denied() + test_unknown()
            + test_tables_disjoint() + test_positive_control()
-           + test_applied_in_label_gen())
+           + test_applied_in_label_gen() + test_heldout_default_not_filtered())
     print()
     print("⚠️ 見ていないもの: **判定が実際に適用されたか**"
           "（gen_teacher_labels.py が呼び忘れてもこのテストは通る）。"

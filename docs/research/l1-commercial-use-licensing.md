@@ -277,6 +277,7 @@ JSUT の置き換えは独立して進められる。[`../../NOTICE.md`](../../N
 | 夢前黎への事前連絡（§2.5） | ❌ 実施の有無を確認していない |
 | 「原則的には禁止」（§2.8）の含み | ❌ 判断できない |
 | OGVC | ❌ 一次ソース未取得。NII 音声資源コンソーシアム経由で**利用申請が要る**うえ、内容は感情つき音声チャットで読み上げ音声ではない |
+| **LibriTTS-R / CML-TTS / AISHELL-3 のライセンス・URL・著者表記**（[D-055](../decisions.md#d-055)） | ❌ **一次ソース未確認**。[`../../LICENSE-MODEL.md`](../../LICENSE-MODEL.md) §3.1 (A) の 3 行は `~/Documents/piper-plus/data-sources.yml` を転記しただけで、openslr.org（LibriTTS-R）・aishelltech.com（AISHELL-3）・CML-TTS の GitHub リポジトリを本調査では突き合わせていない。⚠️ 「freds0 et al.」は CML-TTS リポジトリの GitHub ハンドルであり、確認した論文著者名ではない。**この台帳は過去に 3 回間違っている**（[C-029](../decisions.md#c-029) / [C-030](../decisions.md#c-030) / [C-031](../decisions.md#c-031)）ので、この 3 件も同じ扱いで疑うこと |
 
 ### 二次情報と一次ソースが食い違った 2 件
 

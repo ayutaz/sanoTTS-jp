@@ -107,6 +107,14 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
 （CC BY 4.0 §3(a)(1)(A) は copyright notice を求めるが、原典が公開していない）。
 **著作権表示を創作して書くことはしません。**
 
+⚠️ **AISHELL-3（Apache-2.0）には、(A) をそのまま写しても満たせない義務が残ります。**
+(A) が示しているのは `https://www.apache.org/licenses/LICENSE-2.0` という**リンクだけ**で、
+Apache License, Version 2.0 §4(a) が求める**ライセンス全文の同梱**そのものではありません。
+AISHELL-3 由来の素材を含む本モデルを再配布する場合は、(A) に加えて
+**Apache-2.0 の全文を別途配布物に同梱してください**（例: `NOTICE` と同じ場所に
+`LICENSE-APACHE-2.0.txt` を置く）。§6 の表にある「§4: ライセンス全文の同梱と通知の保持」は
+この追加の一手間を指しており、(A) を写すだけでは discharge されません。
+
 #### (B) 任意 — 出所の記録（**帰属義務はありません**）
 
 ```
@@ -201,7 +209,13 @@ CC0 は帰属を放棄していますが、**出所が追えなくなると (A) 
 
 ## 5. 既知の法的リスク（隠さずに書きます）
 
-⚠️ 蒸留に使ったテキストのうち **JSUT ver1.1 の 6,472 行は CC-BY-SA-4.0**（継承付き）です。
+⚠️ 蒸留に使ったテキストのうち **JSUT ver1.1 の 6,380 行は CC-BY-SA-4.0**（継承付き）です。
+（**6,472 は `data/splits/corpus_train.tsv` の生の JSUT 行数**。うち 92 uid は教師の
+FT テキストとの重複除外 B-10 で既に外れているので、実際に蒸留に使われたのは
+6,472 − 92 = **6,380**。再現:
+`awk -F'\t' '$1 ~ /^jsut\// {print $2}' data/splits/corpus_train.tsv | sort -u > /tmp/a;
+grep -v '^#' data/splits/exclusions_teacher_ft.txt | cut -f1 | sort -u > /tmp/b;
+comm -12 /tmp/a /tmp/b | wc -l` → 92）
 
 「学習済みモデルは学習テキストの二次的著作物である」という立場を取られた場合、
 本モデルにも CC-BY-SA の継承が及ぶ可能性があります。本プロジェクトは
@@ -229,7 +243,7 @@ CC0 は帰属を放棄していますが、**出所が追えなくなると (A) 
 | つくよみちゃんコーパス（© 夢前黎） | 教師の fine-tune（100 発話） | 契約 | 30 条の 4 ベースの独自ライセンス。**モデル配布は明示的に許可**。帰属必須・出力に禁止用途・義務が伝播 | **(A)** |
 | **LibriTTS-R** (en) | 教師 base の学習音声 | 著作権 | **CC-BY-4.0 = 帰属必須**（⚠️ 継承は無い） | **(A)** |
 | **CML-TTS** (es/fr/pt) | 同 | 著作権 | **CC-BY-4.0 = 帰属必須** | **(A)** |
-| **AISHELL-3** (zh) | 同 | 著作権 | **Apache-2.0 = 帰属必須**（§4: ライセンス全文の同梱と通知の保持） | **(A)** |
+| **AISHELL-3** (zh) | 同 | 著作権 | **Apache-2.0 = 帰属必須。§4 はさらに全文同梱を求める**（⚠️ (A) はリンクのみ。§3.1 参照） | **(A)** |
 | JSUT ver1.1 | 蒸留テキスト | 著作権 | CC-BY-SA-4.0 ほか（**唯一の継承付き**。§5） | **(A)** |
 | MOE-Speech (litagin) | 教師 base の日本語 | 契約 | 30 条の 4 ベース。**モデルの公開は再配布とみなさない / クレジット不要**と明記 | (B) |
 | Common Voice ja / ROHAN4600 | 蒸留テキスト | — | CC0-1.0（帰属は放棄されている） | (B) |
@@ -288,7 +302,12 @@ redistribute, and sublicense — **subject to the conditions below.**
    source material**. ⚠️ **Adult content as such is not prohibited** — the corpus
    provider states it places no limits on adult or violent expression as long as
    appropriate zoning is in place, and that distributing or selling finished works
-   is fine. Imposing these four items in your own terms of use is itself required.
+   is fine. ⚠️ **The primary source separately states that distributing or selling
+   audio synthesized with this voice *as material* is prohibited "in principle"**
+   (原則的には) — this project has not determined what that qualifier permits or
+   excludes. If you plan to distribute the synthesized audio itself as material
+   (rather than as a finished work), confirm with the provider first. Imposing
+   these four items in your own terms of use is itself required.
    Primary source: <https://tyc.rei-yumesaki.net/material/corpus/> — **check it
    before you distribute; if it conflicts with this file, the primary source wins.**
    ✅ You are **not** required to make your end users display credit.
@@ -305,8 +324,10 @@ artifact, not a production-quality model. See [`MODEL_CARD.md`](MODEL_CARD.md).
 
 ## Known legal risk
 
-6,472 of the distillation sentences come from **JSUT ver1.1 (CC-BY-SA-4.0)**. If a
-trained model were held to be a derivative work of its training text, share-alike
-could reach these weights. We judged this unlikely (Japanese Copyright Act Art. 30-4;
-we do not redistribute the corpus text) but **the risk is not zero**. This is our own
-reading of primary sources, **not legal advice**.
+**6,380** of the distillation sentences come from **JSUT ver1.1 (CC-BY-SA-4.0)** (6,472
+is the raw JSUT row count in `data/splits/corpus_train.tsv`; 92 of those uids were
+already dropped by the B-10 teacher-fine-tune-overlap exclusion). If a trained model
+were held to be a derivative work of its training text, share-alike could reach these
+weights. We judged this unlikely (Japanese Copyright Act Art. 30-4; we do not
+redistribute the corpus text) but **the risk is not zero**. This is our own reading of
+primary sources, **not legal advice**.

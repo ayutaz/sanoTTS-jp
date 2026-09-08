@@ -4009,6 +4009,13 @@ piper-plus 側で処理される」**という整理も取れた。理由 3 つ�
   `data-sources.yml` の `used_only_in` の有無から推論した（7 件中 1 件だけが持つ）。
   **piper-plus の学習ログでは確認していない**
 - つくよみちゃん側が求める**リリース前の連絡**（[L-1](research/l1-commercial-use-licensing.md) §2.5）
+- ⚠️ **LibriTTS-R / CML-TTS / AISHELL-3 のライセンス・URL・著者表記は未検証。**
+  [`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.1 (A) に必須帰属として入れた 3 行は、
+  `~/Documents/piper-plus/data-sources.yml` をそのまま転記したもので、
+  openslr.org / aishelltech.com / CML-TTS の GitHub リポジトリで**一次ソースを
+  確認していない**（[L-1](research/l1-commercial-use-licensing.md) §7 に追記）。
+  「freds0 et al.」は CML-TTS の GitHub ハンドルであり、確認済みの著者名ではない。
+  この台帳は [C-029](#c-029) / [C-030](#c-030) / [C-031](#c-031) で 3 回間違っている。
 
 ---
 
@@ -4095,7 +4102,7 @@ grep -c "used_only_in" ~/Documents/piper-plus/data-sources.yml  # 1
 - 状態: **保留（判断待ち）** — ユーザーの判断がまだ無い
 - 実測: [M-110](measurements.md#m-110)
 - 前提: [D-054](#d-054)（商用向けのゴール）/ [D-055](#d-055)（帰属表示）
-- 計画: [`../.superpowers/sdd/2026-09-09-cc0-only-distillation-text/task-5-brief.md`](../.superpowers/sdd/2026-09-09-cc0-only-distillation-text/task-5-brief.md)
+- 計画: [`superpowers/plans/2026-09-09-cc0-only-distillation-text.md`](superpowers/plans/2026-09-09-cc0-only-distillation-text.md)
 
 ⚠️ **採番の飛びは欠番ではない。** パターンは [D-054](#d-054) の表と同じ。
 2026-09-09 に `git fetch origin --prune` で再確認した現在のスナップショット:

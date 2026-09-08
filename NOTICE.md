@@ -134,6 +134,7 @@ MIT を名乗ると、下記の伝播する義務を外して配れることに�
 
 ```
 This model was distilled from a piper-plus teacher model.
+sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
 
 つくよみちゃんコーパス
   本ソフトウェアの音声合成には、フリー素材キャラクター「つくよみちゃん」
@@ -154,7 +155,7 @@ This model was distilled from a piper-plus teacher model.
   上記 3 素材は現状のまま (AS IS) 提供され、明示・黙示を問わず保証はありません。
 
 蒸留に使用したテキストコーパス:
-  - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 etc.（subset 別）
+  - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
       https://sites.google.com/site/shinnosuketakamichi/publication/jsut
       ライセンス: https://creativecommons.org/licenses/by-sa/4.0/
 ```
@@ -164,7 +165,7 @@ This model was distilled from a piper-plus teacher model.
 ```
 MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-license
   教師 base の日本語。著作権法 30 条の 4（情報解析のための利用）に基づき学習に使用。
-  ⚠️ このライセンスは「クレジット表記は必要ありません」と明記している。
+  ⚠️ このライセンスは「クレジット表記は必要ありません」と明記しています。
 
 蒸留に使用した CC0 / パブリックドメインのテキスト:
   - Common Voice ja (Mozilla) — CC0-1.0
@@ -187,7 +188,10 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
 [`LICENSE-MODEL.md`](LICENSE-MODEL.md) §3.2。
 
 ⚠️ **JSUT だけが継承（copyleft）付き**である。「モデルは学習テキストの二次的著作物」
-という立場を取られた場合、モデルも CC-BY-SA になり **MIT 配布と衝突する**。
+という立場を取られた場合、モデルも CC-BY-SA の継承義務を負いうる。**重みは
+すでに MIT ではなく `LicenseRef-sanoTTS-jp-Model-1.0`**（[`LICENSE-MODEL.md`](LICENSE-MODEL.md)。
+D-039）で配布しているため「MIT と衝突する」という形の問題ではないが、専用ライセンス自体が
+CC-BY-SA の継承条件（帰属・同条件での再配布）を満たせるとは限らない点は変わらず残る。
 日本では著作権法 30 条の 4 により学習自体が許され、本文も再配布していないため
 実務上この立場が通る可能性は低いと判断したが、**リスクはゼロではない**
 （2026-08-28 ユーザー判断。D-035）。
