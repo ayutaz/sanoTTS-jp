@@ -59,10 +59,21 @@ MIT は「無制限に (without restriction)」の利用を認めます。しか
 
 ## 3. 条件
 
-### 3.1 帰属表示（必須）
+### 3.1 帰属表示
 
-本モデルまたはその派生物を再配布する場合、次のブロックを**そのまま**、
+本モデルまたはその派生物を再配布する場合、下記 **(A)** を**そのまま**、
 配布物の `NOTICE` / `README` / クレジット表示のいずれかに含めてください。
+
+⚠️ **2026-09-09 に (A) と (B) に分けた。** それまでは全体を 1 ブロックにして
+「1 行でも欠けると違反」と書いていたが、**3 件が誤っていた**（[`docs/decisions.md`](docs/decisions.md) C-072）:
+
+- **帰属を要求する 3 素材が抜けていた** — LibriTTS-R / CML-TTS（CC-BY-4.0）と AISHELL-3（Apache-2.0）
+- **帰属を要求しない素材が「必須」に入っていた** — MOE-Speech はライセンス本文で
+  「クレジット表記は必要ありません」と明記している。CC0 / パブリックドメインの素材も同様
+- **ITA コーパスを `CC0-1.0` と書いていた** — 一次ソースは「パブリックドメインです」で、
+  CC0 の付与ではない
+
+#### (A) 必須 — 欠くと対応する素材の条件に違反します
 
 ```
 This model was distilled from a piper-plus teacher model.
@@ -73,35 +84,94 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
   （© 夢前黎）が無料公開している音声データを使用しています。
   https://tyc.rei-yumesaki.net/material/corpus/
 
-MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-license
-  著作権法 30 条の 4（情報解析のための利用）に基づき学習に使用。
+教師 base の学習に使用した音声コーパス
+（⚠️ 改変あり: いずれも音声合成モデルの学習に使用しています）:
+  - LibriTTS-R (en) — Koizumi et al., 2023 — CC BY 4.0
+      素材:       https://www.openslr.org/141/
+      ライセンス: https://creativecommons.org/licenses/by/4.0/
+  - CML-TTS (es / fr / pt) — freds0 et al. — CC BY 4.0
+      素材:       https://github.com/freds0/CML-TTS-Dataset
+      ライセンス: https://creativecommons.org/licenses/by/4.0/
+  - AISHELL-3 (zh) — Shi et al., 2020 — Apache-2.0
+      素材:       https://www.aishelltech.com/aishell_3
+      ライセンス: https://www.apache.org/licenses/LICENSE-2.0
+  上記 3 素材は現状のまま (AS IS) 提供され、明示・黙示を問わず保証はありません。
 
 蒸留に使用したテキストコーパス:
-  - Common Voice ja (Mozilla) — CC0-1.0
-      https://github.com/common-voice/common-voice
-  - ROHAN4600 (森勢将雅) — CC0-1.0
-      https://github.com/mmorise/rohan4600
-  - ITA コーパス — CC0-1.0
-      https://github.com/mmorise/ita-corpus
   - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
       https://sites.google.com/site/shinnosuketakamichi/publication/jsut
+      ライセンス: https://creativecommons.org/licenses/by-sa/4.0/
+```
+
+⚠️ **原典に明示の著作権表示が無い素材は、著作者名で代えています**
+（CC BY 4.0 §3(a)(1)(A) は copyright notice を求めるが、原典が公開していない）。
+**著作権表示を創作して書くことはしません。**
+
+#### (B) 任意 — 出所の記録（**帰属義務はありません**）
+
+```
+MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-license
+  教師 base の日本語。著作権法 30 条の 4（情報解析のための利用）に基づき学習に使用。
+  ⚠️ このライセンスは「クレジット表記は必要ありません」と明記しています。
+
+蒸留に使用した CC0 / パブリックドメインのテキスト:
+  - Common Voice ja (Mozilla) — CC0-1.0
+      https://github.com/common-voice/common-voice
+  - ROHAN4600 (森勢将雅) — CC0-1.0（パブリックドメイン）
+      https://github.com/mmorise/rohan4600
+  - ITA コーパス (小口純矢ほか) — パブリックドメイン
+      https://github.com/mmorise/ita-corpus
 
 教師実装: piper-plus (MIT) — https://github.com/ayutaz/piper-plus
 ```
 
-⚠️ **1 行でも欠けると、対応する素材の条件に違反します。**
-これは本プロジェクトが課した条件ではなく、**上流から伝播してきた義務**です。
+⚠️ **(B) を落としても違反にはなりませんが、残すことを勧めます。**
+CC0 は帰属を放棄していますが、**出所が追えなくなると (A) の正しさも検証できなくなります。**
+
+⚠️ **(A) の 3 素材が本モデルに届くのは「モデルは学習音声の翻案物である」という立場を
+取ったときだけです。** 本プロジェクトは著作権法 30 条の 4 によりその立場は通りにくいと
+判断していますが（§5）、**過剰に帰属して違反になることはない**ため (A) に入れています
+（[`docs/decisions.md`](docs/decisions.md) D-055）。
 
 ### 3.2 出力の用途制限（必須・伝播する）
 
 つくよみちゃんコーパスの条件により、**本モデルが生成した音声**は次に使えません。
 
-| 禁止 | 内容 |
-|---|---|
-| ❌ 個人・団体への攻撃・批判 | |
-| ❌ 政治・宗教上の主張 | |
-| ❌ アダルト用途 | |
-| ❌ 素材としての再配布 | 生成音声そのものを「音声素材集」として配布すること |
+**一次ソースの原文をそのまま引く**（要約すると条件節が落ちる。[`docs/decisions.md`](docs/decisions.md) C-071）:
+
+> 【禁止事項】
+> ■人を批判・攻撃すること。（「批判・攻撃」の定義は、つくよみちゃんキャラクターライセンスに準じます）
+> ■特定の政治的立場・宗教・思想への賛同または反対を呼びかけること。
+> ■**刺激の強い表現をゾーニングなしで公開すること。**
+> ■**他者に対して二次利用（素材としての利用）を許可する形で**公開すること。
+
+⚠️ **2026-09-09 に訂正した。** それまで 3 行目を「❌ **アダルト用途**」、
+4 行目を「❌ 素材としての再配布」と書いていたが、**どちらも一次ソースより厳しく、誤り**だった。
+提供元は逆のことを明言している:
+
+> つくよみちゃんプロジェクトは、表現の自由を尊重しています。
+> **適切なゾーニングが実施されている限りにおいては、成人向け表現や残酷な表現についても
+> 制限を設けておりません。**
+
+> ※**鑑賞用の作品として配布・販売していただくことは問題ございません。**
+
+つまり **成人向け表現そのものは禁止されておらず、ゾーニングしない公開が禁止**されている。
+「素材としての再配布」も、禁止は**他者に二次利用を許可する形での公開**であって、
+作品そのものの配布・販売ではない。
+
+⚠️ ただし一次ソースには別途「■本品の声質を用いて合成された音声を、素材として
+配布・販売することも、**原則的には**禁止です」ともある。
+**「原則的には」の含みは本プロジェクトでは判断していない。** 素材配布を予定するなら
+提供元に確認すること。
+
+**この 4 項目を利用規約として課すことが義務である**（一次ソース:
+「音声合成ソフトの利用規約において、出力した音声を次の目的で使用することを
+禁止しない場合は、**事前にご相談ください**」）。
+
+✅ **ただしエンドユーザーへのクレジットは義務ではない**（一次ソース:
+「音声合成ソフトのユーザーに対して、ソフト使用時にクレジットを義務付けるかどうかは
+**あなたの自由**です」/「**音声合成ソフトから出力された音声にはクレジットの義務は
+発生しません**」）。§3.1 (A) が義務づけるのは**再配布する者**に対してである。
 
 一次ソース: <https://tyc.rei-yumesaki.net/material/corpus/>
 （**条件は提供元が更新しうるため、配布・利用の前に一次ソースを確認してください。
@@ -147,15 +217,33 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
 
 ## 6. 上流の条件（要約）
 
-| 素材 | 経路 | 条件 |
-|---|---|---|
-| つくよみちゃんコーパス（© 夢前黎） | 教師の学習音声 | 30 条の 4 ベースの独自ライセンス。**モデル配布は明示的に許可**。帰属表示必須・出力に禁止用途・義務が伝播 |
-| MOE-Speech (litagin) | 教師 base の日本語 | `license: other`（30 条の 4） |
-| Common Voice ja / ROHAN4600 / ITA | 蒸留テキスト | CC0-1.0 |
-| JSUT ver1.1 | 蒸留テキスト | CC-BY-SA-4.0 ほか（**唯一の継承付き**） |
-| piper-plus | 教師の実装 | MIT |
+**義務の根拠は 2 種類ある。混ぜて考えると判断を誤る。**
 
-詳細と一次ソースは [`NOTICE.md`](NOTICE.md) にあります。
+| 根拠 | 意味 | 該当 |
+|---|---|---|
+| **契約** | 素材の提供条件を受諾した。**モデルが翻案物かに関係なく届く** | つくよみちゃん / MOE-Speech |
+| **著作権** | Licensed Material の翻案物に対する条件。**「モデルは学習素材の翻案物か」次第**（§5） | LibriTTS-R / CML-TTS / AISHELL-3 / JSUT |
+
+| 素材 | 経路 | 根拠 | 条件 | §3.1 |
+|---|---|---|---|---|
+| つくよみちゃんコーパス（© 夢前黎） | 教師の fine-tune（100 発話） | 契約 | 30 条の 4 ベースの独自ライセンス。**モデル配布は明示的に許可**。帰属必須・出力に禁止用途・義務が伝播 | **(A)** |
+| **LibriTTS-R** (en) | 教師 base の学習音声 | 著作権 | **CC-BY-4.0 = 帰属必須**（⚠️ 継承は無い） | **(A)** |
+| **CML-TTS** (es/fr/pt) | 同 | 著作権 | **CC-BY-4.0 = 帰属必須** | **(A)** |
+| **AISHELL-3** (zh) | 同 | 著作権 | **Apache-2.0 = 帰属必須**（§4: ライセンス全文の同梱と通知の保持） | **(A)** |
+| JSUT ver1.1 | 蒸留テキスト | 著作権 | CC-BY-SA-4.0 ほか（**唯一の継承付き**。§5） | **(A)** |
+| MOE-Speech (litagin) | 教師 base の日本語 | 契約 | 30 条の 4 ベース。**モデルの公開は再配布とみなさない / クレジット不要**と明記 | (B) |
+| Common Voice ja / ROHAN4600 | 蒸留テキスト | — | CC0-1.0（帰属は放棄されている） | (B) |
+| ITA コーパス | 蒸留テキスト | — | **パブリックドメイン**（⚠️ CC0 の付与ではない） | (B) |
+| piper-plus | 教師の実装 | — | MIT（重みにはコードを含まないので任意） | (B) |
+
+⚠️ **CC-BY-4.0 は翻案物を制限的な条件で配ることを禁じていない。**
+§2(a)(5)(ii) の「追加の条件を課してはならない」は "**the Licensed Material**"（元の素材）
+だけを対象としており、翻案物への条件は §3(a)(4)（受取人が CC-BY を遵守できることを
+妨げない）だけが制約する。**したがって §3.1 (A) の帰属と §3.2 の用途制限は両立する**
+（⚠️ 一度「衝突する」と記録したが誤りだった。[`docs/decisions.md`](docs/decisions.md) C-073）。
+
+詳細と一次ソースは [`NOTICE.md`](NOTICE.md) と
+[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md) にあります。
 
 ---
 
@@ -168,9 +256,11 @@ MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-licens
 **The repository's [`LICENSE`](LICENSE) (MIT) does NOT cover the distributed model weights.**
 
 MIT grants use "without restriction." These weights are distilled from a teacher
-trained on the **Tsukuyomi-chan Corpus**, whose terms require attribution, restrict
+fine-tuned on the **Tsukuyomi-chan Corpus**, whose terms require attribution, restrict
 what the generated audio may be used for, and **propagate those obligations to
-downstream recipients**. Calling the weights MIT would claim rights we do not have.
+downstream recipients**. The teacher's multilingual base additionally draws on
+**CC BY 4.0 and Apache-2.0** speech corpora, which require attribution. Calling the
+weights MIT would claim rights we do not have.
 
 | Covered | License |
 |---|---|
@@ -184,15 +274,24 @@ redistribute, and sublicense — **subject to the conditions below.**
 
 ## Conditions
 
-1. **Attribution (mandatory).** Reproduce the attribution block in §3.1 verbatim in
-   your `NOTICE`, `README`, or credits. Every line. These obligations come from
-   upstream, not from this project.
+1. **Attribution (mandatory).** Reproduce block **(A)** of §3.1 verbatim in your
+   `NOTICE`, `README`, or credits. It covers the Tsukuyomi-chan Corpus (teacher
+   fine-tune), **LibriTTS-R and CML-TTS (CC BY 4.0)**, **AISHELL-3 (Apache-2.0)** —
+   all three in the teacher's multilingual base — and **JSUT ver1.1 (CC-BY-SA-4.0)**
+   in the distillation text. These obligations come from upstream, not from this
+   project. Block **(B)** is provenance only and carries **no** attribution duty
+   (MOE-Speech explicitly waives credit; the rest is CC0 or public domain).
 2. **Output-use restrictions (mandatory, propagating).** Audio generated by this
    model may **not** be used for: attacks or criticism of individuals or
-   organizations; political or religious advocacy; adult content; or redistribution
-   as a voice-material library. Primary source:
-   <https://tyc.rei-yumesaki.net/material/corpus/> — **check it before you
-   distribute; if it conflicts with this file, the primary source wins.**
+   organizations; political or religious advocacy; **publishing intense content
+   without zoning**; or **publishing it in a form that permits others to reuse it as
+   source material**. ⚠️ **Adult content as such is not prohibited** — the corpus
+   provider states it places no limits on adult or violent expression as long as
+   appropriate zoning is in place, and that distributing or selling finished works
+   is fine. Imposing these four items in your own terms of use is itself required.
+   Primary source: <https://tyc.rei-yumesaki.net/material/corpus/> — **check it
+   before you distribute; if it conflicts with this file, the primary source wins.**
+   ✅ You are **not** required to make your end users display credit.
 3. **Pass the conditions on.** You may not strip conditions 1 and 2 when
    redistributing.
 4. **Do not** relicense these weights as MIT / Apache-2.0 / CC0, imply endorsement by
