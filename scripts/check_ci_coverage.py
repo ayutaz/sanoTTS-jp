@@ -87,6 +87,7 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     "scripts/check_esp32_template.sh": "ESP-IDF の xtensa toolchain（約 2 GB）と重み blob",
     "scripts/check_partitions.py": "重み blob と辞書 blob（大きさを突き合わせる）",
     "scripts/test_discriminator.py": "ラベルパック data/pack_sibdense（git 管理外）",
+    "scripts/check_corpus_license.py": "ラベルパック（data/pack_cc0）とコーパス本文（data/splits/*.tsv。どちらも git 管理外）。⚠️ 表だけの検査は scripts/test_corpus_license.py が CI で回している",
     "scripts/test_k1_dict.py": "pyopenjtalk（3 件が辞書の実体を要る）",
     "scripts/kana_g2p.py": "pyopenjtalk と piper-plus（凍結テーブルとの突き合わせ。表だけの検査は `make -C csrc g2p` が CI で回している）",
     "scripts/k1/k0_verify_dict.py": "凍結した sys.dic（103 MB。git 管理外）",
