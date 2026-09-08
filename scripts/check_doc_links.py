@@ -23,7 +23,14 @@ import sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 SKIP_PARTS = (".venv", "node_modules", "openjtalk", ".k1work", ".git",
-              "managed_components")   # ESP-IDF Component Registry の取得物（git 管理外）
+              "managed_components",   # ESP-IDF Component Registry の取得物（git 管理外）
+              # ⚠️ **git 管理外のスクラッチ。** superpowers の SDD が計画のタスク本文を
+              #    切り出した `.md` を置く。切り出された断片は元ファイル（docs/ 直下）
+              #    からの相対リンクを保持しているので、**別の深さから見ると必ず壊れる**。
+              #    これは断片の問題であって docs の問題ではない。
+              #    ⚠️ CI は新規 clone なのでこのディレクトリ自体が存在せず、
+              #    **手元でだけ落ちていた**（2026-09-09 に踏んだ）。
+              ".superpowers")
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 INLINE_CODE = re.compile(r"`[^`]*`")
 EXTERNAL = ("http://", "https://", "#", "mailto:", "file://")
