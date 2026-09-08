@@ -7486,3 +7486,163 @@ print(pathlib.Path(p).read_text())"
   `onnx/*.onnx.json`（piper の config）しか無く、**そちらの構成は確認していない**
 - **ライセンス上の適否は別問題**（[L-1](research/l1-commercial-use-licensing.md) §4）。
   ⚠️ 構成が合うことは、使ってよいことを意味しない
+
+---
+
+<a id="m-110"></a>
+## M-110. CC0/PD のみに絞った蒸留テキストの統計（train 20,985 → 14,513 行）
+
+[D-054](decisions.md#d-054) の (b)（蒸留テキストから JSUT を外す）を実装した
+`scripts/check_corpus_license.py` / `scripts/gen_teacher_labels_filter.py`
+（Task 3 / Task 4。設計は
+[`superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`](superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md)）
+に実データを通した結果。**ラベルはまだ再生成していない**（次は Task 6）。
+
+再現（Task 4 の統計レポート。⚠️ `data/splits/*` は git 管理外なので手元にコーパスが要る）:
+
+```bash
+uv run --no-project --python 3.12 python scripts/check_corpus_license.py --report
+```
+
+出力:
+
+```
+train: 20,985 行 → 14,513 行 （除外 6,472）
+
+=== v3 (JSUT 込み) ===
+  文長  中央 24 / 平均 26.9 / 最短 1 / 最長 97
+  文字種 ひらがな 53.6% / 漢字 27.6% / カタカナ 11.6% / 約物 6.8% / 英数 0.2% / その他 0.1%
+
+=== CC0/PD のみ ===
+  文長  中央 24 / 平均 26.2 / 最短 1 / 最長 83
+  文字種 ひらがな 54.5% / 漢字 26.2% / カタカナ 13.0% / 約物 6.1% / その他 0.1% / 英数 0.0%
+
+⚠️ **これは代理指標である。**
+   音素カバレッジは中間表現が要る（OpenJTalk 依存）ので、ラベル生成後に **パックの tokens.npz** で測ること（計画 Task 6）。
+⚠️ 失う多様性軸は 525 行: 助数詞 23 / カタカナ語 115 / オノマトペ 270 / 法令文 117。**効いているかは誰も測っていない**
+```
+
+再現（Task 3 の絞り込み関数を train / heldout 両方に通す。上と独立な経路で行数を検算）:
+
+```bash
+uv run --no-project --python 3.12 python - <<'PY'
+import csv, sys
+sys.path.insert(0, "scripts")
+from gen_teacher_labels_filter import filter_by_license
+for split in ("train", "heldout"):
+    rows = [r for r in csv.reader(
+        open(f"data/splits/corpus_{split}.tsv"), delimiter="\t")
+        if r and r[-1] and r[0] != "source"]
+    kept, dropped = filter_by_license(rows)
+    print(f"{split:8s} {len(rows):6,} → {len(kept):6,}  (除外 {sum(dropped.values()):,})")
+PY
+```
+
+出力:
+
+```
+train    20,985 → 14,513  (除外 6,472)
+heldout   2,333 →  1,616  (除外 717)
+```
+
+### 1. 行数
+
+| 項目 | 値 |
+|---|---:|
+| train（v3。JSUT 込み） | 20,985 行 |
+| train（CC0/PD のみ） | 14,513 行 |
+| 除外 | 6,472 行（30.84%） |
+| 論文の英語版 | 14,343 行 |
+| held-out | **2,333 行のまま（据え置き）** |
+
+⚠️ **held-out はあえて絞り込んでいない。** `--heldout` は上と別のパスで、
+JSUT を含む v3 の held-out（2,333 行 = ヘッダ込み 2,334 行）を SHA-256 で検証するだけ
+（`check_corpus_license.py --heldout` が別途 PASS 済み。Task 4）。
+「JSUT 込みで 1,616 行に絞った held-out」は**現時点では作っていない**（上の 1,616 は
+Task 3 の絞り込み関数を機械的に heldout.tsv にも通した参考値で、どのパックにも使われていない）。
+
+### 2. ⚠️ 文字種の割合は「構成」であって「網羅」ではない — カタカナが増えたのは良い兆候ではない
+
+**カタカナの比率は 11.6% → 13.0% に上がる。** しかし専用のカタカナ語サブセット
+`jsut/loanword128`（115 行）は、まさに今回除外される素材のひとつである。
+
+矛盾していない。**JSUT の主力 `basic5000` は漢字比率が高い**ので、それを丸ごと落とすと
+残り全体の分母が縮み、**カタカナを含む他のすべての文字種の比率が相対的に押し上げられる**。
+実際 CC0/PD のみでは**漢字も 27.6% → 26.2% に下がっている**わけではなく、カタカナだけが
+上がって漢字はわずかに下がる、という非対称な動きになる（ひらがな・約物もほぼ横ばい）。
+
+**「カタカナが増えた」を「カタカナ語という多様性軸が生き残った証拠」と読んではいけない。**
+この指標は**残った文字の構成比**を測っているのであって、**特定の語彙・言い回しが
+カバーされているか**（＝カバレッジ）は別物。カタカナ語サブセット自体は消えており、
+残った 13.0% のカタカナは主に他ソースの地名・外来語の断片に由来する（内訳は未集計）。
+カバレッジを言うには音素・語彙単位の測定が要り、それは Task 6 のラベル生成後にしかできない。
+
+### 3. 「その他 0.1%」の内訳（CC0/PD のみ・独自に検証）
+
+再現:
+
+```bash
+uv run --no-project --python 3.12 python - <<'PY'
+import csv, sys, collections, unicodedata
+sys.path.insert(0, "scripts")
+from gen_teacher_labels_filter import filter_by_license
+
+rows = [r for r in csv.reader(
+    open("data/splits/corpus_train.tsv"), delimiter="\t")
+    if r and r[-1] and r[0] != "source"]
+kept, _ = filter_by_license(rows)
+
+def is_other(ch):
+    if "぀" <= ch <= "ゟ": return False
+    if "゠" <= ch <= "ヿ": return False
+    if "一" <= ch <= "鿿": return False
+    if ch.isascii() and ch.isalnum(): return False
+    if unicodedata.category(ch).startswith("P"): return False
+    return True
+
+cc = collections.Counter()
+for r in kept:
+    for ch in r[-1]:
+        if is_other(ch):
+            cc[ch] += 1
+for ch, n in cc.most_common():
+    print(f"U+{ord(ch):04X} {unicodedata.name(ch, '?')} {ch!r} {n}")
+print("distinct:", len(cc), "total:", sum(cc.values()))
+PY
+```
+
+出力:
+
+```
+U+3005 IDEOGRAPHIC ITERATION MARK '々' 544
+U+0020 SPACE ' ' 11
+U+3007 IDEOGRAPHIC NUMBER ZERO '〇' 3
+U+003D EQUALS SIGN '=' 2
+distinct: 4 total: 560
+```
+
+**CC0/PD のみ（14,513 行）を対象にした値。** `々`（U+3005 踊り字）は
+`scripts/check_corpus_license.py` の `_char_classes()` が使う漢字レンジ
+`"一"（U+4E00）〜"鿿"（U+9FFF）`に入らないため「その他」に分類される
+（実装の判断であってバグではない）。
+
+⚠️ **同じ内訳を v3（JSUT 込み・20,985 行）で取ると `々` は 691 件になる**
+（total 707）。**14,513 行と 20,985 行のどちらの母集団かで数字が変わる**ので、
+「その他の内訳」を書くときは必ずどちらの行集合を数えたか明記すること。
+また空白文字は**半角スペース (U+0020)** であって全角スペース (U+3000) ではない
+（実測で確認済み）。
+
+### 4. ⚠️ このレポートが測っていないもの
+
+- **音素カバレッジは測っていない。** 中間表現の生成に OpenJTalk が要るため、
+  ラベル生成後にパックの `tokens.npz` で測る（Task 6 の範囲）
+- **音質は測っていない。** 誰も音を聴いていない
+- **失われる 4 つの多様性軸（助数詞 23 / カタカナ語 115 / オノマトペ 270 /
+  法令文 117 = 525 行）が実際にモデルの性能に効いているかは未検証の仮定。**
+  誰もこれらの軸の寄与を測っていない
+- **`cv/yumie-text-1`（1,421 行）は個別の CC0 waiver が未確認のまま残している。**
+  `src/saanotts_jp/corpus_license.py` のコメントの通り、Common Voice の一括規約
+  でのみ担保されている（PR 本文とリポジトリ内 `yumie` 全文検索では waiver の
+  個別確認が取れなかった）。**継承付きではない**ので D-054 のゴールを脅かさないが、
+  外すと 14,513 − 1,421 = **13,092 行**になり、論文の英語版 14,343 行を下回る。
+  これが**保持する理由**（除けば水準未達になる）
