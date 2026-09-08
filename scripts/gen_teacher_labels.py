@@ -51,6 +51,7 @@ from piper_train.vits.commons import normalize_checkpoint_state_dict  # noqa: E4
 from piper_train.vits.models import SynthesizerTrn  # noqa: E402
 from piper_plus_g2p.encode import pua  # noqa: E402
 from saanotts_jp.labelpack import GateFailure, PackWriter, Utterance  # noqa: E402
+from gen_teacher_labels_filter import filter_by_license  # noqa: E402
 
 import piper_train.vits.models as _models  # noqa: E402
 
@@ -159,6 +160,9 @@ def main() -> int:
     ap.add_argument("--limit", type=int, default=0, help="0 = 全件")
     ap.add_argument("--out", required=True)
     ap.add_argument("--utts-per-shard", type=int, default=128)
+    ap.add_argument("--no-license-filter", dest="license_filter",
+                    action="store_false",
+                    help="⚠️ ライセンス絞り込みを切る（v3 の再現用。既定は有効）")
     args = ap.parse_args()
 
     global ENCODE_TABLE
@@ -180,6 +184,18 @@ def main() -> int:
     rows = [r for r in csv.reader(
         open(f"data/splits/corpus_{args.split}.tsv"), delimiter="\t")
         if r and r[-1] and r[0] != "source"]
+
+    # ⚠️ ライセンス絞り込み（D-054）。**下の load_exclusions() とは目的が違う**:
+    #    あちらは uid 単位で「教師の FT テキストとの重複」を外す（B-10）。
+    n_raw = len(rows)
+    if args.license_filter:
+        rows, lic_dropped = filter_by_license(rows)
+        for (src, why), n in sorted(lic_dropped.items()):
+            print(f"  ライセンス除外 {src:26s} {n:6,} 行  ({why})")
+        print(f"  ライセンス除外 合計 {n_raw - len(rows):,} 行 / {n_raw:,} 行")
+    else:
+        print("  ⚠️ --no-license-filter: ライセンス絞り込みを **していない**")
+
     excluded = load_exclusions()
     n_before = len(rows)
     rows = [r for r in rows if r[1] not in excluded]

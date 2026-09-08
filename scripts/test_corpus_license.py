@@ -106,9 +106,49 @@ def test_positive_control() -> int:
         ALLOWED[victim] = saved
 
 
+def test_applied_in_label_gen() -> int:
+    """⚠️ **判定表が gen_teacher_labels.py に実際に配線されているか。**
+
+    G-L1a は表しか見ないので、呼び忘れを捕まえられない。ここでは
+    「絞り込み関数が export されていて、行のリストを正しく削る」ことを見る。
+    **教師モデルは読み込まない**（重いので）。
+    """
+    import importlib
+    m = importlib.import_module("gen_teacher_labels_filter")
+    rows = [
+        ["cv/sentence_collector", "a", "あ"],
+        ["jsut/basic5000", "b", "い"],
+        ["rohan4600", "c", "う"],
+        ["ita/emotion100", "d", "え"],
+    ]
+    kept, dropped = m.filter_by_license(rows)
+    bad = 0
+    if [r[1] for r in kept] != ["a", "c", "d"]:
+        print(f"  NG! 絞り込みの結果が違う: {[r[1] for r in kept]}")
+        bad += 1
+    else:
+        print("  OK  jsut/basic5000 の 1 行だけが落ちた")
+    if dropped.get(("jsut/basic5000", "denied")) != 1:
+        print(f"  NG! 内訳が取れていない: {dict(dropped)}")
+        bad += 1
+    else:
+        print("  OK  落ちた内訳が source ごとに数えられている")
+
+    # ⚠️ UNKNOWN は落とさず止める
+    try:
+        m.filter_by_license([["wikipedia/ja", "x", "お"]])
+    except SystemExit as exc:
+        print(f"  OK  未知の source で実行が止まる: {str(exc)[:40]}…")
+    else:
+        print("  NG! 未知の source が**黙って落ちた**（止まらなければ行数が静かに減る）")
+        bad += 1
+    return bad
+
+
 def main() -> int:
     bad = (test_allowed() + test_denied() + test_unknown()
-           + test_tables_disjoint() + test_positive_control())
+           + test_tables_disjoint() + test_positive_control()
+           + test_applied_in_label_gen())
     print()
     print("⚠️ 見ていないもの: **判定が実際に適用されたか**"
           "（gen_teacher_labels.py が呼び忘れてもこのテストは通る）。"
