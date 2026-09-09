@@ -4169,3 +4169,93 @@ spec §5 の判断点。**ユーザーの判断が要る**（2026-09-08 に「�
 - Task 6（ラベル再生成）に進むか、声の確定を待つか
 - 多様性軸の補充を先にやるか、まず測ってから決めるか
 - 声の最終決定そのもの（[D-054](#d-054) で既に未決）
+
+---
+
+<a id="c-074"></a>
+
+## C-074: 本文検出ゲートは**自己テストだけが CI で回り、本体は一度もリポジトリに向いていなかった**（2026-09-09）
+
+**何を書いていたか**: [`../NOTICE.md`](../NOTICE.md) が
+「`reports/*.json` と `data/splits/corpus_stats.json` に含まれていたコーパス本文は
+[`scripts/sanitize_reports.py`](../scripts/sanitize_reports.py) で**除去済み**です
+（**履歴の全リビジョンからも除去**しました）」と書いていた。
+
+**何が間違いか**: **除去されていなかった。** v4 のレポートをコミットする前に
+`sanitize_reports.py` を回したら、**追跡されているファイルに本文が残っていた**:
+
+```
+  reports/k1_measure_out.json                     56 箇所  {'text': 56}
+  reports/release_v4/cer_v4.json                  22 箇所  {'ref': 21, 'student_hyp': 1}
+```
+
+後者は私が今作ったもの（ゲートが正しく捕まえた）。**前者は既存の漏れ**で、
+`git ls-files` で追跡されていることを確認した。中身は `examples` の `text` に入った
+**Common Voice の文 33 件**（完全一致で照合）。
+
+### なぜ誰も気づかなかったか — CI が本体を回していなかった
+
+```bash
+grep -n "sanitize" .github/workflows/ci.yml
+#   48:  run: uv run ... python scripts/test_sanitize_reports.py
+```
+
+CI が回していたのは **`test_sanitize_reports.py`（検出器の自己テスト 16 ケース）だけ**で、
+**`sanitize_reports.py`（検出器の本体）を一度もリポジトリに向けていなかった。**
+
+⚠️ **`scripts/check_ci_coverage.py` もこれを見ていなかった。** `SCRIPT_GLOBS` は
+`scripts/test_*.py` と `scripts/check_*.py` を集めるので、`sanitize_reports.py` は
+**名前が当たらず監査対象に入っていなかった** = 「CI に無い」ことすら誰も検出できない状態。
+
+**「検出器が動くこと」は「検出器を向けたこと」ではない。**
+[C-028](#c-028) は同じファイルについて「0 箇所が空虚でないことを陽性対照で保証する」と
+決めたが、**その 0 箇所を CI で出させていなかった。**
+
+### ⚠️ しかも CI に素で足すと空虚なゲートになる（実測した）
+
+`sanitize_reports.py` の終了コードを 3 通り測った:
+
+| 状況 | 終了コード |
+|---|---|
+| きれいな状態 | 0 |
+| 本文を 1 件戻す | **1**（ゲートとして機能する） |
+| **第三者コーパスが無い**（= CI と同じ条件） | ⚠️ **0（「0 箇所」と出して緑）** |
+
+`load_corpus_texts()` は `corpus_{train,heldout,embedded,sibdense}.tsv` を読むが、
+**git 追跡されているのは `corpus_embedded.tsv`（自作 184 行）だけ**。新規 clone では
+**照合対象が 22,270 件 → 183 件**になり、**第三者本文の漏れを 1 件も検出できないまま
+exit 0** になる。**素で CI に足せば「99.2% を見ていないのに緑」になっていた。**
+
+### 直した内容
+
+1. **漏れを伏せた** — `sanitize_reports.py --apply` で 56 箇所。
+   ⚠️ **カタカナ読み（A/B の比較対象）と数値は残る**ので測定の意味は保たれる
+2. **空虚さを塞いだ** — 照合対象が自作だけのとき **exit 2 で「回せなかった」と出す**
+   ようにした（`check_web_gates.sh` と同じ方針。**skip と書かない**）。
+   これで CI に足せば必ず落ちるので、**間違って緑にできない**
+3. **監査に載せた** — `check_ci_coverage.py` の `SCRIPT_GLOBS` に
+   `scripts/sanitize_reports.py` を足し、`EXCLUDED_SCRIPTS` に理由を書いた。
+   ⚠️ **`test_*` / `check_*` に当たらないゲートは、この表に足さないと
+   「CI に無い」ことすら誰も気づかない。**
+
+### ⚠️ 深刻度: ライセンス違反ではない
+
+漏れていた 33 文は**すべて `cv/sentence_collector`**（**CC0-1.0**）だった。
+再現:
+
+```bash
+# reports/k1_measure_out.json の text を corpus_*.tsv と完全一致で照合し、source を引く
+```
+
+**CC0 なので再配布そのものは適法**であり、[`../NOTICE.md`](../NOTICE.md) の
+「JSUT は subset 別 CC-BY-SA なので原本の再配布は各提供元の条件に従う」に触れる
+JSUT 由来は **0 件**だった。**問題は (a) NOTICE.md の主張が事実と違っていたこと
+(b) ゲートが向いていなかったこと**の 2 点である。
+⚠️ **JSUT 由来だったら継承付き本文の再配布になっていた。** 今回は運が良かっただけ。
+
+### ⚠️ まだ言えないこと
+
+- **「履歴の全リビジョンからも除去した」の真偽は確認していない。**
+  今回直したのは作業ツリーの現在の内容だけで、**過去のコミットは見ていない**
+- ⚠️ **`reports/*.json` 以外は本文検出の既定の走査対象に入っているが、
+  それが十分かは分からない**（既定は `reports,csrc,data/splits,esp32`）
