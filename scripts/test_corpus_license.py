@@ -151,7 +151,7 @@ def test_applied_in_label_gen() -> int:
 
 
 def test_heldout_default_not_filtered() -> int:
-    """⚠️ **レビュー指摘の再発防止**: `--split heldout` は既定でライセンス絞り込み
+    """⚠️ **レビュー指摘の再発防止**: 評価専用の split は既定でライセンス絞り込み
     が **OFF** でなければならない。
 
     held-out は評価専用で重みに入らないため、ライセンスの論点が発生しない
@@ -161,16 +161,37 @@ def test_heldout_default_not_filtered() -> int:
     `deploy/vastai_bootstrap.sh` が指示する形そのもの）が
     2,333 行中 717 行（jsut/*）を黙って落とす。**`train` は既定 ON のまま**
     でなければならない（そちらは重みに入るので D-054 の絞り込みが必要）。
+
+    ⚠️ **同じ穴は `sibdense` にも開いていた。** `sibdense` も held-out から
+    貪欲法で作る評価専用 split（`b6_build_evalset.py` が既定 `--split heldout`
+    で読み `data/splits/corpus_sibdense.tsv` を書く）で、`docs/measurements.md`
+    の M-27 が `--split sibdense --out data/pack_sibdense` を指示している。
+    実測: 221 行中 **71 行が `jsut/*`（32%）**。`split == "heldout"` という
+    1 文字列だけを見ていると、次に足す評価専用 split でも再発する。
+    ここでは `resolve_license_filter` が **`EVAL_ONLY_SPLITS`
+    という名前の集合**で判断していること（1 つのリテラルではないこと）を、
+    `sibdense` と未知の split 名の両方で確認する。
+
+    ⚠️ **未知の split 名の既定は意図的に ON（絞り込む）側にした。**
+    「評価専用と分かっている split だけを OFF にし、それ以外は安全側
+    （copyleft テキストを混ぜない）に倒す」という設計。新しい split を
+    足し忘れても学習データに copyleft テキストが混入する事故にはならず、
+    起きるとしても「評価専用のはずの split が絞り込まれて行数が減る」
+    という**気づきやすい**失敗にとどまる。
     """
     import importlib
     m = importlib.import_module("gen_teacher_labels_filter")
     bad = 0
     cases = [
         # (split, 明示指定, 期待する絞り込みの ON/OFF)
-        ("heldout", None, False),   # ← ここが今回のレビュー指摘の核心
+        ("heldout", None, False),      # ← 今回のレビュー指摘の核心（1件目）
+        ("sibdense", None, False),     # ← 同じ穴が sibdense にも開いていた（2件目）
         ("train", None, True),
-        ("heldout", True, True),    # 明示指定は常に勝つ
+        ("unknown_future_split", None, True),  # 未知 split の既定 = 安全側で ON
+        ("heldout", True, True),       # 明示指定は常に勝つ
         ("heldout", False, False),
+        ("sibdense", True, True),
+        ("sibdense", False, False),
         ("train", False, False),
         ("train", True, True),
     ]
@@ -183,6 +204,25 @@ def test_heldout_default_not_filtered() -> int:
         else:
             print(f"  OK  resolve_license_filter({split!r}, {explicit!r})"
                   f" = {on}  ({reason})")
+
+    # ⚠️ **陽性対照**: `EVAL_ONLY_SPLITS` を経由せず `split == "heldout"` だけを
+    #    見る実装に戻すと、`sibdense` のケースが検出できるか。
+    #    `resolve_license_filter` を直接壊すと他のテストにも波及するので、
+    #    ここでは `EVAL_ONLY_SPLITS` から `sibdense` を一時的に抜いて確かめる
+    #    （= 「1 つの split 名しか見ない」実装を模擬する）。
+    saved = m.EVAL_ONLY_SPLITS
+    try:
+        m.EVAL_ONLY_SPLITS = frozenset({"heldout"})  # sibdense を意図的に落とす
+        on, _ = m.resolve_license_filter("sibdense", None)
+        if on is False:
+            print("  NG! 陽性対照が効かない（sibdense を EVAL_ONLY_SPLITS から"
+                  "抜いても OFF のまま）= **このテストは集合を見ていない**")
+            bad += 1
+        else:
+            print("  OK  陽性対照: EVAL_ONLY_SPLITS から sibdense を抜くと"
+                  "絞り込みが ON に戻る（= 上のテストは集合を見ている）")
+    finally:
+        m.EVAL_ONLY_SPLITS = saved
     return bad
 
 

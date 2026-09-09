@@ -376,6 +376,15 @@ git commit -m "feat: 蒸留テキストのライセンス判定表と G-L1a（�
 **Interfaces:**
 - Consumes: Task 2 の `classify(source) -> (Verdict, str)` と `Verdict`
 - Produces: `--license-filter / --no-license-filter` フラグ。既定は**有効**
+  ⚠️ **2026-09-09 訂正（このプランは今も生きている。過去の記述ではない）**:
+  この「既定は有効」固定は、レビューで「`--split heldout --out data/pack_heldout`
+  が既定のまま 717 行を黙って落とす」欠陥として指摘され、実装は
+  `resolve_license_filter(split, explicit)` に直っている（D-056）。
+  **今の実際の既定**: 評価専用 split（`heldout` / `sibdense`。
+  `gen_teacher_labels_filter.EVAL_ONLY_SPLITS`）は **OFF**、
+  それ以外（`train` を含む）は引き続き **ON**。`--license-filter` /
+  `--no-license-filter` を明示すれば常にそちらが勝つ。Step 5 のコード片は
+  この訂正前の形のまま残してある（提案として書いた当時の記録）
 
 ⚠️ **既存の `load_exclusions()` を置き換えない。** あれは uid 単位で
 「教師の FT テキストとの重複」を外す（B-10 = 丸暗記を測らないため）。**目的が違うので併存。**
@@ -530,6 +539,15 @@ from gen_teacher_labels_filter import filter_by_license
                     action="store_false",
                     help="⚠️ ライセンス絞り込みを切る（v3 の再現用。既定は有効）")
 ```
+
+⚠️ **2026-09-09 訂正**: 上のヘルプ文言「既定は有効」も、Step 1〜5 で示した
+`args.license_filter` の bool 直読みも、**この後 D-056 で置き換わった**（この
+プランは今も有効で、Task 6〜8 は未実行）。実装済みの `gen_teacher_labels.py` は
+`--license-filter` / `--no-license-filter` の**両方とも `default=None`** にし、
+どちらも指定しなければ `resolve_license_filter(args.split, args.license_filter)`
+（`scripts/gen_teacher_labels_filter.py`）が **split から既定を決める**
+（評価専用の `heldout` / `sibdense` は OFF、それ以外は ON）。上のコード片は
+提案当時の形のまま残す。
 
 - [ ] **Step 6: 実データで行数を確認する（教師は読まない）**
 

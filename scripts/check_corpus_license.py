@@ -34,21 +34,34 @@ HELDOUT_PATH = pathlib.Path("data/splits/corpus_heldout.tsv")
 
 
 def check_pack(root: pathlib.Path) -> int:
-    """G-L1b: パックの index.jsonl に許可外の source が無いか。"""
+    """G-L1b: パックの index.jsonl に許可外の source が無いか。
+
+    ⚠️ **壊れた行は `NG!` として報告し、トレースバックで落ちない。**
+    `json.loads(ln)["source"]` が例外を出すと、それまでは Python の
+    トレースバックがそのまま出ていた（exit code は非 0 のままなので
+    誤って通ることは無いが、どのファイルの何行目が壊れているかを
+    運用者が読めなかった）。
+    """
     idx = root / "index.jsonl"
     if not idx.exists():
         print(f"NG! {idx} が無い")
         return 1
     seen: collections.Counter = collections.Counter()
     bad: collections.Counter = collections.Counter()
-    for ln in idx.read_text(encoding="utf-8").splitlines():
+    n_malformed = 0
+    for lineno, ln in enumerate(idx.read_text(encoding="utf-8").splitlines(), start=1):
         if not ln.strip():
             continue
-        source = json.loads(ln)["source"]
+        try:
+            source = json.loads(ln)["source"]
+        except (json.JSONDecodeError, KeyError) as exc:
+            print(f"NG! {idx}:{lineno} が壊れている（{exc}）: {ln[:80]!r}")
+            n_malformed += 1
+            continue
         seen[source] += 1
         if classify(source)[0] is not Verdict.ALLOWED:
             bad[source] += 1
-    if not seen:
+    if not seen and not n_malformed:
         print(f"NG! {idx} が空 = **この検査は何も見ていない**")
         return 1
     for src, n in sorted(seen.items()):
@@ -57,6 +70,9 @@ def check_pack(root: pathlib.Path) -> int:
     if bad:
         print(f"\nNG! 許可外の source が {sum(bad.values()):,} 発話 "
               f"({len(bad)} 種): {sorted(bad)}")
+    if n_malformed:
+        print(f"\nNG! 壊れた行が {idx} に {n_malformed} 行ある（上に行番号を列挙した）")
+    if bad or n_malformed:
         return 1
     print(f"\nOK  {sum(seen.values()):,} 発話すべて許可された source "
           f"（{len(seen)} 種）")
@@ -151,13 +167,13 @@ def report() -> int:
 
 
 def self_test() -> int:
-    """⚠️ **陽性対照 3 件。** 落ちるべきものが落ちるか。"""
+    """⚠️ **陽性対照 4 件。** 落ちるべきものが落ちるか。"""
     bad = 0
 
     with tempfile.TemporaryDirectory() as td:
         root = pathlib.Path(td)
 
-        # 陽性対照 1/3: 許可外の source を 1 件混ぜた index.jsonl
+        # 陽性対照 1/4: 許可外の source を 1 件混ぜた index.jsonl
         (root / "index.jsonl").write_text(
             json.dumps({"seq": 0, "uid": "a", "source": "cv/sentence_collector"},
                        ensure_ascii=False) + "\n"
@@ -168,27 +184,47 @@ def self_test() -> int:
         with contextlib.redirect_stdout(buf):
             rc = check_pack(root)
         if rc != 0 and "jsut/basic5000" in buf.getvalue():
-            print("陽性対照 1/3: 許可外の source を 1 件混ぜた index.jsonl が"
+            print("陽性対照 1/4: 許可外の source を 1 件混ぜた index.jsonl が"
                   "検出された（jsut/basic5000）")
         else:
-            print("NG! 陽性対照 1/3 が効かない = **--pack は何も見ていない**")
+            print("NG! 陽性対照 1/4 が効かない = **--pack は何も見ていない**")
             bad += 1
 
-        # 陽性対照 2/3: 空の index.jsonl も落ちること（空虚に通らないことの確認）
+        # 陽性対照 2/4: 空の index.jsonl も落ちること（空虚に通らないことの確認）
         (root / "index.jsonl").write_text("", encoding="utf-8")
         with contextlib.redirect_stdout(io.StringIO()):
             rc = check_pack(root)
         if rc != 0:
-            print("陽性対照 2/3: 空の index.jsonl が検出された（空虚に通るゲートではない）")
+            print("陽性対照 2/4: 空の index.jsonl が検出された（空虚に通るゲートではない）")
         else:
-            print("NG! 陽性対照 2/3 が効かない = **空の index.jsonl が通った**")
+            print("NG! 陽性対照 2/4 が効かない = **空の index.jsonl が通った**")
             bad += 1
 
-    # 陽性対照 3/3: held-out を 1 バイト変えたコピーが検出されるか。
+        # 陽性対照 3/4: 壊れた行（不正な JSON / source キー欠落）がトレースバック
+        # ではなく `NG!` として、ファイル名と行番号つきで報告されるか。
+        (root / "index.jsonl").write_text(
+            json.dumps({"seq": 0, "uid": "a", "source": "cv/sentence_collector"},
+                       ensure_ascii=False) + "\n"
+            + "{not valid json\n"
+            + json.dumps({"seq": 2, "uid": "c"}, ensure_ascii=False) + "\n",  # source 欠落
+            encoding="utf-8")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            rc = check_pack(root)
+        out = buf.getvalue()
+        if (rc != 0 and f"NG! {root / 'index.jsonl'}:2" in out
+                and f"NG! {root / 'index.jsonl'}:3" in out):
+            print("陽性対照 3/4: 壊れた行 2 件（不正な JSON / source 欠落）が"
+                  "行番号つきで検出された（トレースバックで落ちなかった）")
+        else:
+            print("NG! 陽性対照 3/4 が効かない = **壊れた行が行番号つきで報告されない**")
+            bad += 1
+
+    # 陽性対照 4/4: held-out を 1 バイト変えたコピーが検出されるか。
     # ⚠️ **本番の凍結ファイルには一切書き込まない**（読むだけ）。
     #    変異体は tempfile 上にのみ作る。
     if not HELDOUT_PATH.exists():
-        print(f"NG! 陽性対照 3/3 を回せなかった（{HELDOUT_PATH} が無い）")
+        print(f"NG! 陽性対照 4/4 を回せなかった（{HELDOUT_PATH} が無い）")
         bad += 1
     else:
         mutated = bytearray(HELDOUT_PATH.read_bytes())
@@ -200,15 +236,15 @@ def self_test() -> int:
             with contextlib.redirect_stdout(io.StringIO()):
                 rc = check_heldout(tmp_path)
             if rc != 0:
-                print("陽性対照 3/3: SHA-256 を 1 バイト変えた held-out が検出された")
+                print("陽性対照 4/4: SHA-256 を 1 バイト変えた held-out が検出された")
             else:
-                print("NG! 陽性対照 3/3 が効かない = **held-out の改変を検出できない**")
+                print("NG! 陽性対照 4/4 が効かない = **held-out の改変を検出できない**")
                 bad += 1
         finally:
             tmp_path.unlink(missing_ok=True)
 
     if bad == 0:
-        print("OK  --self-test: 3 件の陽性対照がすべて落ちた")
+        print("OK  --self-test: 4 件の陽性対照がすべて落ちた")
     return bad
 
 
