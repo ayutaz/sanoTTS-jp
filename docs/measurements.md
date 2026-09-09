@@ -7659,3 +7659,208 @@ distinct: 4 total: 560
   個別確認が取れなかった）。**継承付きではない**ので D-054 のゴールを脅かさないが、
   外すと 14,513 − 1,421 = **13,092 行**になり、論文の英語版 14,343 行を下回る。
   これが**保持する理由**（除けば水準未達になる）
+
+---
+
+<a id="m-111"></a>
+## M-111. **v3 の学習スケジュールを ckpt から復元した** — どこにも書かれていなかった（⚠️ `CLAUDE.md` の「各 20k step」は古い）
+
+[D-056](decisions.md#d-056) で v4（CC0/PD のみのテキスト）を学習すると決めたが、
+**v3 と同じスケジュールで回さないと品質を比較できない**。ところが実際の step 数は
+**どのドキュメントにも書かれていなかった。**
+
+- `runs/v3/summary.json` は**最後の呼び出しぶんだけ**（`steps: 60000` = stage 4）
+- `runs/v3/log.jsonl` には **stage 3 と 4 しか無い**
+- [`../CLAUDE.md`](../CLAUDE.md) の「学習 4 段（各 20k step）… 約 1.3 時間」は
+  **当初のレシピで、v3 ではない**
+
+`scripts/train_student.py` の `save_ckpt` が `{"args": vars(args), "elapsed_sec": …}` を
+保存しているので、**ckpt 自身が正典**だった。
+
+再現:
+
+```bash
+uv run python - <<'PY'
+import pathlib, torch
+for st in (1, 2, 3, 4):
+    d = torch.load(pathlib.Path(f"runs/v3/stage{st}.pt"),
+                   map_location="cpu", weights_only=False)
+    a = d["args"]
+    print(f"stage{st}: steps={a['steps']:,} batch={a['batch']} accum={a['accum']} "
+          f"lr={a['lr']} seed={a['seed']} elapsed={d['elapsed_sec']:.1f}s")
+PY
+```
+
+出力:
+
+```
+stage1: steps=20,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=139.0s
+stage2: steps=60,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=1858.2s
+stage3: steps=80,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=3087.4s
+stage4: steps=60,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=3312.8s
+```
+
+| Stage | steps | 実測 | ms/step |
+|---|---:|---:|---:|
+| 1 duration | 20,000 | 139.0 s | 7.0 |
+| 2 acoustic | **60,000** | 1,858.2 s | 31.0 |
+| 3 decoder | **80,000** | 3,087.4 s | 38.6 |
+| 4 共適応 | **60,000** | 3,312.8 s | 55.2 |
+| **合計** | | **8,397.4 s = 2.33 時間** | |
+
+`decoder_width` は stage 3/4 とも **76**。device は `None`（= 自動選択で mps）。
+
+### 1. ⚠️ `--all` は使えない
+
+`scripts/train_student.py:523` は `stages = [1,2,3,4] if args.all else [args.stage]` で、
+**全 stage を同じ `--steps` で回す**。v3 は 20k / 60k / 80k / 60k と**段ごとに違う**ので、
+`--all` では再現できない。**`--stage N --steps M` を 4 回**呼ぶ。
+
+### 2. ⚠️ v3 の stage1/stage2 は v2 からのコピーだった
+
+SHA-256 で確認した:
+
+```bash
+uv run python -c "
+import hashlib, pathlib
+for st in ('stage1.pt','stage2.pt'):
+    for run in ('v2','v3','s160000'):
+        p = pathlib.Path(f'runs/{run}/{st}')
+        print(run, st, hashlib.sha256(p.read_bytes()).hexdigest()[:16])"
+```
+
+`v3/stage1.pt` は `v2/stage1.pt` および `s160000/stage1.pt` と **bit 一致**（stage2 も同じ）。
+[D-037](decisions.md#d-037) の「Stage 3 の step 数だけを 40k → 80k にした」はそのとおりで、
+**stage 1/2 は再学習せず流用された。**
+
+⚠️ **v4 では流用できない。** 蒸留テキストが変わる以上、duration と acoustic も
+新しいパックで学習し直さなければ「JSUT を外した影響」を測ったことにならない。
+
+### 3. ⚠️ この記録が見ていないもの
+
+- **v1 / v2 の stage 1/2 がどう学習されたか**は分からない（両者に `log.jsonl` が無い）。
+  分かるのは「v3 の stage1/2 は v2 のもので、その ckpt が `steps=20000` /
+  `steps=60000` と申告している」ことだけ
+- **elapsed は当時のマシン状態込み**。M4 Max の他の負荷次第で変わる
+  （[`../.claude/skills/recording-measurements/SKILL.md`](../.claude/skills/recording-measurements/SKILL.md) の
+  「ホストのベンチは CPU 競合で 1.5 倍ずれる」）
+- **v4 が同じ時間で終わる保証は無い。** パックは 30.84% 小さいが、学習は
+  step 数で回るので**時間はほぼ変わらないはず** — ⚠️ これは予測であって実測ではない
+
+---
+
+<a id="m-112"></a>
+## M-112. **CC0/PD のみのラベルパック `data/pack_cc0` を生成した** — 音素カバレッジに穴は無い（⚠️ 音は未聴取・品質は未測定）
+
+[D-056](decisions.md#d-056) の判断に従って Task 6 を実行した。
+
+再現:
+
+```bash
+uv run python scripts/gen_teacher_labels.py --split train --out data/pack_cc0
+uv run --no-project --python 3.12 python scripts/check_corpus_license.py --pack data/pack_cc0
+```
+
+### 1. 生成の実測
+
+```
+ライセンス絞り込み: ON  (train の既定 = ON（D-054。評価専用と分かっていない split の安全側デフォルト）)
+  ライセンス除外 合計 6,472 行 / 20,985 行
+train: 14,513 行（教師 FT テキストとの重複 0 行を除外, B-10）
+採用 14,426 / 棄却 87 / 113 shard / 141 ms/文
+```
+
+| | v3 (`data/pack`) | **v4 (`data/pack_cc0`)** |
+|---|---:|---:|
+| 入力行 | 20,893 | **14,513** |
+| 採用 | 20,790 | **14,426** |
+| 棄却 | 103（0.49%） | **87（0.60%）** |
+| shard | — | 113 |
+| source 種 | 13 | **6** |
+| ms/文 | 116（[D-027](decisions.md#d-027) の記録） | **141** |
+
+⚠️ **`ms/文` が 116 → 141 と遅い**が、これは行数ではなくマシンの状態
+（`recording-measurements` skill の「ホストのベンチは CPU 競合で 1.5 倍ずれる」）。
+**同時に別の処理を走らせていたので、この値を「遅くなった」と読んではいけない。**
+
+⚠️ **B-10 の除外が 0 行**である。JSUT を先に落とすと、教師 FT テキストと重複する
+92 uid（`jsut/repeat500` 90 + `jsut/voiceactress100` 2）は**すでに消えている**ため。
+[C-072](decisions.md#c-072) / M-110 の「6,472 と 6,380」の関係がここで実際に現れた。
+
+### 2. 棄却 87 件の内訳
+
+```
+棄却: "逆引きできない音素: 'fy'" — 49 件
+棄却: G12: 発話速度 3.61 mora/s が範囲外（音素化を疑え） — 2 件
+棄却: G12: 発話速度 3.23 mora/s が範囲外（音素化を疑え） — 2 件
+棄却: G12: 発話速度 2.92 mora/s が範囲外（音素化を疑え） — 2 件
+棄却: G12: 発話速度 3.92 mora/s が範囲外（音素化を疑え） — 2 件
+```
+
+⚠️ **`fy` の 49 件は新しい問題ではない。** 棄却率は 0.49% → 0.60% で、
+比率としては同程度（v3 のログは残っていないので**内訳の比較はできない**）。
+
+### 3. G-L1b: 出荷パックに許可外の source は 0 件
+
+```
+      curated/question_eos           39 発話  (MIT)
+      cv/sentence_collector       8,504 発話  (CC0-1.0)
+      cv/yumie-text-1             1,421 発話  (CC0-1.0)
+      ita/emotion100                 79 発話  (PD)
+      ita/recitation324             291 発話  (PD)
+      rohan4600                   4,092 発話  (CC0-1.0)
+
+OK  14,426 発話すべて許可された source （6 種）
+```
+
+⚠️ **`cv/singleword-benchmark`（11 行）がパックに 1 件も無い。**
+分割には在るので、**11 件すべてが 13 ゲートのどれかで棄却された**ことになる
+（単語 1 語なので G12 の発話速度に当たる可能性が高い）。**原因は未確認。**
+
+### 4. ✅ 音素カバレッジに穴は無い（学習前に確認できる唯一の欠陥）
+
+再現:
+
+```bash
+uv run python - <<'PY'
+import sys; sys.path.insert(0, "src")
+import numpy as np
+from saanotts_jp.labelpack import PackReader
+for name in ("data/pack", "data/pack_cc0"):
+    r = PackReader(name)
+    ids = np.concatenate([r.ids[r.offsets[i]:r.offsets[i+1]] for i in range(len(r))])
+    u, c = np.unique(ids, return_counts=True)
+    print(f"{name:18s} 発話 {len(r):6,} / ユニーク {len(u)} / 最小出現 {c.min():,} (id={u[c.argmin()]})")
+PY
+```
+
+出力:
+
+```
+data/pack          発話 20,790 / ユニーク 54 / 最小出現 8 (id=5)
+data/pack_cc0      発話 14,426 / ユニーク 54 / 最小出現 8 (id=5)
+```
+
+| | v3 | v4 |
+|---|---:|---:|
+| 音素 ID 総数 | 2,728,488 | 1,839,959 |
+| **ユニーク音素 ID** | **54** | **54** |
+| 最小出現 | 8（id=5） | **8（id=5）** |
+
+- **v3 に在って v4 に無い音素 ID: なし**
+- **v4 に在って v3 に無い音素 ID: なし**
+- ⚠️ **最も稀な 3 音素（id=4/5/6）は出現回数まで同一**（10 / 8 / 8）
+  = それらは JSUT 由来ではなかった
+- 最も減ったのは id=43 で 304 → 275（**90.46%**）
+
+**行を 30.84% 落としても語彙は 1 つも失われていない。**
+
+### 5. ⚠️ この記録が言っていないこと
+
+- **品質は測っていない。** SCOREQ / DNSMOS / かな CER / アクセントはすべて学習後
+- **音は 1 秒も聴いていない**
+- **音素カバレッジは「語彙の穴」しか見ていない。** 出現回数が減ったこと
+  （id=43 で 90.46%）が品質に効くかは**分からない**
+- **失った多様性軸 525 行**（助数詞 / カタカナ語 / オノマトペ / 法令文）の寄与は
+  依然として**測っていない仮定**のまま（M-110 §4）
+- `cv/singleword-benchmark` 11 件が全滅した理由（§3）

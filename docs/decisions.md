@@ -4096,10 +4096,12 @@ grep -c "used_only_in" ~/Documents/piper-plus/data-sources.yml  # 1
 
 <a id="d-056"></a>
 
-## D-056: CC0/PD のみの蒸留テキスト — 統計は出た。**Task 6 に進むかは保留**
+## D-056: CC0/PD のみの蒸留テキスト — 統計は出た。**進むと決めた**（2026-09-09）
 
 - 決定日: 2026-09-09
-- 状態: **保留（判断待ち）** — ユーザーの判断がまだ無い
+- 状態: **確定**（2026-09-09 ユーザー判断）— **Task 6〜7 に進む**。
+  ⚠️ 「声を差し替えたら同じ工程をもう一度やる」ことを提示したうえでの判断
+- 成果物: ラベルパック `data/pack_cc0` / 学習 `runs/v4`（どちらも git 管理外）
 - 実測: [M-110](measurements.md#m-110)
 - 前提: [D-054](#d-054)（商用向けのゴール）/ [D-055](#d-055)（帰属表示）
 - 計画: [`superpowers/plans/2026-09-09-cc0-only-distillation-text.md`](superpowers/plans/2026-09-09-cc0-only-distillation-text.md)

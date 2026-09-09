@@ -624,6 +624,22 @@ uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する
 | ラベル生成 train 20,894 文 | **CPU** | 116 ms/文 → **約 40 分** / 4.5 GB |
 | 学習 4 段（各 20k step） | **MPS** | 58 / 81 / 58 / 39 ms/step → 約 1.3 時間 |
 
+⚠️ **上の学習の行は当初のレシピで、成果物 v3 のスケジュールではない**（M-111 で判明）。
+**v3 は段ごとに step 数が違う**（ckpt の `args` から復元した。どこにも書かれていなかった）:
+
+| Stage | steps | 実測 | ms/step |
+|---|---:|---:|---:|
+| 1 duration | 20,000 | 139.0 s | 7.0 |
+| 2 acoustic | **60,000** | 1,858.2 s | 31.0 |
+| 3 decoder | **80,000** | 3,087.4 s | 38.6 |
+| 4 共適応 | **60,000** | 3,312.8 s | 55.2 |
+| 合計 | | **8,397.4 s = 2.33 時間** | |
+
+⚠️ **`--all` では再現できない**（`--all` は全段を同じ `--steps` で回す）。
+**`--stage N --steps M` を 4 回**呼ぶこと。
+⚠️ **v3 の stage1/stage2 は v2 からのコピー**（SHA-256 で bit 一致を確認。M-111 §2）。
+蒸留テキストを変えたら**流用してはいけない**。
+
 ```bash
 uv run python scripts/gen_teacher_labels.py --split train   --out data/pack
 uv run python scripts/gen_teacher_labels.py --split heldout --out data/pack_heldout
