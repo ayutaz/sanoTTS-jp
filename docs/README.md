@@ -88,7 +88,7 @@ G2P の前に形態素数で縛る。低水位 2,760 → 40,468 B）。
 **JSUT（唯一の継承付き素材）を外した v4 を学習して受け入れた** — 品質は SCOREQ も
 かな CER も**差を検出できず**、アクセントの差は **seed 対照で大部分が run 間ばらつきと分かった**
 （[M-117](measurements.md#m-117)）。
-✅ **v4 は実機（M5 CoreS3）で漢字を喋った**（[M-125](measurements.md#m-124)。xRT **0.448** / アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**）。⚠️ **音は誰も 1 秒も聴いていない。**
+✅ **v4 は実機（M5 CoreS3）で漢字を喋った**（[M-124](measurements.md#m-124)。xRT **0.448** / アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**）。⚠️ **音は誰も 1 秒も聴いていない。**
 ⚠️ **配布されているのは今も v3**（GitHub Release に上げていない。blob / golden /
 firmware は [M-119](measurements.md#m-119) / [M-120](measurements.md#m-120) / [M-121](measurements.md#m-121) で作ってある）。
 
@@ -118,7 +118,7 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-059（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-084** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-059（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-085** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-125。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -216,7 +216,7 @@ URL が開くのはマージ後。
                             ⚠️ 「piper-plus 無しで通った」と**誤って観測**した（C-041）
 [未]   **v1.0.0 リリース**      ⚠️ **資産 28 本は用意済み。まだ上げていない。** 商用利用の条件を確定させ
                             （[D-058](decisions.md#d-058)）、継承リスクを外した **v4** の重みを配る。
-                            ✅ 実機で漢字を喋った（[M-125](measurements.md#m-124)。xRT 0.448 / UR 0）。
+                            ✅ 実機で漢字を喋った（[M-124](measurements.md#m-124)。xRT 0.448 / UR 0）。
                             ⚠️ **1.0 でも未決**: 聴取 / RTF の分母 / 10 本中 9 本は未焼き / アクセント 31/37
 [完了] **v0.3.1 リリース**      **小さい flash（8 / 4 / 2 MB）**を正式に配る。⚠️ **モデルは v3 のまま**。
                             ⚠️ **帰属が 3 素材ぶん足りない**（[C-081](decisions.md#c-081)）。差し替え用の資産は用意済み・**未アップロード**
@@ -304,9 +304,9 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ | かな | ✅ **v0.3.0** | `scripts/check_release_assets.py` |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ | 両方 | ✅ **v0.3.0** | `esp32/TESTING.md` |
 | ~~5~~ | ~~エントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | K | ✅ | — |
-| **12** | **v4 の出荷物を再凍結する** | **L** | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（[M-119](measurements.md#m-119)〜[M-125](measurements.md#m-124)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・firmware 10 本は全部 v4 が入っていることを抽出照合・M5 CoreS3 で xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
+| **12** | **v4 の出荷物を再凍結する** | **L** | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（[M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・firmware 10 本は全部 v4 が入っていることを抽出照合・M5 CoreS3 で xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
 | **15** | ⚠️ **配布中の v0.3.0 / v0.3.1 の帰属差し替え** — 4 資産が **LibriTTS-R / CML-TTS / AISHELL-3 を 1 か所も書いていない**うえ `LICENSE-APACHE-2.0.txt` も無い（[C-081](decisions.md#c-081)）。⚠️ **`pages.yml` が `v0.3.0` をタグ固定**なので公開中のサイトも欠陥版 | **L** | **人が要る** | 資産は用意済み・**未アップロード**。⚠️ **サイトは `main` への push まで直らない** |
-| **16** | ⚠️ **CI が掴む資産が `v0.3.0`（= v3）のタグ固定** — `golden` / `web` job が落とすのは `saanotts-jp-v3-*` なので、**出荷物が v4 になった日に CI は出荷物を 1 度も通さない**（[C-084](decisions.md#c-083)）| **L** | 作業（タグの後） | `ci.yml` の 2 job と `pages.yml` の `RELEASE_TAG` |
+| **16** | ⚠️ **CI が掴む資産が `v0.3.0`（= v3）のタグ固定** — `golden` / `web` job が落とすのは `saanotts-jp-v3-*` なので、**出荷物が v4 になった日に CI は出荷物を 1 度も通さない**（[C-083](decisions.md#c-083)）| **L** | 作業（タグの後） | `ci.yml` の 2 job と `pages.yml` の `RELEASE_TAG` |
 | ~~13~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（[D-058](decisions.md#d-058)）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** | **L** | ✅ | — |
 | ~~14~~ | ~~アクセント指標の教師ゲートが生徒依存~~ → ✅ **直した**（[C-076](decisions.md#c-076) / [M-118](measurements.md#m-118)）。ゲートは教師だけのマスク、cos は共通マスクに分けた。3 run で分母が 37/38 にそろった | 両方 | ✅ | `scripts/test_accent_gate.py`（陽性対照つき・CI） |
 
@@ -527,7 +527,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-059（D-049 は欠番）+ 訂正履歴 C-001〜C-084
+│   ├── decisions.md                       決定記録 D-001〜D-059（D-049 は欠番）+ 訂正履歴 C-001〜C-085
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-125
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
