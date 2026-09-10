@@ -275,6 +275,9 @@ uv run python scripts/check_corpus_license.py --self-test   # G-L1b / G-L2（陽
 uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **引用アンカー**
                                                    #   （陽性対照つき。C-042 / C-052）
 uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
+uv run python scripts/check_attribution.py --self-test   # **帰属義務の成果物**（G-A1 写しが
+                                                   #   3 か所で一致 / G-A2 同梱した全文が記載
+                                                   #   どおり）。陽性対照 6 件。C-080 / C-081
 uv run python scripts/check_lock_vs_pyproject.py   # pyproject の制約 vs uv.lock の固定版（C-071。
                                                    #   陽性対照 6 / 陰性対照 2。⚠️ **制約を緩めた
                                                    #   だけの変更は捕まらない**）
@@ -588,6 +591,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | テスト | `scripts/check_lock_vs_pyproject.py` | **`pyproject.toml` の制約を `uv.lock` の固定版が満たしているか**（陽性対照 6 / 陰性対照 2。C-071）。⚠️ **CI のどの job も `uv.lock` / `pyproject.toml` を解決しない**（4 job が `--no-project` / `python` job は `uv pip install` の即席 venv / `golden` は python 無し）ので、lock を見るゲートはこれ 1 本だけ。⚠️ **捕まえるのは「制約を厳しくして `uv lock` を忘れた」形だけ** — **制約を緩めただけの変更（`<1.0` → `<2.0`）は不整合にならないので捕まらない**。lock が実際に解決するかは piper-plus の絶対パスが要るので CI では原理的に測れない |
+| テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **3 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 6 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
 | テスト | `scripts/test_cve_reach.py` | **Dependabot が名指しした脆弱 API が実経路で呼ばれないか**（nltk 6 + transformers 4 の 10 sink / 陰性対照 `load_from_json` / 陽性対照は `--self-test` の 5 件）。実測は発火 **0 / 10**（[`docs/measurements.md`](docs/measurements.md) M-111 / 決定は D-053）。⚠️ **主張は「呼ばれない」だけで「パッケージが安全」ではない**。⚠️ **CI では回らない** — piper-plus の checkout / `nltk_data` / 教師 snapshot の `config.json` が要り、**最後のものが private**（`scripts/check_ci_coverage.py` の `EXCLUDED_SCRIPTS` に理由つきで登録）。⚠️ **手で走らせるゲートはいずれ走らせなくなる** |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** / **古い ckpt での成果物の上書き**（M-102）を deny（**105 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
@@ -898,7 +902,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-10 更新。**残り 7 件: 聴取 1 / 判断 3 / 実機 1 / 人の操作が要るもの 2**）
+## 残っているタスク（2026-09-10 更新。**残り 8 件: 人が要る 3**（聴取 1 / 実機 1 / 帰属の差し替え 1）**／ 判断 3 ／ 作業 2**（出荷物の凍結 / CI のタグ））
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
 K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-059 として凍結（⚠️ **D-049 は「予約」の節** = RTF の分母が未決。⚠️ **2026-09-10 に main へマージ済み** — 8 MB ブランチと Dependabot 対応が入り、番号衝突を C-078 で解消した）。
@@ -925,6 +929,7 @@ blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字�
 | ~~5~~ | ~~K トラックのエントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](docs/decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | — | — |
 | **12** | **L トラック: 出荷物の再凍結** | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（M-119〜M-124。firmware 10 本は全部 v4 が入っていることを抽出照合 / M5 CoreS3 で xRT 0.448・アンダーラン 0・漢字==かな bit 一致）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
 | **15** | ⚠️ **配布中の v0.3.0 / v0.3.1 の帰属差し替え** — `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` / `samples.zip` が **LibriTTS-R / CML-TTS / AISHELL-3 を 1 か所も書いていない**うえ `LICENSE-APACHE-2.0.txt` も無い（C-081）。⚠️ **Pages が `v0.3.0` をタグ固定で掴んでいる**ので公開中のサイトも欠陥版 | **人が要る**（公開済みリリースの変更は権限で止まる） | 差し替え資産は用意済み・**未アップロード**。⚠️ **サイトは `main` への push まで直らない** |
+| **16** | ⚠️ **CI が掴む資産が `v0.3.0`（= v3）のタグ固定** — `golden` job と `web` job が落とすのは `saanotts-jp-v3-*`。**出荷物が v4 になった日に、CI は出荷物を 1 度も通さない**（C-083）。⚠️ `pages.yml` の `RELEASE_TAG` も同じ | 作業（**v1.0.0 のタグを打った後**） | `.github/workflows/ci.yml` の 2 job と `pages.yml` のタグ文字列・資産名。⚠️ **リリースしただけでは直らない** |
 | ~~13~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（D-058）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** — L トラックの成果は**継承リスクの除去**に確定 | ✅ | — |
 | ~~6~~ | ~~GitHub Pages の有効化~~ → ✅ **2026-09-04 に有効化された**（`build_type: workflow`。⚠️ **手作業だった** — `configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ **`pages.yml` は `main` への push でしか走らない**ので、URL が開くのはマージ後 | — | — |
 | ~~7~~ | ~~ブラウザでの実測と聴取~~ → ✅ **測った**（**M-95** Chrome 152）**+ 聴いてもらった**（**M-96** 両レーンとも「問題なかった」/ 途切れ無し）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | — | — |

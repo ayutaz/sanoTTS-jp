@@ -466,14 +466,23 @@ for lane in a32 a8; do
     l1="$(run_probe "$TMP/p_$lane.js"      "$TMP/$lane.raw")"      || { ng "${label}（simd 無し）が走らない"; G3_OK=0; continue; }
     l2="$(run_probe "$TMP/p_${lane}_simd.js" "$TMP/${lane}_simd.raw")" || { ng "${label}（-msimd128）が走らない"; G3_OK=0; continue; }
     printf '      %s\n      %s\n' "$l1" "$l2"
-    # ⚠️ **空ファイル同士の一致で満点を取らせない。** 53 ids = 106 frames = 27,136 sample
-    #    → 27,136 × 4 B = 108,544 B。ここが違ったら比較の前に落とす
+    # ⚠️ **空ファイル同士の一致で満点を取らせない。**
+    #
+    # ⚠️ **サンプル数を焼かないこと。** かつて `108,544 B`（= 27,136 sample）を
+    #    直書きしていたが、**それは v3 の重みの性質**である（フレーム数は duration
+    #    predictor が決めるので、重みを差し替えると動く）。v4 の重みでは同じ 53 ids が
+    #    **27,648 sample** になり、このゲートは**中身が正しいのに 6 か所で落ちた**
+    #    （C-079 と同じ形 = ゲートが特定の成果物に縛られている）。
+    #    → **構造の不変量だけを見る**: 4 B/sample・hop 256 → 1 フレーム 1,024 B。
+    #    ⚠️ CI の `web` job は `v0.3.0`（= v3）をタグ固定で落とすので、
+    #    **v4 が出荷物になっても CI は v3 を測り続ける。** これは別の穴である。
     sz="$(( $(wc -c < "$TMP/$lane.raw") ))"
-    if [ "$sz" -ne 108544 ]; then
-        ng "$label の PCM が 108,544 B でない（$sz B）— 53 ids / 27,136 sample のはず"; G3_OK=0; continue
+    if [ "$(( sz % 1024 ))" -ne 0 ] || [ "$sz" -lt 80000 ]; then
+        ng "$label の PCM が $sz B（1,024 B の倍数かつ 80,000 B 以上のはず）— 合成か抽出が壊れている"
+        G3_OK=0; continue
     fi
     if cmp -s "$TMP/$lane.raw" "$TMP/${lane}_simd.raw"; then
-        ok "$label: -msimd128 の有無で PCM が bit 一致（$sz B / 27,136 sample）"
+        ok "$label: -msimd128 の有無で PCM が bit 一致（$sz B / $(( sz / 4 )) sample）"
     else
         ng "$label: -msimd128 で PCM が変わった"; G3_OK=0
     fi
@@ -700,6 +709,29 @@ const ok = (m) => console.log(`  OK  ${m}`);
 const ng = (m) => { console.log(`  NG! ${m}`); fail = 1; };
 const note = (m) => console.log(`  --  ${m}`);
 
+/* KANA の 1 発話が何 sample になるかは **重みの性質**（duration predictor が決める）。
+ * ⚠️ **焼かないこと。** かつて `27136` を 5 か所に直書きしていて、v4 の重み
+ * （同じ 53 ids が 27,648 sample）では**中身が正しいのに全部落ちた**（C-079 と同じ形）。
+ * → **最初の測定を基準に採り、以降はそれと一致するか**を見る。
+ *   基準そのものは構造の不変量（hop 256 の倍数 / 下限）でだけ検査する。
+ *   既知の値: v3 = 27,136 / v4 = 27,648。**大きく動いたら人が気づけるように必ず表示する。** */
+/* ⚠️ **基準はレーンごとに採る。** 最初は 1 本の共通基準にしたが、**それも誤り**だった:
+ * v4 では **W8A32 が 27,648 / W8A8 が 27,136** と **2 フレーム違う**（どちらも同じ
+ * int8 blob。活性化の量子化が duration predictor の出力を変える）。
+ * v3 では両レーンが偶然 27,136 で一致していたので、**直書きでも共通基準でも通っていた**。
+ * → **レーン内での一貫性**（同じ入力 → 同じ長さ / 漢字 == かな / stats == pcm）だけを見る。
+ * 既知の値: v3 = 両レーン 27,136 / v4 = W8A32 27,648・W8A8 27,136。
+ * **必ず表示する**（人が「大きく動いた」に気づける唯一の窓）。 */
+const NS = {};
+const ns_ok = (key, ns) => {
+  if (typeof ns !== 'number' || ns < 20000 || ns % 256 !== 0) return false;   /* hop 256 */
+  if (NS[key] === undefined) {
+    NS[key] = ns;
+    note(`${key}: 基準の発話長を ${ns} sample に採った（v3 は両レーン 27136 / v4 は W8A32 27648・W8A8 27136）`);
+  }
+  return ns === NS[key];
+};
+
 /* 生の float PCM の FNV-1a 64。⚠️ **saan_pcm.c の checksum とは別物**
  * （あちらは int16 に直した列を食う）。ここは「2 つの経路が同じ列か」だけを見る */
 function fnv(bytes) {
@@ -764,8 +796,8 @@ for (const [name, file, want] of [['W8A32', 'saan_web_w8a32', 0], ['W8A8', 'saan
   else ng(`${name}: saan_web_lane() が ${lane}（期待 ${want}）— レーンを取り違えている`);
 
   const a = M.__synth(KANA);
-  if (a.rc === 0 && a.ids === 53 && a.ns === 27136 && a.route === 'かな' && a.sr === 22050)
-    ok(`${name}: かな中間表現 → route=${a.route} / 53 ids / 27,136 sample / ${a.sr} Hz  ${a.sum}`);
+  if (a.rc === 0 && a.ids === 53 && ns_ok(name, a.ns) && a.route === 'かな' && a.sr === 22050)
+    ok(`${name}: かな中間表現 → route=${a.route} / 53 ids / ${a.ns} sample / ${a.sr} Hz  ${a.sum}`);
   else ng(`${name}: かな経路が期待と違う rc=${a.rc} route=${a.route} ids=${a.ids} ns=${a.ns} sr=${a.sr} ${a.msg}`);
 
   const bad = M.__synth(MIXED);
@@ -782,14 +814,34 @@ for (const [name, file, want] of [['W8A32', 'saan_web_w8a32', 0], ['W8A8', 'saan
 
   if (haveDict) {
     const k = M.__synth(KANJI);
-    if (k.rc === 0 && k.route === '辞書' && k.ids === 53 && k.ns === 27136 && k.sum === a.sum)
-      ok(`${name}: 漢字文 → route=${k.route} / 53 ids / PCM が かな経路と bit 一致`);
-    else ng(`${name}: 漢字 == かな が不成立 rc=${k.rc} route=${k.route} ids=${k.ids} ns=${k.ns} ${k.sum} vs ${a.sum} ${k.msg}`);
+    /* ⚠️ **NG の文言を分ける。** かつて `ns === 27136` を条件に混ぜていたので、
+     *    v4 では **checksum が一致しているのに「漢字 == かな が不成立」**と出た
+     *    （同じ値が 2 つ並んだメッセージ）。**診断が嘘のゲートは、直す先を誤らせる。** */
+    if (k.rc !== 0 || k.route !== '辞書' || k.ids !== 53)
+      ng(`${name}: 漢字文の経路判定が期待と違う rc=${k.rc} route=${k.route} ids=${k.ids} ${k.msg}`);
+    else if (k.ns !== a.ns)
+      ng(`${name}: 漢字と かな で発話長が違う（漢字 ${k.ns} / かな ${a.ns} sample）`);
+    else if (k.sum !== a.sum)
+      ng(`${name}: 漢字 == かな が不成立（${k.sum} vs ${a.sum}）`);
+    else
+      ok(`${name}: 漢字文 → route=${k.route} / 53 ids / ${k.ns} sample / PCM が かな経路と bit 一致`);
 
+    /* ⚠️ **`ids が` という文言を要求してはいけない。** [M-98](../docs/measurements.md#m-98) で
+     *    `SAAN_KANJI_MAX_INPUT_TOK`（44 形態素）を入れたので、この入力（63 形態素）は
+     *    **350 ids に届く前に形態素数で弾かれる**。文言を要求していたため
+     *    「**拒否されているのに『通った』と報告する**」状態だった。
+     *    → 求めるのは**拒否そのもの**で、どちらの上限が効いたかは表示する。
+     *    ⚠️ **これで 350 ids の枝は覆えていない**（下の note）。 */
     const lg = M.__synth(LONG_KANJI);
-    if (lg.rc < 0 && lg.msg.indexOf('ids が') >= 0)
-      ok(`${name}: ids 350 超え は拒否（${lg.msg.slice(0, 30)}…）`);
-    else ng(`${name}: ids 350 超えが通った rc=${lg.rc} ids=${lg.ids} msg=${lg.msg}`);
+    if (lg.rc < 0) {
+      const which = lg.msg.indexOf('ids が') >= 0 ? 'ids 350' : '形態素 44';
+      ok(`${name}: 長すぎる漢字文 は拒否（効いた上限: ${which} / ${lg.msg.slice(0, 26)}…）`);
+      if (which !== 'ids 350')
+        note(`⚠️ **350 ids の枝は覆えていない** — 形態素 44 の上限が先に発火する（M-98）。` +
+             `覆うには「44 形態素以下で 350 ids を超える」入力が要る（長い語を並べる）`);
+    } else {
+      ng(`${name}: 長すぎる漢字文が通った rc=${lg.rc} ids=${lg.ids} ns=${lg.ns} msg=${lg.msg}`);
+    }
   }
 }
 
@@ -812,9 +864,18 @@ if (lanes.W8A32 && lanes.W8A8) {
   const M32 = await load(`${distDir}/saan_web_w8a32.mjs`, `${distDir}/saan_web_w8a32.wasm`);
   const rc32 = M32.__init(modelFp32, false);
   const f = rc32 === 0 ? M32.__synth(KANA) : null;
-  if (rc32 === 0 && f.rc === 0 && f.ids === 53 && f.ns === 27136)
-    ok('出荷 W8A32: 同じ fp32 blob は受ける（allow 側）');
-  else ng(`出荷 W8A32 が fp32 blob を拒否した（init rc=${rc32}）— 検査が広すぎる`);
+  /* ⚠️ **ここで `NS` を使ってはいけない。** `NS` は **int8 blob** を渡したレーンの
+   *    観測値で、ここは **fp32 blob** である。v4 では fp32 27,392 / int8 27,648 と
+   *    **1 フレーム違う**（duration の量子化。[C-079](../docs/decisions.md#c-079)）。
+   *    かつて `f.ns === 27136` と直書きしていて、v4 では
+   *    **受け入れているのに「拒否した」と報告していた**（rc=0 と表示しながら）。
+   * ⚠️ **判定を 2 つに分ける** — 受けたか / 出力が妥当か。 */
+  if (rc32 !== 0)
+    ng(`出荷 W8A32 が fp32 blob を拒否した（init rc=${rc32}）— 検査が広すぎる`);
+  else if (f.rc !== 0 || f.ids !== 53 || f.ns < 20000 || f.ns % 256 !== 0)
+    ng(`出荷 W8A32: fp32 blob は受けたが出力が妥当でない rc=${f.rc} ids=${f.ids} ns=${f.ns} ${f.msg}`);
+  else
+    ok(`出荷 W8A32: 同じ fp32 blob は受ける（allow 側。${f.ns} sample）`);
 
   /* 辞書なし構成で漢字文を打つと、拒否されて理由が出ること */
   if (rc32 === 0) {
@@ -836,9 +897,9 @@ if (lanes.W8A32 && lanes.W8A8) {
     const a2 = P.__synth(KANA);
     const s2 = [P._gw_pcm_sum_hi() >>> 0, P._gw_pcm_sum_lo() >>> 0, P._gw_pcm_samples(), P._gw_pcm_absmax()];
     const hex = (s) => `0x${s[0].toString(16).padStart(8, '0')}${s[1].toString(16).padStart(8, '0')}`;
-    if (a1.ns !== 27136 || a2.ns !== 27136 || s1[2] !== 27136) {
-      ng(`統計窓つきの棒: 1 発話が 27,136 sample でない（pcm ${a1.ns}/${a2.ns} / stats ${s1[2]}）`);
-    } else if (s1[0] === s2[0] && s1[1] === s2[1] && s2[2] === 27136) {
+    if (!ns_ok('stats', a1.ns) || a2.ns !== a1.ns || s1[2] !== a1.ns) {
+      ng(`統計窓つきの棒: 発話長が揃わない（pcm ${a1.ns}/${a2.ns} / stats ${s1[2]}）`);
+    } else if (s1[0] === s2[0] && s1[1] === s2[1] && s2[2] === a1.ns) {
       ok(`saan_pcm_reset(): A→B→A で checksum ${hex(s1)} / samples ${s2[2]} / |max| ${s2[3]} が 1 発話目と一致`);
     } else {
       ng(`saan_pcm_reset() が効いていない: checksum ${hex(s1)} → ${hex(s2)} / `

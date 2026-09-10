@@ -93,6 +93,13 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 
 ✅ **G-W7 は実際に欠陥を捕まえた**（[C-080](../decisions.md#c-080)。2026-09-10）: [C-073](../decisions.md#c-073) で §3.1 に **LibriTTS-R / CML-TTS / AISHELL-3** を足したとき、**`web/index.html` の写しを置き去りにした**。**GitHub Pages に置くことも再配布**なので、あのページは帰属義務のある 3 素材を欠いたまま配られていた。⚠️ **手元のゲート 17 本には入っていない**（emcc と node が要る）ので、**PR の CI が初めて回した。**
 
+⚠️ **G-W7 が見るのは `web/index.html` だけである。** 同じ (A) ブロックの写しは
+**`NOTICE.md` にもある**（= リリース資産 `NOTICE.txt` の中身そのもの）が、
+**そちらを照合しているゲートは 2026-09-10 まで 1 本も無かった。**
+→ ✅ [`scripts/check_attribution.py`](../../scripts/check_attribution.py) で塞いだ
+（**G-A1** = 3 か所の一致 / **G-A2** = 同梱した全文が記載どおり。陽性対照 6 件。
+CI の `docs` job なので **emcc が要らず手元でも回る**）。
+
 | **G-W1** | wasm(fp32) が `golden-v3-fp32.bin` と一致 | 重みの真ん中 64 KB を塗ると落ちる |
 | **G-W2** | wasm(int8 / W8A32) が `golden-v3-int8.bin` と一致 | 同上 |
 | **G-W2b** | **ブラウザが通るストリーミング経路**が一括版と bit 一致（`stream_test` を 3 レーン） | — |
