@@ -18,7 +18,8 @@
 ⚠️ **Every asset named here is checked for existence by CI** (`scripts/check_release_assets.py` — the guard added after C-052). Dead links cannot be left alone.
 
 **Everything is in the latest release, [v0.3.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1).**
-⚠️ **The model weights are bit-identical across every release since v0.1.0** — no retraining.
+⚠️ **The model weights are bit-identical from v0.1.0 through v0.3.1** — no retraining.
+⚠️ **The next tag, v1.0.0, changes this** — the weights are replaced by **v4**, retrained on distillation text with JSUT removed ([D-057](decisions.md#d-057) / [D-059](decisions.md#d-059)).
 
 | Asset | Where | What it is |
 |---|---|---|

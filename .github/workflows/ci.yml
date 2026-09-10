@@ -45,7 +45,7 @@ jobs:
       #    §3.1 の帰属ブロックの**写しが 3 か所で一致しているか**も見ない。
       #    C-080（web/index.html の写しを置き去り）と C-081（同梱義務を書いたのに
       #    全文ファイルが無い）がその穴で、**どちらもこのゲートが無い間に起きた**。
-      - name: 帰属義務の成果物（G-A1 写しの一致 / G-A2 同梱した全文。陽性対照 6 件）
+      - name: 帰属義務の成果物（G-A1 写しの一致 / G-A2 同梱した全文。陽性対照 7 件）
         run: |
           uv run --no-project --python 3.12 python scripts/check_attribution.py
           uv run --no-project --python 3.12 python scripts/check_attribution.py --self-test

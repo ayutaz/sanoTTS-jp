@@ -277,7 +277,7 @@ uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **
 uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
 uv run python scripts/check_attribution.py --self-test   # **帰属義務の成果物**（G-A1 写しが
                                                    #   3 か所で一致 / G-A2 同梱した全文が記載
-                                                   #   どおり）。陽性対照 6 件。C-080 / C-081
+                                                   #   どおり）。陽性対照 7 件。C-080 / C-081
 uv run python scripts/check_lock_vs_pyproject.py   # pyproject の制約 vs uv.lock の固定版（C-071。
                                                    #   陽性対照 6 / 陰性対照 2。⚠️ **制約を緩めた
                                                    #   だけの変更は捕まらない**）
@@ -591,7 +591,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | テスト | `scripts/check_lock_vs_pyproject.py` | **`pyproject.toml` の制約を `uv.lock` の固定版が満たしているか**（陽性対照 6 / 陰性対照 2。C-071）。⚠️ **CI のどの job も `uv.lock` / `pyproject.toml` を解決しない**（4 job が `--no-project` / `python` job は `uv pip install` の即席 venv / `golden` は python 無し）ので、lock を見るゲートはこれ 1 本だけ。⚠️ **捕まえるのは「制約を厳しくして `uv lock` を忘れた」形だけ** — **制約を緩めただけの変更（`<1.0` → `<2.0`）は不整合にならないので捕まらない**。lock が実際に解決するかは piper-plus の絶対パスが要るので CI では原理的に測れない |
-| テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **3 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 6 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
+| テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **3 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 7 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
 | テスト | `scripts/test_cve_reach.py` | **Dependabot が名指しした脆弱 API が実経路で呼ばれないか**（nltk 6 + transformers 4 の 10 sink / 陰性対照 `load_from_json` / 陽性対照は `--self-test` の 5 件）。実測は発火 **0 / 10**（[`docs/measurements.md`](docs/measurements.md) M-111 / 決定は D-053）。⚠️ **主張は「呼ばれない」だけで「パッケージが安全」ではない**。⚠️ **CI では回らない** — piper-plus の checkout / `nltk_data` / 教師 snapshot の `config.json` が要り、**最後のものが private**（`scripts/check_ci_coverage.py` の `EXCLUDED_SCRIPTS` に理由つきで登録）。⚠️ **手で走らせるゲートはいずれ走らせなくなる** |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** / **古い ckpt での成果物の上書き**（M-102）を deny（**105 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |

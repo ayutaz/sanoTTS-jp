@@ -57,11 +57,18 @@ CANON = ("LICENSE-MODEL.md", re.compile(r"^### 3\.1 "), re.compile(r"^### "))
 COPY_FENCE = ("NOTICE.md", re.compile(r"^### \(A\) "), re.compile(r"^### "))
 COPY_HTML = "web/index.html"
 
-# G-A2 の主張: `[`X`](X)`（…sha256 `<prefix>…` / <N> 行 <M> B）
+# G-A2 の主張: `[`X`](X)` … sha256 `<prefix>…` … <N> 行/lines <M> B/bytes
+#
+# ⚠️ **言語で絞らないこと。** 最初は段落に `に在る` を要求していたが、
+#    **同じ主張が英語節にもある**（`LICENSE-MODEL.md` の §Obligations）。
+#    日本語だけ見ると、**英語側の sha256 を書き換えても誰も気づかない。**
 CLAIM = re.compile(
-    r"\[`(?P<name>[^`]+)`\]\((?P<path>[^)]+)\)"          # リンク
-    r".*?sha256 `(?P<sha>[0-9a-f]{8,})…?`"                # sha256 の頭
-    r".*?(?P<lines>[\d,]+) 行 (?P<bytes>[\d,]+) B",       # 行数とバイト数
+    r"\[`(?P<name>[^`]+)`\]\((?P<path>[^)]+)\)"                    # リンク
+    r".*?sha256 `(?P<sha>[0-9a-f]{8,})…?`"                          # sha256 の頭
+    # ⚠️ 区切りの読点まで含めて緩める。日本語は「202 行 11,358 B」、
+    #    英語は「202 lines, 11,358 bytes」で**カンマが入る**。
+    #    これを見落として、**英語の主張を 1 度取りこぼした**（この行を書いた直後に実測）。
+    r".*?(?P<lines>[\d,]+)\s*(?:行|lines)[,、]?\s*(?P<bytes>[\d,]+)\s*(?:B|bytes)",
     re.DOTALL)
 
 FLOOR = 20   # ⚠️ 空 == 空 で満点を取らせない。実体は 26 行（C-073 で 22 → 26）
@@ -100,15 +107,15 @@ def pre_verbatim(text: str) -> list[str]:
 
 
 def claims(text: str) -> list[dict[str, str]]:
-    """§3.1 が「在る」と書いたファイルの主張を拾う。
+    """「この全文はここに在る」と断言している主張を拾う（**日英どちらも**）。
 
-    ⚠️ **`✅ **その全文は…に在る**` の段落だけを見る。** §3.1 には
-    `[`LICENSE`](LICENSE)` のような**義務ではないリンク**も出るので、
-    「在る」と断言している行に限る。
+    鍵は **`sha256` を書いていること**。`[`LICENSE`](LICENSE)` のような
+    義務ではないリンクは sha256 を持たないので入らない。
+    ⚠️ **`に在る` で絞ってはいけない** — 英語節の同じ主張が抜ける。
     """
     out = []
     for para in re.split(r"\n\s*\n", text):
-        if "に在る" not in para or "sha256" not in para:
+        if "sha256" not in para:
             continue
         m = CLAIM.search(para)
         if m:
@@ -244,11 +251,25 @@ def self_test() -> int:
     m[canon_name] = base[canon_name].replace(f"{cs[0]['lines']} 行", "999 行", 1)
     cases.append(("記載の行数を変える", m))
 
-    # 6. 「全文は … に在る」の主張ごと消す
+    # 6. 「全文は … に在る」の主張を**全部**消す（日英ともに）
+    #    ⚠️ 1 件だけ消すと**もう 1 件が残って通る**ので、陽性対照にならない。
     m = dict(base)
-    m[canon_name] = re.sub(r"\n✅ \*\*その全文は.*?\n\n", "\n\n",
-                           base[canon_name], count=1, flags=re.DOTALL)
-    cases.append(("同梱義務の主張ごと消す", m))
+    m[canon_name] = re.sub(r"sha256 `[0-9a-f]{8,}…?`", "(削除)", base[canon_name])
+    assert not claims(m[canon_name]), "主張が残っている（陽性対照が空虚）"
+    cases.append(("同梱義務の主張を全部消す", m))
+
+    # 7. **英語節だけ** sha256 を書き換える（日本語側は正しいまま）
+    #    ⚠️ かつては日本語段落しか見ていなかったので、**これが通っていた**。
+    m = dict(base)
+    #    ⚠️ 「最後に出てくる sha256」を書き換える（英語節は日本語節より後ろにある）。
+    i = base[canon_name].rfind(f"sha256 `{sha}…`")
+    assert i > 0, "英語側の sha256 が見つからない"
+    j = base[canon_name].find(f"sha256 `{sha}…`")
+    assert i != j, "sha256 の主張が 1 件しかない（英語節が消えている？）"
+    m[canon_name] = (base[canon_name][:i]
+                     + f"sha256 `{sha[:-1]}1…`"
+                     + base[canon_name][i + len(f"sha256 `{sha}…`"):])
+    cases.append(("英語節だけ sha256 を書き換える", m))
 
     print("陽性対照:")
     bad = 0
@@ -277,7 +298,7 @@ def self_test() -> int:
 
 def main() -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--self-test", action="store_true", help="陽性対照 6 件 + 陰性対照")
+    ap.add_argument("--self-test", action="store_true", help="陽性対照 7 件 + 陰性対照")
     a = ap.parse_args()
     if a.self_test:
         return self_test()
@@ -293,9 +314,9 @@ def main() -> int:
     cs = claims(files[CANON[0]])
     print(f"OK  G-A1 帰属ブロック（{len(canon)} 行）が 3 か所で一字一句一致 "
           f"— {CANON[0]} §3.1 / {COPY_FENCE[0]} / {COPY_HTML}")
+    print(f"OK  G-A2 同梱義務の主張 {len(cs)} 件（日英）がすべて実体と一致:")
     for c in cs:
-        print(f"OK  G-A2 {c['path']}: sha256 {c['sha']}… / "
-              f"{c['lines']} 行 {c['bytes']} B が記載どおり")
+        print(f"      {c['path']}: sha256 {c['sha']}… / {c['lines']} 行 {c['bytes']} B")
     print("\n⚠️ 見ていないもの: リリース資産の中身（v0.3.0 / v0.3.1 は今も帰属が"
           "足りていない = C-081）/ samples.zip の中の NOTICE.txt")
     return 0
