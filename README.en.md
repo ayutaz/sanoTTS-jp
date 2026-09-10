@@ -54,8 +54,7 @@ and caveat lines removed; `...` stands for 14 pulls.*
 | Quality | **64%** of the teacher (SCOREQ ratio 0.644). ⚠️ **A predictor's score, not a human ear** |
 | On-device G2P | **13.7 MB dictionary** with kanji, or an **877 B table** for kana only |
 
-⚠️ **This is a proof of concept, not a product.** What it most lacks is human listening:
-a handful of sessions, each one listener, no control, not blind.
+⚠️ **This is a proof of concept, not a product.**
 
 ## Using it
 
@@ -140,25 +139,6 @@ rest. Removing those took one step from 18.38 M to **11.66 M cycles**, and **the
 never changed by a single bit** (identical checksums). The trail is in the timeline in
 [`docs/README.md`](docs/README.md).
 
-## What is not known
-
-**This is the most important section here.** For all the numbers above, these are unverified.
-
-| | |
-|---|---|
-| **Whether it sounds good** | ⚠️ **Human listening amounts to two sessions (M-91 / M-93), each one listener, no control, not blind.** It says no more than "not broken". Every quality number comes from a **predictor** (SCOREQ / UTMOS / DNSMOS), and none is calibrated for Japanese — **real human speech scores only SCOREQ 2.50 / UTMOS 2.30**. So **"0.644 of the teacher" is not "64 where the teacher is 100"** but a ratio between scores of an uncalibrated predictor (n=24). **Do not compare the absolute values against English papers** |
-| **Real time over a whole utterance** | ⚠️ A full-chunk pull is 0.446, but the 38-frame warmup lands in the first pull, so **a whole utterance is 0.54–0.71**. Which denominator the requirement means is undecided |
-| **The cost of pruning the dictionary** | ⚠️ 0.32% of phonemes differ from the host (n=298, M-77). A dropped word is not silent — it is **re-segmented and misread** (`上毛` → `上` + `毛`) |
-| **I2S output on a DevKit** | ⚠️ `saan_i2s` (direct I2S) is **untested on hardware**. The only path that has made sound is M5Unified |
-| **Other boards** | ⚠️ Only **one CoreS3** was measured here. Two independent third-party reports exist ([AtomS3 1.718](https://github.com/magatsux2019/sanotts-atoms3-results) / [CoreS3 1.558](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3)), but **both predate the speed work** and neither has been reproduced here |
-| **Distance to the official implementation** | ⚠️ It reports **0.22× real time** on the same chip; this is not there yet |
-
-The full list, and how each was measured, is in [`MODEL_CARD.md`](MODEL_CARD.md) §4.
-
-> 🙏 **The most valuable contribution is telling us what it sounds like.** No board needed —
-> just play [`saanotts-jp-v3-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
-> **"It sounds wrong" can carry more information than a number with n=24.**
-
 ## Relationship to the official implementation
 
 The official implementation, [`Ampixa/sanoTTS`](https://github.com/Ampixa/sanoTTS), exists and
@@ -182,6 +162,13 @@ hardware procedure in [`esp32/TESTING.md`](esp32/TESTING.md).
 
 Please read [`CONTRIBUTING.md`](CONTRIBUTING.md). **What helps most is telling us how it
 sounds**, followed by speed measurements on a different ESP32-S3.
+
+> 🙏 **Telling us how it sounds needs no board** — just play
+> [`saanotts-jp-v3-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
+> **"It sounds off" can carry more information than a table of n=24 numbers.**
+
+**The known limitations, and how each was measured, are in
+[`MODEL_CARD.md`](MODEL_CARD.md) §4.**
 
 ⚠️ Most of this repository was **written by an AI agent (Claude Code)**. The discipline that
 requires — never write a guess as a number, never delete a correction, never add a gate
