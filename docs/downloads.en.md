@@ -1,10 +1,10 @@
 # Downloads
 
-> ⚠️ **v4 (weights distilled without JSUT) is fully staged — 27 assets — but not released yet.**
+> ⚠️ **v4 (weights distilled without JSUT) is fully staged — 28 assets — but not released yet.**
 > Naming the files here would make
 > [`../scripts/check_release_assets.py`](../scripts/check_release_assets.py) require them
 > and fail CI, so **they get added when the tag is cut.** See
-> [`release-notes/v0.4.0.md`](release-notes/v0.4.0.md) and
+> [`release-notes/v1.0.0.md`](release-notes/v1.0.0.md) and
 > [M-119](measurements.md#m-119)–[M-124](measurements.md#m-124).
 >
 > ⚠️ **The v0.3.x `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
