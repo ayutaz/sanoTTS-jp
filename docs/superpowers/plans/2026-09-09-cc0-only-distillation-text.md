@@ -1103,6 +1103,23 @@ git commit -m "docs: CC0/PD のみで学習した v4 の品質を v3 と比べ�
 
 ### Task 8: 出荷物の再凍結（**Task 7 で品質が受け入れられたときだけ**）
 
+> ✅ **完走した。⚠️ ただし計画の 3 倍以上に広がった**（2026-09-10）。
+> 計画は「`NOTICE.md` / `LICENSE-MODEL.md` / `MODEL_CARD.md` を直す」だけだったが、
+> 実際に出荷可能にするには次が要った:
+>
+> | 計画に無かったもの | なぜ要ったか |
+> |---|---|
+> | **firmware 10 本**（計画は暗黙に 3 本） | `v0.3.1` が 26 資産を配り始めた（小容量 8/4/2 MB + UART0 版）。3 本だと**後退**になる |
+> | **出荷用ビルドの作り直し** | `build_kanji` は QEMU 用（DIO + 起動時発話 + UART0）で**配れなかった**（[M-122](../../measurements.md#m-122)） |
+> | **`LICENSE-APACHE-2.0.txt`** | [C-073](../../decisions.md#c-073) で AISHELL-3 を必須帰属に足した結果、Apache-2.0 §4(a) の全文同梱が発生（[C-081](../../decisions.md#c-081)） |
+> | **`web/index.html` の帰属ブロック** | 同じ写しを置き去りにしていた（[C-080](../../decisions.md#c-080)。CI の G-W7 が捕まえた） |
+> | **`saanotts-jp-v4-samples.zip`** | `v0.3.x` が配っていたので揃えた。⚠️ **NOTICE は md から生成**した（手で写すと C-080 の再発） |
+> | **`v0.3.0` / `v0.3.1` の帰属差し替え** | 同じ欠陥が過去のリリースにも及んでいた。⚠️ **アップロードは未実行** |
+> | **実機での確認** | 計画に無かったが、[M-123](../../measurements.md#m-123) / [M-124](../../measurements.md#m-124) で焼いた |
+>
+> **合計 28 資産**（`SHA256SUMS.txt` が覆うのは 27 本）。
+> ⚠️ **タグは `v1.0.0`**（[D-059](../../decisions.md#d-059)）。⚠️ **Release は未実行 / 音は未聴取。**
+
 **Files:**
 - Modify: `NOTICE.md` / `LICENSE-MODEL.md`（JSUT の行を (A) 必須ブロックから外す）
 - Modify: `MODEL_CARD.md`

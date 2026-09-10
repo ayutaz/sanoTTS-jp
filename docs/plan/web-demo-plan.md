@@ -72,7 +72,7 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 | **W-0** | `web/saan_web.c` — arena / blob / 経路判定 / 合成 | **G-W6**（出荷バイナリを実際に走らせる） |
 | **W-1** | `web/build.sh` — emcc 6.0.9 で 2 レーン × SIMD | 2 本の `.wasm` と `.mjs` が出る |
 | **W-2** | `web/index.html` + `web/main.js` — 最小 UI | 手元プレビューで鳴る |
-| **W-3** | ライセンス表示 | **G-W7**（LICENSE-MODEL.md §3.1 の 22 行と一字一句一致） |
+| **W-3** | ライセンス表示 | **G-W7**（LICENSE-MODEL.md §3.1 と一字一句一致。⚠️ **行数を書かない** — [C-073](../decisions.md#c-073) で 3 素材を足して 22 → **26 行**になった） |
 | **W-4** | `.github/workflows/pages.yml` | ✅ **マージ前に実ブランチで build job を回して緑**（run 33828197417。`upload-pages-artifact` まで通り artifact **6,237,222 B**）。⚠️ **`deploy` だけは未実行** — `github-pages` 環境の branch policy が `main` の 1 件だけなので、`if: github.ref == 'refs/heads/main'` で skip させた |
 | **W-5** | `scripts/check_web_gates.sh` — **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7** | 陽性対照が落ちる |
 | **W-6** | `ci.yml` に web job と **int8 レーン**を追加 | C-057 とセット |
@@ -90,6 +90,9 @@ JS 側に「ひらがなっぽいから」を作った瞬間に入力仕様の�
 | | 何を見るか | 陽性対照 |
 |---|---|---|
 | **G-W7** | `web/index.html` の帰属ブロックが `LICENSE-MODEL.md` §3.1 と**一字一句一致** | 1 行消すと落ちる。⚠️ **行番号で切らない**（§3.1 の上に 1 行入ると黙ってずれる） |
+
+✅ **G-W7 は実際に欠陥を捕まえた**（[C-080](../decisions.md#c-080)。2026-09-10）: [C-073](../decisions.md#c-073) で §3.1 に **LibriTTS-R / CML-TTS / AISHELL-3** を足したとき、**`web/index.html` の写しを置き去りにした**。**GitHub Pages に置くことも再配布**なので、あのページは帰属義務のある 3 素材を欠いたまま配られていた。⚠️ **手元のゲート 17 本には入っていない**（emcc と node が要る）ので、**PR の CI が初めて回した。**
+
 | **G-W1** | wasm(fp32) が `golden-v3-fp32.bin` と一致 | 重みの真ん中 64 KB を塗ると落ちる |
 | **G-W2** | wasm(int8 / W8A32) が `golden-v3-int8.bin` と一致 | 同上 |
 | **G-W2b** | **ブラウザが通るストリーミング経路**が一括版と bit 一致（`stream_test` を 3 レーン） | — |
@@ -200,12 +203,13 @@ Pages に置くのは **重み + 辞書 + Open JTalk + Emscripten ランタイ�
 
 | 対象 | 担当 | 何をする |
 |---|---|---|
-| 重み | `LICENSE-MODEL.md` | §3.1 の **22 行（:68-89）をそのまま**貼る。§3.2 の 4 禁止をページに出す |
+| 重み | `LICENSE-MODEL.md` | §3.1 の **(A) ブロックをそのまま**貼る。§3.2 の 4 禁止をページに出す。⚠️ **行番号で切らない**（`:68-89` と書いてあったが、§3.1 の上に 1 行入ると黙ってずれる）
 | Open JTalk | `csrc/openjtalk/COPYING` | 修正 BSD の binary-form 条項。ページか同梱 NOTICE で満たす |
 | 辞書 | ⚠️ **リポジトリに担当ファイルが無い** | NAIST / UniDic / 名工大の 3 権利者。リリースの `NOTICE-dictionary.txt` を同梱する |
 | Emscripten | MIT/NCSA | ⚠️ emcc は生成物に**ライセンスを 1 文字も書かない**（実測） |
 
-⚠️ **`NOTICE.md` 版の帰属ブロックを写さない** — §3.1 の 22 行と比べて **2 行足りない**。
+⚠️ ~~**`NOTICE.md` 版の帰属ブロックを写さない** — §3.1 と比べて 2 行足りない~~ →
+✅ **2026-09-09 に一致させた**（[C-073](../decisions.md#c-073)）。`LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html` の 3 か所とも **sha256 `e9f33fd641b1dda2…` で bit 一致**する。⚠️ **正典は今も `LICENSE-MODEL.md` §3.1** で、他はその写しである。
 見た目がほぼ同じで目視では気づけない。貼るのは `LICENSE-MODEL.md:68-89`。
 
 ⚠️ **§3.4(c) を踏みやすい。** 上流も WASM デモを配っているので、ページ本文に
