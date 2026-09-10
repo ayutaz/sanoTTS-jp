@@ -163,10 +163,22 @@ else
     ng "ホスト stub ビルド"; sed 's/^/      /' "$TMP/hw"
 fi
 mkdir -p reports/esp32_hoststub
+# ⚠️ **レーンごとに golden を選ぶ。** かつて int8 の出力を **fp32 の golden** と
+#    比べていた（C-079）。v3 では両レーンのフレーム数が偶然一致していたので通り、
+#    v4 で int8 が 1 フレーム（256 sample）多くなって初めて落ちた。
+#    **「通っていた」は「合っていた」ではない。**
 for blob in student.bin student_i8.bin; do
     [ -f "csrc/$blob" ] || continue
+    case "$blob" in
+        student_i8.bin) golden=csrc/golden_i8.bin ;;
+        *)              golden=csrc/golden.bin ;;
+    esac
+    if [ ! -f "$golden" ]; then
+        ng "csrc/$blob の golden $golden が無い（レーン違いの golden で代用しない）"
+        continue
+    fi
     out="reports/esp32_hoststub/${blob%.bin}.wav"
-    if "$TMP/hoststub" "csrc/$blob" csrc/golden.bin "$out" > "$TMP/hs" 2>&1; then
+    if "$TMP/hoststub" "csrc/$blob" "$golden" "$out" > "$TMP/hs" 2>&1; then
         ok "csrc/$blob: $(grep -c '  OK ' "$TMP/hs") チェック通過 → $out"
         grep -E '^\s+(OK|NG!|\[参考\]|blob の dtype)' "$TMP/hs" | sed 's/^/      /'
     else

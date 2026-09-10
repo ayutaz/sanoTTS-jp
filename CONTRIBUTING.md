@@ -44,13 +44,13 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-078 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-079 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
 ### 3. ゲートは「落ちる壊し方」を言えないと書かない
 
-**緑のまま欠陥が潜んでいた例が 21 件あります**（`.claude/skills/writing-gates/`）。
+**緑のまま欠陥が潜んでいた例が 22 件あります**（`.claude/skills/writing-gates/`）。
 新しいテストを足すなら:
 
 - **陽性対照**（必ず落ちるはずの入力）を一緒に入れる
@@ -167,10 +167,10 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-078 in
+2. **Never delete the correction log.** C-001–C-079 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
-3. **Do not write a gate you cannot break on purpose.** Twenty-one defects hid behind green tests
+3. **Do not write a gate you cannot break on purpose.** Twenty-two defects hid behind green tests
    (`.claude/skills/writing-gates/`). Include a positive control; if you match
    patterns against real files, print the match count — **zero matches is not a pass**.
    Also: **a speed claim is only valid if that exact code was measured on hardware** —
