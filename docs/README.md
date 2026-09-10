@@ -17,9 +17,15 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 **JSUT（唯一の継承付き素材）を外した v4 を学習して受け入れた** — 品質は SCOREQ も
 かな CER も**差を検出できず**、アクセントの差は **seed 対照で大部分が run 間ばらつきと分かった**
 （[M-114](measurements.md#m-114)）。
-⚠️ **配布されているのは今も v3。** 出荷物の再凍結（Task 8）はしていない。
-⚠️ **出力の用途制限とコピーレフトは残る**（つくよみちゃんコーパス由来）。
-**声を差し替えるまで D-054 のゴールには届かない。**
+⚠️ **配布されているのは今も v3**（GitHub Release に上げていない。blob / golden /
+firmware は [M-116](measurements.md#m-116) / [M-117](measurements.md#m-117) / [M-118](measurements.md#m-118) で作ってある）。
+
+**2026-09-10、声は つくよみちゃんのままにすると決めた**（[D-058](decisions.md#d-058)）。
+**したがって [D-054](decisions.md#d-054) のゴール（帰属表示のみ・出力制限なし）は改めた** —
+**L トラックの成果は「継承（share-alike）リスクの除去」に確定した。**
+⚠️ **出力の用途制限 4 項目とコピーレフトは残る。**
+⚠️ **本モデルを製品に組み込む側は、その 4 項目を自社の利用規約に書く義務がある**
+（[`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.2）。
 
 **2026-09-03、W トラック（ブラウザで動くデモ）を足した**（[D-050](decisions.md#d-050) / [M-94](measurements.md#m-94)）。
 `csrc/` の C99 コアと漢字経路を**書き換えずに** wasm にしたもので、
@@ -37,7 +43,7 @@ URL が開くのはマージ後。
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-057（⚠️ **D-049 は欠番** = RTF の分母用に予約。⚠️ **D-051〜D-053 は未マージの別ブランチが使用中** = [D-054](decisions.md#d-054) / [D-056](decisions.md#d-056) の表）と**訂正履歴 C-001〜C-076**（⚠️ **C-059〜C-070 も別ブランチ**） | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-058（⚠️ **D-049 は欠番** = RTF の分母用に予約。⚠️ **D-051〜D-053 は未マージの別ブランチが使用中** = [D-054](decisions.md#d-054) / [D-056](decisions.md#d-056) の表）と**訂正履歴 C-001〜C-076**（⚠️ **C-059〜C-070 も別ブランチ**） | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-118（⚠️ **M-97〜M-108 は未マージの別ブランチが使用中**）。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -47,7 +53,7 @@ URL が開くのはマージ後。
 | 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現・S1 前）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。⚠️ **§4 の仮説は半分が外れた**（C-054。§5 は「直し方」で、そちらは全部入った） | 固定 |
 | 4.9 | [`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) | 速度の計画。⚠️ **§10 に S-1（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5a）の前史**を畳んである（旧 `plan/s1-speed-implementation-plan.md` は削除）。T1（末尾 pull の早期終了）/ T2（S9）/ T3（S6）/ T4（arena）/ T5（GELU）/ 64 B 行 と、M5 への漢字搭載。**要件 RTF ≤ 0.5 を達成して完了**（M-88 → M-90）。残りは聴取 | 固定 |
 | 4.95 | [`plan/web-demo-plan.md`](plan/web-demo-plan.md) | **いちばん新しい計画**。**W トラック**（GitHub Pages のランタイムデモ）。W-0〜W-8 と受け入れゲート **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7**（8 本）。⚠️ **成果物は今も ESP32**（[D-050](decisions.md#d-050)）で、Web は入口。実測は [M-94](measurements.md#m-94)（node）/ [M-95](measurements.md#m-95)（Chrome）/ [M-96](measurements.md#m-96)（聴取）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | 固定 |
-| 4.99 | [`research/l1-commercial-use-licensing.md`](research/l1-commercial-use-licensing.md) | **L-1: 商用利用可能なモデルにするには何を差し替えればよいか**（[D-054](decisions.md#d-054)）。出力の用途制限は **fine-tune の 100 発話だけ**から来ている。つくよみちゃん / MOE-Speech の**規約原文**と、候補教師の実測（[M-109](measurements.md#m-109)）、声の候補 9 件の一次ソース確認。⚠️ **調査のみ・音は聴いていない** | 固定 |
+| 4.99 | [`research/l1-commercial-use-licensing.md`](research/l1-commercial-use-licensing.md) | **L-1: 商用利用可能なモデルにするには何を差し替えればよいか**（[D-054](decisions.md#d-054)）。出力の用途制限は **fine-tune の 100 発話だけ**から来ている。つくよみちゃん / MOE-Speech の**規約原文**と、候補教師の実測（[M-109](measurements.md#m-109)）、声の候補 9 件の一次ソース確認。⚠️ **§0.1 に「その後どうなったか」** — **提案 2 つのうち JSUT 除去だけ実行し、声の差し替えは [D-058](decisions.md#d-058) でやらないと決めた**ので、**§0 のゴールは達成されない** | 固定（§0.1 だけ追記） |
 | 4.995 | [`superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`](superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md) | **設計: 蒸留テキストを CC0 / PD のみにする**（JSUT 6,472 行を外す。[D-054](decisions.md#d-054) の声と独立な半分）。`source` allowlist / held-out は据え置き / **ゲート 2 本 + 統計レポート**。⚠️ **実装は未着手**。⚠️ 判断点あり（学習を今やるか声を待つか） | 実装まで |
 | 4.996 | [`superpowers/plans/2026-09-09-cc0-only-distillation-text.md`](superpowers/plans/2026-09-09-cc0-only-distillation-text.md) | **上の実装計画**（Task 1〜8）。⚠️ **未実行**。Task 5 と Task 7 が**判断点**で、そこで止まる。⚠️ Task 6 以降（ラベル再生成・学習・再凍結）は判断が「進む」のときだけ | 実装まで |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
@@ -216,7 +222,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ | 両方 | ✅ **v0.3.0** | `esp32/TESTING.md` |
 | 5 | エントリ数・接続行列（今は 438,750 / int16） | K | 判断 | D-044 を見直すか |
 | **8** | **v4 の出荷物を再凍結する** | **L** | 作業 | ✅ **blob / golden / ライセンス文 / firmware まで済んだ**（[M-116](measurements.md#m-116) / [M-117](measurements.md#m-117)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・QEMU で合成完走）。⚠️ **残り: GitHub Release。配布中は今も v3** |
-| **9** | **教師の声の差し替え** — ⚠️ **これをやるまで [D-054](decisions.md#d-054) のゴールには届かない** | **L** | 判断 + 調達 | 外部の声優への依頼が進行中・未確定 |
+| ~~9~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（[D-058](decisions.md#d-058)）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** | **L** | ✅ | — |
 | ~~10~~ | ~~アクセント指標の教師ゲートが生徒依存~~ → ✅ **直した**（[C-075](decisions.md#c-075) / [M-115](measurements.md#m-115)）。ゲートは教師だけのマスク、cos は共通マスクに分けた。3 run で分母が 37/38 にそろった | 両方 | ✅ | `scripts/test_accent_gate.py`（陽性対照つき・CI） |
 
 ✅ **「音の測定」は済んだ**（M-78）。実機は要らなかった — 端末の ids はホストの
@@ -426,7 +432,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-057（D-049 は欠番）+ 訂正履歴 C-001〜C-076
+│   ├── decisions.md                       決定記録 D-001〜D-058（D-049 は欠番）+ 訂正履歴 C-001〜C-076
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-118
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
