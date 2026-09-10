@@ -214,6 +214,11 @@ csrc/matrixa_test
 csrc/matrixc_test
 csrc/charr_test
 csrc/rec5_test
+
+# M-109 で配った実機用イメージのビルド（QIO。QEMU 版とは別）
+esp32/k2hw/
+esp32/k4hw/
+esp32/k8hw/
 csrc/jdict_vectors_r9.bin
 csrc/jdict_vectors_r5.bin
 csrc/jdict_vectors_cdeq.bin
