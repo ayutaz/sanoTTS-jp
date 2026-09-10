@@ -906,7 +906,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 ## 残っているタスク（2026-09-10 更新。**残り 8 件: 人が要る 3**（聴取 1 / 実機 1 / 帰属の差し替え 1）**／ 判断 3 ／ 作業 2**（出荷物の凍結 / CI のタグ））
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
-K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-059 として凍結（⚠️ **D-049 は「予約」の節** = RTF の分母が未決。⚠️ **2026-09-10 に main へマージ済み** — 8 MB ブランチと Dependabot 対応が入り、番号衝突を C-078 で解消した）。
+K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-060 として凍結（⚠️ **D-049 は「予約」の節** = RTF の分母が未決。⚠️ **2026-09-10 に main へマージ済み** — 8 MB ブランチと Dependabot 対応が入り、番号衝突を C-078 で解消した）。
 現在地は [`docs/README.md`](docs/README.md)。
 
 ⚠️ **L トラック（商用利用）が加わった**（[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md)）。
