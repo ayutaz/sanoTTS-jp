@@ -8274,3 +8274,97 @@ v4 の値は **`reports/v4/`** に分離した:
 | **実機での確認** | ❌ 焼いていない |
 | **音** | ❌ **1 秒も聴いていない** |
 | **blob の git 追跡** | ❌ `csrc/*.bin` は `.gitignore` 済み（⚠️ **いま手元にあるのは v4 の blob**） |
+
+---
+
+<a id="m-117"></a>
+## M-117. **v4 の firmware をビルドし、QEMU で起動から合成まで通した**（⚠️ **実機ではない / 音は聴いていない**）
+
+[M-116](#m-116) で書き出した v4 の blob を載せた firmware を作り、動くことを確かめた。
+
+### 1. 実機向けビルド（既定 = QIO + W8A8/PIE）
+
+```bash
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
+. ~/esp/esp-idf/export.sh
+cd esp32 && idf.py set-target esp32s3 && idf.py build
+```
+
+| | 値 |
+|---|---:|
+| ESP-IDF | v5.5 |
+| app サイズ | **0x47200 B（290,304）** / パーティション 0x200000 の **14%** |
+| bootloader | 0x5800 B（31% 空き） |
+| 焼く blob | `../csrc/student_i8.bin` @ 0x210000 |
+| その blob の SHA-256 | **`a1eb6b0812e2ad2a…`** = [M-116](#m-116) の v4 |
+
+⚠️ **「ビルドが通った」は「v4 が載っている」ことを意味しない。**
+`flash_args` が指す blob の SHA-256 を確認して初めて言える。
+
+### 2. ⚠️ 既定ビルドは QEMU でブートループする（既知）
+
+QEMU に食わせたら**再起動を繰り返した**:
+
+```
+E (108) qio_mode: Failed to set QIE bit, not enabling QIO mode
+assert failed: 0x42001cc6 <cached disabled>:118
+rst:0xc (RTC_SW_CPU_RST),boot:0x4 (SPI_FLASH_BOOT)   ← 以後ループ
+```
+
+⚠️ **これは `esp32/sdkconfig.qemu` のコメントに逐語で書かれている既知の症状**である
+（「QEMU の flash モデルは QIO を受け付けない…spi_flash の初期化で assert →
+ブートループ（pie_probe の T6 で実際に踏んだ）」）。
+**実機向けの既定が QIO なのは正しい**（[D-048](decisions.md#d-048)）。QEMU で見るときは
+`-DSAAN_QEMU=1` を付けて DIO に戻す。
+
+### 3. QEMU 構成でのビルドと起動
+
+```bash
+cd esp32 && idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults" \
+    -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 build
+cd build_qemu && esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB \
+    -o /tmp/flash_q.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/flash_q.bin,if=mtd,format=raw
+```
+
+出力:
+
+```
+I (102) saanotts: arena 180224 B を .bss に静的確保 (0x3fc9d7b0) / G2P の ids 4108 B
+I (108) saanotts: W8A8 + PIE 有効 / int8 blob を確認
+I (144) saanotts: init 13.64 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (145) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (248) saanotts: プリロール 4 チャンク完了（初回 pull 66.50 ms / 鳴らし始めまで 102 ms）
+I (353) saanotts: 合成合計 192.18 ms … 音声 1.231 s → 合成/音声 0.156
+I (361) saanotts: int16 クリップ 0 sample
+I (361) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
+かな>
+```
+
+### 4. **v4 が載っていることの証拠 = checksum が v3 と違う**
+
+| | v3 | **v4** |
+|---|---|---|
+| PCM checksum（W8A8+PIE） | `0xa69a7ebbb5ccb05f` | **`0x390bf4b2aef8f2ec`** |
+| sample 数 | 27,136 | **27,136**（同じ） |
+| arena used / 確保 | 157,360 / 180,224 B | **156,688 / 180,224 B** |
+| int16 クリップ | — | **0 sample** |
+| 再起動 | — | **1 回**（ブートループなし） |
+
+⚠️ **同じ blob を焼いていたら checksum は一致していたはず**なので、
+**これが「v4 の重みが実際に動いた」ことの証拠**である。
+⚠️ **arena が 672 B 減った**（157,360 → 156,688）。重みの中身が違うので
+duration の出力フレーム数が変わり、一時領域が変わったため。
+
+### 5. ⚠️ この記録が言えないこと
+
+| | |
+|---|---|
+| **実機で動く** | ❌ **QEMU である。** 焼いていない。⚠️ QEMU のサイクルは実機の速度を予測しない（[C-055](decisions.md#c-055)） |
+| **速度** | ❌ **QEMU の 0.156 は使えない数字**（[M-83](#m-83) と同じ理由）。実機の xRT は測っていない |
+| **音** | ❌ **1 秒も聴いていない。** checksum が合っても出音は別（[M-90](#m-90) §5） |
+| **漢字構成** | ❌ ビルドしていない（辞書 13.7 MB と 16 MB flash が要る） |
+| **M5 構成** | ❌ ビルドしていない |
+| **リリース** | ❌ **GitHub Release に上げていない。配布中は今も v3** |
