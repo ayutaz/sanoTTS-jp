@@ -9,7 +9,7 @@ description: Use when about to write any number, size, rate, or capability claim
 
 **このプロジェクトの数値はすべて実測である。** 推測は数値として書かない。
 
-訂正は 80 件（`docs/decisions.md` C-001〜C-080）。**ほぼ全部が同じ形**:
+訂正は 81 件（`docs/decisions.md` C-001〜C-081）。**ほぼ全部が同じ形**:
 **1 コマンド打てば分かることを、打たずに推論した。**
 
 残りは 3 つの別の形をしている。これも同じくらい踏む:
