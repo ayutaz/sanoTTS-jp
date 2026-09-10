@@ -44,7 +44,7 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-070 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-071 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
@@ -91,6 +91,8 @@ uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（105 ケ�
 uv run python scripts/test_sanitize_reports.py      # レポートに本文が混じっていないか
 uv run python scripts/test_blob_to_header.py        # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
 uv run python scripts/test_rec5.py                  # rec5（5 B レコード）の往復と畳み込み（辞書は要らない）
+uv run python scripts/check_lock_vs_pyproject.py    # pyproject の制約を uv.lock が満たしているか
+uv run python scripts/check_lock_vs_pyproject.py --self-test   #   ↑ の陽性対照 6 / 陰性対照 2
 make -C csrc line && make -C csrc fft && make -C csrc erf   # C コアの軽いゲート（erf = GELU の近似）
 make -C csrc range                                  # 出力範囲つきカーネル（S9）が全域版と bit 一致
 ```
@@ -165,7 +167,7 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-070 in
+2. **Never delete the correction log.** C-001–C-071 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
 3. **Do not write a gate you cannot break on purpose.** Twenty-one defects hid behind green tests
@@ -187,6 +189,7 @@ uv run python scripts/check_release_assets.py       # assets named in the docs e
 uv run python .claude/hooks/test_guard_bash.py      # hook regression (105 cases)
 uv run python scripts/test_sanitize_reports.py      # no corpus text in reports
 uv run python scripts/test_blob_to_header.py        # blob → .rodata header (positive control: fp32 rejected)
+uv run python scripts/check_lock_vs_pyproject.py    # uv.lock satisfies the constraints in pyproject.toml
 make -C csrc line && make -C csrc fft && make -C csrc erf   # cheap C-core gates (erf = GELU approximation)
 make -C csrc range                                  # range-limited kernels (S9) match the full-range ones bit for bit
 ```

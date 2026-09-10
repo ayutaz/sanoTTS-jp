@@ -53,6 +53,15 @@ jobs:
       - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 
+      # ⚠️ **この job を含む 4 job は `--no-project`、`python` job は `uv pip install` の即席 venv、
+      #    `golden` は python 無し** = uv.lock も pyproject.toml も**どこでも解決されない**（C-071）。
+      #    せめて宣言と固定版が食い違っていないかは見る。
+      #    ⚠️ **制約を緩めただけの変更は捕まらない**（緩めても固定版は制約を満たす）。
+      - name: pyproject の制約を uv.lock の固定版が満たしているか（陽性対照 6 / 陰性対照 2）
+        run: |
+          uv run --no-project --python 3.12 python scripts/check_lock_vs_pyproject.py
+          uv run --no-project --python 3.12 python scripts/check_lock_vs_pyproject.py --self-test
+
   # ------------------------------------------------- 参照実装との一致（重みを落とす）
   # リリース **v0.3.0** の fp32 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）と
   # **int8 資産**（`saanotts-jp-v3-int8.bin` 654,032 B + `golden-v3-int8.bin` 0.8 MB）で
