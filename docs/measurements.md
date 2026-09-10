@@ -8368,3 +8368,129 @@ duration の出力フレーム数が変わり、一時領域が変わったた�
 | **漢字構成** | ❌ ビルドしていない（辞書 13.7 MB と 16 MB flash が要る） |
 | **M5 構成** | ❌ ビルドしていない |
 | **リリース** | ❌ **GitHub Release に上げていない。配布中は今も v3** |
+
+---
+
+<a id="m-118"></a>
+## M-118. **v4 で 3 構成すべてビルドした** — 漢字構成は QEMU で辞書 mmap まで通った（⚠️ **実機ではない / 音は聴いていない**）
+
+[M-117](#m-117) の 8 MB かな構成に続き、**漢字構成**と **M5 CoreS3 構成**もビルドした。
+
+### 1. 3 構成の app サイズ
+
+| 構成 | app | 備考 |
+|---|---:|---|
+| `esp32/build`（かな・8 MB） | **291,328 B** | [M-117](#m-117) |
+| `esp32/build_kanji`（漢字・16 MB） | **366,352 B** | 辞書パーティションつき |
+| `esp32/boards/m5unified/build_m5k`（M5 CoreS3・16 MB） | **1,436,960 B** | M5Unified / M5GFX / IPA フォント込み |
+
+### 2. 漢字構成（16 MB）
+
+```bash
+cd esp32 && idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 build
+```
+
+`flash_args`（**v4 の blob と辞書の両方が入っている**）:
+
+```
+--flash_mode dio --flash_freq 80m --flash_size 16MB
+0x0      bootloader/bootloader.bin
+0x8000   partition_table/partition-table.bin
+0x10000  saanotts_jp.bin
+0x210000 ../../csrc/student_i8.bin     ← v4（sha256 a1eb6b0812e2ad2a…）
+0x2d0000 ../../csrc/k1_dict.bin        ← 13,702,320 B（D-044 の凍結値）
+```
+
+QEMU（16 MB イメージ）での出力:
+
+```
+I (699) saan_dict: esp_partition_mmap OK: vaddr 0x3c110000 (ESP_OK)
+I (699) saan_dict: 辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377
+I (708) saanotts: 漢字経路の作業領域 144640 B（最低限）/ Viterbi に渡る 84736 B （arena 180224 B のうち）
+I (708) saanotts: 辞書 mmap 後: 内部 DRAM free 102428 B / 最大ブロック 90112 B
+I (759) saanotts: init 20.64 ms / 53 ids / 106 frames / 27136 sample
+I (760) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (1109) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
+```
+
+**エントリ数 438,750 / 行列 1377x1377 は [D-044](decisions.md#d-044) の凍結値と一致。**
+**PCM checksum は かな構成（[M-117](#m-117)）と同一** = 漢字構成でも同じ重みが動いている。
+
+| | v3（M-90） | **v4** |
+|---|---:|---:|
+| 辞書 mmap 後の内部 DRAM free | 132,039 B | **102,428 B** |
+| 最大ブロック | 86,016 B | **90,112 B** |
+
+⚠️ **free が 29,611 B 少ない**。M-90 は M5 構成での測定で、**こちらは DevKit 構成**なので
+**同じ条件の比較ではない**（M5 は blob を `.rodata` に置くのでパーティションを mmap しない）。
+
+### 3. M5 CoreS3 構成
+
+```bash
+cd esp32/boards/m5unified && idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=<abs>/csrc/k1_dict.bin build
+```
+
+⚠️ **`flash_args` に `student_i8.bin` が無い。** M5 版は blob を **`.rodata` に埋め込む**ので、
+パーティションを焼かない。**「ビルドが通った」だけでは v4 が入っている証拠にならない。**
+ビルドログが出す SHA-256 で確認した:
+
+```
+saan_model_blob.h: 654,032 B / dtype int8 / sha256 a1eb6b0812e2ad2a…
+-- sanoTTS: 重みは **.rodata 埋め込み**。model パーティションは焼かない
+```
+
+**`a1eb6b0812e2ad2a…` は [M-116](#m-116) の v4 と一致。**
+
+### 4. ⚠️ 初回起動で 1 度だけ panic した（再現しない）
+
+漢字構成の**最初の QEMU 起動で core 1 が落ちた**:
+
+```
+Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+A2: 0x00000000   EXCVADDR: 0x00000000   EXCCAUSE: 0x0000001c
+```
+
+その回は `app_main` が banner を出して 132 ms で return しており、**辞書も合成もしていない**。
+
+**3 回追試したが再現しなかった**（panic 0 回 / 起動 1 回 / checksum 同一 ×3）。
+かな構成でも 0 回。
+
+⚠️ **再現しないことは「無害」ではない。** null 参照（`EXCVADDR: 0x0`）が
+**起動直後の core 1** で起きており、**原因を特定していない。**
+QEMU 固有の競合の可能性はあるが**確かめていない。**
+
+### 5. ⚠️ 副産物: 訂正済みの古い数値がソースに残っていた
+
+**ファームウェアが [C-058](decisions.md#c-058) で訂正済みの数値を印字していた:**
+
+```
+I (1126) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 15.44% の文で読みが変わる**
+```
+
+C-058 は docs 3 箇所を直したが **`esp32/main/main.c:756` を見落としていた**（→ 14.77% に修正）。
+**同じ形が他にないか**訂正値 9 種でソース全体（追跡分 / `reports/*.json` 除く）を検索し、
+**さらに 2 件**見つけた:
+
+| 場所 | 古い値 | 実際 |
+|---|---|---|
+| `esp32/main/main.c:756` | 15.44% | **14.77%**（C-058） |
+| `esp32/main/saan_kanji.h:8` | 17.79% | **370,863 entries のときの値**。出荷構成では 14.77% |
+| `scripts/esp32_memory_budget.py:16` | 951 B | **877 B**（C-042） |
+| `scripts/a1_path_unification.py:6` | 951 B | 同上（⚠️ A-1 当時の記述なので注記で残した） |
+
+⚠️ `scripts/d6_ema_ablation.py`（12.53 dB）と `scripts/release_metrics.py`（0.6613）の
+言及は**訂正を説明するための意図的なもの**なので変えていない。
+
+### 6. ⚠️ この記録が言えないこと
+
+| | |
+|---|---|
+| **実機で動く** | ❌ **QEMU である。焼いていない。** M5 構成は**QEMU でも動かしていない**（QIO のため） |
+| **速度** | ❌ QEMU の値は使えない（[C-055](decisions.md#c-055)） |
+| **音** | ❌ **1 秒も聴いていない** |
+| **漢字の読み** | ❌ **QEMU に漢字文を打ち込んでいない**（`SAAN_BOOT_SPEAK=1` のかな 1 行だけ）。辞書が mmap できたことと、読めることは別 |
+| **panic の原因** | ❌ 特定していない（§4） |
