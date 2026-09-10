@@ -1,5 +1,16 @@
 # ダウンロード
 
+> ⚠️ **v4（JSUT を外した重み）は資産 27 本まで用意できているが、まだリリースしていない。**
+> ここに名前を書くと [`../scripts/check_release_assets.py`](../scripts/check_release_assets.py) が
+> **実在を CI で検査して落ちる**ので、**タグを打つときに追加する。**
+> 中身と実測は [`release-notes/v0.4.0.md`](release-notes/v0.4.0.md) と
+> [M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。
+>
+> ⚠️ **下の v0.3.x の `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
+> `saanotts-jp-v3-samples.zip` は帰属が足りていない**（[C-081](decisions.md#c-081)）。
+> 差し替え用の資産は用意済みで、**アップロードは未実行**。
+
+
 *[← README](../README.md)*
 
 ⚠️ **ここに名前を書いた資産は「実在すること」を CI が検査する**

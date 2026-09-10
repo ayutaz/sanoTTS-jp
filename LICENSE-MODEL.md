@@ -129,7 +129,11 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
 Apache License, Version 2.0 §4(a) が求める**ライセンス全文の同梱**そのものではありません。
 AISHELL-3 由来の素材を含む本モデルを再配布する場合は、(A) に加えて
 **Apache-2.0 の全文を別途配布物に同梱してください**（例: `NOTICE` と同じ場所に
-`LICENSE-APACHE-2.0.txt` を置く）。§6 の表にある「§4: ライセンス全文の同梱と通知の保持」は
+`LICENSE-APACHE-2.0.txt` を置く）。
+✅ **その全文はこのリポジトリの [`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt) に在る**
+（原典 `https://www.apache.org/licenses/LICENSE-2.0.txt` / sha256 `cfc7749b96f63bd3…` /
+202 行 11,358 B）。⚠️ **v0.3.0 / v0.3.1 の資産には入っていない**（[`docs/decisions.md`](docs/decisions.md) C-081）。
+§6 の表にある「§4: ライセンス全文の同梱と通知の保持」は
 この追加の一手間を指しており、(A) を写すだけでは discharge されません。
 
 #### (B) 任意 — 出所の記録（**帰属義務はありません**）

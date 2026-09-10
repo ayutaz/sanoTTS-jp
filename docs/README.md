@@ -88,6 +88,7 @@ G2P の前に形態素数で縛る。低水位 2,760 → 40,468 B）。
 **JSUT（唯一の継承付き素材）を外した v4 を学習して受け入れた** — 品質は SCOREQ も
 かな CER も**差を検出できず**、アクセントの差は **seed 対照で大部分が run 間ばらつきと分かった**
 （[M-117](measurements.md#m-117)）。
+✅ **v4 は実機（M5 CoreS3）で漢字を喋った**（[M-124](measurements.md#m-124)。xRT **0.448** / アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**）。⚠️ **音は誰も 1 秒も聴いていない。**
 ⚠️ **配布されているのは今も v3**（GitHub Release に上げていない。blob / golden /
 firmware は [M-119](measurements.md#m-119) / [M-120](measurements.md#m-120) / [M-121](measurements.md#m-121) で作ってある）。
 
@@ -297,7 +298,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ | かな | ✅ **v0.3.0** | `scripts/check_release_assets.py` |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ | 両方 | ✅ **v0.3.0** | `esp32/TESTING.md` |
 | ~~5~~ | ~~エントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | K | ✅ | — |
-| **12** | **v4 の出荷物を再凍結する** | **L** | 作業 | ✅ **blob / golden / ライセンス文 / firmware まで済んだ**（[M-119](measurements.md#m-119) / [M-120](measurements.md#m-120)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・QEMU で合成完走）。⚠️ **残り: GitHub Release。配布中は今も v3** |
+| **12** | **v4 の出荷物を再凍結する** | **L** | 作業 | ✅ **資産 27 本すべて揃い、実機でも喋った**（[M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・firmware 10 本は全部 v4 が入っていることを抽出照合・M5 CoreS3 で xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
 | ~~13~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（[D-058](decisions.md#d-058)）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** | **L** | ✅ | — |
 | ~~14~~ | ~~アクセント指標の教師ゲートが生徒依存~~ → ✅ **直した**（[C-076](decisions.md#c-076) / [M-118](measurements.md#m-118)）。ゲートは教師だけのマスク、cos は共通マスクに分けた。3 run で分母が 37/38 にそろった | 両方 | ✅ | `scripts/test_accent_gate.py`（陽性対照つき・CI） |
 

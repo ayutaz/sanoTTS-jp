@@ -1,5 +1,18 @@
 # Downloads
 
+> ⚠️ **v4 (weights distilled without JSUT) is fully staged — 27 assets — but not released yet.**
+> Naming the files here would make
+> [`../scripts/check_release_assets.py`](../scripts/check_release_assets.py) require them
+> and fail CI, so **they get added when the tag is cut.** See
+> [`release-notes/v0.4.0.md`](release-notes/v0.4.0.md) and
+> [M-119](measurements.md#m-119)–[M-124](measurements.md#m-124).
+>
+> ⚠️ **The v0.3.x `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
+> `saanotts-jp-v3-samples.zip` below under-attribute three materials**
+> (LibriTTS-R, CML-TTS, AISHELL-3 — see [C-081](decisions.md#c-081)).
+> Corrected assets are staged; **the upload has not been performed.**
+
+
 *[← README](../README.en.md)*
 
 ⚠️ **Every asset named here is checked for existence by CI** (`scripts/check_release_assets.py` — the guard added after C-052). Dead links cannot be left alone.

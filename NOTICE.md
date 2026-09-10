@@ -133,6 +133,8 @@ MIT を名乗ると、下記の伝播する義務を外して配れることに�
 
 ## ⚠️ 生徒モデルを配布するときに必ず同梱する帰属表示
 
+⚠️ **AISHELL-3 (Apache-2.0) の全文は [`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt) に置いてある**（同ライセンス §4(a) が全文の同梱を求めるため。C-081）。**再配布するときは一緒に運ぶこと。**
+
 **正典は [`LICENSE-MODEL.md`](LICENSE-MODEL.md) §3.1。** 下記はその写しである
 （食い違ったら `LICENSE-MODEL.md` が正）。
 

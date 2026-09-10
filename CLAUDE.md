@@ -581,7 +581,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
 | テスト | `uv run python scripts/test_rec5.py` | `rec5` の**往復と畳み込み**（合成エントリだけなので**辞書が要らない = CI で回る**）。⚠️ **合成データが畳み込みを踏んでいるか**も検査する（周期が互いに素でないと cid と 1:1 になり、**往復が通っても畳み込みを 1 度も試していない**。M-108） |
 | テスト | `make -C csrc charr` | **`charr`（文字カテゴリの run 表）**が `char` と**全 65,535 符号位置**で一致するか（M-106 §10）。262,496 → 832 B で**完全に無損失**。⚠️ 陽性対照は**いちばん長い run** を選ぶ（短い run だと数件しか動かず弱い） |
-| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13） |
+| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で **6 job**（docs / golden / csrc / python / release-assets / **web**）。⚠️ **かつて「4 job」と書いてあったが、数えたら違った**（job は増える）。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
@@ -923,7 +923,7 @@ blob / golden / firmware（かな・漢字・M5 の 3 構成）も作った（M-
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ → ✅ **v0.3.0 で既に v2 だった**（誤りだった。C-057） | — | — |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ → ✅ **v0.3.0 で配っている**（`esp32s3-firmware-kanji-16mb-usbjtag.bin` / `esp32s3-firmware-w8a8-pie-usbjtag.bin` の実在をリリースで確認）。⚠️ **v0.2.0 以前のイメージは UART0 のまま**なので、CoreS3 / AtomS3 では入れ替えが要る（M-83） | — | — |
 | ~~5~~ | ~~K トラックのエントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](docs/decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | — | — |
-| **12** | **L トラック: 出荷物の再凍結** | 作業 | ✅ **blob / golden / ライセンス文 / firmware まで済んだ**（M-119 / M-120）。⚠️ **残り: GitHub Release。配布中は今も v3** |
+| **12** | **L トラック: 出荷物の再凍結** | 作業 | ✅ **資産 27 本すべて揃い、実機でも喋った**（M-119〜M-124。firmware 10 本は全部 v4 が入っていることを抽出照合 / M5 CoreS3 で xRT 0.448・アンダーラン 0・漢字==かな bit 一致）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
 | ~~13~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（D-058）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** — L トラックの成果は**継承リスクの除去**に確定 | ✅ | — |
 | ~~6~~ | ~~GitHub Pages の有効化~~ → ✅ **2026-09-04 に有効化された**（`build_type: workflow`。⚠️ **手作業だった** — `configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ **`pages.yml` は `main` への push でしか走らない**ので、URL が開くのはマージ後 | — | — |
 | ~~7~~ | ~~ブラウザでの実測と聴取~~ → ✅ **測った**（**M-95** Chrome 152）**+ 聴いてもらった**（**M-96** 両レーンとも「問題なかった」/ 途切れ無し）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | — | — |
