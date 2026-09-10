@@ -130,7 +130,9 @@ ROM ローダが読めずブートループになります。M-86 で実際に�
 （M5Stack CoreS3 / AtomS3 など native USB だけの板）では、**ログは USB に出るのに `かな>` に打った文が
 届きません**（2026-09-02 に CoreS3 で実測。起動と重み・辞書の mmap までは通る。M-83）。その板では
 「M. M5Stack で試す」か、`sdkconfig.usb_serial_jtag` を重ねてソースからビルドしてください。
-次のリリースでは USB Serial/JTAG 入力のイメージも配ります。
+✅ **v0.3.0 以降は `-usbjtag` のイメージを配っています** — native USB だけの板は
+そちらを焼けば `かな>` に打てます（上の配布イメージの表を見てください）。
+⚠️ **v0.2.0 以前のイメージは UART0 のまま**なので入れ替えが要ります。
 
 ⚠️ **I2S の GPIO は BCLK=5 / WS=6 / DOUT=7 の仮置き**です。
 **DAC を鳴らしたいならソースから作り直してください**（B へ）。
@@ -150,10 +152,15 @@ ROM ローダが読めずブートループになります。M-86 で実際に�
 
 **リポジトリをクローンしただけでは重みは入っていません**（git 管理外）。
 
-⚠️ **リリースの `saanotts-jp-v3-int8.bin`（643,936 B）は形式 v1 で、S4（2026-09-02）以降の
-ソースでは起動時に `SAAN_ERR_VERSION` で止まります。** v2 の資産は次のリリースで上げます。
-それまでは [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
-**`saanotts-jp-v3-stage4.pt`** から自分で書き出してください（要 numpy + torch。
+✅ **リリースの `saanotts-jp-v3-int8.bin` は形式 v2 です**（654,032 B。v0.3.0 以降。
+先頭 4 バイトが `SAAN` であることと SHA-256 を実測で確認）。**そのまま焼けます。**
+⚠️ **かつてここに「643,936 B の形式 v1 なので `SAAN_ERR_VERSION` で止まる」と
+書いてあったが誤りだった**（[`../docs/decisions.md`](../docs/decisions.md) C-057 で
+訂正済みだったのに、この節だけ古いまま残っていた）。
+⚠️ **v0.2.0 以前の資産は本当に v1** なので、古い blob を掴んでいる場合は入れ替えてください。
+
+自分で書き出したい場合は [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
+**`saanotts-jp-v3-stage4.pt`** から書き出せます（要 numpy + torch。
 piper-plus のクローンは要りません = [`../README.md`](../README.md) の「最小セットアップ」）:
 
 ```bash
@@ -591,7 +598,7 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 |---|---|
 | `重み blob が無い` でビルドが止まる | `-DSAAN_MODEL_BLOB` に**絶対パス**を渡す |
 | `fp32 blob が焼かれている` で起動が止まる | int8 blob を指しているか確認（`-i8` の付いた方） |
-| `SAAN_ERR_VERSION` で起動が止まる | **blob が形式 v1** です。リリースの `saanotts-jp-v3-int8.bin`（643,936 B）は v1 で、S4（2026-09-02）以降のコアは受け付けません。`scripts/export_c_weights.py --int8` で v2（654,032 B）を作ってください |
+| `SAAN_ERR_VERSION` で起動が止まる | **掴んでいる blob が形式 v1** です。⚠️ **v0.3.0 以降のリリース資産は v2（654,032 B）なので、取り直せば直ります**（v0.2.0 以前は v1 = 643,936 B）。手で作るなら `scripts/export_c_weights.py --int8` |
 | `辞書 OK` が出ない / `esp_partition_mmap` が `ESP_ERR_NO_MEM` | `CONFIG_SPI_FLASH_ROM_IMPL=y` の板では ROM 実装が 8 MB しか貼れません。`saan_dict.c` は自動で `esp_mmu_map` に切り替えます（M-90）。それでも出ないなら 16 MB 版の表を焼けていません |
 | 漢字を打っても「辞書を持たない」と言われる | `-DSAAN_KANJI=1` を付けてビルドしていません（既定は無効） |
 | `G2P の出力が demo_ids.h の錨と一致しない` | ⚠️ **意図的に止めています**。テーブルか実装がずれている状態なので報告してください |

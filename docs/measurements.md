@@ -6218,6 +6218,7 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash 
 
 ⚠️ **「焼くだけ」の配布物は DevKit（UART ブリッジ付き）専用だった。** 手順書に書いた（`esp32/TESTING.md` A）。
 次のリリースでは USB Serial/JTAG 入力のイメージも配る。
+→ ✅ **v0.3.0 で配った**（2026-09-03。この段落は当時の記録）。
 
 ### 2. v0.2.0 の**コード**（タグ `v0.2.0` の worktree、v1 blob、コンソールだけ USB-JTAG）
 

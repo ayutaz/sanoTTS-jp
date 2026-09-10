@@ -906,7 +906,7 @@ K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計�
 
 ⚠️ **L トラック（商用利用）が加わった**（[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md)）。
 **JSUT を外した v4 を学習して受け入れた**（D-057 / M-115〜M-117）。
-blob / golden / firmware（かな・漢字・M5 の 3 構成）も作った（M-119〜M-121）。
+blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字を喋らせた**（M-119〜M-124。xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **音は誰も 1 秒も聴いていない。**
 ⚠️ **GitHub Release に上げていないので、配布されているのは今も v3。**
 
 **2026-09-10、声は つくよみちゃんのままにすると決めた**（**D-058**）。
