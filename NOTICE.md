@@ -57,7 +57,10 @@ MIT ライセンス（[`LICENSE`](LICENSE)）が適用されるのは**このリ
 
 > The majority of our sentence text in `/server/data` comes directly from user
 > submissions ... or they are scraped from Wikipedia ... and are released under a
-> **CC0 public domain Creative Commons license**.
+> CC0 public domain Creative Commons license.
+
+⚠️ **引用に強調は入れていない**（原文に無いものを足すと、上流がそこを強調したように
+読める。[`docs/decisions.md`](docs/decisions.md) C-084）。
 
 README が挙げる唯一の例外は `europarl-VERSION-LANG.txt`（Europarl Corpus 由来）だが、
 **`server/data/ja/` に europarl ファイルは存在しない**（実測。ファイルは
