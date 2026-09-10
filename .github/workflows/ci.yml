@@ -192,7 +192,7 @@ jobs:
       - name: ラベルパックの往復とゲート発火
         run: .venv-ci/bin/python scripts/test_labelpack.py
 
-      - name: アクセントの教師ゲートが生徒に依存しないか（C-075・陽性対照つき）
+      - name: アクセントの教師ゲートが生徒に依存しないか（C-076・陽性対照つき）
         run: .venv-ci/bin/python scripts/test_accent_gate.py
 
   # ----------------------------------------------------------- リリースの資産

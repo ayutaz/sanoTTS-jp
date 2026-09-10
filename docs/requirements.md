@@ -353,7 +353,7 @@ S_ja = {s, sh, ts, ch, z, j, h, hy, f, I, U}
 
 ⚠️ **2026-09-10 に CC0/PD だけの構成が加わった**（[decisions.md](decisions.md#d-057) D-057）。
 JSUT ver1.1（CC-BY-SA-4.0 = 唯一の継承付き）を外した **v4** は **14,513 行**で、
-論文の 14,343 行を上回る。実測は [measurements.md](measurements.md#m-112) M-112。
+論文の 14,343 行を上回る。実測は [measurements.md](measurements.md#m-115) M-115。
 
 | 構成 | train 行数 | 継承リスク |
 |---|---:|---|
@@ -396,7 +396,7 @@ piper-plus は `[tool.uv.sources]` の path 依存 (editable) で参照し、**�
 マシン: Apple M4 Max / 16 core / 64 GB / 空き 222 GB。
 
 ⚠️ **上の学習の行は当初のレシピで、成果物 v3 のスケジュールではない**
-（[measurements.md](measurements.md#m-111) M-111 で判明。ckpt の `args` から復元した）:
+（[measurements.md](measurements.md#m-114) M-114 で判明。ckpt の `args` から復元した）:
 
 | Stage | steps | v3 の実測 |
 |---|---:|---:|

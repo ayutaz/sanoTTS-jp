@@ -41,7 +41,7 @@ ALLOWED: dict[str, str] = {
     # ROHAN4600 — 一次ソースに「ライセンスはパブリックドメインです．」+ CC0 バッジ
     "rohan4600": "CC0-1.0",
     # ITA — 一次ソース（mmorise/ita-corpus README）は「パブリックドメインです．」。
-    # ⚠️ **CC0 の付与ではない**（C-072）。二次情報の「CC BY-SA 4.0」は誤り
+    # ⚠️ **CC0 の付与ではない**（C-073）。二次情報の「CC BY-SA 4.0」は誤り
     "ita/recitation324": "PD",
     "ita/emotion100": "PD",
     # 自作（疑問 EOS の 4 種）

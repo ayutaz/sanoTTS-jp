@@ -261,7 +261,7 @@ def build_pairs(recs) -> list[dict]:
         st_s = [A.semitone(it["f0_student"]) for it in items]
         # 群内の全メンバーで教師・生徒とも F0 が取れたモーラだけを使う
         mask = np.all([np.isfinite(t) & np.isfinite(s) for t, s in zip(st_t, st_s)], axis=0)
-        # ⚠️ **教師ゲート専用のマスク**（C-075）。生徒を含めると
+        # ⚠️ **教師ゲート専用のマスク**（C-076）。生徒を含めると
         #    「どのペアを評価するか」が生徒依存になり、モデル間で分母がそろわない。
         #    実測では教師 Δ が 38 ペア中 14 ペアで動き、最大 2.097 st ずれた
         #    （ゲート閾値は 1.5 st なので、これだけで通過/落選が入れ替わる）。
@@ -281,7 +281,7 @@ def build_pairs(recs) -> list[dict]:
                       "differing_boundaries": diff_b,
                       "accent_morae_in_mask": bool(all(mask[i] for i in need)),
                       # ⚠️ **`gate_teacher_st` で判定する**（`norm_teacher_st` ではない）。
-                      #    前者は教師だけで決まるので、モデルを変えても同じペアが通る（C-075）
+                      #    前者は教師だけで決まるので、モデルを変えても同じペアが通る（C-076）
                       "teacher_gate": c["gate_teacher_st"] >= A.TEACHER_GATE_ST})
             pairs.append(c)
     return pairs
@@ -407,7 +407,7 @@ def main() -> int:
     pairs = build_pairs(recs)
     usable = [p for p in pairs if p["teacher_gate"]]
     failed_gate = [{"group": p["group"], "carrier_id": p["carrier_id"], "pair": p["pair"],
-                    # ⚠️ ゲートの判定に使った値（生徒に依存しない。C-075）
+                    # ⚠️ ゲートの判定に使った値（生徒に依存しない。C-076）
                     "gate_teacher_st": round(p["gate_teacher_st"], 3),
                     # 参考: 共通マスクでの値。**生徒によって動く**
                     "norm_teacher_st": round(p["norm_teacher_st"], 3)}
@@ -483,7 +483,7 @@ def main() -> int:
                 round(max(p["norm_student_st"] / p["norm_teacher_st"] for p in usable), 3)],
         },
         # ⚠️ 層別も `gate_teacher_st` で切る（`norm_teacher_st` だと**層の中身が
-        #    生徒によって変わる**ので、モデル間で「|Δ_T| ≥ 3.0 の層」が別物になる。C-075）
+        #    生徒によって変わる**ので、モデル間で「|Δ_T| ≥ 3.0 の層」が別物になる。C-076）
         "gate_sensitivity": [
             {"gate_st": g, "n": len([p for p in pairs if p["gate_teacher_st"] >= g]),
              "n_correct": int(sum(p["cos"] > 0 for p in pairs

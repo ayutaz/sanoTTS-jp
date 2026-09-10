@@ -22,7 +22,7 @@
 - **ゲートには必ず陽性対照を付ける**（skill `writing-gates`）。⚠️ 陽性対照が落ちることを確認するまで、そのゲートは空虚として扱う
 - **`uv run` は worktree で `uv.lock` を書き換える。** コミット前に `git checkout -- uv.lock`（`CLAUDE.md` の「開発環境のルール」）
 - **`make -C csrc fft` は `csrc/fft_bench.json` を書き換える。** 同様に戻す
-- **採番**: この計画で新しく振るのは **D-056 / M-110** 以降。⚠️ 未マージの他ブランチが D-053 / C-070 / M-108 まで使っているので、**書く直前に `git show origin/<branch>:docs/decisions.md` で最大値を再確認する**（[D-054](../../decisions.md#d-054) の表）
+- **採番**: この計画で新しく振るのは **D-056 / M-113** 以降。⚠️ 未マージの他ブランチが D-053 / C-070 / M-108 まで使っているので、**書く直前に `git show origin/<branch>:docs/decisions.md` で最大値を再確認する**（[D-054](../../decisions.md#d-054) の表）
 
 ## File Structure
 
@@ -294,7 +294,7 @@ ALLOWED: dict[str, str] = {
     # ROHAN4600 — 一次ソースに「ライセンスはパブリックドメインです．」+ CC0 バッジ
     "rohan4600": "CC0-1.0",
     # ITA — 一次ソース（mmorise/ita-corpus README）は「パブリックドメインです．」。
-    # ⚠️ **CC0 の付与ではない**（C-072）。二次情報の「CC BY-SA 4.0」は誤り
+    # ⚠️ **CC0 の付与ではない**（C-073）。二次情報の「CC BY-SA 4.0」は誤り
     "ita/recitation324": "PD",
     "ita/emotion100": "PD",
     # 自作（疑問 EOS の 4 種）
@@ -908,7 +908,7 @@ grep -o '^## M-[0-9]*' /tmp/b.md | tail -1
 grep -o '^## M-[0-9]*' docs/measurements.md | tail -1
 ```
 ⚠️ **3 つの最大値より大きい番号を使う。** 2026-09-09 時点では
-他が M-108 / M-105、こちらが M-109 なので **M-110**。
+他が M-108 / M-105、こちらが M-112 なので **M-113**。
 
 - [ ] **Step 2: 実測を記録する**
 
@@ -934,7 +934,7 @@ Run:
 ```bash
 uv run --no-project --python 3.12 python scripts/check_doc_counters.py
 ```
-Expected: `実体: M-110（98 件）/ …` と 4 つの OK。
+Expected: `実体: M-113（98 件）/ …` と 4 つの OK。
 ⚠️ 落ちたら `docs/README.md`（2 箇所）と `CONTRIBUTING.md`（2 箇所）と
 `.claude/skills/recording-measurements/SKILL.md`（1 箇所）の宣言値を直す。
 
@@ -1162,4 +1162,4 @@ git commit -m "docs: 蒸留テキストが CC0/PD のみになったので継承
 | **教師の再学習** | piper-plus 側の作業。本リポジトリの範囲外（読み取り専用 = D-003） |
 | `data/splits/corpus_*.tsv` の再生成 | split 生成スクリプトがリポジトリに無い（spec §4.2） |
 | 多様性軸の補充 | **先に測る**（spec §7）。Task 5 / Task 7 の判断点で決める |
-| [C-071](../../decisions.md#c-071) / [C-072](../../decisions.md#c-072) のライセンス文訂正 | **既に済んでいる**（コミット `87e5f87`） |
+| [C-072](../../decisions.md#c-072) / [C-073](../../decisions.md#c-073) のライセンス文訂正 | **既に済んでいる**（コミット `87e5f87`） |

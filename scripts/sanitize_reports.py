@@ -121,7 +121,7 @@ def main() -> int:
     #    第三者コーパス（train / heldout / sibdense）は管理外。新規 clone では
     #    **183 件しか照合できず、第三者本文の漏れを 1 件も検出できない**まま
     #    exit 0 になる。**それを「検査した」と読ませない。**
-    #    （2026-09-09 に実測して踏んだ。C-074）
+    #    （2026-09-09 に実測して踏んだ。C-075）
     third_party = [sp for sp in ("train", "heldout", "sibdense")
                    if pathlib.Path(f"data/splits/corpus_{sp}.tsv").exists()]
     if not third_party:

@@ -270,7 +270,7 @@ uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（94 ケー�
 uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート**の自己テスト**（16 ケース）
 uv run python scripts/sanitize_reports.py          # ⚠️ **本文検出の本体**（追跡物にコーパス本文が
                                                    #   残っていないか）。**CI では回らない**（第三者
-                                                   #   コーパスが要る）ので**手元で回す**。C-074
+                                                   #   コーパスが要る）ので**手元で回す**。C-075
 uv run python scripts/test_corpus_license.py       # 蒸留テキストのライセンス判定（G-L1a。陽性対照つき）
 uv run python scripts/check_corpus_license.py --self-test   # G-L1b / G-L2（陽性対照 4 件）
 uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **引用アンカー**
@@ -565,7 +565,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない**。⚠️ **同一ファイル内の `#anchor` も見ない**（C-057 の壊れたリンクはこれで見逃されていた）。⚠️ **リンク先が git 管理外**でも、手元にファイルが在れば通る（新規 clone の CI でだけ落ちる） |
 | テスト | `scripts/test_corpus_license.py` | **蒸留テキストのライセンス判定**（G-L1a。D-054）。許可 7 / 拒否 9 / **未知 5**。⚠️ **完全一致で判定する**（`cv/` の前方一致だと europarl 由来が自動で通る = C-029）。⚠️ **表しか見ない** — 判定が実際に呼ばれたかは G-L1b が見る |
 | テスト | `scripts/check_corpus_license.py` | **G-L1b**（出荷パックに許可外 source が 0 件）/ **G-L2**（held-out が 1 行も変わっていない）/ 統計レポート。**陽性対照 4 件**は `--self-test`。⚠️ **CI では回らない**（パックとコーパス本文が要る） |
-| テスト | `scripts/sanitize_reports.py` | ⚠️ **本文検出の本体。** 追跡物にコーパス本文が残っていないか。**CI では回らない**ので手元で回す。⚠️ **第三者コーパスが無いと exit 2 で「回せなかった」と出る**（「0 箇所」で緑にしない）。C-074 で実際に 56 箇所を見逃していた |
+| テスト | `scripts/sanitize_reports.py` | ⚠️ **本文検出の本体。** 追跡物にコーパス本文が残っていないか。**CI では回らない**ので手元で回す。⚠️ **第三者コーパスが無いと exit 2 で「回せなかった」と出る**（「0 箇所」で緑にしない）。C-075 で実際に 56 箇所を見逃していた |
 | テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークが要る**。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
@@ -632,7 +632,7 @@ uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する
 | ラベル生成 train 20,894 文 | **CPU** | 116 ms/文 → **約 40 分** / 4.5 GB |
 | 学習 4 段（各 20k step） | **MPS** | 58 / 81 / 58 / 39 ms/step → 約 1.3 時間 |
 
-⚠️ **上の学習の行は当初のレシピで、成果物 v3 のスケジュールではない**（M-111 で判明）。
+⚠️ **上の学習の行は当初のレシピで、成果物 v3 のスケジュールではない**（M-114 で判明）。
 **v3 は段ごとに step 数が違う**（ckpt の `args` から復元した。どこにも書かれていなかった）:
 
 | Stage | steps | 実測 | ms/step |
@@ -645,7 +645,7 @@ uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する
 
 ⚠️ **`--all` では再現できない**（`--all` は全段を同じ `--steps` で回す）。
 **`--stage N --steps M` を 4 回**呼ぶこと。
-⚠️ **v3 の stage1/stage2 は v2 からのコピー**（SHA-256 で bit 一致を確認。M-111 §2）。
+⚠️ **v3 の stage1/stage2 は v2 からのコピー**（SHA-256 で bit 一致を確認。M-114 §2）。
 蒸留テキストを変えたら**流用してはいけない**。
 
 ```bash
@@ -893,8 +893,8 @@ K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計�
 現在地は [`docs/README.md`](docs/README.md)。
 
 ⚠️ **L トラック（商用利用）が加わった**（[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md)）。
-**JSUT を外した v4 を学習して受け入れた**（D-057 / M-112〜M-114）。
-blob / golden / firmware（かな・漢字・M5 の 3 構成）も作った（M-116〜M-118）。
+**JSUT を外した v4 を学習して受け入れた**（D-057 / M-115〜M-117）。
+blob / golden / firmware（かな・漢字・M5 の 3 構成）も作った（M-119〜M-121）。
 ⚠️ **GitHub Release に上げていないので、配布されているのは今も v3。**
 
 **2026-09-10、声は つくよみちゃんのままにすると決めた**（**D-058**）。
@@ -911,7 +911,7 @@ blob / golden / firmware（かな・漢字・M5 の 3 構成）も作った（M-
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ → ✅ **v0.3.0 で既に v2 だった**（誤りだった。C-057） | — | — |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ → ✅ **v0.3.0 で配っている**（`esp32s3-firmware-kanji-16mb-usbjtag.bin` / `esp32s3-firmware-w8a8-pie-usbjtag.bin` の実在をリリースで確認）。⚠️ **v0.2.0 以前のイメージは UART0 のまま**なので、CoreS3 / AtomS3 では入れ替えが要る（M-83） | — | — |
 | 5 | K トラックのエントリ数・接続行列（今は 438,750 / int16） | 判断 | D-044 を見直すか |
-| **8** | **L トラック: 出荷物の再凍結** | 作業 | ✅ **blob / golden / ライセンス文 / firmware まで済んだ**（M-116 / M-117）。⚠️ **残り: GitHub Release。配布中は今も v3** |
+| **8** | **L トラック: 出荷物の再凍結** | 作業 | ✅ **blob / golden / ライセンス文 / firmware まで済んだ**（M-119 / M-120）。⚠️ **残り: GitHub Release。配布中は今も v3** |
 | ~~9~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（D-058）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** — L トラックの成果は**継承リスクの除去**に確定 | ✅ | — |
 | ~~6~~ | ~~GitHub Pages の有効化~~ → ✅ **2026-09-04 に有効化された**（`build_type: workflow`。⚠️ **手作業だった** — `configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ **`pages.yml` は `main` への push でしか走らない**ので、URL が開くのはマージ後 | — | — |
 | ~~7~~ | ~~ブラウザでの実測と聴取~~ → ✅ **測った**（**M-95** Chrome 152）**+ 聴いてもらった**（**M-96** 両レーンとも「問題なかった」/ 途切れ無し）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | — | — |

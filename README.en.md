@@ -389,12 +389,12 @@ whose terms
 so they cannot be called MIT. Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) and
 [`MODEL_CARD.md`](MODEL_CARD.md) before using them.
 
-⚠️ **The mandatory attribution was corrected on 2026-09-09** ([`docs/decisions.md`](docs/decisions.md) C-072).
+⚠️ **The mandatory attribution was corrected on 2026-09-09** ([`docs/decisions.md`](docs/decisions.md) C-073).
 **LibriTTS-R and CML-TTS (CC BY 4.0) and AISHELL-3 (Apache-2.0)** — all in the teacher's
 multilingual base — **were missing** and have been added; materials that require no
 attribution (MOE-Speech, CC0, public domain) moved to the **optional block (B)**.
 **If you redistribute, copy block (A) in full.**
-⚠️ **"No adult use" was also wrong** (C-071). What is prohibited is
+⚠️ **"No adult use" was also wrong** (C-072). What is prohibited is
 **publishing intense content without zoning** — the corpus provider places no limit on
 adult or violent expression when appropriate zoning is in place.
 

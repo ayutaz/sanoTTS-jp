@@ -69,7 +69,7 @@ MIT は「無制限に (without restriction)」の利用を認めます。しか
 **それ以外の行は 1 つも省かないでください。**
 
 ⚠️ **2026-09-09 に (A) と (B) に分けた。** それまでは全体を 1 ブロックにして
-「1 行でも欠けると違反」と書いていたが、**3 件が誤っていた**（[`docs/decisions.md`](docs/decisions.md) C-072）:
+「1 行でも欠けると違反」と書いていたが、**3 件が誤っていた**（[`docs/decisions.md`](docs/decisions.md) C-073）:
 
 - **帰属を要求する 3 素材が抜けていた** — LibriTTS-R / CML-TTS（CC-BY-4.0）と AISHELL-3（Apache-2.0）
 - **帰属を要求しない素材が「必須」に入っていた** — MOE-Speech はライセンス本文で
@@ -162,7 +162,7 @@ CC0 は帰属を放棄していますが、**出所が追えなくなると (A) 
 
 つくよみちゃんコーパスの条件により、**本モデルが生成した音声**は次に使えません。
 
-**一次ソースの原文をそのまま引く**（要約すると条件節が落ちる。[`docs/decisions.md`](docs/decisions.md) C-071）:
+**一次ソースの原文をそのまま引く**（要約すると条件節が落ちる。[`docs/decisions.md`](docs/decisions.md) C-072）:
 
 > 【禁止事項】
 > ■人を批判・攻撃すること。（「批判・攻撃」の定義は、つくよみちゃんキャラクターライセンスに準じます）
@@ -293,7 +293,7 @@ comm -12 /tmp/a /tmp/b | wc -l` → 92）
 §2(a)(5)(ii) の「追加の条件を課してはならない」は "**the Licensed Material**"（元の素材）
 だけを対象としており、翻案物への条件は §3(a)(4)（受取人が CC-BY を遵守できることを
 妨げない）だけが制約する。**したがって §3.1 (A) の帰属と §3.2 の用途制限は両立する**
-（⚠️ 一度「衝突する」と記録したが誤りだった。[`docs/decisions.md`](docs/decisions.md) C-073）。
+（⚠️ 一度「衝突する」と記録したが誤りだった。[`docs/decisions.md`](docs/decisions.md) C-074）。
 
 詳細と一次ソースは [`NOTICE.md`](NOTICE.md) と
 [`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md) にあります。

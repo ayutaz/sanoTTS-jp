@@ -2,7 +2,7 @@
 
 - 調査日: 2026-09-04
 - 状態: **調査は完了。⚠️ 結論の一部は実装で覆された**（下記 §0.1）
-- 関連: [D-054](../decisions.md#d-054) / [C-071](../decisions.md#c-071) / [M-109](../measurements.md#m-109)
+- 関連: [D-054](../decisions.md#d-054) / [C-072](../decisions.md#c-072) / [M-112](../measurements.md#m-112)
   / [D-035](../decisions.md#d-035)（初期リリースは現行素材のまま）/ [D-039](../decisions.md#d-039)（重みは MIT ではない）
   / **[D-057](../decisions.md#d-057)**（v4 を受け入れた）/ **[D-058](../decisions.md#d-058)**（声は替えない）
 
@@ -13,7 +13,7 @@
 
 | 提案 | 結果 |
 |---|---|
-| **(b) 蒸留テキストから JSUT を外す** | ✅ **実行した。** v4 を学習して受け入れ（[D-057](../decisions.md#d-057) / [M-112](../measurements.md#m-112)〜[M-118](../measurements.md#m-118)）。品質は SCOREQ も かな CER も**差を検出できず** |
+| **(b) 蒸留テキストから JSUT を外す** | ✅ **実行した。** v4 を学習して受け入れ（[D-057](../decisions.md#d-057) / [M-115](../measurements.md#m-115)〜[M-121](../measurements.md#m-121)）。品質は SCOREQ も かな CER も**差を検出できず** |
 | **(a) 教師の声を差し替える** | ❌ **やらないと決めた**（[D-058](../decisions.md#d-058)）。**つくよみちゃんの条件を受け入れて配布する** |
 
 **したがって §0 の「現実的なゴール = 帰属表示のみ・出力制限なし」は達成されない。**
@@ -30,7 +30,7 @@
 **現行モデルに残っている「出力の用途制限」は、教師の fine-tune に使われた
 つくよみちゃんコーパスの 100 発話だけから来ている。**
 6 言語 base の素材（LibriTTS-R / AISHELL-3 / CML-TTS / MOE-Speech）は
-**帰属表示しか要求しない**（⚠️ **要求はする** — [C-072](../decisions.md#c-072) /
+**帰属表示しか要求しない**（⚠️ **要求はする** — [C-073](../decisions.md#c-073) /
 [D-055](../decisions.md#d-055) で必須帰属ブロックに入れた）。
 したがって差し替えるべきは base ではなく fine-tune である。
 
@@ -40,7 +40,7 @@
 | 現実的なゴール | ✅ **「帰属表示のみ・出力制限なし・継承なし」= Apache-2.0 相当**（[D-054](../decisions.md#d-054)） |
 | そのために要ること | (a) fine-tune の声を差し替える（100 発話）/ (b) 蒸留テキストから JSUT 6,472 行を外す |
 | ⚠️ つくよみちゃんのままでゴールに届くか | ❌ **届かない**。出力の 4 禁止事項は**必ず利用規約として課す義務**があり、再配布者にコピーレフトする |
-| 候補教師 `moe-speech-top-5speakers` | ❌ **推奨しない**（[M-109](../measurements.md#m-109)。音素表が別系統 + 実在の声優の声） |
+| 候補教師 `moe-speech-top-5speakers` | ❌ **推奨しない**（[M-112](../measurements.md#m-112)。音素表が別系統 + 実在の声優の声） |
 
 ---
 
@@ -148,7 +148,7 @@ curl -sL -A "Mozilla/5.0" https://tyc.rei-yumesaki.net/material/corpus/ -o /tmp/
 本リポジトリが JSUT (CC-BY-SA-4.0) のテキストについて採っている立場（[D-035](../decisions.md#d-035)）と同じ形である。
 **先例として使えるが、法的な保証ではない。**
 
-### 2.7 ⚠️ リポジトリの記述との食い違い → [C-071](../decisions.md#c-071)
+### 2.7 ⚠️ リポジトリの記述との食い違い → [C-072](../decisions.md#c-072)
 
 [`../../LICENSE-MODEL.md`](../../LICENSE-MODEL.md) §3.2 の表は一次ソースより**厳しい**:
 
@@ -220,14 +220,14 @@ curl -sL https://huggingface.co/spaces/litagin/moe-speech-license/raw/main/index
 
 ✅ **その後、逆方向の欠落も見つかった** — **帰属を要求する 3 素材
 （LibriTTS-R / CML-TTS の CC-BY-4.0、AISHELL-3 の Apache-2.0）が抜けていた**。
-[C-072](../decisions.md#c-072) で訂正し、[D-055](../decisions.md#d-055) で
+[C-073](../decisions.md#c-073) で訂正し、[D-055](../decisions.md#d-055) で
 **(A) 必須 / (B) 任意**に分けた。
 
 ---
 
 ## 4. 候補教師の実測
 
-数値と再現コマンドは [M-109](../measurements.md#m-109) にある。要点だけ:
+数値と再現コマンドは [M-112](../measurements.md#m-112) にある。要点だけ:
 
 `ayousanz/piper-plus-moe-speech-top-5speakers` は
 `inter_channels=192` / `hop_length=256` / `sample_rate=22050` が現行教師と一致するので
@@ -315,6 +315,6 @@ JSUT の置き換えは独立して進められる。[`../../NOTICE.md`](../../N
 1. **声をどうするか** — 外部の声優への依頼（進行中・未確定）/ Common Voice の CC0 音声を検証する / 当面は つくよみちゃんのまま
 2. **JSUT を外すか** — 声と独立に進められる。外せば継承リスクが消える
 3. **[`../../LICENSE-MODEL.md`](../../LICENSE-MODEL.md) §3.2 を一次ソースに合わせて直すか**
-   （§2.7 / [C-071](../decisions.md#c-071)）。⚠️ **制限を緩める方向の変更**なので、
+   （§2.7 / [C-072](../decisions.md#c-072)）。⚠️ **制限を緩める方向の変更**なので、
    配布済みの v0.1.0〜v0.3.0 の表示とも食い違うことになる
 4. **§2.5 の事前連絡**を行うか

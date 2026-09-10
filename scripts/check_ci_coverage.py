@@ -92,7 +92,7 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     #    追跡されている `corpus_embedded.tsv`（自作 184 行）だけが照合対象になるので、
     #    **183 件しか見ずに「0 箇所」で緑になる**（= 漏れの 99.2% を見逃す）。
     #    2026-09-09 にその状態で `reports/k1_measure_out.json` の本文 56 箇所が
-    #    見逃されていたことが判明した（C-074）。今は照合対象が自作だけなら
+    #    見逃されていたことが判明した（C-075）。今は照合対象が自作だけなら
     #    **exit 2 で「回せなかった」と言う**ので、CI に足せば必ず落ちる。
     "scripts/sanitize_reports.py": "第三者コーパス本文（data/splits/corpus_{train,heldout,sibdense}.tsv。git 管理外）。⚠️ **無い環境では exit 2 で「回せなかった」と出る**ので CI では緑にできない。自己テストは scripts/test_sanitize_reports.py が CI で回している",
     "scripts/test_k1_dict.py": "pyopenjtalk（3 件が辞書の実体を要る）",
@@ -113,7 +113,7 @@ SCRIPT_GLOBS = ("scripts/test_*.py", "scripts/check_*.py", "scripts/check_*.sh",
                 #    「CI に無い」ことすら誰も気づかない。** 実際に
                 #    `sanitize_reports.py`（本文検出の**本体**）が漏れており、
                 #    CI は自己テスト `test_sanitize_reports.py` だけ回して
-                #    **本体を一度もリポジトリに向けていなかった**（C-074）。
+                #    **本体を一度もリポジトリに向けていなかった**（C-075）。
                 "scripts/sanitize_reports.py")
 
 FAILED: list[str] = []

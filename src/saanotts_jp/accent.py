@@ -180,7 +180,7 @@ def contrast(a_t, a_s, b_t, b_s, mask, teacher_mask=None) -> dict:
 
     中心化してから差を取るので、**話者の平均ピッチや全体の高さは落ちる**。
 
-    ⚠️ **`teacher_mask` は教師だけで作ったマスク**（C-075）。
+    ⚠️ **`teacher_mask` は教師だけで作ったマスク**（C-076）。
     教師ゲートに使う `gate_teacher_st` をこちらで計算することで、
     **「どのペアを評価するか」が生徒に依存しなくなる**。
 
@@ -204,7 +204,7 @@ def contrast(a_t, a_s, b_t, b_s, mask, teacher_mask=None) -> dict:
         gate_t, gate_n = float(np.linalg.norm(g)), int(teacher_mask.sum())
 
     return {"n_morae": int(mask.sum()), "norm_teacher_st": n_t, "norm_student_st": n_s,
-            # ⚠️ **ゲート専用**。生徒に依存しないので、モデル間で分母がそろう（C-075）
+            # ⚠️ **ゲート専用**。生徒に依存しないので、モデル間で分母がそろう（C-076）
             "gate_teacher_st": gate_t, "gate_n_morae": gate_n,
             "cos": float(d_t @ d_s / (n_t * n_s + 1e-12)),
             "delta_teacher": d_t.tolist(), "delta_student": d_s.tolist()}

@@ -5,7 +5,7 @@
 - ブランチ: `feat/commercial-use-model`
 - 上位の決定: [D-054](../../decisions.md#d-054)（ゴール = 帰属表示のみ・出力制限なし・継承なし）
 - 調査: [L-1](../../research/l1-commercial-use-licensing.md)
-- ⚠️ **実装は完了した**（Task 1〜8。[D-057](../../decisions.md#d-057) / [M-112](../../measurements.md#m-112)〜[M-118](../../measurements.md#m-118)）。**以下は設計時点の記述**
+- ⚠️ **実装は完了した**（Task 1〜8。[D-057](../../decisions.md#d-057) / [M-115](../../measurements.md#m-115)〜[M-121](../../measurements.md#m-121)）。**以下は設計時点の記述**
 - ⚠️ **「声の差し替え待ち」と書いてある箇所は古い** — [D-058](../../decisions.md#d-058) で
   **差し替えないと決めた**ので、出力の用途制限とコピーレフトは**恒久的に残る**
 
@@ -77,7 +77,7 @@ curl -sL https://raw.githubusercontent.com/mmorise/ita-corpus/main/README.md
 
 - **教師の声の差し替え**（つくよみちゃん → 別の声）。声の調達は未確定
 - **教師の再学習**。piper-plus 側の作業で、本リポジトリの範囲外
-- [C-071](../../decisions.md#c-071) の `LICENSE-MODEL.md` / `NOTICE.md` 訂正。**独立に進める**
+- [C-072](../../decisions.md#c-072) の `LICENSE-MODEL.md` / `NOTICE.md` 訂正。**独立に進める**
 - `data/splits/corpus_*.tsv` の再生成。split 生成スクリプトはリポジトリに無い（§4.2）
 
 ## 4. アーキテクチャ
