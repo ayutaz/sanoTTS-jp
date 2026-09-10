@@ -9704,3 +9704,69 @@ app 1,438,576 B の M5 構成では factory 区画に**入らない**）。
 - **どの長さの文を打ったか不明**（PSRAM 無しの余裕は入力長で決まる。M-98）
 - **8M が入らなかった理由が未確認**（§3）
 - **ESP32 無印（Core2）は測っていない**
+
+---
+
+<a id="m-110"></a>
+## M-110. ✅ **この PR のコードで出荷構成（16 MB）の PCM が 1 bit も変わっていない** — **マージ判断の根拠**（自己実測）
+
+[M-105](#m-105) 〜 [M-109](#m-109) の変更は **`csrc/jdict.c` / `esp32/main/` を触っている**
+（新セクション 3 つ・排他検査・`charr` のバグ修正・起動ログの 3 値化）。
+⚠️ **出荷している 16 MB 構成が巻き添えで壊れていないか**を確かめないとマージできない。
+
+### 1. 再現
+
+```bash
+# HEAD = 138937d（v0.3.1-rc1-smallflash-2-g138937）
+cd esp32 && idf.py -B build_ship16 -DSDKCONFIG=build_ship16/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict.bin build
+cd build_ship16 && esptool.py --chip esp32s3 merge_bin --fill-flash-size 16MB \
+    -o /tmp/ship16.bin @flash_args      # 16,777,216 B
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/ship16.bin,if=mtd,format=raw
+# → `かな>` に `今日は良い天気ですね。`
+```
+
+辞書は**出荷のもの**（`csrc/k1_dict.bin` / 13,702,320 B / sha256 `f162c922074d7681…`）。
+
+### 2. 出力
+
+```
+辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377（生 int16）
+         / blob 13702320 B（パーティション 13828096 B。余り 125776 B）
+経路: 辞書
+出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+        |max| 9627 / Σx² 74264237672
+```
+
+| | この PR | 基準（[M-90](#m-90) / CLAUDE.md） | |
+|---|---|---|---|
+| **PCM checksum** | `0xa69a7ebbb5ccb05f` | `0xa69a7ebbb5ccb05f` | ✅ **一致** |
+| \|max\| | 9627 | 9627 | ✅ 一致 |
+| Σx² | 74264237672 | — | — |
+| 見出し語 / entries | 355,768 / 438,750 | 同 | ✅ 一致 |
+| 行列の形式 | **生 int16** | 同 | ✅ 一致 |
+
+⚠️ **アンダーラン 3 / 14 は QEMU の遅さ**（実機は M-90 で **0**）。QEMU の時間は使えない（M-83）。
+
+### 3. 後方互換
+
+**配布済み v0.3.0 の blob は新しい排他検査を素通りする**（`records` + `matrix` + `char` =
+`has9=1 / has5=0` なので `has9 == has5` に当たらない）。⚠️ **version も 2 のまま上げていない。**
+
+### 4. なぜこれがマージの根拠になるか
+
+| | |
+|---|---|
+| **出荷構成が bit 一致** | 既存ユーザーへの影響が**ゼロ** |
+| **新機能はすべて任意** | `--rec5` / `--matrix cluster:K` / `--char-range` は**既定オフ**（`k1_build_dict.py` の `--matrix` の既定は `int16`） |
+| **未確認のものは配布物に含まれない** | ATOMS3R / Core2 / Stamp-C5 の「ビルドのみ」（[M-109](#m-109)）は**ドキュメントの表の中にあるだけ**で、誰の動作も変えない |
+
+### 5. ⚠️ 何を測っていないか
+
+- **実機で確かめていない**（QEMU のみ）。⚠️ ただし**checksum が一致する**ので、
+  実機で違う値が出るとしたら**この PR とは無関係の要因**（M-86 の QIO / DIO など）
+- **`rec5` は焼いていない**（既定オフなので誰も踏まないが、**使うなら実機の確認が要る**）
+- **速度を測っていない**（QEMU の時間は使えない。C-055）
+- **M5Unified 版（`boards/m5unified/`）でこの確認をしていない** — DevKit 構成だけ
