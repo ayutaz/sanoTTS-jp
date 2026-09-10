@@ -8494,3 +8494,100 @@ C-058 は docs 3 箇所を直したが **`esp32/main/main.c:756` を見落とし
 | **音** | ❌ **1 秒も聴いていない** |
 | **漢字の読み** | ❌ **QEMU に漢字文を打ち込んでいない**（`SAAN_BOOT_SPEAK=1` のかな 1 行だけ）。辞書が mmap できたことと、読めることは別 |
 | **panic の原因** | ❌ 特定していない（§4） |
+
+---
+
+## M-119. **出荷用の firmware を作り直した** — `build_kanji` は QEMU 用で**出荷できなかった**（⚠️ **実機ではない / 音は聴いていない**）
+
+[M-118](#m-118) で「3 構成すべてビルドした」と記録したが、**リリース資産を組む段で
+漢字構成がそのまま配れないことが分かった。**
+
+### 1. ⚠️ 何が出荷できなかったか
+
+`esp32/build_kanji` は **QEMU 検証用**にビルドしてあった:
+
+```bash
+grep -hE '^CONFIG_ESPTOOLPY_FLASHMODE_(QIO|DIO)=y' esp32/build_kanji/sdkconfig
+grep -hE '^SAAN_(QEMU|BOOT_SPEAK)' esp32/build_kanji/CMakeCache.txt
+```
+
+```
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+SAAN_BOOT_SPEAK:UNINITIALIZED=1
+SAAN_QEMU:UNINITIALIZED=1
+```
+
+| | `build_kanji`（M-118） | 出荷に必要 |
+|---|---|---|
+| フラッシュモード | **DIO**（`-DSAAN_QEMU=1` が戻す） | **QIO**（[D-048](decisions.md#d-048) の既定） |
+| 起動時発話 | **する**（`-DSAAN_BOOT_SPEAK=1`） | **しない**（`かな> ` を出す。[D-040](decisions.md#d-040)） |
+| コンソール | UART0（`sdkconfig.usb_serial_jtag` を重ねていない） | **native USB**（[M-83](#m-83) の板で操作できない） |
+
+⚠️ **「ビルドが通った」と「配れる」は別だった。** M-118 は QEMU で通すためのビルドで、
+**3 点とも出荷構成と違っていた**。DIO で配れば実機で遅くなり、起動時発話は
+[D-040](decisions.md#d-040)（勝手に喋らない）に反し、UART0 では CoreS3 / AtomS3 で操作できない。
+
+### 2. 出荷用に作り直した
+
+```bash
+cd esp32
+idf.py -B build_ship_kanji -DSDKCONFIG=build_ship_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji;sdkconfig.usb_serial_jtag" \
+    -DSAAN_KANJI=1 build
+idf.py -B build_ship_kana -DSDKCONFIG=build_ship_kana/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.usb_serial_jtag" build
+```
+
+⚠️ **`-DSDKCONFIG` を新しいパスにするのが要る。** `SDKCONFIG_DEFAULTS` は
+`sdkconfig` を**新規に作るときだけ**効くので、既存の build ディレクトリに重ねても
+**ビルドは成功するのに設定は変わらない**（`esp32/TESTING.md` に実測として書いてある罠）。
+
+| 構成 | app | flash | FLASHMODE | コンソール | `SAAN_QEMU` / `SAAN_BOOT_SPEAK` |
+|---|---:|---:|---|---|---|
+| `build_ship_kanji` | **353,408 B** | 16 MB | **QIO** | **USB Serial/JTAG** | **未設定** |
+| `build_ship_kana` | **277,952 B** | 8 MB | **QIO** | **USB Serial/JTAG** | **未設定** |
+| `boards/m5unified/build_m5k` | 1,436,960 B | 16 MB | **QIO** | native USB | `BOOT_SPEAK=1`（**M5 の既定。意図どおり**） |
+
+⚠️ **M5 の起動時発話は板の CMakeLists が既定で 1 にしている**
+（`esp32/boards/m5unified/CMakeLists.txt:58`）。スタックチャン用の意図的な既定で、
+v0.3.0 も同じ。DevKit 側の既定は 0（`esp32/main/main.c:88`）。
+
+### 3. 焼くだけのイメージに結合し、**v4 が入っていることを抽出して照合した**
+
+```bash
+esptool.py --chip esp32s3 merge_bin --fill-flash-size 16MB -o <out>.bin @flash_args
+```
+
+| ファイル | サイズ | SHA-256 |
+|---|---:|---|
+| `m5-cores3-firmware-kanji-16mb.bin` | 16,777,216 B | `73bb6dc89894d236…` |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | 16,777,216 B | `15efe00c979ea1d3…` |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | 8,388,608 B | `30ff7bb3a6be3cdd…` |
+
+**⚠️ 「ビルドが通った」を v4 の証拠にしない**（[M-118](#m-118) §3 と同じ理由）。
+イメージから**実際に抜き出して**突き合わせた:
+
+```bash
+dd if=esp32s3-firmware-kanji-16mb-usbjtag.bin bs=1 skip=$((0x210000)) count=654032 | shasum -a 256
+dd if=esp32s3-firmware-kanji-16mb-usbjtag.bin bs=1 skip=$((0x2d0000)) count=13702320 | shasum -a 256
+```
+
+| イメージ | 見た場所 | 出た値 | 期待値 |
+|---|---|---|---|
+| 漢字 16 MB | `0x210000` / 654,032 B | `a1eb6b0812e2ad2a…` | **v4 int8 blob と一致** |
+| かな 8 MB | `0x210000` / 654,032 B | `a1eb6b0812e2ad2a…` | **一致** |
+| 漢字 16 MB | `0x2d0000` / 13,702,320 B | `f162c922074d7681…` | **凍結辞書と一致**（[D-044](decisions.md#d-044)） |
+| M5 16 MB | `0x2d0000` / 13,702,320 B | `f162c922074d7681…` | **一致** |
+| M5 16 MB | `.rodata`（パーティションを焼かない） | **654,032 B が連続で bit 一致**（`0x23c40`） | **一致** |
+
+M5 の照合は `img.find(v4_blob)` で行った（部分スライスではなく**全長 654,032 B の一致**）。
+
+### 4. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **実機** | ❌ **焼いていない。** ユーザーの CoreS3 が要る |
+| **QEMU** | ❌ **この 3 イメージは QEMU で動かない**（QIO のため）。QEMU で通したのは同じソース・同じ blob の **DIO ビルド**（[M-117](#m-117) / [M-118](#m-118)）で、違いはフラッシュモードと起動時発話とコンソールの 3 点 |
+| **音** | ❌ **1 秒も聴いていない** |
+| **速度** | ❌ 測っていない（実機でしか測れない。[C-055](decisions.md#c-055)） |
+| **QIO で本当に速いか** | ❌ **v4 では測っていない**。QIO が速いのは [M-84](#m-84) の v3 の実測 |
