@@ -173,6 +173,7 @@ make -C csrc g2p PYTHON="uv run --no-project python"    # オンデバイス G2P
 make -C csrc erf                                        # GELU の erf 近似 vs libm（陽性対照つき）
 make -C csrc range                                      # 出力範囲つきカーネルが全域版と bit 一致
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata（fp32 拒否の陽性対照）
+uv run --no-project python scripts/test_corpus_license.py   # 蒸留テキストのライセンス判定（陽性対照つき）
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
 ```
@@ -364,5 +365,13 @@ uv sync
 
 ため、MIT を名乗ることができない。使う前に
 [`LICENSE-MODEL.md`](LICENSE-MODEL.md) と [`MODEL_CARD.md`](MODEL_CARD.md) を読むこと。
+
+⚠️ **2026-09-09 に必須の帰属表示を直した**（[`docs/decisions.md`](docs/decisions.md) C-072）。
+教師 base の **LibriTTS-R / CML-TTS（CC-BY-4.0）と AISHELL-3（Apache-2.0）が
+抜けていた**ので足し、帰属を要求しない素材（MOE-Speech / CC0 / PD）は
+**任意ブロック (B)** に移した。**再配布するなら (A) を丸ごと写すこと。**
+⚠️ **「❌ アダルト用途」も誤りだった**（C-071）。禁止は
+「**刺激の強い表現をゾーニングなしで公開すること**」で、
+提供元は適切なゾーニングがあれば成人向け表現を制限していない。
 
 **コーパス本文は配布しない。** 素材ごとの一次ソースは [`NOTICE.md`](NOTICE.md)。

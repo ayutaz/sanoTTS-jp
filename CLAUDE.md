@@ -267,7 +267,12 @@ uv run python scripts/test_losses.py               # 損失の性質（26 項目
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
 uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（94 ケース + commit ガード）
-uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
+uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート**の自己テスト**（16 ケース）
+uv run python scripts/sanitize_reports.py          # ⚠️ **本文検出の本体**（追跡物にコーパス本文が
+                                                   #   残っていないか）。**CI では回らない**（第三者
+                                                   #   コーパスが要る）ので**手元で回す**。C-074
+uv run python scripts/test_corpus_license.py       # 蒸留テキストのライセンス判定（G-L1a。陽性対照つき）
+uv run python scripts/check_corpus_license.py --self-test   # G-L1b / G-L2（陽性対照 4 件）
 uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **引用アンカー**
                                                    #   （陽性対照つき。C-042 / C-052）
 uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
@@ -557,7 +562,10 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
-| テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない** |
+| テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない**。⚠️ **同一ファイル内の `#anchor` も見ない**（C-057 の壊れたリンクはこれで見逃されていた）。⚠️ **リンク先が git 管理外**でも、手元にファイルが在れば通る（新規 clone の CI でだけ落ちる） |
+| テスト | `scripts/test_corpus_license.py` | **蒸留テキストのライセンス判定**（G-L1a。D-054）。許可 7 / 拒否 9 / **未知 5**。⚠️ **完全一致で判定する**（`cv/` の前方一致だと europarl 由来が自動で通る = C-029）。⚠️ **表しか見ない** — 判定が実際に呼ばれたかは G-L1b が見る |
+| テスト | `scripts/check_corpus_license.py` | **G-L1b**（出荷パックに許可外 source が 0 件）/ **G-L2**（held-out が 1 行も変わっていない）/ 統計レポート。**陽性対照 4 件**は `--self-test`。⚠️ **CI では回らない**（パックとコーパス本文が要る） |
+| テスト | `scripts/sanitize_reports.py` | ⚠️ **本文検出の本体。** 追跡物にコーパス本文が残っていないか。**CI では回らない**ので手元で回す。⚠️ **第三者コーパスが無いと exit 2 で「回せなかった」と出る**（「0 箇所」で緑にしない）。C-074 で実際に 56 箇所を見逃していた |
 | テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークが要る**。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
@@ -878,11 +886,15 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-04 更新。**対照つきの聴取と、判断が 2 つ**）
+## 残っているタスク（2026-09-10 更新。**対照つきの聴取と、判断が 3 つ**）
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
-K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約）。
+K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-057 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約。⚠️ **D-051〜D-053 は未マージの別ブランチ**）。
 現在地は [`docs/README.md`](docs/README.md)。
+
+⚠️ **L トラック（商用利用）が加わった**（[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md)）。
+**JSUT を外した v4 を学習して受け入れた**（D-057 / M-112〜M-114）が、
+⚠️ **出荷物の再凍結（Task 8）はしていない。配布されているのは今も v3。**
 
 | # | 何 | 種類 | ゲート |
 |---|---|---|---|
@@ -891,6 +903,8 @@ K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計�
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ → ✅ **v0.3.0 で既に v2 だった**（誤りだった。C-057） | — | — |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ → ✅ **v0.3.0 で配っている**（`esp32s3-firmware-kanji-16mb-usbjtag.bin` / `esp32s3-firmware-w8a8-pie-usbjtag.bin` の実在をリリースで確認）。⚠️ **v0.2.0 以前のイメージは UART0 のまま**なので、CoreS3 / AtomS3 では入れ替えが要る（M-83） | — | — |
 | 5 | K トラックのエントリ数・接続行列（今は 438,750 / int16） | 判断 | D-044 を見直すか |
+| **8** | **L トラック: 出荷物の再凍結**（v4 の golden / int8 blob / firmware / ライセンス文から JSUT を外す） | 作業 | **未着手**。⚠️ **配布中は今も v3**（D-057） |
+| **9** | **教師の声の差し替え** — ⚠️ **これをやるまで D-054 のゴールには届かない**（出力の用途制限とコピーレフトは つくよみちゃん由来） | 判断 + 調達 | 外部の声優への依頼が進行中・未確定 |
 | ~~6~~ | ~~GitHub Pages の有効化~~ → ✅ **2026-09-04 に有効化された**（`build_type: workflow`。⚠️ **手作業だった** — `configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ **`pages.yml` は `main` への push でしか走らない**ので、URL が開くのはマージ後 | — | — |
 | ~~7~~ | ~~ブラウザでの実測と聴取~~ → ✅ **測った**（**M-95** Chrome 152）**+ 聴いてもらった**（**M-96** 両レーンとも「問題なかった」/ 途切れ無し）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | — | — |
 

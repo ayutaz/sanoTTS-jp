@@ -182,6 +182,7 @@ make -C csrc g2p PYTHON="uv run --no-project python"    # on-device G2P (2,819 v
 make -C csrc erf                                        # GELU's erf approximation vs libm (positive control)
 make -C csrc range                                      # range-limited kernel is bit-identical to the full one
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata (positive control: fp32 rejected)
+uv run --no-project python scripts/test_corpus_license.py   # distillation-text licence verdicts (with positive control)
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
 ```
@@ -387,5 +388,14 @@ whose terms
 
 so they cannot be called MIT. Read [`LICENSE-MODEL.md`](LICENSE-MODEL.md) and
 [`MODEL_CARD.md`](MODEL_CARD.md) before using them.
+
+⚠️ **The mandatory attribution was corrected on 2026-09-09** ([`docs/decisions.md`](docs/decisions.md) C-072).
+**LibriTTS-R and CML-TTS (CC BY 4.0) and AISHELL-3 (Apache-2.0)** — all in the teacher's
+multilingual base — **were missing** and have been added; materials that require no
+attribution (MOE-Speech, CC0, public domain) moved to the **optional block (B)**.
+**If you redistribute, copy block (A) in full.**
+⚠️ **"No adult use" was also wrong** (C-071). What is prohibited is
+**publishing intense content without zoning** — the corpus provider places no limit on
+adult or violent expression when appropriate zoning is in place.
 
 **The corpus text itself is not distributed.** Per-source provenance is in [`NOTICE.md`](NOTICE.md).
