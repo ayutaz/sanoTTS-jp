@@ -120,11 +120,17 @@ GATE_SECTION = "## 実際に空虚だったゲート"
 #    `**6 件**` ではなく `6 件` と書いてあった）。`\*{0,2}` で両方拾い、
 #    **一致 0 件を NG として報告する**。
 GATE_CLAIM_JA = re.compile(r"欠陥が潜んでいた例が\s*\*{0,2}(\d+) 件")
-GATE_CLAIM_EN = re.compile(r"\*{0,2}(\w+)\*{0,2} defects hid behind green tests")
+# ⚠️ `\w+` はハイフンを含まない。「Twenty-one」が「one」に化けて数に読めなくなる
+GATE_CLAIM_EN = re.compile(r"\*{0,2}([\w-]+)\*{0,2} defects hid behind green tests")
 EN_NUM = {"Six": 6, "Seven": 7, "Eight": 8, "Nine": 9, "Ten": 10,
           "Eleven": 11, "Twelve": 12, "Thirteen": 13, "Fourteen": 14,
           "Fifteen": 15, "Sixteen": 16, "Seventeen": 17, "Eighteen": 18,
-          "Nineteen": 19, "Twenty": 20}
+          "Nineteen": 19, "Twenty": 20,
+          # ⚠️ ハイフン付きも読む（21 で「one defects を数に読めない」と落ちた）
+          "Twenty-one": 21, "Twenty-two": 22, "Twenty-three": 23,
+          "Twenty-four": 24, "Twenty-five": 25, "Twenty-six": 26,
+          "Twenty-seven": 27, "Twenty-eight": 28, "Twenty-nine": 29,
+          "Thirty": 30}
 
 
 def vacuous_gate_rows() -> int:

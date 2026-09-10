@@ -557,7 +557,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | skill | `writing-gates` | **テスト・アサーション・受け入れゲート・ベンチを書くとき**（空虚に通るゲートを防ぐ） |
 | テスト | `make -C csrc njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `kb-parity` | **K トラックの受け入れゲート**（`kb-parity` は**経路の 3 値判定**がホストと一致するか = K-B）。⚠️ どれも辞書と pyopenjtalk が要るので `all-test` には**入れていない** |
 | テスト | `scripts/k1/k4b_vendor.py --check` | **取り込んだ Open JTalk が上流 + PATCHES と一致するか**。⚠️ 表に無い改変は落ちる |
-| テスト | `make -C csrc jdict-hard` | **辞書リーダの入力検査**（M-100）。⚠️ **返り値だけでは越境が見えない**ので **ASan ビルドを同居**させ、`JDICT_TEST_WEAK` で検査を外した**陽性対照が 15/15 leak** することを要求する。`all-test` と CI に入っている |
+| テスト | `make -C csrc jdict-hard` | **辞書リーダの入力検査**（M-100）。⚠️ **返り値だけでは越境が見えない**ので **ASan ビルドを同居**させ、`JDICT_TEST_WEAK` で検査を外した**陽性対照が 27/27 leak** することを要求する（⚠️ **ケースを足すたびに増える**。M-107 で 19 → 26、M-108 で 27）。`all-test` と CI に入っている |
 | テスト | `scripts/check_dict_blob.py` | blob の自己整合と manifest の照合（**陽性対照 5 種を内蔵**） |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
@@ -567,6 +567,8 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
 | テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
 | テスト | `make -C csrc matrixc` | **`matrixc`（行・列クラスタ + 代表行列）**の C リーダが生 int16 と**全 1,896,129 要素**で一致するか（M-106 §10）。⚠️ **陽性対照が 2 本要る** — 代表行列（`lo`）を壊す G-C4 だけでは**写像（`rmap`）を読み違えていても通る**。⚠️ 辞書と scikit-learn が要るので `all-test` の外 |
+| テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
+| テスト | `uv run python scripts/test_rec5.py` | `rec5` の**往復と畳み込み**（合成エントリだけなので**辞書が要らない = CI で回る**）。⚠️ **合成データが畳み込みを踏んでいるか**も検査する（周期が互いに素でないと cid と 1:1 になり、**往復が通っても畳み込みを 1 度も試していない**。M-108） |
 | テスト | `make -C csrc charr` | **`charr`（文字カテゴリの run 表）**が `char` と**全 65,535 符号位置**で一致するか（M-106 §10）。262,496 → 832 B で**完全に無損失**。⚠️ 陽性対照は**いちばん長い run** を選ぶ（短い run だと数件しか動かず弱い） |
 | テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13） |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
@@ -906,7 +908,20 @@ checksum が一致しても、M5.Speaker の DMA の実挙動は別（M-90 §5�
 | 8 MB / DevKit（実機済み） | 7,143,424 | affine | 228,000 | 1.01% |
 | 16 MB（出荷） | 13,828,096 | int16 | 438,750 | 0.63% |
 
-✅ **C リーダを書いた**（`matrixc` = 行・列クラスタ / `charr` = 文字カテゴリの run 表。M-106 §10）。
+✅ **blob のセクションを 3 つ足した**（どれも既存形式と**排他**）:
+
+| 名前 | 中身 | 効果 | 既定 |
+|---|---|---|---|
+| **`matrixc`** | 行・列クラスタ + 代表行列 | 行列 3,792,262 → **72,080 B** | オフ（`--matrix cluster:K`） |
+| **`charr`** | 文字カテゴリの run 表 | 262,496 → **832 B**（**無損失**） | オフ（`--char-range`） |
+| **`rec5`** | 5 B レコード（class/chain/flags を 12 bit の class2 に畳む） | **−3.974 B/entry**（**無損失**） | オフ（`--rec5`） |
+
+⚠️ **`rec5` で 16 MB に 538,000 entries が入る**（438,750 の +22.6%）。
+音素の誤りは **0.64% → 0.60%**、**改善 21 文 / 悪化 0 文 / McNemar p=9.5e-07**（M-108 §6）。
+⚠️ **買えるものは小さい**（編集距離 502 → 470 = 32 音素）。⚠️ **焼いていない**（速度も未測定）。
+⚠️ **`rec5` では classes のストライドも 8 → 10 B になる。** 片方だけ直すと黙って別のエントリを読む。
+
+
 **4 MB は QEMU で起動から合成まで通り、PCM の checksum が 16 MB の基準と bit 一致した**（M-106 §11）:
 
 ```bash
