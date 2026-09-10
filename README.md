@@ -168,8 +168,8 @@ CoreS3 / AtomS3 のような **native USB だけの板は `-usbjtag` の方**を
 | **16 MB**（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ 実機 |
 | 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ 実機 |
 | 8 MB / **M5Stack 系** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ 実機 |
-| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ QEMU のみ |
-| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ QEMU のみ |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ **第三者の実機**（未再現） |
+| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ **第三者の実機**（未再現） |
 
 手順は [`esp32/README.md`](esp32/README.md) の「8 MB flash の板」「4 MB / 2 MB 枠」。
 ⚠️ **読みが落ちる**（枝刈りを深くするため）。⚠️ **音を人が聴いていない。**

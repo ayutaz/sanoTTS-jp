@@ -177,14 +177,14 @@ No small-flash image is published, so you build it yourself:
 | **16 MB** (released) | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ hardware |
 | 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ hardware |
 | 8 MB / **M5Stack** | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ hardware |
-| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ QEMU only |
-| **2 MB budget** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ QEMU only |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ **third-party hardware** (not reproduced here) |
+| **2 MB budget** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ **third-party hardware** (not reproduced here) |
 
 Steps: the "8 MB flash の板" and "4 MB / 2 MB 枠" sections of [`esp32/README.md`](esp32/README.md).
 ⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened to it.**
 ⚠️ **No ESP32-S3 part has 2 MB of flash** (WROOM-1 comes as N4 / N8 / N16), so **4 MB is the floor**.
 The 2 MB row only says the data *fits that budget*, measured on a larger board.
-⚠️ **Neither 4 MB nor 2 MB has run on hardware.** Speed and audio are unmeasured.
+⚠️ **4 MB and 2 MB ran on third-party hardware** (M-109: an ATOMS3 with **no PSRAM**, sound heard). ⚠️ **Not reproduced here, and no checksum / xRT / underrun was reported.**
 
 **Two ways to get sound out.**
 

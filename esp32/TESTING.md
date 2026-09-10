@@ -473,8 +473,8 @@ W8A8 + PIE が **0.446**（M-90）。**PIE 無しでは実時間に間に合い�
 | 16 MB（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ 実機 |
 | 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ 実機 |
 | 8 MB / **M5Stack 系**（AtomS3 など） | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ 実機 |
-| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ QEMU のみ |
-| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ QEMU のみ |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ **第三者の実機**（未再現） |
+| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ **第三者の実機**（未再現） |
 
 手順は [`esp32/README.md`](README.md) の「8 MB flash の板」「4 MB / 2 MB 枠」。
 ⚠️ **読みが落ちます。** ⚠️ **音を人が聴いていません。**
