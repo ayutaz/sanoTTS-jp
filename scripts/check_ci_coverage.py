@@ -123,6 +123,11 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
         "piper-plus の checkout・nltk_data（g2p_en が要る）・"
         "教師 snapshot の config.json（private repo 由来。CI では取れない）",
     "scripts/test_k1_dict.py": "pyopenjtalk（3 件が辞書の実体を要る）",
+    # ⚠️ **タグを打つ直前に手で回すゲート。** 資産（firmware / blob / 辞書 = 130 MB 超）が
+    #    git 管理外なので CI では照合対象が 1 本も無く、**「食い違い 0」で緑になってしまう**
+    #    （本体は照合 0 本なら落とすようにしてある）。⚠️ **手で走らせるゲートはいずれ走らせなくなる。**
+    "scripts/check_release_table.py":
+        "リリース資産の実物（git 管理外・130 MB 超）。⚠️ 自己テスト（--self-test。陽性対照 5 件）は CI で回している",
     "scripts/kana_g2p.py": "pyopenjtalk と piper-plus（凍結テーブルとの突き合わせ。表だけの検査は `make -C csrc g2p` が CI で回している）",
     "scripts/k1/k0_verify_dict.py": "凍結した sys.dic（103 MB。git 管理外）",
     "scripts/k1/k4b_vendor.py": "上流の sdist（pyopenjtalk-plus の tar.gz）",

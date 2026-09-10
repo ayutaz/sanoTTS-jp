@@ -50,6 +50,11 @@ jobs:
           uv run --no-project --python 3.12 python scripts/check_attribution.py
           uv run --no-project --python 3.12 python scripts/check_attribution.py --self-test
 
+      # ⚠️ **本体は CI では回せない**（資産が git 管理外の 130 MB 超）。回すのは自己テストだけで、
+      #    「表と実物が合っているか」は**タグを打つ直前に手で**回す（README の手順）。
+      - name: リリースノートの資産表 vs 実物 — **自己テストのみ**（陽性対照 5 件）
+        run: uv run --no-project --python 3.12 python scripts/check_release_table.py --self-test
+
       - name: hook の回帰
         run: uv run --no-project --python 3.12 python .claude/hooks/test_guard_bash.py
 
