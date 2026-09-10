@@ -26,7 +26,7 @@ jobs:
     name: docs（依存ゼロ）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
@@ -89,7 +89,7 @@ jobs:
     name: 参照実装との一致（fp32 + int8・重みはリリース v0.3.0 から）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: 重みと参照出力を落とす（タグ固定）
         env:
           GH_TOKEN: ${{ github.token }}
@@ -157,7 +157,7 @@ jobs:
     name: csrc（重み不要のゲート）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
@@ -192,7 +192,7 @@ jobs:
     name: python（torch / numpy）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
@@ -216,7 +216,7 @@ jobs:
     name: リリース資産（ドキュメントの表 vs 実物）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
@@ -264,7 +264,7 @@ jobs:
     name: web（wasm ゲート・emcc 6.0.9）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # ⚠️ **uv が要る。** G-W4 の凍結ベクタ `csrc/g2p_vectors.bin` は git 管理外で、
       #    `scripts/gen_g2p_vectors.py` が毎回作る（`csrc` job の `make g2p` と同じ）
       - uses: astral-sh/setup-uv@v7
