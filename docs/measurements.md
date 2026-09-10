@@ -10379,3 +10379,49 @@ uv run --no-project python scripts/test_blob_to_header.py      # 回帰 4 件
   ⚠️ **§8 の schema 検証（VALID / 陽性対照 2 件）は手順が `dependabot.yml` に残っているので再現する**
   （⚠️ ネットワークが要る）が、**それは 1 回の手作業であってゲートではない。**
   誰も自動では検査していないので、**このファイルの typo は黙って無視される**。
+
+### 11. **マージ後の追記** — §7 の「未観測」が全部観測できた（自己実測。2026-09-10）
+
+PR #15 は **2026-09-10 04:52:02Z にマージされた**（squash / `772c065`）。
+**§7 が「未マージ・未 push のため観測していない」と書いていた 3 点が、その 66 秒後に見えた。**
+
+```bash
+gh api repos/ayutaz/sanoTTS-jp/dependabot/alerts \
+  --jq '.[] | "#\(.number) \(.state) \(.dependency.package.name) \(.security_advisory.severity)"'
+gh api repos/ayutaz/sanoTTS-jp/dependabot/alerts/1 \
+  --jq '"state=\(.state) fixed_at=\(.fixed_at) range=\(.security_vulnerability.vulnerable_version_range)"'
+gh pr list --state open --json number,title,author -q '.[] | "#\(.number) \(.author.login) \(.title)"'
+```
+
+| # | パッケージ | マージ前 | **マージ後** |
+|---|---|---|---|
+| 1 | transformers (medium) | open | **fixed** |
+| 2 | transformers (high) | open | **fixed** |
+| 3 | transformers (high) | open | **fixed** |
+| 4 | transformers (high) | open | **fixed** |
+| 5 | nltk (high) | open | **open**（[D-053](decisions.md#d-053) の方針 2 どおり） |
+
+`#1` は `fixed_at=2026-09-10T04:53:08Z` / `vulnerable_version_range = "< 5.0.0rc3"`。
+固定版 5.16.1 が範囲の外なので閉じた。
+
+**`.github/dependabot.yml` は読まれ、実際に PR を 2 本作った**（初回スキャン。`monthly` の
+2 回目以降はまだ）:
+
+```
+#16 app/dependabot  chore(deps): bump astral-sh/setup-uv from 5 to 7
+#17 app/dependabot  chore(deps): bump actions/checkout from 4 to 7
+```
+
+⚠️ **4 本のうち 2 本しか出ていない**（`upload-artifact` / `deploy-pages` は最新）。
+⚠️ **どちらも major の移動**（`v5` → `v7` / `v4` → `v7`）で、
+**[D-053](decisions.md#d-053) が「minor/patch の `groups` を入れない」根拠にした
+「使用中の 4 本すべてが major moving tag 固定」と整合する** — 見えるのは major の移動だけ。
+⚠️ **この 2 本はレビューも判断もしていない**。major の移動なので CI を壊しうる。
+
+### ⚠️ この追記で言えないこと
+
+- **「4 件閉じた」は GitHub の state であって、脆弱性が無くなったことではない。**
+  §5 の「実経路で 10 sink の発火 0 件」と混同しない
+- **`monthly` の発火は見ていない。** 見たのは**マージ直後の初回スキャン**だけで、
+  月次のスケジュールが実際に回るのは最短で 2026-10
+- **Dependabot の 2 本を実際に入れたときに CI が通るかは測っていない**

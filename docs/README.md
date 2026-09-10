@@ -102,7 +102,7 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-053（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-070** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-053（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-071** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-111。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
@@ -495,7 +495,7 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-053（D-049 は欠番）+ 訂正履歴 C-001〜C-070
+│   ├── decisions.md                       決定記録 D-001〜D-053（D-049 は欠番）+ 訂正履歴 C-001〜C-071
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-111
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
@@ -620,6 +620,7 @@ sanoTTS-jp/
     ├── train_student.py                   生徒 4 段の蒸留学習
     ├── test_losses.py / test_labelpack.py / test_discriminator.py
     ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
+    ├── check_lock_vs_pyproject.py         **pyproject の制約 vs uv.lock の固定版**（C-071。**CI で回る**）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
@@ -668,6 +669,7 @@ uv run python scripts/test_discriminator.py      # 判別器（23 チェック�
 uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（105 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
+uv run python scripts/check_lock_vs_pyproject.py # pyproject の制約 vs uv.lock（陽性対照 6 / 陰性対照 2）
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
 uv run python scripts/check_release_assets.py    # 表の資産がリリースに在るか（要ネットワーク）
 uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
