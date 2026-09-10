@@ -17,7 +17,9 @@
 #define BLOCK_BITS    64u
 #define SELECT_STEP  512u
 #define CHECKPOINT    32u
+#define TERM_CHECKPOINT 512u
 #define REC_SIZE       9u
+#define REC5_SIZE      5u        /* `rec5`（M-107 §4a）*/
 #define BOS_RC         0u
 #define EOS_LC         0u
 #define COST_INF   0x3FFFFFFF
@@ -29,6 +31,51 @@ static uint32_t rd32(const uint8_t *p) {
 static uint16_t rd16(const uint8_t *p) {
     return (uint16_t)((uint16_t)p[0] | ((uint16_t)p[1] << 8));
 }
+
+/* レコード 1 件を展開する。**`records`(9 B) と `rec5`(5 B) の唯一の差はここ**（M-107 §4a）。
+ * ⚠️ **読み口ごとに展開を書かない。** char の 916 行を直し忘れて未知語生成を殺した
+ *    のと同じ形になる（M-107 §1）。**必ずこの 1 関数を通す。**
+ * NULL を渡した出力は書かない。 */
+static void rec_unpack(const jdict_t *d, uint32_t entry,
+                       uint16_t *cid, int16_t *wcost, uint8_t *pl, uint8_t *el) {
+    const uint8_t *r;
+    if (d->rec5) {
+        r = d->records + (size_t)entry * REC5_SIZE;
+        uint16_t packed = rd16(r + 2);
+        if (cid)   *cid   = (uint16_t)(packed & 0x0FFFu);
+        if (wcost) *wcost = (int16_t)rd16(r);
+        if (pl)    *pl    = (uint8_t)(((packed >> 12) & 0x0Fu) | ((r[4] & 1u) << 4));
+        if (el)    *el    = (uint8_t)((r[4] >> 1) & 0x3Fu);
+    } else {
+        r = d->records + (size_t)entry * REC_SIZE;
+        if (cid)   *cid   = rd16(r);
+        if (wcost) *wcost = (int16_t)rd16(r + 2);
+        if (pl)    *pl    = r[7];
+        if (el)    *el    = r[8];
+    }
+}
+
+/* chain ID と flags。`rec5` では classes 表の末尾 2 B に入っている。 */
+static void rec_chain_flags(const jdict_t *d, uint32_t entry, uint16_t cid,
+                            uint16_t *chid, uint8_t *flags) {
+    if (d->rec5) {
+        const uint8_t *c = d->classes + d->cls_stride * cid;
+        *chid  = c[8];
+        *flags = c[9];
+    } else {
+        const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
+        *chid  = rd16(r + 4);
+        *flags = r[6];
+    }
+}
+
+/* 入力検査（M-100）。⚠️ **JDICT_TEST_WEAK=1 で全部消える** —
+ * `csrc/jdict_hard_test.c` の陽性対照が「検査を外すと壊れた blob が通る」ことを示すため。 */
+#if defined(JDICT_TEST_WEAK) && JDICT_TEST_WEAK
+#define JD_CHECK(cond, err)  ((void)0)
+#else
+#define JD_CHECK(cond, err)  do { if (!(cond)) return (err); } while (0)
+#endif
 
 /* ---------------------------------------------------------------- 区画 */
 
@@ -43,26 +90,72 @@ static int find_sec(const uint8_t *blob, size_t n, const char *name, struct sec 
         char nm[9]; memcpy(nm, e, 8); nm[8] = 0;
         if (strcmp(nm, name) == 0) {
             uint32_t off = rd32(e + 8), len = rd32(e + 12);
-            if ((size_t)off + len > n) return -1;
+            /* ⚠️ **64 bit で足す。** ESP32 の size_t は 32 bit なので、
+             *    off + len が巻き戻ると「blob の中」に見えてしまう。 */
+            if ((uint64_t)off + len > (uint64_t)n) return -1;
             out->p = blob + off; out->len = len; return 0;
         }
     }
     return -1;
 }
 
+/* セクション表を**丸ごと**検査し、実 extent（= max(off+len)）を返す。
+ *
+ * ⚠️ **find_sec だけでは足りない。** あれは「引いたセクション」しか見ないので、
+ *    引かないセクションが blob の外を指していても気づかない。
+ * ⚠️ **`n` は上限であって長さではない**（端末はパーティション長を渡す）。
+ *    ここで実 extent に絞り込むことで、焼き損ねた領域（0xFF）を読む窓を狭める。 */
+#if !defined(JDICT_TEST_WEAK) || !JDICT_TEST_WEAK
+static int scan_sectab(const uint8_t *blob, size_t n, size_t *end_out) {
+    if (n < 8) return -1;
+    uint16_t n_sec = rd16(blob + 6);
+    if (n_sec == 0) return -1;
+    uint64_t head = 8u + 16ull * n_sec;
+    if (head > (uint64_t)n) return -1;
+    uint64_t end = head;
+    for (uint16_t i = 0; i < n_sec; i++) {
+        const uint8_t *e = blob + 8 + 16u * i;
+        uint32_t off = rd32(e + 8), len = rd32(e + 12);
+        if ((uint64_t)off < head) return -1;            /* 表そのものに重なっている */
+        if ((uint64_t)off + len > (uint64_t)n) return -1;
+        if ((uint64_t)off + len > end) end = (uint64_t)off + len;
+    }
+    *end_out = (size_t)end;
+    return 0;
+}
+#endif
+
 int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
     struct sec s;
+    /* 相互検証に使うセクション長（フィールドを増やさずここで受ける）。 */
+    uint32_t records_len = 0, surfck_len = 0, poolck_len = 0, termck_len = 0;
     memset(d, 0, sizeof *d);
     if (n < 8 || memcmp(blob, "K1D1", 4) != 0) return -1;
     /* version. ⚠️ 2 で poolck / termck が入った（K-6）。1 も読める。 */
     uint16_t ver = rd16(blob + 4);
-    if (ver != 1 && ver != 2) return -2;
-    d->blob = blob; d->blob_len = n;
+    if (ver != 1 && ver != 2) return JDICT_ERR_VERSION;
+    d->blob = blob;
+    /* ⚠️ **セクション表を先に丸ごと検査する。** 通ったら blob_len は
+     *    渡された n ではなく**実 extent**（M-100）。 */
+    d->blob_len = n;
+#if !defined(JDICT_TEST_WEAK) || !JDICT_TEST_WEAK
+    {
+        size_t end = 0;
+        if (scan_sectab(blob, n, &end) != 0) return JDICT_ERR_SECTAB;
+        d->blob_len = end;
+    }
+#endif
 
-    if (find_sec(blob, n, "louds", &s) != 0) return -3;
+    if (find_sec(blob, d->blob_len, "louds", &s) != 0) return -3;
+    /* ⚠️ **ヘッダを読む前に長さを見る。** かつては `s.len` を一度も参照せず、
+     *    宣言長 4 のセクションから 20 B のヘッダを読んでいた（jdict_open は 0 を返す）。 */
+    JD_CHECK(s.len >= 20u, -3);
     d->louds_bitlen = rd32(s.p);
     d->n_nodes      = rd32(s.p + 4);
     uint32_t n_sup  = rd32(s.p + 8), n_blk = rd32(s.p + 12), n_sel = rd32(s.p + 16);
+    /* 導出した末尾がセクションに収まるか。64 bit で足す（各項は uint32 で、和が溢れうる）。 */
+    JD_CHECK(20ull + ((uint64_t)d->louds_bitlen + 7) / 8 + d->n_nodes
+             + ((uint64_t)d->n_nodes + 7) / 8 + n_sup + n_blk + n_sel <= (uint64_t)s.len, -3);
     const uint8_t *q = s.p + 20;
     d->louds_bits = q; q += (d->louds_bitlen + 7) / 8;
     d->labels     = q; q += d->n_nodes;
@@ -71,45 +164,234 @@ int jdict_open(jdict_t *d, const uint8_t *blob, size_t n) {
     d->rank_blk = q; q += n_blk;
     d->sel0     = q; d->n_sel0 = n_sel / 4;
 
-    if (find_sec(blob, n, "counts", &s) != 0) return -4;
+    if (find_sec(blob, d->blob_len, "counts", &s) != 0) return -4;
     d->counts = s.p; d->n_surfaces = s.len;
-    if (find_sec(blob, n, "surfck", &s) != 0) return -5;
-    d->surfck = s.p;
-    if (find_sec(blob, n, "records", &s) != 0) return -6;
-    d->records = s.p; d->n_entries = s.len / REC_SIZE;
-    if (find_sec(blob, n, "pool", &s) != 0) return -7;
+    if (find_sec(blob, d->blob_len, "surfck", &s) != 0) return -5;
+    d->surfck = s.p; surfck_len = s.len;
+    /* ⚠️ **`records`(9 B) と `rec5`(5 B) はどちらか一方。** 両方あれば拒む
+     *    （matrix / matrixa / matrixc と同じ流儀。M-100 / M-107 §4a）。 */
+    {
+        struct sec s5;
+        const int has9 = (find_sec(blob, d->blob_len, "records", &s) == 0);
+        const int has5 = (find_sec(blob, d->blob_len, "rec5",    &s5) == 0);
+        if (has9 == has5) return -6;                    /* 両方 / どちらも無い */
+        d->rec5       = has5;
+        d->cls_stride = has5 ? 10u : 8u;
+        if (has5) s = s5;
+    }
+    d->records = s.p;
+    d->n_entries = s.len / (d->rec5 ? REC5_SIZE : REC_SIZE);
+    records_len = s.len;
+    if (find_sec(blob, d->blob_len, "pool", &s) != 0) return -7;
     d->pool = s.p; d->pool_len = s.len;
-    if (find_sec(blob, n, "classes", &s) != 0) return -8;
+    if (find_sec(blob, d->blob_len, "classes", &s) != 0) return -8;
+    JD_CHECK(s.len >= 4u, -8);
     d->n_classes = rd32(s.p);
+    /* ⚠️ **符号なし減算の underflow を先に止める。** かつては下限を見ておらず、
+     *    n_classes が 1 bit 壊れるだけで pos6tab_len が 2 GB になり、
+     *    strtab_find が 1 B ずつ 2 GB 走った（端末なら WDT）。jdict_open は 0 を返す。 */
+    JD_CHECK(4ull + (uint64_t)d->cls_stride * d->n_classes <= (uint64_t)s.len, -8);
     d->classes = s.p + 4;
     /* classes セクションは [n u32][8 B × n][pos6 の NUL 区切り表] */
-    d->pos6tab = s.p + 4 + 8u * d->n_classes;
-    d->pos6tab_len = s.len - 4u - 8u * d->n_classes;
-    if (find_sec(blob, n, "keytab", &s) != 0) return -9;
+    d->pos6tab = s.p + 4 + d->cls_stride * d->n_classes;
+    d->pos6tab_len = s.len - 4u - d->cls_stride * d->n_classes;
+    if (find_sec(blob, d->blob_len, "keytab", &s) != 0) return -9;
     d->keytab = s.p; d->keytab_len = s.len;
-    if (find_sec(blob, n, "keyesc", &s) != 0) return -10;
+    if (find_sec(blob, d->blob_len, "keyesc", &s) != 0) return -10;
     d->keyesc = s.p; d->keyesc_len = s.len;
     /* K-6 で要るもの。⚠️ 無くても K-2 / K-3 は動くので **任意**にしてある
      *    （古い blob をそのまま読めるように）。 */
-    if (find_sec(blob, n, "moratab", &s) == 0) { d->moratab = s.p; d->moratab_len = s.len; }
-    if (find_sec(blob, n, "chains", &s) == 0)  { d->chaintab = s.p; d->chaintab_len = s.len; }
-    if (find_sec(blob, n, "poolck", &s) == 0)  { d->poolck = s.p; }
-    if (find_sec(blob, n, "termck", &s) == 0)  { d->termck = s.p; d->n_termck = s.len / 4u; }
-    if (find_sec(blob, n, "char", &s) == 0) {
+    if (find_sec(blob, d->blob_len, "moratab", &s) == 0) { d->moratab = s.p; d->moratab_len = s.len; }
+    if (find_sec(blob, d->blob_len, "chains", &s) == 0)  { d->chaintab = s.p; d->chaintab_len = s.len; }
+    if (find_sec(blob, d->blob_len, "poolck", &s) == 0)  { d->poolck = s.p; poolck_len = s.len; }
+    if (find_sec(blob, d->blob_len, "termck", &s) == 0)  { d->termck = s.p; d->n_termck = s.len / 4u; termck_len = s.len; }
+    if (find_sec(blob, d->blob_len, "char", &s) == 0) {
+        JD_CHECK(s.len >= 4u, -13);
         d->n_char_cats = rd32(s.p);
+        /* ⚠️ char も同じ underflow を持っていた（n_codepoints が 1,073,741,823 になる）。 */
+        JD_CHECK(4ull + 32ull * d->n_char_cats <= (uint64_t)s.len, -13);
         d->char_names  = s.p + 4;
         d->char_info   = s.p + 4 + 32u * d->n_char_cats;
         d->n_codepoints = (s.len - 4u - 32u * d->n_char_cats) / 4u;
     }
-    if (find_sec(blob, n, "unk", &s) == 0) {
+    if (find_sec(blob, d->blob_len, "charr", &s) == 0) {
+        /* charr: ncat u32 / nrun u32 / 名前 32B×ncat / 値 u32×nval / run u32×nrun
+         * ⚠️ **値表の長さは残りから逆算する**（形式に持たない）。M-106 §5 */
+        JD_CHECK(s.len >= 8u, -13);
+        uint32_t ncat = rd32(s.p), nrun = rd32(s.p + 4);
+        JD_CHECK(nrun > 0u, -13);
+        JD_CHECK(8ull + 32ull * ncat + 4ull * nrun <= (uint64_t)s.len, -13);
+        d->n_char_cats = ncat;
+        d->char_names  = s.p + 8;
+        d->n_char_runs = nrun;
+        d->char_vals   = s.p + 8 + 32u * ncat;
+        d->char_runs   = s.p + s.len - 4u * nrun;
+        d->n_char_vals = (uint32_t)((d->char_runs - d->char_vals) / 4);
+        JD_CHECK(d->n_char_vals > 0u, -13);
+        /* ⚠️ **値の添字が値表に収まるか、開始位置が昇順かを開き時に見る。**
+         *    `char_raw` は範囲検査なしで引くので、1 bit 壊れると表の外を読む
+         *    （matrixc の rmap / cmap と同じ形）。 */
+        uint32_t prev_cp = 0;
+        for (uint32_t i = 0; i < nrun; i++) {
+            uint32_t r = rd32(d->char_runs + 4u * i);
+            JD_CHECK((r & 0xFFFu) < d->n_char_vals, -13);
+            JD_CHECK(i == 0 ? ((r >> 12) == 0u) : ((r >> 12) > prev_cp), -13);
+            prev_cp = r >> 12;
+        }
+        d->n_codepoints = 65535u;
+    }
+    if (find_sec(blob, d->blob_len, "unk", &s) == 0) {
+        /* ⚠️ 宣言長 0 だと unk_len が 0xFFFFFFFC になっていた。 */
+        JD_CHECK(s.len >= 4u, -14);
         d->n_unk = rd32(s.p);
         d->unk = s.p + 4;
         d->unk_len = s.len - 4;
     }
+    /* --- 層をまたぐ相互検証（M-100 §8 の 3）------------------------------
+     *
+     * ⚠️ **宣言長をそのまま長さに使うセクション**（counts / surfck / records /
+     *    pool / poolck / termck）は、それ単体では「正しい長さ」を持たない。
+     *    **他のセクションと突き合わせて初めて矛盾が見える。**
+     *    式は `scripts/check_dict_blob.py` の self_check と同じもの（定義を 2 つ持たない）。
+     *
+     * ⚠️ **counts を全部足さない。** 355,768 B を起動時に舐めるコストが未測定なので、
+     *    `surfck` の最後のチェックポイント + 端数（最大 32 件）で同じ数を出す。
+     *    これは `jdict_entry_range` が使っているのと同じ復元式。 */
+    JD_CHECK(d->n_surfaces > 0u, -4);
+    JD_CHECK(d->n_entries * (d->rec5 ? REC5_SIZE : REC_SIZE) == records_len, -6);
+    /* ⚠️ **9 の倍数か 5 の倍数か**。出荷 blob の 3,948,750 B は
+     *    **9 でも 5 でも割り切れる**ので、この検査だけでは形式の取り違えを捕まえない。
+     *    捕まえるのは上の排他検査と、下の counts / poolck との突き合わせ（M-107 §4a）。 */
+    {
+        /* surfck / poolck / termck の長さが、それぞれの件数から計算した値と合うか */
+        uint32_t want_surfck = 4u * ((d->n_surfaces + CHECKPOINT - 1u) / CHECKPOINT);
+        JD_CHECK(surfck_len == want_surfck, -5);
+        if (d->poolck) {
+            uint32_t want = 4u * ((d->n_entries + CHECKPOINT - 1u) / CHECKPOINT);
+            JD_CHECK(poolck_len == want, -15);
+        }
+        if (d->termck) {
+            uint32_t want = 4u * ((d->n_nodes + TERM_CHECKPOINT - 1u) / TERM_CHECKPOINT);
+            JD_CHECK(termck_len == want, -15);
+        }
+        /* records の件数が counts の合計と一致するか（O(32) で復元する） */
+        uint32_t base = (d->n_surfaces - 1u) / CHECKPOINT;
+        uint32_t tot = rd32(d->surfck + 4u * base);
+        for (uint32_t j = base * CHECKPOINT; j < d->n_surfaces; j++) tot += d->counts[j];
+        JD_CHECK(tot == d->n_entries, -6);
+    }
+
+    /* ⚠️ **matrix は必須。** かつては任意扱いで、無いと jdict_trans が
+     *    `if (!d->matrix) return 0;` により**全遷移コスト 0 の Viterbi**を
+     *    落ちも警告も無しに走らせていた（M-100 §2 で実測: セクション名を 1 バイト
+     *    変えただけで held-out 300 文中 170 文の分割が変わり、警告は 1 つも出なかった。
+     *    ⚠️ 少数文では取り方で 3/10 〜 7/10 と揺れる）。
+     * ⚠️ **長さを厳密に見る。** かつては一切見ておらず、別形式のデータを int16 と
+     *    して読み進めても境界検査に当たらなかった（M-100 §1: 10/10 文が 1 文字ずつに
+     *    刻まれ、それでも jdict_open は 0 を返した）。 */
+#if !defined(JDICT_TEST_WEAK) || !JDICT_TEST_WEAK
+    /* ⚠️ **`matrix` / `matrixa` / `matrixc` はどれか 1 つ。2 つ以上あれば拒む。**
+     *    黙って片方を選ぶと、焼き損ねた blob が「動くが読みだけ違う」形になる
+     *    （M-100 で見た欠陥そのもの）。 */
+    {
+        struct sec sa, sc;
+        const int has_i16 = (find_sec(blob, d->blob_len, "matrix",  &s)  == 0);
+        const int has_aff = (find_sec(blob, d->blob_len, "matrixa", &sa) == 0);
+        const int has_clu = (find_sec(blob, d->blob_len, "matrixc", &sc) == 0);
+        /* ⚠️ **3 つのうち、ちょうど 1 つ。** 2 つ以上あると「動くが読みだけ違う」
+         *    blob になる（M-100 で見た欠陥そのもの）。0 個は全遷移コスト 0 の Viterbi。 */
+        if (has_i16 + has_aff + has_clu != 1) return JDICT_ERR_MATRIX;
+        if (has_i16) {
+            /* ⚠️ **rd16 より前に長さを見る。** find_sec は len == 0 のセクションを
+             *    正常に返すので、matrix が blob の末尾にあると 4 B 越境してから拒んでいた
+             *    （ASan で再現。M-100 §8）。 */
+            JD_CHECK(s.len >= 4u, JDICT_ERR_MATRIX);
+            uint32_t L = rd16(s.p), R = rd16(s.p + 2);
+            if (L == 0 || R == 0) return JDICT_ERR_MATRIX;
+            /* 64 bit で組む（2*65535*65535 は uint32 に入らない）。 */
+            if ((uint64_t)s.len != 4ull + 2ull * L * R) return JDICT_ERR_MATRIX;
+            d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+            d->matrix = (const int16_t *)(const void *)(s.p + 4);
+        } else if (has_aff) {
+            /* matrixa: lsize u16 / rsize u16 / bits u16 / reserved u16
+             *          / lo i16[rsize] / span u16[rsize] / q u8[lsize*rsize] */
+            JD_CHECK(sa.len >= 8u, JDICT_ERR_MATRIX);
+            uint32_t L = rd16(sa.p), R = rd16(sa.p + 2), bits = rd16(sa.p + 4);
+            if (L == 0 || R == 0) return JDICT_ERR_MATRIX;
+            if (bits != 8u) return JDICT_ERR_MATRIX;       /* 未知の量子化幅 */
+            if ((uint64_t)sa.len != 8ull + 4ull * R + (uint64_t)L * R)
+                return JDICT_ERR_MATRIX;
+            d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+            d->matrix_lo   = (const int16_t  *)(const void *)(sa.p + 8);
+            d->matrix_span = (const uint16_t *)(const void *)(sa.p + 8 + 2u * R);
+            d->matrix_q    = sa.p + 8u + 4u * R;
+        } else {
+            /* matrixc: lsize u16 / rsize u16 / bits u16 / kr u16 / kc u16 / reserved u16
+             *          / lo i16[kr] / span u16[kr] / q u8[kr*kc]
+             *          / rmap u16[rsize] / cmap u16[lsize]      （M-106 §2） */
+            /* ⚠️ **rd16 より前に長さを見る。** matrixa と同じ理由（M-100 §8）。
+             *    ⚠️ `if` で書く。`JD_CHECK` は WEAK ビルドで `((void)0)` になり、
+             *    直後の宣言より前に文が来て C99 でコンパイルが通らない（1 回踏んだ）。 */
+            if (sc.len < 12u) return JDICT_ERR_MATRIX;
+            uint32_t L = rd16(sc.p), R = rd16(sc.p + 2), bits = rd16(sc.p + 4);
+            uint32_t kr = rd16(sc.p + 6), kc = rd16(sc.p + 8);
+            if (L == 0 || R == 0 || kr == 0 || kc == 0) return JDICT_ERR_MATRIX;
+            if (bits != 8u) return JDICT_ERR_MATRIX;       /* 未知の量子化幅 */
+            /* ⚠️ **クラスタ数が寸法を超えていないか。** 超えていると rmap / cmap が
+             *    代表行列の外を指しうる（値だけでは気づけない）。 */
+            if (kr > R || kc > L) return JDICT_ERR_MATRIX;
+            if ((uint64_t)sc.len != 12ull + 4ull * kr + (uint64_t)kr * kc
+                                    + 2ull * R + 2ull * L)
+                return JDICT_ERR_MATRIX;
+            d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+            d->matrix_kr = (uint16_t)kr; d->matrix_kc = (uint16_t)kc;
+            d->matrix_lo   = (const int16_t  *)(const void *)(sc.p + 12);
+            d->matrix_span = (const uint16_t *)(const void *)(sc.p + 12 + 2u * kr);
+            d->matrix_q    = sc.p + 12u + 4u * kr;
+            d->matrix_rmap = (const uint16_t *)(const void *)(sc.p + 12u + 4u * kr + kr * kc);
+            d->matrix_cmap = (const uint16_t *)(const void *)
+                             (sc.p + 12u + 4u * kr + kr * kc + 2u * R);
+            /* ⚠️ **写像の値域を開き時に見る。** `jdict_trans` は範囲検査なしで引くので、
+             *    1 bit 壊れると代表行列の外を読む（matrixa の classes 検査と同じ形）。 */
+            for (uint32_t i = 0; i < R; i++)
+                JD_CHECK(rd16((const uint8_t *)(const void *)(d->matrix_rmap + i)) < kr,
+                         JDICT_ERR_MATRIX);
+            for (uint32_t i = 0; i < L; i++)
+                JD_CHECK(rd16((const uint8_t *)(const void *)(d->matrix_cmap + i)) < kc,
+                         JDICT_ERR_MATRIX);
+        }
+    }
+    /* M-100 §8 の 4: エントリの lc / rc が行列の寸法に収まるか。
+     * ⚠️ **誰も見ていなかった。** `jdict_trans` は `matrix[rc_prev + lsize*lc_cur]` を
+     *    範囲検査なしで引くので、classes が 1 bit 壊れると行列の外を読む。
+     * ⚠️ **classes は 5,299 件**（438,750 entries の実辞書）なので開き時 1 周は安い。 */
+    for (uint32_t ci = 0; ci < d->n_classes; ci++) {
+        const uint8_t *c = d->classes + d->cls_stride * ci;
+        JD_CHECK(rd16(c) < d->rsize && rd16(c + 2) < d->lsize, JDICT_ERR_MATRIX);
+    }
+#else
     if (find_sec(blob, n, "matrix", &s) == 0) {
         d->lsize = rd16(s.p); d->rsize = rd16(s.p + 2);
         d->matrix = (const int16_t *)(const void *)(s.p + 4);
+    } else if (find_sec(blob, n, "matrixa", &s) == 0) {
+        uint32_t R = rd16(s.p + 2);
+        d->lsize = rd16(s.p); d->rsize = (uint16_t)R;
+        d->matrix_lo   = (const int16_t  *)(const void *)(s.p + 8);
+        d->matrix_span = (const uint16_t *)(const void *)(s.p + 8 + 2u * R);
+        d->matrix_q    = s.p + 8u + 4u * R;
+    } else if (find_sec(blob, n, "matrixc", &s) == 0) {
+        uint32_t L = rd16(s.p), R = rd16(s.p + 2);
+        uint32_t kr = rd16(s.p + 6), kc = rd16(s.p + 8);
+        d->lsize = (uint16_t)L; d->rsize = (uint16_t)R;
+        d->matrix_kr = (uint16_t)kr; d->matrix_kc = (uint16_t)kc;
+        d->matrix_lo   = (const int16_t  *)(const void *)(s.p + 12);
+        d->matrix_span = (const uint16_t *)(const void *)(s.p + 12 + 2u * kr);
+        d->matrix_q    = s.p + 12u + 4u * kr;
+        d->matrix_rmap = (const uint16_t *)(const void *)(s.p + 12u + 4u * kr + kr * kc);
+        d->matrix_cmap = (const uint16_t *)(const void *)
+                         (s.p + 12u + 4u * kr + kr * kc + 2u * R);
     }
+#endif
     return 0;
 }
 
@@ -253,10 +535,9 @@ void jdict_entry_range(const jdict_t *d, uint32_t rank,
 
 void jdict_entry_conn(const jdict_t *d, uint32_t entry,
                    uint16_t *lc, uint16_t *rc, int16_t *wcost) {
-    const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
-    uint16_t cid = rd16(r);
-    *wcost = (int16_t)rd16(r + 2);
-    const uint8_t *c = d->classes + 8u * cid;
+    uint16_t cid;
+    rec_unpack(d, entry, &cid, wcost, NULL, NULL);
+    const uint8_t *c = d->classes + d->cls_stride * cid;
     *lc = rd16(c);
     *rc = rd16(c + 2);
 }
@@ -272,7 +553,6 @@ static uint32_t key_codepoint(const jdict_t *d, const uint8_t *key, size_t p,
 
 #define REC_FLAG_ORIG_EQ_SURFACE 0x01u
 #define REC_FLAG_READ_EQ_PRON    0x02u
-#define TERM_CHECKPOINT 512u
 
 /* node より前の終端の数。⚠️ **索引が無いと O(n) 走査**（K-6 以前の実装）。 */
 static uint32_t term_rank_fast(const jdict_t *d, uint32_t node) {
@@ -402,8 +682,9 @@ static uint32_t pool_offset(const jdict_t *d, uint32_t entry) {
     uint32_t off = d->poolck ? rd32(d->poolck + 4u * base) : 0;
     uint32_t from = d->poolck ? base * CHECKPOINT : 0;
     for (uint32_t j = from; j < entry; j++) {
-        const uint8_t *r = d->records + (size_t)j * REC_SIZE;
-        off += r[7] + r[8];                  /* pool_len + extra_len */
+        uint8_t pl, el;
+        rec_unpack(d, j, NULL, NULL, &pl, &el);
+        off += pl + el;                      /* pool_len + extra_len */
     }
     return off;
 }
@@ -436,12 +717,12 @@ static size_t put(char *out, size_t o, size_t out_n, const char *s) {
 int jdict_entry_feature(const jdict_t *d, uint32_t entry,
                      const char *surface, char *out, size_t out_n) {
     if (entry >= d->n_entries) return -1;
-    const uint8_t *r = d->records + (size_t)entry * REC_SIZE;
-    uint16_t cid = rd16(r);
-    uint16_t chid = rd16(r + 4);
-    uint8_t flags = r[6], pl = r[7], el = r[8];
+    uint16_t cid, chid;
+    uint8_t flags, pl, el;
+    rec_unpack(d, entry, &cid, NULL, &pl, &el);
     if (cid >= d->n_classes) return -2;
-    uint16_t p6 = rd16(d->classes + 8u * cid + 4);
+    rec_chain_flags(d, entry, cid, &chid, &flags);
+    uint16_t p6 = rd16(d->classes + d->cls_stride * cid + 4);
 
     uint32_t off = pool_offset(d, entry);
     const uint8_t *pb = d->pool + off;
@@ -512,17 +793,45 @@ int jdict_entry_feature(const jdict_t *d, uint32_t entry,
 }
 
 int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur) {
-    if (!d->matrix) return 0;
-    return d->matrix[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
+    if (d->matrix) return d->matrix[(size_t)rc_prev + (size_t)d->lsize * lc_cur];
+    if (!d->matrix_q) return 0;
+    /* 行ごとアフィン uint8（`matrixa`）。⚠️ **整数だけで閉じる。**
+     *    float スケールにするとホスト（float64）と C で値が食い違い、
+     *    Viterbi の判断が変わりうる（M-99 §1 / C-060）。
+     * ⚠️ span == 0 の行は lo をそのまま返す（ゼロ除算を踏まない）。
+     *    実辞書では 0/1377 行だが、他の辞書では起きうる。 */
+    /* matrixc（行・列クラスタ）なら、まず写像でクラスタ番号に落とす。
+     * ⚠️ **代表行列の索引は kc 幅**（lsize ではない）。M-106 §2 */
+    const size_t row = d->matrix_rmap ? (size_t)d->matrix_rmap[lc_cur] : (size_t)lc_cur;
+    const size_t col = d->matrix_cmap ? (size_t)d->matrix_cmap[rc_prev] : (size_t)rc_prev;
+    const size_t w   = d->matrix_rmap ? (size_t)d->matrix_kc : (size_t)d->lsize;
+    const int32_t sp = (int32_t)d->matrix_span[row];
+    const int32_t lo = (int32_t)d->matrix_lo[row];
+    if (sp == 0) return (int16_t)lo;
+    const int32_t q = (int32_t)d->matrix_q[col + w * row];
+    /* 中間値は最大 255*17,342*2 = 8,844,420。int32 に収まる */
+    return (int16_t)(lo + (q * sp * 2 + 255) / 510);
 }
 
 /* ---------------------------------------------------------------- 未知語 */
 
 #define MAX_GROUPING 24u          /* MeCab の MAX_GROUPING_SIZE */
 
+static uint32_t char_raw(const jdict_t *d, uint32_t cp);
+uint32_t jdict_char_raw(const jdict_t *d, uint32_t cp) { return char_raw(d, cp); }
+
 static uint32_t char_raw(const jdict_t *d, uint32_t cp) {
-    if (!d->char_info || cp >= d->n_codepoints) return 0;   /* 表の外は DEFAULT */
-    return rd32(d->char_info + 4u * cp);
+    if (cp >= d->n_codepoints) return 0;                    /* 表の外は DEFAULT */
+    if (d->char_info) return rd32(d->char_info + 4u * cp);
+    if (!d->char_runs) return 0;
+    /* レンジ表（`charr`）: 開始位置 <= cp の最後の run を二分探索で引く。
+     * ⚠️ run[0] の開始位置は 0 と検査済みなので、必ず 1 つは見つかる。 */
+    uint32_t lo = 0, hi = d->n_char_runs;                   /* [lo, hi) */
+    while (hi - lo > 1u) {
+        uint32_t mid = lo + (hi - lo) / 2u;
+        if ((rd32(d->char_runs + 4u * mid) >> 12) <= cp) lo = mid; else hi = mid;
+    }
+    return rd32(d->char_vals + 4u * (rd32(d->char_runs + 4u * lo) & 0xFFFu));
 }
 static uint32_t ci_type(uint32_t v)    { return v & 0x3FFFFu; }
 static uint32_t ci_default(uint32_t v) { return (v >> 18) & 0xFFu; }
@@ -657,7 +966,12 @@ static int analyze_impl(const jdict_t *d, const uint8_t *key, size_t key_n,
          * ⚠️ wcost は unk.dic の値を**そのまま**使う（実測で確認。スケールしない）。 */
         uint32_t unk_len_list[MAX_GROUPING + 2];
         int n_unk_len = 0;
-        if (d->unk && d->char_info) {
+        /* ⚠️ **`char_info` だけを見てはいけない。** `charr`（レンジ表。M-106 §10）では
+         *    `char_info` が NULL になり、**未知語ノード生成が丸ごと飛んでいた**。
+         *    落ちも警告も出ず、経路なしの文が増えるだけなので、
+         *    **ゲートがその文を分母から落として精度が良く見える**（M-107）。
+         *    `char_raw()` は両方を扱うので、条件も両方を見ること。 */
+        if (d->unk && (d->char_info || d->char_runs)) {
             uint32_t sb = 0;
             uint32_t cp0 = key_codepoint(d, key, i, &sb);
             uint32_t v0 = char_raw(d, cp0);

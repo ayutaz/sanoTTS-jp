@@ -34,6 +34,17 @@
 #define KJ_FEAT_MAX   SAAN_KANJI_FEAT_MAX
 #define KJ_VITERBI_N  SAAN_KANJI_VITERBI_N
 
+/* M-98: 入力トークンの上限が Open JTalk の一時ヒープの予算に収まっているか。
+ * ⚠️ **ここで止めないと、PSRAM の無い板で内部 DRAM を食い潰す。**
+ *    `-DSAAN_KANJI_MAX_INPUT_TOK=` を上げるなら
+ *    `-DSAAN_KANJI_OJ_BUDGET_BYTES=` も上げ、**その板で低水位を測り直すこと**。 */
+_Static_assert(SAAN_KANJI_OJ_MAX_BYTES <= SAAN_KANJI_OJ_BUDGET_BYTES,
+               "SAAN_KANJI_MAX_INPUT_TOK が OJ ヒープの予算を超えている");
+
+/* エラー文言に上限の数字をそのまま出す（人が手で書き写すと必ずずれる）。 */
+#define STR_(x) #x
+#define STR(x)  STR_(x)
+
 /* .bss に残すのはポインタ表 1 本だけ（96 × sizeof(char*) = 384 B）。
  * ⚠️ **s_key / s_tok / s_lab と K-7 のトークン表（合計 14,464 B）は
  *    2026-09-03 に arena へ移した**（T10(a)）。M5 の内部 DRAM は 341,760 B しか
@@ -108,7 +119,8 @@ const char *saan_kanji_strerror(saan_kanji_status s) {
     case SAAN_KANJI_ERR_ANALYZE:   return "経路が張れない";
     case SAAN_KANJI_ERR_FEATURE:   return "素性を復元できない";
     case SAAN_KANJI_ERR_IDS:       return "ids を作れない";
-    case SAAN_KANJI_ERR_TOO_LONG:  return "内部バッファを超えた（短く区切ること）";
+    case SAAN_KANJI_ERR_TOO_LONG:  return "長すぎる（形態素 " STR(SAAN_KANJI_MAX_INPUT_TOK)
+                                          " 個まで。短く区切ること）";
     }
     return "不明なエラー";
 }
@@ -132,6 +144,13 @@ saan_kanji_status saan_kanji_to_ids(const jdict_t *d,
                         s_tok, KJ_MAX_TOK);
     if (nt <= 0) return SAAN_KANJI_ERR_ANALYZE;
     if (n_tokens) *n_tokens = nt;
+    /* M-98: **ここで止める。** この行より下（mecab2njd 以降）が Open JTalk の
+     * 一時ヒープを取る。Viterbi は arena しか使わないので、形態素数が分かった
+     * この時点ではまだ 1 バイトも malloc していない。
+     * ⚠️ **`ids > SAAN_MAX_IDS` の検査では遅い。** あれは呼び出し側が
+     *    G2P の**後**に見るので、喋らないと分かっている文でも先に
+     *    99,668 B（実測・最長文）を内部 DRAM から取ってしまう。 */
+    if (nt > SAAN_KANJI_MAX_INPUT_TOK) return SAAN_KANJI_ERR_TOO_LONG;
 
     int nf = 0;
     for (int i = 0; i < nt && nf < KJ_MAX_TOK; i++) {

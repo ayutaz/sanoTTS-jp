@@ -1,0 +1,43 @@
+# saanoTTS-jp / 漢字対応版のパーティション表（**2 MB flash 相当**。M-106 §13）
+#
+# flash: 2MB     ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+# app-min: 1022640                  ← M-106 §11 で実測した app（-DSAAN_KANJI=1、DevKit 構成）
+# dict-blob: csrc/k1_dict_2mb.bin   ← ⚠️ **4 MB / 8 MB / 16 MB の blob と比べさせない**
+#
+# ⚠️⚠️ **ESP32-S3 に 2 MB flash の品番は無い。**
+#    ESP32-S3-WROOM-1 は N4 (4 MB) / N8 / N16 の 3 択で、**4 MB が下限**である。
+#    この表は「**2 MB の枠に収まるか**」を大きい板の上で確かめるためのもので、
+#    **2 MB のチップで動かした記録ではない**（M-105 の 8 MB と同じ立場）。
+#    実際に焼くのは 4 MB 以上の板で、**残りは未使用になる**。
+#
+# ⚠️ **app の余りが 25,936 B (2.5%) しかない。** 4 MB 版の app が 1,022,640 B で、
+#    factory は 1,048,576 B。**app が少しでも育つと入らなくなる。**
+#    ⚠️ M5Unified を積むと app が 1,438,576 B になり（M-105 §4）、**この表では成立しない**。
+#
+# ⚠️ **`model` の行が無い。** 生徒の int8 blob 654,032 B は app に `.rodata` として
+#    埋め込む（`-DSAAN_MODEL_RODATA=1`）。検査は `--rodata` を付けて回すこと。
+#
+# ⚠️ **辞書は `matrixc`（行・列クラスタ）+ `charr`（文字カテゴリの run 表）が必須。**
+#    `charr` が無いと char.bin 262,496 B のせいで**1 点も入らない**（M-106 §10）。
+#      uv run python scripts/k1/k1_build_dict.py --entries 44000 \
+#          --matrix cluster:256 --char-range --out csrc/k1_dict_2mb.bin
+#    ⚠️ **余りが薄い。** entries を変えたら**概算ではなく作って `stat`** すること
+#    （k-means の解が実行ごとに違い、4 MB 版では算術より 4,768 B 大きかった。M-106 §11）。
+#
+# ⚠️ **読みの精度が落ちる**（すべて n=1,495。M-106 §2 / §10）:
+#      438,750 entries + 生 int16    … 音素の誤り 0.63%
+#      228,000 entries + アフィン     … 音素の誤り 1.01%
+#      135,000 entries + クラスタ 256 … 音素の誤り 1.64%
+#       44,000 entries + クラスタ 256 … 音素の誤り **3.86%**（16 MB の 6.1 倍。M-107 で訂正）
+#
+# ⚠️ **`dict` の offset は 64 KB (0x10000) 境界に置くこと。**
+#
+# 割り当て（合計はちょうど 2 MB）:
+#   factory 1,048,576 B … app 1,022,640（余り 25,936 = 2.5%）
+#   dict      983,040 B … クラスタ辞書
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x100000,
+dict,     data, 0x41,    0x110000, 0xF0000,

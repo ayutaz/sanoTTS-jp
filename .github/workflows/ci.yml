@@ -26,8 +26,8 @@ jobs:
     name: docs（依存ゼロ）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
       - name: ゲートが CI で回るか、回らないなら理由が書いてあるか（陽性対照つき）
@@ -47,11 +47,22 @@ jobs:
       - name: レポートの本文検出ゲート
         run: uv run --no-project --python 3.12 python scripts/test_sanitize_reports.py
 
+      - name: rec5（5 B レコード）の往復と畳み込み（合成エントリ。辞書は要らない）
+        run: uv run --no-project --python 3.12 python scripts/test_rec5.py
+
       - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 
       - name: 蒸留テキストのライセンス判定（G-L1a・陽性対照つき）
         run: uv run --no-project --python 3.12 python scripts/test_corpus_license.py
+      # ⚠️ **この job を含む 4 job は `--no-project`、`python` job は `uv pip install` の即席 venv、
+      #    `golden` は python 無し** = uv.lock も pyproject.toml も**どこでも解決されない**（C-071）。
+      #    せめて宣言と固定版が食い違っていないかは見る。
+      #    ⚠️ **制約を緩めただけの変更は捕まらない**（緩めても固定版は制約を満たす）。
+      - name: pyproject の制約を uv.lock の固定版が満たしているか（陽性対照 6 / 陰性対照 2）
+        run: |
+          uv run --no-project --python 3.12 python scripts/check_lock_vs_pyproject.py
+          uv run --no-project --python 3.12 python scripts/check_lock_vs_pyproject.py --self-test
 
   # ------------------------------------------------- 参照実装との一致（重みを落とす）
   # リリース **v0.3.0** の fp32 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）と
@@ -80,7 +91,7 @@ jobs:
     name: 参照実装との一致（fp32 + int8・重みはリリース v0.3.0 から）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: 重みと参照出力を落とす（タグ固定）
         env:
           GH_TOKEN: ${{ github.token }}
@@ -148,8 +159,8 @@ jobs:
     name: csrc（重み不要のゲート）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
       - name: 端末の行編集（G9/G10・陽性対照つき）
@@ -170,14 +181,21 @@ jobs:
       - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
         run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
 
+      # ⚠️ **K トラックで唯一 CI に載るゲート。** 辞書も pyopenjtalk も要らず、
+      #    合成 blob だけで jdict_open の入力検査を叩く（M-97）。
+      #    陽性対照（-DJDICT_TEST_WEAK=1 の別バイナリ）が同じ壊れた blob を
+      #    **通してしまう**ことまで見るので、空虚には通らない。
+      - name: 辞書 blob の入力検査（jdict_open・陽性対照つき。辞書不要）
+        run: make -C csrc jdict-hard
+
   # -------------------------------------------------------------------- Python
   # ⚠️ torch は **CPU ビルドを明示する**。既定だと Linux で CUDA 版（数 GB）を引く。
   python:
     name: python（torch / numpy）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
       - name: 依存を入れる（torch は CPU ビルド）
@@ -203,8 +221,8 @@ jobs:
     name: リリース資産（ドキュメントの表 vs 実物）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v5
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
       # ⚠️ **--offline-ok は付けない。** 届かなかったら落とす（黙って通さない）
@@ -251,10 +269,10 @@ jobs:
     name: web（wasm ゲート・emcc 6.0.9）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # ⚠️ **uv が要る。** G-W4 の凍結ベクタ `csrc/g2p_vectors.bin` は git 管理外で、
       #    `scripts/gen_g2p_vectors.py` が毎回作る（`csrc` job の `make g2p` と同じ）
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
       - name: 重みと参照出力を落とす（タグ固定。golden job と同じ資産）

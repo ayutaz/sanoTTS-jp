@@ -12,7 +12,7 @@
 
 | job | 中身 | 依存 | 実測 |
 |---|---|---|---:|
-| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数 / md の相対リンク / hook の回帰 94 ケース / 本文検出 / blob → .rodata ヘッダ変換 / **ゲートが CI で回るか、回らないなら理由が書いてあるか**（`check_ci_coverage.py`。**陽性対照 2 件**つき。2026-09-03 追加） | **なし**（stdlib のみ） | **9 s** |
+| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数 / md の相対リンク / hook の回帰 105 ケース / 本文検出 / blob → .rodata ヘッダ変換 / **`rec5` の往復と畳み込み**（`test_rec5.py`。合成エントリなので辞書が要らない。M-108） / **ゲートが CI で回るか、回らないなら理由が書いてあるか**（`check_ci_coverage.py`。**陽性対照 2 件**つき。2026-09-03 追加） / **pyproject の制約を uv.lock の固定版が満たしているか**（`check_lock_vs_pyproject.py`。**陽性対照 6 / 陰性対照 2**。C-071。2026-09-10 追加） | **なし**（stdlib のみ） | **9 s**（⚠️ lock のゲートを足した後は未計測） |
 | **`golden`** | **参照実装との一致**。**fp32**（`make -C csrc test`）と **int8**（`int8-golden` / `int8`）の両方 + `arena`。重みはリリース **`v0.3.0`** の 4 資産を落とす（2.2 + 0.8 + 0.65 + 0.8 MB）。**陽性対照つき**（重みを壊すと fp32 / int8 の両方で落ちる = C-056） | ネットワーク + cc | **未計測**（int8 レーンは 2026-09-03 追加） |
 | `csrc` | `line` `fft` `pad` `g2p` `erf`（GELU の erf 近似 vs libm）**`range`**（S9 の範囲版カーネル vs `[0,T)` 版。2026-09-03 追加）。**どれも重み blob を要らない** | cc のみ | **163 s** |
 | `python` | `test_losses`（26 項目）/ `test_labelpack` | torch（**CPU ビルド**）+ numpy | **15 s** |
@@ -59,7 +59,8 @@ Linux + glibc の厳密 `-std=c99` では見えない。**出荷するコア 2 �
 | `make -C csrc prof` | **重み blob が要る**。⚠️ リリースから落とせるので `golden` job に足せる（**未着手**。手元では 1.5 s） |
 | `scripts/test_discriminator.py` | **ラベルパックが要る**（`data/pack_sib*`。コーパス由来なので配布しない） |
 | `scripts/kana_g2p.py` | **pyopenjtalk が要る**（凍結テーブルとの突き合わせは live 側が要る） |
-| `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
+| `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `matrixa` / `charr` / `rec5` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
+| `make -C csrc matrixc` | 上に加えて **scikit-learn（k-means）** も要る（M-106 §10） |
 | `scripts/phase0_verify_teacher.py` | **教師 ckpt が private** |
 | ESP-IDF ビルド / QEMU | toolchain が重く、**実機の代わりにならない**（QEMU はサイクル精度ではない） |
 
@@ -86,8 +87,9 @@ held-out 24 文を見る `stream` は下記の理由で回らない。
 | 理由 | 何が回せないか |
 |---|---|
 | **コーパス由来の成果物が git にもリリースにも無い** | `stream` の多文レーン / `int8-e2e`（`ids_heldout.bin`）/ `g2p-corpus` / `test_discriminator.py`（ラベルパック） |
-| **辞書 13.7 MB と pyopenjtalk が要る** | 漢字経路の 6 ゲート（`jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids`）と `kb-parity` |
-| **ESP-IDF の xtensa toolchain（約 2 GB）** | `check_esp32_template.sh` |
+| **辞書 13.7 MB と pyopenjtalk が要る** | 漢字経路の **10 ゲート**（`jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `kb-parity` / `matrixa` / `charr` / `rec5`） |
+| **さらに scikit-learn（k-means）も要る** | `matrixc`（M-106 §10。行・列クラスタの C リーダ）。⚠️ **k-means は環境が変われば別の解になりうる**ので、CI で作り直したベクタは手元と一致しない可能性がある |
+| **ESP-IDF の xtensa toolchain（約 2 GB）** | `check_esp32_template.sh`。⚠️ **全 12 節が toolchain を要るわけではない** — §12（`CONFIG_ESPTOOLPY_FLASHSIZE` の宣言漏れ。M-106 §13）は `sdkconfig.*` の grep だけで、**CI に入れられる可能性がある**。⚠️ **未検証**（節ごとの依存を数えていない） |
 
 ⚠️ **訂正（C-057）: ここには 4 つ目として「重み blob の int8 版が古い」があった。**
 「リリースの `saanotts-jp-v3-int8.bin` は **v1** で、S4 以降のコアが `SAAN_ERR_VERSION` で拒む。
@@ -121,6 +123,8 @@ fp32 / int8 の両方で落ちることを実測した（伸ばすだけの壊�
 `pages.yml`（Pages への配置）に書いたゲートは**誰も監査しない**。
 wasm のゲートを `ci.yml` の `web` job に置いているのはそのため。
 **Pages のワークフローに受け入れゲートを足さないこと** — 足すなら `ci.yml` 側にも同じものを置く。
+同じ理由で [`../dependabot.yml`](../dependabot.yml)（Actions の版更新だけ。D-053）も**監査外**。
+いまゲートを 1 つも持たないので害は無いが、**あちらにも受け入れゲートを書かないこと。**
 
 ## ⚠️ `web` job が緑でも言えないこと
 

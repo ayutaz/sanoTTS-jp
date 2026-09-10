@@ -1,0 +1,135 @@
+# Dependabot の設定 — **GitHub Actions の版更新だけ。** Python の依存（pip / uv）は入れていない。
+# 決定は `docs/decisions.md` の D-053。
+#
+# ───────────────────────────────────────────────────────────────────────────
+# なぜ pip / uv のレーンを置かないのか
+# ───────────────────────────────────────────────────────────────────────────
+#
+# `package-ecosystem: "uv"` は **GA 対応済み**（version updates 2025-03-13 /
+# security updates 2025-12-16）なので、これは「書き方が分からない」話ではない。
+# **このリポジトリでは構造的に成立しない。**
+#
+#   `pyproject.toml` の `[tool.uv.sources]`（`piper-train` / `piper-plus-g2p` の 2 行）が
+#   教師 piper-plus を **絶対パス** `/Users/s19447/Documents/piper-plus/src/python` で指している。
+#   そのパスが無い環境で `uv lock` を回すと
+#   `error: Distribution not found at: file:///...`（exit=2）で落ちる。
+#   Dependabot の**更新**は解決（= `uv lock`）を要するので、レーンを置いても PR は出ない。
+#
+# ⚠️ **実測した範囲を正確に書く。** 上の失敗は**手元で絶対パスを外した状態を作って再現**した
+#    ものである（前段の調査。この設定を書いた時点で私は再実行していない）。
+#    **GitHub 上の Dependabot が実際に何で落ちるかは未観測** — 失敗理由は API から見えない。
+#    したがって「レーンを置いたら落ちる」は手元の再現からの推論で、GitHub 上の実測ではない。
+#
+# ⚠️ **アラートはこのファイルに何を書いても出続ける。** 依存グラフは `uv.lock` を
+#    静的に読むだけなので脆弱性は検出される。**検出できることと、Dependabot が直せることは別。**
+#    実際に、修正版のある 4 件が open のまま **Dependabot 作の PR は 0 本**だった。
+#
+# ───────────────────────────────────────────────────────────────────────────
+# 依存の修正は人が `uv lock` で作る
+# ───────────────────────────────────────────────────────────────────────────
+#
+# ⚠️ ただし transformers は `uv lock` を叩くだけでは動かなかった。上限で止めていたのは
+#    **このリポジトリ自身の `pyproject.toml` の `huggingface-hub>=0.36.2,<1.0`** で、
+#    piper-plus 側の `transformers>=4.50.0`（上限なし）ではない。
+#    **書き換える行は transformers の行ではなく huggingface-hub の行**
+#    （= 今回の変更。`>=1.5.0,<2.0` にして transformers 4.57.6 → 5.16.1）。
+#    ⚠️ 上限を `<2.0` に緩めるだけでは lock は 1 mm も動かない（uv は既存 lock の版を優先する）。
+#    ⚠️ **行番号で指さない** — 依存を 1 行足すたびにずれる（C-042 と同じ形）。
+#
+# ⚠️ **nltk（CVE-2026-81726）はどう設定しても閉じられない。** 修正は上流の develop に
+#    マージ済みだが**リリースが存在しない**（VERSION は 3.10.3 のまま）。
+#    無いのは修正ではなくリリース番号なので、**open のまま上流を待つ。dismiss しない。**
+#
+# ───────────────────────────────────────────────────────────────────────────
+# Dependabot が面倒を見ない穴が 2 つある（このファイルでは塞げない）
+# ───────────────────────────────────────────────────────────────────────────
+#
+# 1. **emsdk 6.0.9 が 2 ファイル・2 形式で二重管理されている**:
+#    `.github/workflows/pages.yml:59` の `EMSDK_VERSION: 6.0.9` と、
+#    `.github/workflows/ci.yml:274,275` のリテラル（`emsdk install 6.0.9` /
+#    `emsdk activate 6.0.9`）。行番号は 2026-09-04 時点で、探すなら
+#    `grep -rn '6\.0\.9' .github/workflows/`。ecosystem が無いので **Dependabot は片方も見ない。**
+#    ⚠️ **片方だけ上げると版が黙って食い違う。** 上げるときは手で両方揃えること。
+# 2. `esp32/boards/m5unified/main/idf_component.yml` の `m5stack/m5unified: "^0.2.0"`。
+#    ESP-IDF Component Registry は `package-ecosystem` の enum に無い。
+#
+# ───────────────────────────────────────────────────────────────────────────
+# groups を書かない理由（空虚なゲートを作らない）
+# ───────────────────────────────────────────────────────────────────────────
+#
+# 使っている 4 本は**全部 major の moving tag 固定**なので、minor/patch の差は
+# Dependabot に見えない。minor/patch のグループを書いても**一度も発火しない**
+# （= 空虚なゲート。`.claude/skills/writing-gates/SKILL.md`）。
+# だから groups は書かず、**major が 1 本ずつ来る形**にしてある。
+#
+# 使用中の版と moving major tag の上限（2026-09-04 に下記コマンドで実測）:
+#
+#   | 使用中 | moving major tag | 更新が来るか |
+#   |---|---|---|
+#   | `actions/checkout@v4`              | v1〜v7 | ✅ v7 まで（上流の最新も v7.0.1） |
+#   | `astral-sh/setup-uv@v5`            | v1〜v7 | ✅ v7 まで。⚠️ 下記 |
+#   | `actions/upload-pages-artifact@v5` | v0〜v5 | ❌ すでに最上位 |
+#   | `actions/deploy-pages@v5`          | v1〜v5 | ❌ すでに最上位 |
+#
+#   gh api /repos/astral-sh/setup-uv/git/matching-refs/tags --paginate -q '.[].ref' \
+#     | sed 's|refs/tags/||' | grep -E '^v[0-9]+$' | sort -V
+#
+# ⚠️ **setup-uv の moving major tag は v7 が上限**（v8 / v9 / v10 は `v8.3.2` `v9.0.0`
+#    `v10.0.1` のような full version としてしか存在しない）。上流の最新は **v10.0.1** だが、
+#    **tag 固定のままでは v7 で止まる。届かない先を目標に見せないこと。**
+# → よって初回に来る PR は**最大 2 本**。`open-pull-requests-limit: 3` はその余裕。
+#
+# ⚠️ `labels:` は書かない（このリポジトリに無い custom label は**黙って無視される**）。
+# ⚠️ `ignore:` も書かない（uv レーンを置かないので no-op で、塞いだ気にさせるだけ）。
+#
+# ⚠️ **このファイルは `scripts/check_ci_coverage.py` の監査外**（`ci.yml` しか読まない。
+#    `pages.yml` と同じ扱い）。**受け入れゲートをここに書かないこと。**
+
+# ───────────────────────────────────────────────────────────────────────────
+# キーと値が実在するか — schema に当てて確かめた（2026-09-04 / 陽性対照つき）
+# ───────────────────────────────────────────────────────────────────────────
+#
+# ⚠️ **typo は黙って無視される。** GitHub はこのファイルの誤りを PR にしてくれないので、
+#    `interval: montly` と書いても「更新が来ないだけ」になる。**だから schema に当てた。**
+#    SchemaStore の `GitHub Dependabot v2 config`（50,840 B / HTTP 200）で検証した:
+#
+#      curl -sSL -o /tmp/db.json https://json.schemastore.org/dependabot-2.0.json
+#      uv run --no-project --with pyyaml --with jsonschema python - <<'PY'
+#      import json, yaml
+#      from jsonschema import Draft7Validator
+#      v = Draft7Validator(json.load(open('/tmp/db.json')))
+#      d = yaml.safe_load(open('.github/dependabot.yml'))
+#      print(sorted(e.message for e in v.iter_errors(d)) or 'VALID')
+#      PY
+#
+#   結果: **VALID**（エラー 0 件）。schema の enum は
+#   `package-ecosystem` 33 値（`github-actions` / `pip` / `uv` を含み、
+#   **ESP-IDF Component Registry に当たる値は無い** = 上の 2. の根拠）、
+#   `schedule.interval` 7 値（daily / weekly / monthly / quarterly /
+#   semiannually / yearly / cron）。
+#
+# ⚠️ **陽性対照を実際に走らせて落ちるのを見た**（本体ではなく scratchpad の複製で）:
+#
+#   | 壊し方 | 結果 |
+#   |---|---|
+#   | `interval: "monthly"` → `"montly"`              | INVALID 2 件（enum 不一致） |
+#   | `package-ecosystem: "github-actions"` → `"github-action"` | INVALID 1 件（enum 不一致） |
+#
+#   → 「VALID」が検出漏れではないと言える。⚠️ **これは 1 回の手作業で、ゲートではない**
+#      （このファイルは上記のとおり監査外。CI では誰も検証していない）。
+# ⚠️ **schema が保証しないもの**: 値が enum に在っても、Dependabot が実際に PR を出すかは別。
+#    GitHub 上での挙動は**未観測**（上の「実測した範囲」の注記と同じ）。
+
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"   # ⚠️ pip / uv は上記の理由で置かない
+    directory: "/"                        # `.github/workflows/` の全ワークフローを見る
+    schedule:
+      interval: "monthly"                 # 個人開発でコードはほぼ凍結。weekly は騒がしいだけ
+    open-pull-requests-limit: 3
+    commit-message:
+      # 履歴の慣習に合わせる（`chore(pages):` / `docs(web):` / `fix(pages):`）。
+      # `include: "scope"` で `chore(deps): bump ...` になる。
+      prefix: "chore"
+      include: "scope"

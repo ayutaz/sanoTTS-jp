@@ -63,11 +63,11 @@ jobs:
     name: ビルドとゲート（wasm ゲート 8 本）
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # `check_web_gates.sh` が `csrc/g2p_vectors.bin` を生成するのに使う
       # （凍結テーブル `csrc/g2p_table.json` から作るので stdlib だけで走る）
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
       # ⚠️ **`ci.yml` の web job と同じ入れ方にしてある。**
