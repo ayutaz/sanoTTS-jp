@@ -260,6 +260,11 @@ comm -12 /tmp/a /tmp/b | wc -l` → 92）
 ⚠️ **v4 でも §3.2 の出力用途制限と §3.3 の伝播は 1 つも減らない**
 （つくよみちゃんコーパス由来）。**消えるのは蒸留テキストの継承リスクだけ。**
 
+⚠️ **2026-09-10、教師の声は つくよみちゃんのままにすると決めた**
+（[`docs/decisions.md`](docs/decisions.md) D-058）。**したがって §3.2 の出力用途制限 4 項目と
+§3.3 の伝播は、今後の版でも残る** — 「将来の版で消える」ものとして扱わないこと。
+⚠️ **本モデルを製品に組み込む場合、§3.2 の 4 項目を自社の利用規約に書く義務がある。**
+
 ⚠️ **本節を含む本ファイルの法的評価は、本プロジェクトによる一次ソースの読解であり、
 弁護士による法的助言ではありません。** 重要な用途に使う場合はご自身で確認してください。
 
@@ -392,3 +397,9 @@ and not required for v4 weights** — check which you are shipping.
 ⚠️ **v4 removes nothing from the output-use restrictions or the propagation duty** —
 those come from the Tsukuyomi-chan corpus. **Only the distillation-text share-alike
 risk goes away.**
+
+⚠️ **On 2026-09-10 we decided to keep the Tsukuyomi-chan voice**
+(`docs/decisions.md` D-058). **The §3.2 output-use restrictions and the §3.3
+propagation duty therefore remain in every future version too** — do not treat them
+as something a later release will remove. If you ship this model in a product, you
+**must** write the four §3.2 prohibitions into your own terms of use.
