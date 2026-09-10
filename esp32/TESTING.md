@@ -465,7 +465,7 @@ W8A8 + PIE が **0.446**（M-90）。**PIE 無しでは実時間に間に合い�
 
 ℹ️ **8 MB / 4 MB のボードでも、ソースからビルドすれば漢字は動きます**
 （8 MB は 2026-09-05 に実機で確認 = [M-105](../docs/measurements.md#m-105) /
-4 MB は QEMU まで = [M-106](../docs/measurements.md#m-106)）。
+4 MB / 2 MB は**第三者の実機** = [M-109](../docs/measurements.md#m-109)。⚠️ **私は未再現**）。
 接続行列を小さく持ち、entries を減らした辞書を使います。**配布はしていません**:
 
 | 板 | 表 | entries | **音素の誤り**（n=1,495） | 確認 |
@@ -479,8 +479,10 @@ W8A8 + PIE が **0.446**（M-90）。**PIE 無しでは実時間に間に合い�
 手順は [`esp32/README.md`](README.md) の「8 MB flash の板」「4 MB / 2 MB 枠」。
 ⚠️ **読みが落ちます。** ⚠️ **音を人が聴いていません。**
 
-🙏 **4 MB / 2 MB を実機で試していただけると助かります**（[M-106](../docs/measurements.md#m-106) §12）。
-QEMU では合成まで通り PCM も 16 MB と一致しましたが、**速度もアンダーランも音も未測定**です。
+✅ **4 MB / 2 MB は第三者の実機で鳴りました**（[M-109](../docs/measurements.md#m-109)。
+**PSRAM 無しの ATOMS3 + Voice Base** でも動いた）。
+🙏 **まだ聞けていないのは数字です** — **PCM の checksum** / **定常 xRT** / **アンダーラン** /
+**どのくらいの長さの文を打ったか**。試された方がいれば教えてください。
 ⚠️ **ESP32-S3 に 2 MB flash の品番は無い**ので、2 MB は「表だけ 2 MB にして大きい板に焼く」形になります。
 
 ℹ️ **焼くだけで良いなら [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) に

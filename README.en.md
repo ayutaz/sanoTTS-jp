@@ -169,7 +169,7 @@ native-USB-only board such as a CoreS3 or AtomS3 needs the `-usbjtag` one.
 
 ⚠️ **"16 MB required" applies to the released images.** Kanji also runs on 8 MB and 4 MB
 boards if you **build from source** (8 MB verified on hardware 2026-09-05,
-[M-105](docs/measurements.md#m-105); 4 MB in QEMU only, [M-106](docs/measurements.md#m-106)).
+[M-105](docs/measurements.md#m-105); 4 MB and 2 MB **on third-party hardware**, [M-109](docs/measurements.md#m-109) — ⚠️ **not reproduced here**).
 No small-flash image is published, so you build it yourself:
 
 | | Partition table | entries | **Phoneme error** (n=1,495) | Verified |

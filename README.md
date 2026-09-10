@@ -175,7 +175,7 @@ CoreS3 / AtomS3 のような **native USB だけの板は `-usbjtag` の方**を
 ⚠️ **読みが落ちる**（枝刈りを深くするため）。⚠️ **音を人が聴いていない。**
 ⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限**で、
 2 MB の行は「**枠に収まる**」ことを大きい板の上で確かめただけ。
-⚠️ **4 MB / 2 MB は実機で動かしていない。** 速度も音も未測定。
+⚠️ **4 MB / 2 MB は第三者の実機で鳴ったが、私は未再現**（M-109）。**checksum も xRT もアンダーランも報告に無い。**
 
 **音の出口は 2 通り。**
 
@@ -276,6 +276,22 @@ uv sync
 | `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**USB Serial/JTAG** |
 | `esp32s3-firmware-w8a32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | かな入力・最適化なし（**PIE の比較対照**） |
 | `k1-dict-438750.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 辞書 blob 単体（13,702,320 B） |
+
+**小さい flash の検証用**（⚠️ **prerelease**。出荷版ではありません）:
+
+| ファイル | どこに | 何 |
+|---|---|---|
+| `esp32s3-firmware-kanji-8mb.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 8 MB の **DevKit**（228,000 entries / 1.01%） |
+| `m5-cores3-firmware-kanji-8mb.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 8 MB の **M5Stack 系**（213,000 / 1.09%）。⚠️ **M5Unified を積む板はこちら** |
+| `esp32s3-firmware-kanji-4mb.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | **4 MB**（135,000 / 1.94%）。✅ **PSRAM 無しの ATOMS3 で鳴った**（M-109） |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | **2 MB の枠**（44,000 / 3.86%）。⚠️ **4 MB のイメージとして焼く** |
+| `k1-dict-228000-8mb.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 8 MB / DevKit の辞書単体 |
+| `k1-dict-213000-8mb-m5.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 8 MB / M5Stack 系の辞書単体 |
+| `k1-dict-135000-4mb.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 4 MB の辞書単体 |
+| `k1-dict-44000-2mb.bin` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 2 MB 枠の辞書単体 |
+| `SHA256SUMS.txt` | [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) | 上の 8 本の SHA-256 |
+
+⚠️ **辞書単体を焼くときは表とセットにすること。** 取り違えても**端末は止まらず、読みだけが落ちます**（残タスク 8）。
 
 ## しくみ
 

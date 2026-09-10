@@ -74,6 +74,34 @@ def collect() -> tuple[dict[str, set[str]], str | None]:
     return want, repo
 
 
+def _get(repo: str, ref: str) -> dict:
+    url = (f"https://api.github.com/repos/{repo}/releases/latest" if ref == "latest"
+           else f"https://api.github.com/repos/{repo}/releases/tags/{ref}")
+    req = urllib.request.Request(url, headers={
+        "Accept": "application/vnd.github+json",
+        "User-Agent": "sanoTTS-jp-check-release-assets",
+    })
+    tok = os.environ.get("GITHUB_TOKEN") or os.environ.get("GH_TOKEN")
+    if tok:
+        req.add_header("Authorization", f"Bearer {tok}")
+    with urllib.request.urlopen(req, timeout=30) as r:
+        return json.load(r)
+
+
+def is_prerelease(repo: str, ref: str) -> bool:
+    """そのタグが prerelease か。
+
+    ⚠️ **タグ名から推測しない**（`-rc` を含まない prerelease も、含むのに正式版もありうる）。
+       API の `prerelease` を見る。取れなければ**正式版として厳しく見る**。
+    """
+    if ref == "latest":
+        return False
+    try:
+        return bool(_get(repo, ref).get("prerelease"))
+    except Exception:                                    # noqa: BLE001
+        return False
+
+
 def assets_of(repo: str, ref: str) -> set[str]:
     url = (f"https://api.github.com/repos/{repo}/releases/latest" if ref == "latest"
            else f"https://api.github.com/repos/{repo}/releases/tags/{ref}")
@@ -130,7 +158,13 @@ def main() -> int:
         bad += [f"{tag} に {m} が無い" for m in miss]
 
     # latest にも全部在ること（README 本文が latest を指しているため）
-    all_names = set().union(*want.values())
+    # ⚠️ **prerelease のタグは除く。** GitHub は prerelease を `releases/latest` に載せない
+    #    ので、検証用の rc を README に書いた瞬間に「latest に無い」で落ちる（M-109 で踏んだ）。
+    stable = {t: n for t, n in want.items() if not is_prerelease(repo, t)}
+    pre = sorted(set(want) - set(stable))
+    if pre:
+        print(f"  ⚠️ prerelease なので latest の検査から外した: {', '.join(pre)}")
+    all_names = set().union(*stable.values()) if stable else set()
     miss_latest = sorted(all_names - have["latest"])
     print(f"  {'latest':>8}: 資産 {len(have['latest'])} 本 / 要求 {len(all_names)} 本"
           f"{'  ← ' + ', '.join(miss_latest) if miss_latest else '  OK'}")

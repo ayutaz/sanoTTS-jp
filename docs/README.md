@@ -12,8 +12,10 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 **残っているのは聴取（G32）だけで、それは人を待っている。**
 ⚠️ **この音はまだ対照つきでは聴かれていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
 
-**4 MB / 2 MB flash（2026-09-06）**: ✅ **どちらも QEMU で漢字の入力から合成まで通った**
-（[M-106](measurements.md#m-106) §11 / §13）。**PCM の checksum は 16 MB 出荷構成と bit 一致。**
+**小さい flash（2026-09-10 更新）**: ✅ **第三者の実機で 4 MB / 2 MB が鳴った**
+（[M-109](measurements.md#m-109)。⚠️ **私は未再現**）。とくに **PSRAM 無しの ATOMS3** で動いたのが大きい —
+[M-98](measurements.md#m-98) の「PSRAM が無ければ内部 DRAM の余裕が 2,760 B」という懸念に対し、
+`SAAN_KANJI_MAX_INPUT_TOK`(44) の対策が**実機で初めて確かめられた**。
 
 | flash | 辞書 | entries | **音素の誤り** | 状態 |
 |---|---:|---:|---:|---|
@@ -24,13 +26,23 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 
 ⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限**で、
 2 MB の行は「**枠に収まる**」ことしか言っていない（大きい板の上で確かめた。M-105 の 8 MB と同じ立場）。
-⚠️ **4 MB / 2 MB とも実機では測っていない。** 速度も音も未（[M-106](measurements.md#m-106) §12）。
+⚠️ **checksum も xRT もアンダーランも報告に無い。** 分かるのは「起動して音が鳴り、
+聴いた人が『良さげ』と言った」ことだけで、⚠️ **1 名・対照なし・盲検なし**（M-109 §5）。
 
 **効いたのは 3 つ**: **予算を接続行列から語彙へ移す**（同じ 966 KB で音素の誤りが 6.75% → 3.86%）/
 **`matrixc`**（行・列クラスタ。行列 3,792,262 → **72,080 B**）/ **`charr`**（文字カテゴリの run 表。
 262,496 → **832 B**。**無損失**。⚠️ **これが無いと 2 MB にも 4 MB にも入らない**）。
-**C リーダは書いてゲートも張った**（`make -C csrc matrixc` / `charr`）。
+**C リーダは書いてゲートも張った**（`make -C csrc matrixc` / `charr` / `rec5`）。
 **文脈 ID の詰め直しは完全に無損失で C の変更も要らず**、16 MB で −800,800 B / 8 MB で −583,984 B 効く。
+
+**4 つ目が増えた**: **`rec5`**（5 B レコード。**−3.974 B/entry**。無損失。[M-108](measurements.md#m-108)）。
+**16 MB に 538,000 entries が入り**（438,750 の +22.6%）、音素の誤りが **0.64% → 0.60%** になる
+（**改善 21 文 / 悪化 0 文 / McNemar p=9.5e-07**）。⚠️ **買えるものは小さく**（編集距離 502 → 470）、
+⚠️ **焼いていない**（速度も未測定）。**既定はオフ。**
+
+⚠️ **この過程で `charr` にバグを作り込んだ**（[M-107](measurements.md#m-107) / [C-070](decisions.md#c-070)）。
+**未知語ノード生成が丸ごと飛び**、ゲートが経路なしの文を**分母から黙って落として精度が良く見えていた**。
+**「良くなった」も測定器を疑う入口。**
 
 ⚠️ **M5StampC5 は flash ではなく FPU と RAM で落ちる**（ESP32-C5 は `rv32imac` = 浮動小数点ユニットが無く、
 `saanotts.c` にソフト FP の呼び出しが 106 か所出る / 要求 RAM 370,980 B に対し SRAM 393,216 B・PSRAM 無し）。
@@ -395,9 +407,11 @@ Pages への配置は**別のワークフロー** [`pages.yml`](../.github/workf
 ／ `matrixa`（**行ごとアフィン uint8** が生 int16 と全 1,896,129 要素で一致するか。M-104）
 ／ `matrixc`（**行・列クラスタ**が同じく全要素で一致するか。⚠️ **陽性対照が 2 本**。M-106 §10）
 ／ `charr`（**文字カテゴリの run 表**が全 65,535 符号位置で一致するか。M-106 §10）
+／ `rec5`（**5 B レコード**が 9 B 版と全エントリで一致するか。M-108。
+  ⚠️ **ホスト側の `scripts/test_rec5.py` は辞書が要らないので CI で回る**）
 ／ `uv run python scripts/k1/k4b_vendor.py --sdist <tgz> --check`（取り込んだ C の同一性）
 ⚠️ **jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids / kb-parity /
-matrixa / matrixc / charr は `all-test` に入れていない**
+matrixa / matrixc / charr / rec5 は `all-test` に入れていない**
 （辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い。⚠️ **`matrixc` は scikit-learn も要る**）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
@@ -503,7 +517,9 @@ sanoTTS-jp/
 │   ├── k6_gen_vectors.py                  K-6/K-7 の参照ベクタ（ラベル + ids の 2 基準）
 │   ├── k9_fit_8mb.py                      8 MB 枠の動作点を振る（⚠️ **サイズは算術**。M-97）
 │   ├── k10_ctx_compact.py                 **文脈 ID の詰め直し**が無損失かを測る（M-106 §3）
-│   └── k11_fit_2mb.py                     **実測サイズ**で動作点を決める（`--budget` / `--grid`。M-106 §10）
+│   ├── k11_fit_2mb.py                     **実測サイズ**で動作点を決める（`--budget` / `--grid`。M-106 §10）
+│   ├── k12_rec5_gain.py                   `rec5` で浮いた枠に語彙を増やす効果（⚠️ **分母が動いたら NG で止まる**。M-108 §6）
+│   └── k13_rec5_mcnemar.py                文ごとの一致を突き合わせて **McNemar**（改善 21 / 悪化 0）
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
@@ -542,6 +558,7 @@ sanoTTS-jp/
 │   ├── jdict_hard_test.c                  **辞書リーダの入力検査**（M-100。ASan 版と weak 版を同居）
 │   ├── matrixa_test.c                     **`matrixa`** が生 int16 と全要素一致（M-104）
 │   ├── matrixc_test.c / charr_test.c      **`matrixc` / `charr`** が同じく全要素一致（M-106 §10）
+│   ├── rec5_test.c                       **`rec5`（5 B レコード）**が 9 B 版と全エントリ一致（M-108）
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
