@@ -61,10 +61,11 @@ M5Stack Core2 / Basic はこちら。
 
 ## A. 焼くだけ（ESP-IDF 不要）
 
-**焼けるイメージは 6 本あります。**
-**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)（v0.3.0）に入っています。**
+**焼けるイメージは 10 本あります。**
+**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)（v0.3.1）に入っています。**
 
-✅ **v0.3.0 の配布イメージは S1〜S5b / T1〜T5 込みの現行コア**です。下の「期待値」の
+✅ **配布イメージは S1〜S5b / T1〜T5 込みの現行コア**です（16 MB / 8 MB / かな版は
+**v0.3.0 のものと bit 同一**を SHA-256 で確認済み）。下の「期待値」の
 **新しい値**の側になります。⚠️ **v0.2.0 以前を焼いてある板は入れ替えてください**
 （`!` の前置が要り、コンソールが UART0 で、int8 blob も現行コアが拒む v1 です）。
 
@@ -80,6 +81,25 @@ M5Stack Core2 / Basic はこちら。
 | `esp32s3-firmware-w8a8-pie-usbjtag.bin` | 8 MB 以上 | かな | USB Serial/JTAG |
 | **`esp32s3-firmware-w8a8-pie.bin`** | 8 MB 以上 | かな | UART0 |
 | `esp32s3-firmware-w8a32.bin` | 8 MB 以上 | かな | UART0。**PIE の比較対照**（遅い） |
+| **`m5-cores3-firmware-kanji-8mb.bin`** | **8 MB**（M5Stack 系） | **漢字も** | USB Serial/JTAG。213,000 entries / 誤り 1.09% |
+| `esp32s3-firmware-kanji-8mb.bin` | **8 MB**（DevKit） | **漢字も** | ⚠️ **未確認**（下記）。228,000 / 1.01% |
+| `esp32s3-firmware-kanji-4mb.bin` | **4 MB**（DevKit） | **漢字も** | ⚠️ **未確認**（下記）。135,000 / **1.94%** |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | **4 MB として焼く** | **漢字も** | ⚠️ **未確認**（下記）。44,000 / **3.86%** |
+
+⚠️ **小さい flash 版は読みの精度が落ちます。** 出荷の基準は 16 MB（438,750 entries /
+音素の誤り **0.63%**）で、上の 1.01〜3.86% はその代償です（n=1,495）。
+
+⚠️⚠️ **DevKit 向けの小さい flash 版 3 本のコンソールが未確認です。**
+ビルド手順（`sdkconfig.defaults;sdkconfig.kanji{8,4,2}mb`）は
+`sdkconfig.usb_serial_jtag` を含まないので **UART0 のはず**ですが、
+**配布バイナリからは判別できませんでした**（`strings` で `usb_serial_jtag` を数えても、
+UART0 と分かっている `esp32s3-firmware-kanji-16mb.bin` が同じ 3 件を返すので probe が効きません）。
+
+**そのため次が未解決です**: [M-109](../docs/measurements.md#m-109) では
+**native USB の ATOMS3 で 4 MB / 2 MB が鳴った**と報告されていますが、
+起動時発話は既定で無効（`SAAN_BOOT_SPEAK=0`）なので、**打ち込めたことになります**。
+UART0 なら native USB の板では届かないはずで、噛み合いません。
+**心当たりのある方（自分でビルドした / UART を配線した など）は教えてください。**
 
 **漢字版でもかな入力は通ります**ので、16 MB の板なら漢字版 1 本で足ります。
 ⚠️ **`!` の前置は要りません**（v0.3.0 から端末が経路を自分で判定します）。
