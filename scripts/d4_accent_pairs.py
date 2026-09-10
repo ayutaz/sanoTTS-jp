@@ -261,8 +261,14 @@ def build_pairs(recs) -> list[dict]:
         st_s = [A.semitone(it["f0_student"]) for it in items]
         # 群内の全メンバーで教師・生徒とも F0 が取れたモーラだけを使う
         mask = np.all([np.isfinite(t) & np.isfinite(s) for t, s in zip(st_t, st_s)], axis=0)
+        # ⚠️ **教師ゲート専用のマスク**（C-075）。生徒を含めると
+        #    「どのペアを評価するか」が生徒依存になり、モデル間で分母がそろわない。
+        #    実測では教師 Δ が 38 ペア中 14 ペアで動き、最大 2.097 st ずれた
+        #    （ゲート閾値は 1.5 st なので、これだけで通過/落選が入れ替わる）。
+        t_mask = np.all([np.isfinite(t) for t in st_t], axis=0)
         for (ia, a), (ib, b) in itertools.combinations(list(enumerate(items)), 2):
-            c = A.contrast(st_t[ia], st_s[ia], st_t[ib], st_s[ib], mask)
+            c = A.contrast(st_t[ia], st_s[ia], st_t[ib], st_s[ib], mask,
+                           teacher_mask=t_mask)
             # 2 メンバーで記号が違う境界に接するモーラが mask に残っているか。
             # ⚠️ 落ちていると、測っているのはキャリアだけでアクセントを見ていない。
             diff_b = [i for i, (x, y) in enumerate(zip(a["boundary_marks"],
@@ -274,7 +280,9 @@ def build_pairs(recs) -> list[dict]:
                       "delta_n_ids": abs(a["n_ids"] - b["n_ids"]),
                       "differing_boundaries": diff_b,
                       "accent_morae_in_mask": bool(all(mask[i] for i in need)),
-                      "teacher_gate": c["norm_teacher_st"] >= A.TEACHER_GATE_ST})
+                      # ⚠️ **`gate_teacher_st` で判定する**（`norm_teacher_st` ではない）。
+                      #    前者は教師だけで決まるので、モデルを変えても同じペアが通る（C-075）
+                      "teacher_gate": c["gate_teacher_st"] >= A.TEACHER_GATE_ST})
             pairs.append(c)
     return pairs
 
@@ -399,6 +407,9 @@ def main() -> int:
     pairs = build_pairs(recs)
     usable = [p for p in pairs if p["teacher_gate"]]
     failed_gate = [{"group": p["group"], "carrier_id": p["carrier_id"], "pair": p["pair"],
+                    # ⚠️ ゲートの判定に使った値（生徒に依存しない。C-075）
+                    "gate_teacher_st": round(p["gate_teacher_st"], 3),
+                    # 参考: 共通マスクでの値。**生徒によって動く**
                     "norm_teacher_st": round(p["norm_teacher_st"], 3)}
                    for p in pairs if not p["teacher_gate"]]
 
@@ -471,12 +482,14 @@ def main() -> int:
                 round(min(p["norm_student_st"] / p["norm_teacher_st"] for p in usable), 3),
                 round(max(p["norm_student_st"] / p["norm_teacher_st"] for p in usable), 3)],
         },
+        # ⚠️ 層別も `gate_teacher_st` で切る（`norm_teacher_st` だと**層の中身が
+        #    生徒によって変わる**ので、モデル間で「|Δ_T| ≥ 3.0 の層」が別物になる。C-075）
         "gate_sensitivity": [
-            {"gate_st": g, "n": len([p for p in pairs if p["norm_teacher_st"] >= g]),
+            {"gate_st": g, "n": len([p for p in pairs if p["gate_teacher_st"] >= g]),
              "n_correct": int(sum(p["cos"] > 0 for p in pairs
-                                  if p["norm_teacher_st"] >= g)),
+                                  if p["gate_teacher_st"] >= g)),
              "cos_mean": round(mean_cos([p for p in pairs
-                                         if p["norm_teacher_st"] >= g]), 4)}
+                                         if p["gate_teacher_st"] >= g]), 4)}
             for g in (0.0, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5)],
         "identification": identification(recs),
         "mora_f0_missing": {
