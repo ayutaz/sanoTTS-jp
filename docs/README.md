@@ -7,7 +7,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 セットアップ（`uv sync` の前に piper-plus を向け直す）と、音を出すまでの最短手順がある。
 実機に載せるのは [`../esp32/TESTING.md`](../esp32/TESTING.md)。
 
-**現在地（2026-09-03）**: **速度の要件に届き**（満チャンク 1 pull の xRT **0.446**。M-90）、
+**現在地（2026-09-10 更新）**: **速度の要件に届き**（満チャンク 1 pull の xRT **0.446**。M-90）、
 **スタックチャン（M5 CoreS3）で漢字・カタカナ・ひらがなを喋る**ところまで来た。
 **残っているのは聴取（G32）だけで、それは人を待っている。**
 ⚠️ **この音はまだ対照つきでは聴かれていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
@@ -72,7 +72,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 ⚠️ **既定ではない。** 出荷は 16 MB（[D-044](decisions.md#d-044)）で、16 MB で使う理由は無い
 （音素の誤りが 0.63% → 1.01% に悪化するだけ。⚠️ ただし**根拠は変わった** = [C-066](decisions.md#c-066)）。
 ⚠️ **8 MB flash のチップそのものでは測っていない**（16 MB の板に 8 MB の表を焼いた）。
-⚠️ **音を人が聴いていない。**
+⚠️ **対照つきでは聴かれていない**（M-91 / M-93 / M-96 / M-109 はどれも**1 名・対照なし・盲検なし**）。
 ✅ **② char レンジ表（`charr`）と ③ 行列クラスタ（`matrixc`）の C リーダは書いた**（[M-106](measurements.md#m-106) §10）。⚠️ **残るのは ④ レコード dedup だけ**で、しかも
 **動作点によって符号が変わる**（438,750 entries で −4.23 B/entry、21,000 では **+0.95 B/entry の損**。[C-067](decisions.md#c-067)）。
 
@@ -116,7 +116,7 @@ URL が開くのはマージ後。
 
 ⚠️ 例外は [`upstream-sanotts.md`](upstream-sanotts.md)。**あれは上流の申告値であって、うちの実測ではない。** M-番号と混ぜないこと。
 
-## 現在地（2026-09-03 時点）
+## 現在地（2026-09-10 時点）
 
 ```
 [完了] 論文の仕様抽出        論文 PDF から全数値を抽出
@@ -289,7 +289,7 @@ checksum が一致しても M5.Speaker の DMA の実挙動は別（M-90 §5）�
 ⚠️ **これから板を買うなら N16R8。** 16 MB なら**辞書 13.7 MB がそのまま入り、
 かなトラックの構成もそのまま焼ける**。**別々に取りに行くと 2 回焼き直しになる。**
 ✅ **ただし「8 MB では入らない」は古い。** entries を落とせば
-**8 MB（実機。M-105）/ 4 MB / 2 MB の枠（QEMU。[M-106](measurements.md#m-106) §14）**でも動く。
+**8 MB（実機。M-105）/ 4 MB / 2 MB（**第三者の実機**。[M-109](measurements.md#m-109)。⚠️ 未再現）**でも動く。
 **代償は読みの精度**で、音素の誤りが 0.63% → 1.01% / 1.94% / 3.86% に落ちる（n=1,495）。
 ⚠️ **ESP32-S3 の下限は 4 MB**（WROOM-1 は N4 / N8 / N16。**2 MB の品番は無い**）。
 実測に使っているのはユーザーの M5 CoreS3（16 MB / PSRAM 8 MB Quad。**D-047**）。
@@ -578,7 +578,7 @@ sanoTTS-jp/
 │   ├── partitions.csv                     8 MB（かな入力だけの出荷構成）
 │   ├── partitions_16mb.csv                **16 MB + dict 13,828,096 B**（漢字対応・出荷）
 │   ├── partitions_8mb_kanji.csv           8 MB / DevKit（dict 7,143,424。M-105）
-│   ├── partitions_4mb_kanji.csv           **4 MB**（dict 3,014,656。M-106 §11。⚠️ QEMU まで）
+│   ├── partitions_4mb_kanji.csv           **4 MB**（dict 3,014,656。M-109 = 第三者の実機。⚠️ 未再現）
 │   ├── partitions_2mb_kanji.csv           **2 MB の枠**（dict 983,040。M-106 §13。⚠️ **品番は無い**）
 │   ├── sdkconfig.defaults                 **QIO + D-cache 64 B 行**（M-84 / M-86）。PIE は S3 で既定（D-048）
 │   ├── sdkconfig.kanji / .qemu / .usb_serial_jtag   漢字 / QEMU（DIO に戻す）/ USB-JTAG コンソール
@@ -616,6 +616,7 @@ sanoTTS-jp/
     ├── b_durations_all.py                 全行の duration だけを取る（B-4/7/8 の土台）
     ├── train_student.py                   生徒 4 段の蒸留学習
     ├── test_losses.py / test_labelpack.py / test_discriminator.py
+    ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
@@ -659,6 +660,7 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器（10 �
 uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   # 端末に貼る 1 行
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
+uv run python scripts/test_rec5.py               # rec5 の往復と畳み込み（辞書は要らない）
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
 uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（105 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57

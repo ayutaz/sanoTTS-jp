@@ -90,6 +90,7 @@ uv run python scripts/check_doc_links.py            # md の相対リンクが�
 uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（105 ケース）
 uv run python scripts/test_sanitize_reports.py      # レポートに本文が混じっていないか
 uv run python scripts/test_blob_to_header.py        # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
+uv run python scripts/test_rec5.py                  # rec5（5 B レコード）の往復と畳み込み（辞書は要らない）
 make -C csrc line && make -C csrc fft && make -C csrc erf   # C コアの軽いゲート（erf = GELU の近似）
 make -C csrc range                                  # 出力範囲つきカーネル（S9）が全域版と bit 一致
 ```
@@ -103,6 +104,7 @@ make -C csrc range                                  # 出力範囲つきカー�
 | `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` | K トラック（辞書リーダ・Viterbi・アクセント規則・NJD・RAM・端末とホストの一致） | 辞書 `csrc/k1_dict.bin` と pyopenjtalk |
 | `make -C csrc matrixa` / `charr` | 接続行列の**行ごとアフィン uint8**（M-104）と文字カテゴリの **run 表**（M-106 §10）が、元の形式と**全要素で一致**するか | 辞書と pyopenjtalk |
 | `make -C csrc matrixc` | 接続行列の**行・列クラスタ**が生 int16 と全 1,896,129 要素で一致するか（M-106 §10）。⚠️ **陽性対照が 2 本**（代表行列と写像は別経路） | 辞書と pyopenjtalk と **scikit-learn** |
+| `make -C csrc rec5` | **5 B レコード**が 9 B 版と全エントリで一致するか（M-108）。⚠️ **陽性対照に class2 の幅を使わない**（動作点によって発火しない） | 辞書と pyopenjtalk |
 | `make -C csrc prof` | 段別プロファイラ。`--expect-no-lookup` が「pull 中のテンソル検索 0 回」を守る（S1） | なし |
 | `scripts/check_esp32_template.sh` | ESP32 雛形の静的検査（**12 節**）。§10 は**漢字経路の作業領域が arena に収まるか**、§11 は **Open JTalk の一時ヒープ**（M-98）、§12 は **`CONFIG_ESPTOOLPY_FLASHSIZE` の宣言漏れ**（書き忘れるとブートループ。M-106 §13） | なし |
 
@@ -192,7 +194,7 @@ make -C csrc range                                  # range-limited kernels (S9)
 Two families of gates are **not** in `make -C csrc all-test` because they need external
 assets — run them by hand if you touched the code they cover:
 `make -C csrc kb-parity` (the device's route classifier agrees with the host's,
-**596/596**; needs pyopenjtalk) and `make -C csrc jdict accent njd-rules oj-heap kanji-e2e label-ids matrixa matrixc charr` (the kanji track;
+**596/596**; needs pyopenjtalk) and `make -C csrc jdict accent njd-rules oj-heap kanji-e2e label-ids matrixa matrixc charr rec5` (the kanji track;
 needs `csrc/k1_dict.bin` and pyopenjtalk).
 
 Python must go through `uv` — **never `pip install`**. `~/Documents/piper-plus` (the

@@ -181,7 +181,7 @@ No small-flash image is published, so you build it yourself:
 | **2 MB budget** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ **third-party hardware** (not reproduced here) |
 
 Steps: the "8 MB flash の板" and "4 MB / 2 MB 枠" sections of [`esp32/README.md`](esp32/README.md).
-⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened to it.**
+⚠️ Readings get worse (deeper pruning). ⚠️ **Nobody has listened with a control** (M-91 / M-93 / M-96 / M-109 are all one listener, no control, not blinded).
 ⚠️ **No ESP32-S3 part has 2 MB of flash** (WROOM-1 comes as N4 / N8 / N16), so **4 MB is the floor**.
 The 2 MB row only says the data *fits that budget*, measured on a larger board.
 ⚠️ **4 MB and 2 MB ran on third-party hardware** (M-109: an ATOMS3 with **no PSRAM**, sound heard). ⚠️ **Not reproduced here, and no checksum / xRT / underrun was reported.**
