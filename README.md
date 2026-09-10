@@ -11,10 +11,9 @@
 
 ### 🔊 ブラウザで試す → **<https://ayutaz.github.io/sanoTTS-jp/>**
 
-インストール不要。**漢字かな交じり文をそのまま打つと喋る**。
-⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもので（arena も同じ 180,224 B）、
-piper-plus の WASM の置き換えではなく**実機のコードを触れる形にした入口**（[D-050](docs/decisions.md#d-050)）。
-⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。速度は Chrome で **0.008〜0.019 ×RT**（[M-95](docs/measurements.md#m-95)）。音は**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**（[M-96](docs/measurements.md#m-96)。⚠️ **1 名・対照なし・盲検なし**）。⚠️ **モバイルと Safari は未測定**。
+インストール不要。**漢字かな交じり文をそのまま打つと喋る。**
+⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもの（arena も同じ 180,224 B。[D-050](docs/decisions.md#d-050)）。
+⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
@@ -29,15 +28,12 @@ M5Stack CoreS3（スタックチャン）にファームを 1 本焼くと、シ
 saanotts: 経路: 辞書
 saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.69 ms
 saanotts: init 21.56 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
-saanotts: プリロール 4 チャンク完了（初回 pull 244.66 ms / 鳴らし始めまで 384 ms）
-  ...
 saanotts: 定常 xRT = 0.446（満チャンク pull の中央値 / 92.88 ms）
 saanotts: アンダーラン 0 / 14 チャンク
 saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
 ```
 
-*（実機の生ログ [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log) から、
-タイムスタンプと注記を省いて抜粋。`...` は 14 回の pull）*
+*（実機の生ログ [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log) から抜粋）*
 
 | | |
 |---|---:|
@@ -48,7 +44,26 @@ saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
 | 端末の G2P | 漢字あり **13.7 MB 辞書** / かなだけなら **877 B のテーブル** |
 
 ⚠️ **これは検証 (PoC) であって製品ではない。** いちばん足りていないのは
-**人が聴いた評価**で、いまのところ 1 名・対照なし・盲検なしが 1 回あるだけ。
+**人が聴いた評価**で、いまのところ 1 名・対照なし・盲検なしが数回あるだけ。
+
+## 使う
+
+| | 見るもの |
+|---|---|
+| **すぐ試す** | ↑ の[ブラウザ版](https://ayutaz.github.io/sanoTTS-jp/)（インストール不要） |
+| **好きな文を合成する / 実機で喋らせる / ゲートを回す** | **[はじめかた](docs/getting-started.md)**（A〜E の 5 つの入口） |
+| **どの板で動くか・辞書の大きさと精度** | **[対応状況](docs/support-matrix.md)** |
+| **重み・ファーム・辞書を落とす** | **[ダウンロード](docs/downloads.md)** |
+
+**いちばん短い道**（実機を持っているなら）:
+
+```bash
+# 16 MB の ESP32-S3 に、辞書ごと焼くだけ（ESP-IDF は要らない）
+esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-16mb.bin
+```
+
+⚠️ **8 MB / 4 MB の板でも動く**（辞書を小さくする。読みの精度は落ちる）。
+→ [対応状況](docs/support-matrix.md)
 
 ## なぜ日本語版が別に要るのか
 
@@ -66,196 +81,6 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 ピッチアクセント（箸／橋／端）と無声化母音（「です」「した」の `i` `u`）も英語版には
 無い問題で、どちらも**集約スコアでは検出できない**ため専用の評価を用意した
 （→ [`MODEL_CARD.md`](MODEL_CARD.md)）。
-
-## はじめかた
-
-**入口は 5 つ。A / B / D / E は piper-plus も教師モデルも要らない**（新規 clone で実測）。
-
-| | やりたいこと | 要るもの | 所要 |
-|---|---|---|---|
-| **A** | **音を聴く** | [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` だけ | 1 分 |
-| **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v3-stage4.pt` | 10 分 |
-| **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
-| **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
-| **E** | **ブラウザで試す** | ブラウザだけ。**インストール不要** | 1 分 |
-
-### 最小セットアップ（B / D）
-
-⚠️ **`uv sync` は使わない。** `pyproject.toml` の `[tool.uv.sources]` が
-piper-plus への**絶対パス**を指しているので、持っていない人は
-`error: Distribution not found at: file://...` で止まる（実測）。
-生徒の推論に要るのは **torch / numpy / soundfile の 3 つだけ**なので、
-プロジェクトを経由しない venv を作る:
-
-```bash
-git clone https://github.com/ayutaz/sanoTTS-jp.git && cd sanoTTS-jp
-uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
-```
-
-### B. 好きな文を合成する
-
-[Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) から
-`saanotts-jp-v3-stage4.pt`（2.7 MB）を落として、**かな中間表現**を渡す。
-
-```bash
-uv run --no-project python scripts/synthesize_student.py \
-    --ckpt saanotts-jp-v3-stage4.pt \
-    --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
-#   → out/cli_000.wav（22.05 kHz / 1.2 秒）「今日は良い天気ですね。」
-```
-
-```
-[ アクセント上昇 / ] 下降核 / # 句境界 / ° 無声化
-```
-
-**漢字文をそのまま渡すこともできる**（下のフルセットアップが要る。OpenJTalk で
-漢字→かなを行うため）:
-
-```bash
-uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
-    --text "今日は良い天気ですね。" --out out/
-```
-
-⚠️ **どちらの経路でも WAV はバイト単位で一致する**（M-92 で実測。held-out 300 文で
-生徒インデックスも 300/300 一致）。違いは**漢字→かなに OpenJTalk が要るかどうかだけ**。
-
-| 書きかた | 要るもの |
-|---|---|
-| `--intermediate "きょ][おわよ…"` | **最小セットアップだけ**（torch / numpy / soundfile） |
-| `--text "今日は良い天気ですね。"` | + **フルセットアップ**（piper-plus = OpenJTalk） |
-
-⚠️ **端末（`-DSAAN_KANJI=1`）はこの制約を受けない。** 辞書を載せた板は漢字文を
-そのまま受ける。ホストで OpenJTalk が要るのは、**端末より広いフル辞書**を使うため
-（端末の枝刈り辞書とは音素の 0.32% が違う）。
-
-⚠️ **モデルの重みは MIT ではない。** 使う前に [`LICENSE-MODEL.md`](LICENSE-MODEL.md) を読むこと。
-
-### C. ESP32-S3 で喋らせる
-
-手順は [`esp32/TESTING.md`](esp32/TESTING.md)。焼いたあとシリアルで:
-
-```
-かな> きょ][おわよ][いて][んきです°ね        ← かな中間表現
-かな> 今日は良い天気ですね。                  ← 漢字版のビルドなら、そのまま打つ
-```
-
-**入力に印を付ける必要はない。** 端末が行を見て**かな / 辞書 / 拒否の 3 値**を決める
-（`saan_g2p_classify()`）: 凍結テーブルのトークナイザが行末まで通れば**かな経路**、
-通らず中間表現の記号（`[ ] # ° _ ^ $`）が無ければ**辞書経路**、通らないのに記号が
-混じっていれば**拒否して喋らない**（「中間表現 + `。`」がそれらしい音で通るのを防ぐため）。
-判定はホスト側 `scripts/kana_g2p.py` と同じ規則で、一致は `make -C csrc kb-parity` が
-**596/596** で検査する。
-
-**ファームは 3 通り。** コンソールが **UART0 の版と USB Serial/JTAG の版**があり、
-CoreS3 / AtomS3 のような **native USB だけの板は `-usbjtag` の方**を焼く。
-
-| | 焼くもの | 受け付ける入力 | flash |
-|---|---|---|---|
-| かな | `esp32s3-firmware-w8a8-pie.bin` / `…-usbjtag.bin` | かな中間表現のみ | 8 MB 以上 |
-| **漢字** | `esp32s3-firmware-kanji-16mb.bin` / `…-usbjtag.bin` | **漢字かな交じり文**も | **16 MB 必須** |
-| **M5 CoreS3** | `m5-cores3-firmware-kanji-16mb.bin` | 同上。**内蔵スピーカーで鳴る** | **16 MB 必須** |
-
-⚠️ **v0.2.0 以前のイメージは `!` の前置が要り、入力が UART0**。必ず入れ替えること。
-
-**音の出口は 2 通り。**
-
-| 板 | どう焼くか | 音の出口 |
-|---|---|---|
-| ESP32-S3 DevKit / AtomS3 + I2S DAC | 上のイメージを焼く | 外付け DAC（配線が要る。⚠️ `saan_i2s` は**実機未検証**） |
-| **M5Stack CoreS3 / Core2 / Basic**（スタックチャンの中身） | 配布イメージ、または[ソースから](esp32/boards/m5unified/README.md) | 内蔵スピーカー。画面に文が出て、タッチで再生 |
-
-### D. コードのゲートを回す
-
-```bash
-make -C csrc line                                       # 端末の行編集（陽性対照つき）
-make -C csrc fft                                        # 逆 FFT（naive DFT の 1,435 倍）
-make -C csrc g2p PYTHON="uv run --no-project python"    # オンデバイス G2P（2,819 ベクタ）
-make -C csrc erf                                        # GELU の erf 近似 vs libm（陽性対照つき）
-make -C csrc range                                      # 出力範囲つきカーネルが全域版と bit 一致
-uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata（fp32 拒否の陽性対照）
-uv run --no-project python scripts/test_losses.py
-uv run --no-project python scripts/test_labelpack.py
-```
-
-⚠️ **`PYTHON=...` を省くと `uv run python` になり、piper-plus を要求する。**
-⚠️ **`make -C csrc all-test` は通らない** — golden との突き合わせに `csrc/*.bin`
-（重みの書き出し）が要る。落とした `.pt` から `scripts/export_c_weights.py` で書き出せば通る。
-
-### E. ブラウザで試す
-
-**<https://ayutaz.github.io/sanoTTS-jp/>** — この C99 コアをそのまま WebAssembly にしたデモ。
-配っているのは [`pages.yml`](.github/workflows/pages.yml)（`main` への push で走り、
-重みと辞書は**リリース v0.3.0 からタグ固定で落として SHA-256 を照合**している）。
-
-**インストールも設定も要らず**、入力欄に
-`今日は良い天気ですね。` と打つだけで鳴る。**漢字・カタカナ・ひらがな**をそのまま受ける
-（`!` のような印は要らない。経路は C 側の `saan_g2p_classify()` が決める）。
-
-- **ESP32 と同じコードが動く。** `csrc/` の C99 と `esp32/main/saan_kanji.c` を書き換えずに
-  wasm にしただけで、**arena も実機と同じ 180,224 B**（→ [D-050](docs/decisions.md#d-050)）
-- 初回は**辞書 13,702,320 B（gzip -9 で 5,476,122 B）**を落とす。⚠️ 回線が細いと待たされる
-- ⚠️ **ブラウザでは 1 種類も速度を測っていない**（測ったのは node だけ。[M-94](docs/measurements.md#m-94)）
-- 音は **W8A32 / W8A8 の両方を聴いてもらい「問題なかった」/ 途切れ無し**（[M-96](docs/measurements.md#m-96)）。⚠️ **1 名・対照なし・盲検なし**。
-  ⚠️ かつてここに書いていた「`AudioContext` のリサンプルが挟まる」は、**要求どおり 22,050 Hz が返る**ことが分かった（M-95 §3）ので前提が変わった。ただし
-  **鳴っている音は checksum と一致しない**
-- ⚠️ **成果物は今も ESP32。** Web は入口であって、このプロジェクトの目的ではない（[D-007](docs/decisions.md#d-007)）
-
-手元で動かすなら（emcc が要る）。⚠️ **`index.html` と同じ階層に全部を平らに並べる**
-（`.github/workflows/pages.yml` が CI でやっているのと同じ形）:
-
-```bash
-bash web/build.sh                                   # → web/dist/*.wasm と *.mjs
-mkdir -p /tmp/saan-site
-cp web/index.html web/main.js web/dist/*.mjs web/dist/*.wasm /tmp/saan-site/
-cp csrc/student_i8.bin /tmp/saan-site/              # = リリースの saanotts-jp-v3-int8.bin
-gzip -9 -c csrc/k1_dict.bin > /tmp/saan-site/k1_dict.bin.gz   # = k1-dict-438750.bin
-
-# ⚠️ **ここまでで止めると footer の 4 本が全部 404 になる**（実測。音は鳴るので、
-#    リンクを踏むまで気づかない）: NOTICE.txt / NOTICE-openjtalk.txt /
-#    NOTICE-dictionary.txt / LICENSE-MODEL.md
-cp LICENSE-MODEL.md /tmp/saan-site/                 # リポジトリのものでよい
-#   （リリース資産 LICENSE-MODEL.md と SHA-256 が一致する。実測で確認済み）
-# ⚠️ NOTICE*.txt 3 本は**リポジトリにその名前では無い**ので、リリースから落とす。
-#    ⚠️ **ネットワークが要る**（CI の pages.yml も同じ 3 本を落としている）
-gh release download v0.3.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
-    -p 'NOTICE.txt' -p 'NOTICE-openjtalk.txt' -p 'NOTICE-dictionary.txt'
-
-uv run --no-project python -m http.server -d /tmp/saan-site 8000
-#   ⚠️ `python3 -m http.server` は hook が止める（D-012）
-```
-
-### フルセットアップ（漢字→かな変換 / 学習 / ラベル生成）
-
-```bash
-git clone https://github.com/ayutaz/piper-plus.git ~/piper-plus       # MIT
-cd sanoTTS-jp
-python3 deploy/retarget_sources.py --root ~/piper-plus                # ⚠️ uv sync の前
-uv sync
-```
-
-⚠️ **教師 checkpoint（private）はこれでも入らない。** 要るのは
-**ラベル生成と学習をやり直すときだけ**で、漢字→かな変換は piper-plus のソースだけで動く。
-
-## ダウンロード
-
-**最新の [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) に全部入っている。**
-⚠️ **モデルの重みは v0.1.0 以降すべて bit 同一**（再学習していない）。
-
-| 資産 | どこ | 中身 |
-|---|---|---|
-| `saanotts-jp-v3-samples.zip` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 合成音の WAV |
-| `saanotts-jp-v3-stage4.pt` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | PyTorch の重み（2,744,874 B） |
-| `saanotts-jp-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | C99 コア用の int8 blob（**654,032 B / 形式 v2**）。⚠️ v0.2.0 の v1 は現行コアが拒む |
-| `saanotts-jp-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 参照・デバッグ用の fp32 blob |
-| `golden-v3-int8.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc int8-golden` 用の参照出力 |
-| `golden-v3-fp32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | `make -C csrc test` 用の参照出力 |
-| `m5-cores3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **M5Stack CoreS3 / スタックチャン**（16 MB 必須） |
-| `esp32s3-firmware-kanji-16mb.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **漢字入力**・UART0（16 MB 必須） |
-| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**USB Serial/JTAG**（native USB の板はこちら） |
-| `esp32s3-firmware-w8a8-pie.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | **かな入力**・UART0（8 MB 以上） |
-| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 同・**USB Serial/JTAG** |
-| `esp32s3-firmware-w8a32.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | かな入力・最適化なし（**PIE の比較対照**） |
-| `k1-dict-438750.bin` | [v0.3.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.0) | 辞書 blob 単体（13,702,320 B） |
 
 ## しくみ
 

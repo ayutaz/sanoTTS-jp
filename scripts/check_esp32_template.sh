@@ -238,6 +238,86 @@ else
     ok "陽性対照: 同じ typedef を arena 1,024 B で書くとコンパイルが止まる"
 fi
 
+# ---------------------------------------------------------------- 11
+hdr "11. Open JTalk の一時ヒープが予算に収まるか（M-98 のゲート）"
+# `SAAN_KANJI_OJ_MAX_BYTES ≤ SAAN_KANJI_OJ_BUDGET_BYTES`。saan_kanji.c は同じ式を
+# _Static_assert で持つ。ここではホストで
+#   (a) 両方の値をソースから出して比べる（手で書き写さない）
+#   (b) 陽性対照: 上限を 1 だけ上げると **コンパイルが止まる**
+#       （止まらなければ _Static_assert が空虚 = 予算を守っていない）
+cat > "$TMP/oj.c" <<'C'
+#include <stdio.h>
+#include "saan_kanji.h"
+int main(void) {
+    printf("%zu %zu %d\n", (size_t)SAAN_KANJI_OJ_MAX_BYTES,
+           (size_t)SAAN_KANJI_OJ_BUDGET_BYTES, SAAN_KANJI_MAX_INPUT_TOK);
+    return 0;
+}
+C
+if cc -std=gnu17 -I csrc -I esp32/main -o "$TMP/oj" "$TMP/oj.c" 2>"$TMP/ojw"; then
+    read -r OJ_MAX OJ_BUD OJ_TOK <<EOF
+$("$TMP/oj")
+EOF
+    if [ "$OJ_MAX" -le "$OJ_BUD" ]; then
+        ok "形態素 $OJ_TOK 個までなら OJ ヒープ $OJ_MAX B ≤ 予算 $OJ_BUD B（余り $(( OJ_BUD - OJ_MAX )) B）"
+    else
+        ng "OJ ヒープ $OJ_MAX B > 予算 $OJ_BUD B（$(( OJ_MAX - OJ_BUD )) B 超過）"
+    fi
+else
+    ng "SAAN_KANJI_OJ_MAX_BYTES をソースから取れない"; sed 's/^/      /' "$TMP/ojw"
+fi
+# (b) 陽性対照。⚠️ **saan_kanji.c ではなく同じ _Static_assert を書いた小さな C** で見る
+#     （saan_kanji.c は取り込んだ Open JTalk のヘッダを要求してホストでは重い）。
+cat > "$TMP/oj_neg.c" <<'C'
+#include "saan_kanji.h"
+_Static_assert(SAAN_KANJI_OJ_MAX_BYTES <= SAAN_KANJI_OJ_BUDGET_BYTES, "budget");
+int main(void) { return 0; }
+C
+if cc -fsyntax-only -std=gnu17 -I csrc -I esp32/main \
+      -DSAAN_KANJI_MAX_INPUT_TOK=$(( OJ_TOK + 1 )) "$TMP/oj_neg.c" 2>/dev/null; then
+    ng "陽性対照: 上限を $(( OJ_TOK + 1 )) に上げてもコンパイルが通る（_Static_assert が効いていない）"
+else
+    ok "陽性対照: 上限を $(( OJ_TOK + 1 )) に上げるとコンパイルが止まる"
+fi
+
+# ---------------------------------------------------------------- 12
+hdr "12. sdkconfig の上書きが CONFIG_ESPTOOLPY_FLASHSIZE を宣言しているか（M-106 §13）"
+
+# ⚠️ **書き忘れるとブートループする。** sdkconfig.defaults の 8MB が残り、
+#    実際のイメージ容量と食い違って ROM ローダが弾く:
+#      E spi_flash: Detected size(4096k) smaller than the size in the
+#                   binary image header(8192k). Probe failed.
+#    → assert failed → rst:0xc (RTC_SW_CPU_RST) の繰り返し。
+# ⚠️ **パーティション表を差し替える上書きだけを見る。** 表を触らないもの
+#    （sdkconfig.qemu など）は容量に関係しない。
+n_checked=0
+for f in "$ROOT"/esp32/sdkconfig.* "$ROOT"/esp32/boards/*/sdkconfig.*; do
+    [ -f "$f" ] || continue
+    case "$(basename "$f")" in sdkconfig.defaults) continue ;; esac
+    grep -q "CONFIG_PARTITION_TABLE_CUSTOM_FILENAME" "$f" || continue
+    n_checked=$(( n_checked + 1 ))
+    if grep -q "^CONFIG_ESPTOOLPY_FLASHSIZE=" "$f"; then
+        ok "$(basename "$f") は FLASHSIZE を宣言している（$(grep -m1 '^CONFIG_ESPTOOLPY_FLASHSIZE=' "$f" | cut -d'"' -f2)）"
+    else
+        ng "$(basename "$f") はパーティション表を差し替えるのに FLASHSIZE を宣言していない（M-106 §13 でブートループした形）"
+    fi
+done
+# ⚠️ **0 件一致は「合格」ではなく「効いていない」**（C-028 / writing-gates）。
+if [ "$n_checked" = "0" ]; then
+    ng "検査対象が 1 つも見つからない = このゲートは何も見ていない"
+else
+    ok "検査した上書き $n_checked 件"
+fi
+# 陽性対照: FLASHSIZE を消した版を作ると落ちるか
+tmp_cfg="$(mktemp -t saan_cfg).conf"
+grep -v "^CONFIG_ESPTOOLPY_FLASHSIZE" "$ROOT/esp32/sdkconfig.kanji4mb" > "$tmp_cfg"
+if grep -q "^CONFIG_ESPTOOLPY_FLASHSIZE=" "$tmp_cfg"; then
+    ng "陽性対照: FLASHSIZE を消したのに残っている（検査が効いていない）"
+else
+    ok "陽性対照: FLASHSIZE を消した版は判定に落ちる"
+fi
+rm -f "$tmp_cfg"
+
 # ---------------------------------------------------------------- 結果
 printf '\n'
 if [ "$FAIL" = "0" ]; then

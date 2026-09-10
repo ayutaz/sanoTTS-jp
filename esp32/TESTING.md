@@ -41,7 +41,7 @@
 
 | | |
 |---|---|
-| **ESP32-S3 ボード** | 内部 SRAM 512 KB / flash **8 MB 以上**。PSRAM は不要。⚠️ **漢字版も試すなら 16 MB（N16R8 / CoreS3 など）** |
+| **ESP32-S3 ボード** | 内部 SRAM 512 KB / flash **8 MB 以上**。PSRAM は不要。⚠️ **漢字版の配布イメージは 16 MB 必須**（N16R8 / CoreS3 など）。8 MB でもソースからなら動きます（下記） |
 | **I2S DAC**（任意） | MAX98357A / PCM5102 など。⚠️ **無くても速度は測れます**。M5Stack なら内蔵スピーカーで鳴ります |
 | ESP-IDF | **v5.5 で動作確認済み**。⚠️ **焼くだけなら不要**（下記「A. 焼くだけ」）|
 
@@ -461,7 +461,29 @@ W8A8 + PIE が **0.446**（M-90）。**PIE 無しでは実時間に間に合い�
 **端末が漢字かな交じり文をそのまま読む**構成です。
 ✅ **2026-09-02〜03 に CoreS3 の実機で動きました**（M-83 / M-86 / M-90）。
 
-⚠️ **N16R8 / CoreS3 など 16 MB flash が要ります。** 8 MB のボードでは辞書 13.7 MB が入りません。
+⚠️ **配布イメージは N16R8 / CoreS3 など 16 MB flash が要ります**（辞書 13.7 MB が入らないため）。
+
+ℹ️ **8 MB / 4 MB のボードでも、ソースからビルドすれば漢字は動きます**
+（8 MB は 2026-09-05 に実機で確認 = [M-105](../docs/measurements.md#m-105) /
+4 MB / 2 MB は**第三者の実機** = [M-109](../docs/measurements.md#m-109)。⚠️ **私は未再現**）。
+接続行列を小さく持ち、entries を減らした辞書を使います。**配布はしていません**:
+
+| 板 | 表 | entries | **音素の誤り**（n=1,495） | 確認 |
+|---|---|---:|---:|---|
+| 16 MB（配布イメージ） | `partitions_16mb.csv` | 438,750 | **0.63%** | ✅ 実機 |
+| 8 MB / DevKit | `partitions_8mb_kanji.csv` | 228,000 | 1.01% | ✅ 実機 |
+| 8 MB / **M5Stack 系**（AtomS3 など） | `boards/m5unified/partitions_8mb.csv` | 213,000 | **1.09%** | ✅ 実機 |
+| **4 MB** | `partitions_4mb_kanji.csv` | 135,000 | **1.94%** | ⚠️ **第三者の実機**（未再現） |
+| **2 MB の枠** | `partitions_2mb_kanji.csv` | 44,000 | **3.86%** | ⚠️ **第三者の実機**（未再現） |
+
+手順は [`esp32/README.md`](README.md) の「8 MB flash の板」「4 MB / 2 MB 枠」。
+⚠️ **読みが落ちます。** ⚠️ **音を人が聴いていません。**
+
+✅ **4 MB / 2 MB は第三者の実機で鳴りました**（[M-109](../docs/measurements.md#m-109)。
+**PSRAM 無しの ATOMS3 + Voice Base** でも動いた）。
+🙏 **まだ聞けていないのは数字です** — **PCM の checksum** / **定常 xRT** / **アンダーラン** /
+**どのくらいの長さの文を打ったか**。試された方がいれば教えてください。
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**ので、2 MB は「表だけ 2 MB にして大きい板に焼く」形になります。
 
 ℹ️ **焼くだけで良いなら [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) に
 現行コードのイメージがあります**（v0.3.0。`!` の前置は要りません）。
@@ -499,7 +521,8 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 | 漢字 G2P | **25.69〜27.85 ms**（33 B） | 私の実測（M-83 / M-86 / M-90）。文長にほぼ線形（約 0.8 ms/B） |
 | **FNV-1a** | ソースから（S3 以降）: **`0xa69a7ebbb5ccb05f`**（PIE）/ `0xe4b645c30835d42d`（W8A32）<br>配布イメージ v0.2.0: `0x78c209af06affc01` | **`きょ][おわよ][いて][んきです°ね` と打ったときと同じ値になるはず**（M-86 / M-90 で実測） |
 
-⚠️ **ホストと違う読みになる文が普通にあります**（音素の 0.32%。M-77）。
+⚠️ **ホストと違う読みになる文が普通にあります**（**音素の 0.63%**。n=1,495。M-99 §4。
+⚠️ n=298 で測ると 0.32% に見える = C-059）。
 端末の辞書は枝刈りしてあるので、`上毛`（コーゲ）が `上`（ジョー）+ `毛` のように
 切り直されます。**地名と固有名詞で起きやすい**ので、そういう文で崩れ方を見てもらえると
 とても助かります。
@@ -552,7 +575,8 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 | `辞書 OK` が出ない / `esp_partition_mmap` が `ESP_ERR_NO_MEM` | `CONFIG_SPI_FLASH_ROM_IMPL=y` の板では ROM 実装が 8 MB しか貼れません。`saan_dict.c` は自動で `esp_mmu_map` に切り替えます（M-90）。それでも出ないなら 16 MB 版の表を焼けていません |
 | 漢字を打っても「辞書を持たない」と言われる | `-DSAAN_KANJI=1` を付けてビルドしていません（既定は無効） |
 | `G2P の出力が demo_ids.h の錨と一致しない` | ⚠️ **意図的に止めています**。テーブルか実装がずれている状態なので報告してください |
-| 起動すらしない | **8 MB 以上の flash が要ります**（`model` に 3 MB 確保）。4 MB のボードでは入りません |
+| 起動すらしない | **既定の表は 8 MB 以上の flash が要ります**（`model` に 3 MB 確保）。⚠️ **4 MB でも `partitions_4mb_kanji.csv` + `-DSAAN_MODEL_RODATA=1`（重みを app に埋める）なら入ります**（M-106 §11） |
+| `E spi_flash: Detected size(...) smaller than the size in the binary image header(...)` で再起動を繰り返す | `sdkconfig.*` の **`CONFIG_ESPTOOLPY_FLASHSIZE` が板の実容量と食い違っています**（M-106 §13）。小容量の表を使うときは**焼く板の容量**に書き換えてください |
 | `mode:QIO` のあと `ets_loader.c 78` → `rst:0x7 (TG0WDT_SYS_RST)` を繰り返す | `esptool.py write_flash` に **`--flash_mode qio` を渡しています**。渡さないでください（ヘッダが QIO になると ROM ローダが読めません）。`@flash_args` はいつも `dio` で、QIO 対応の板では bootloader が起動後に `qio_mode: Enabling default flash chip QIO` で切り替えます（M-86 で踏んだ） |
 | 同じコードなのに xRT が 15% 遅い（例 0.92 → 1.09） | flash が **DIO** で動いています。起動ログに `qio_mode: Enabling default flash chip QIO` が出ているか確認してください（`esp32/sdkconfig.defaults` は QIO。M-86） |
 | 焼いた firmware で `重み OK: 183 tensors` が出ない | `write_flash 0x0` で**イメージ全体**を焼いたか確認してください（`0x10000` に app だけ焼くと重みが入りません） |

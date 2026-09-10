@@ -1,0 +1,37 @@
+# saanoTTS-jp / 漢字対応版のパーティション表（**8 MB flash 前提**。D-051 の ①）
+#
+# flash: 8MB     ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+# app-min: 366464                    ← M-97 §0 で実際にビルドした app（-DSAAN_KANJI=1、DevKit 構成）
+# dict-blob: csrc/k1_dict_8mb.bin     ← ⚠️ **既定の 16 MB blob と比べさせない**（8 MB 版は別物）
+#
+# ⚠️ **`model` の行が無い。** 生徒の int8 blob 654,032 B は app に `.rodata` として
+#    埋め込む（`scripts/blob_to_header.py`）。8 MB では別パーティションに置く余裕が無い。
+#    検査は `--rodata` を付けて回すこと:
+#      uv run python scripts/check_partitions.py --file esp32/partitions_8mb_kanji.csv --rodata
+#
+# ⚠️ **この表で入るのは「行ごとアフィン uint8 の接続行列」を使った辞書だけ。**
+#    出荷している 16 MB の辞書は **13,702,320 B** で、ここには**入らない**
+#    （枠 7,143,424 B に対し 6,558,896 B 超過）。
+#    作り方:
+#      uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \
+#          --out csrc/k1_dict_8mb.bin
+#    実測 **7,123,088 B**（余り 20,336 B = 0.28%）。
+#    ⚠️ **余りが薄い。** entries を増やすと即あふれる。**変えたら必ず測り直すこと。**
+#
+# ⚠️ **読みの精度が落ちる**（D-051 / M-99）:
+#      438,750 entries + 生 int16 … 音素の誤り 0.63%（n=1,495）
+#      228,000 entries + アフィン … 音素の誤り 1.01%（n=1,495）
+#    MeCab との一致も 1,696 → 1,693 に落ちる（n=1,696）。
+#
+# ⚠️ **`model` と `dict` の offset は 64 KB (0x10000) 境界に置くこと。**
+#    esp_partition_mmap() / esp_mmu_map() は MMU のページ境界で丸める。
+#
+# 割り当て（M-97 §0 の予算と一致させてある。合計はちょうど 8 MB）:
+#   factory 1,179,648 B … app 366,464 + .rodata blob 654,032 = 1,020,496（余り 159,152）
+#   dict    7,143,424 B … アフィン行列の辞書 7,123,088（余り 20,336）
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x120000,
+dict,     data, 0x41,    0x130000, 0x6D0000,

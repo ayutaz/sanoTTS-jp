@@ -1,5 +1,8 @@
 # sanoTTS-jp / M5Stack のパーティション表（16 MB flash）
 #
+# flash: 16MB   ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+# app-min: 1500000   ← app に blob を .rodata で埋める表（--rodata）
+#
 # ⚠️ **`model` パーティションは無い。** 重み blob は app の .rodata に埋める
 #    （scripts/blob_to_header.py。PSRAM 有効だと esp_partition_mmap が落ちる報告のため）。
 #    ⚠️ **代わりに app が大きくなる**（blob 654,032 B ぶん）。factory 2.75 MB は

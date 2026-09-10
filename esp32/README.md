@@ -31,7 +31,9 @@
 **PCM の checksum は M-82 から 1 bit も変わっていない**: W8A8+PIE **`0xa69a7ebbb5ccb05f`** /
 W8A32 **`0xe4b645c30835d42d`**。速度の作り直し（S1〜S5b / T1〜T5）は**すべて出力を変えない変更**だった。
 ⚠️ **配布イメージ v0.2.0 までは旧コアの `0x04de91103a0e49f9` / `0x78c209af06affc01`**（S3 = GELU の erf 近似で変わった。D-046）。
-⚠️ **blob は v2**（654,032 B）。リリース資産は v1 のままで、このコアは `SAAN_ERR_VERSION` で拒む。
+⚠️ **blob は v2**（654,032 B）。✅ **v0.3.0 のリリース資産も v2** なのでそのまま使える
+（⚠️ **かつて「リリース資産は v1 のまま」と書いていたが誤り** = [C-057](../docs/decisions.md#c-057)）。
+⚠️ **v0.2.0 以前の資産は今も v1** で、このコアは `SAAN_ERR_VERSION` で拒む。
 
 ⚠️ **発話全体で見ると 0.541〜0.712 でまだ 0.5 を超える**（warmup 38 フレームぶんが初回 pull に乗る。
 要件の分母がどちらかは `docs/requirements.md` に書かれておらず未定 = D-049。M-88 / M-90）。
@@ -87,7 +89,7 @@ newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた�
 
 ### では何を確かめたのか
 
-`bash scripts/check_esp32_template.sh` が通ることだけ。中身は 10 個:
+`bash scripts/check_esp32_template.sh` が通ることだけ。中身は **12 個**:
 
 | # | ゲート | 何が言えるか |
 |---|---|---|
@@ -101,6 +103,8 @@ newlib の厳密 `-std=c99` で `saanotts.c` / `saanotts_stream.c` が落ちた�
 | 8 | ホスト stub ビルド + **C コアと bit 完全一致** | アプリ側ロジックが正しい（下記） |
 | 9 | IDF API の棚卸し | 実機で最初に照合する一覧 |
 | **10** | **静的 arena が漢字経路の作業領域を収められるか**（`SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES`） | 漢字ビルドで arena が溢れない。**陽性対照つき**（足りない arena の同じ typedef がコンパイルに失敗する） |
+| **11** | **Open JTalk の一時ヒープが予算に収まるか**（M-98） | PSRAM が無い板でも内部 DRAM が足りる。**陽性対照つき**（上限を 45 に上げると `_Static_assert` で止まる） |
+| **12** | **パーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（M-106 §13） | 書き忘れると `sdkconfig.defaults` の値が残り、**イメージ容量と食い違ってブートループする**。**陽性対照つき**（宣言を消した版が落ちる） |
 
 ゲート 8 が実質の主検証。`esp32/host_stub/` に IDF API の偽ヘッダを置いて
 `esp32/main/*.c` をそのままホストでビルドし、I2S に書いたはずの int16 を
@@ -124,7 +128,7 @@ OK  [厳密] C 一括版 → int16 と 27136 sample **bit 完全一致**   （in
 
 | 項目 | 値 |
 |---|---|
-| ターゲット | **ESP32-S3**（内部 SRAM 512 KB / flash **8 MB 以上**。⚠️ **漢字対応は 16 MB 必須**） |
+| ターゲット | **ESP32-S3**（内部 SRAM 512 KB / flash **8 MB 以上**。⚠️ **漢字対応は 16 MB で 438,750 entries**。**4 MB / 8 MB でも entries を落とせば動く** — 下の容量別の表） |
 | ESP-IDF | **v5.5 で実測**。新 I2S ドライバ `driver/i2s_std.h` を使う |
 | 音声出力 | I2S DAC（MAX98357A / PCM5102 など）22.05 kHz / 16 bit / mono。M5 構成は `M5.Speaker` |
 | 実機で測った板 | **M5Stack CoreS3**（ESP32-S3 / 16 MB flash / Quad PSRAM 8 MB / native USB。**D-047**） |
@@ -217,13 +221,134 @@ cd build_m5k && esptool.py --chip esp32s3 --port /dev/cu.usbmodem* --baud 921600
 | model（int8 v2。**DevKit のみ**。M5 は `.rodata`） | 654,032 B | 786,432 B |
 | **dict** | **13,702,320 B** | **13,828,096 B**（99.1%） |
 
-⚠️ **16 MB flash が要る**（`partitions_16mb.csv` / `boards/m5unified/partitions.csv`。
-`dict` の offset は両方 `0x2D0000` にそろえてあるので、**同じ辞書イメージをどちらの板にも焼ける**）。
-8 MB のボードには載らない。
-⚠️ **ホストと違う音素は 0.32%**（n=298。M-77）。差は**辞書の枝刈り**で、
-`上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
+⚠️ **この構成は 16 MB flash が要る**（`partitions_16mb.csv` /
+`boards/m5unified/partitions.csv`。`dict` の offset は両方 `0x2D0000` にそろえてあるので、
+**同じ辞書イメージをどちらの板にも焼ける**）。
+✅ **8 MB / 4 MB / 2 MB 枠でも漢字は動く**（下記の節。**代償は読みの精度**）:
+
+| flash | 辞書 | entries | **音素の誤り**（n=1,495） | 状態 |
+|---|---:|---:|---:|---|
+| **16 MB（この構成）** | 13,702,320 | 438,750 | **0.63%** | ✅ 実機 |
+| 8 MB | 7,123,088 | 228,000 | 1.01% | ✅ 実機 |
+| 4 MB | 3,006,656 | 135,000 | 1.94% | ✅ **第三者の実機**（M-109。⚠️ 未再現） |
+| 2 MB 枠 | 977,456 | 44,000 | 3.86% | ✅ **第三者の実機**（M-109。⚠️ 未再現） |
+⚠️ **ホストと違う音素は 0.63%**（**n=1,495**。M-99 §4。⚠️ **n=298 では 0.32% に見える** = C-059）。
+差は**辞書の枝刈り**で、`上毛`（コーゲ）が `上`（ジョー）+ `毛` に切り直されるといった誤読になる。
 移植そのものは正確（素性が一致した文でラベル差 0 件）。
 ⚠️ **音は聴いていない**（G32）。
+
+### 8 MB flash の板（✅ **実機で喋った**。M-104 = QEMU / M-105 = 実機）
+
+✅ **8 MB でも載る。** 接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にし、
+エントリを絞る。**画面 + スピーカーを積んだ M5Unified 版でも動く。**
+
+⚠️ **枠は app の大きさで変わる。板ごとに表と辞書が違う**（M-105 §4 / §4b）:
+
+| | `esp32/partitions_8mb_kanji.csv` | `esp32/boards/m5unified/partitions_8mb.csv` |
+|---|---:|---:|
+| 想定 | **DevKit**（M5Unified 無し） | **M5Stack 系**（AtomS3 など） |
+| app | 1,021,248 B | **1,438,576 B** |
+| factory | 1,179,648 | **1,507,328**（余裕 68,752 = 4.6%） |
+| dict | 7,143,424 | **6,815,744** |
+| entries | 228,000 | **213,000** |
+| blob | 7,123,088（余り 20,336） | **6,797,056**（余り 18,688） |
+| **音素の誤り**（n=1,495） | 1.01% | **1.09%** |
+
+⚠️ **DevKit 用の辞書を M5 版に焼くと 241,808 B 入らない。** 逆も余るだけで動くが、
+**entries が減るぶん読みが落ちる**。**表と辞書は必ずセットで扱うこと。**
+
+### 4 MB / 2 MB 枠（✅ **第三者の実機で鳴った**。M-109。⚠️ **私は未再現**）
+
+さらに小さい板向けに、接続行列を**行・列クラスタ**（セクション `matrixc`）に、
+文字カテゴリを**レンジ表**（セクション `charr`）にした辞書がある。
+
+| | `partitions_4mb_kanji.csv` | `partitions_2mb_kanji.csv` |
+|---|---:|---:|
+| factory | 1,114,112（余り 8%） | **1,048,576（余り 2% しかない）** |
+| dict | 3,014,656 | 983,040 |
+| entries | **135,000** | **44,000** |
+| blob | 3,006,656（余り 8,000） | 977,456（余り 5,584） |
+| **音素の誤り**（n=1,495） | **1.94%** | **3.86%** |
+
+⚠️ **`charr` が無いと入らない。** `char.bin` は 262,496 B あり、
+**レンジ表（832 B）にしないと 4 MB にも 2 MB にも 1 点も収まらない**（M-106 §10）。
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限**で、
+2 MB の表は「**枠に収まる**」ことを大きい板の上で確かめるためのもの。
+⚠️ **2 MB の表は app の余りが 2% しかなく、M5Unified 版（app 1,438,576 B）では成立しない。**
+⚠️ **k-means は環境が変われば別の解になりうる**（M-99 §1）。**作った blob そのものを配ること。**
+
+```bash
+# 4 MB
+uv run python scripts/k1/k1_build_dict.py --entries 135000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_4mb.bin
+idf.py -B build_k4 -DSDKCONFIG=build_k4/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji4mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_4mb.bin build
+
+# 2 MB の枠（⚠️ 焼くのは 4 MB 以上の板。残りは未使用になる）
+uv run python scripts/k1/k1_build_dict.py --entries 44000 --matrix cluster:256 \
+    --char-range --out csrc/k1_dict_2mb.bin
+```
+
+⚠️ **`sdkconfig.kanji4mb` / `kanji2mb` の `CONFIG_ESPTOOLPY_FLASHSIZE` は
+「実際に焼く板の容量」に書き換えること。** 書き忘れると `sdkconfig.defaults` の 8MB が残り、
+`E spi_flash: Detected size(...) smaller than the size in the binary image header(...)` で
+**ブートループする**（M-106 §13 で踏んだ）。`check_esp32_template.sh` の §12 が宣言漏れを見る。
+
+```bash
+# 1. 8 MB 用の辞書 blob（⚠️ **--out を必ず別名にする**。csrc/k1_dict.bin は 16 MB 用）
+uv run python scripts/k1/k1_build_dict.py --entries 228000 --matrix affine \
+    --out csrc/k1_dict_8mb.bin                      # 7,123,088 B
+
+# 2. C リーダが生 int16 と一致するか（全 1,896,129 要素）
+make -C csrc matrixa
+
+# 3. ビルド（⚠️ **-DSAAN_MODEL_RODATA=1 が要る** — 8 MB の表に model 行が無い）
+cd esp32 && idf.py -B build_k8 -DSDKCONFIG=build_k8/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji8mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../csrc/k1_dict_8mb.bin build
+```
+
+| | サイズ | 枠 |
+|---|---:|---:|
+| app（重みを `.rodata` に埋めた 8 MB ビルド） | **1,021,248 B** | 1,179,648 B（86.6%） |
+| **dict** | **7,123,088 B** | **7,143,424 B**（99.7%。**余り 20,336 B**） |
+
+M5Unified 版はこちら（**スピーカーと画面が生きる**）:
+
+```bash
+uv run python scripts/k1/k1_build_dict.py --entries 213000 --matrix affine \
+    --out csrc/k1_dict_8mb_m5.bin                   # 6,797,056 B
+cd esp32/boards/m5unified && idf.py -B build_m58 -DSDKCONFIG=build_m58/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3;sdkconfig.8mb" \
+    -DSAAN_KANJI=1 -DSAAN_MODEL_RODATA=1 \
+    -DSAAN_DICT_BLOB=$PWD/../../../csrc/k1_dict_8mb_m5.bin build
+```
+
+**実機で測った値**（⚠️ **16 MB の CoreS3 に 8 MB の表を焼いたもの**。M-105）:
+
+| | DevKit 構成 | M5Unified 構成 |
+|---|---:|---:|
+| 起動直後の内部 DRAM | free 104,112 B | free **132,031 B**（PSRAM を使うぶん多い） |
+| 漢字 G2P（53 ids） | — | **21.58 ms** |
+| **定常 xRT** | **0.445** | **0.448** |
+| アンダーラン | **0 / 14** | **0 / 22・0 / 19** |
+| checksum | `0xa69a7ebbb5ccb05f` | `0xa69a7ebb…`（⚠️ 先頭 8 桁のみ） |
+| 音 | 出さない（`SAAN_SKIP_I2S=1`） | **スピーカー有効** |
+
+⚠️ **M5 版は USB Serial/JTAG のログが溢れて checksum の後半が落ちる**
+（画面とスピーカーのタスクが同時に書く）。**ファームの欠陥ではない。**
+⚠️ **アフィン行列の速度代償は +0.3%**（entries を 438,750 に揃えて実機で測った。M-105 §3。
+20.08 → 20.14 ms / **PCM は bit 一致**）。
+✅ **PSRAM 無しの実機で動いた**（M-109。ATOMS3 + Voice Base。⚠️ **私は未再現**）。
+⚠️ **`esp_partition_mmap` で足りる**（7.1 MB < ROM 実装の 8 MB 制限。下の M5 の話は当たらない）。
+⚠️ **既定ではない。** 16 MB で使う理由は無い（音素の誤りが 0.63% → 1.01% に悪化するだけ）。
+⚠️ **余りが 0.3% しかない。** entries を変えたら必ず**作って `stat`** すること
+（214,000 で作ったら 2,944 B 超過した。概算 22.25 B/entry に対し実測 21.74）。
+⚠️ **8 MB flash のチップそのものでは測っていない。**
+⚠️ **対照つきでは聴かれていない**（M-91 / M-93 / M-96 / M-109 はどれも**1 名・対照なし・盲検なし**）。
 
 ### ⚠️ M5 構成では `esp_partition_mmap` で辞書を貼れない — **`esp_mmu_map` を使う**
 
@@ -477,6 +602,7 @@ IDF 既定の **gnu17 のまま**にしてあるが、足しても壊れない�
 |---|---|---|---|
 | 1 | 起動するか | `重み OK: N tensors` | ここで止まるなら partition / アライメント |
 | 2 | 入力がどちらの経路に行ったか | `経路: かな` / `経路: 辞書` | 読み違いを見たとき「辞書が悪いのか判定が悪いのか」の切り分けに要る |
+| 2b | **どの辞書を焼いたか** | `辞書 OK: 見出し語 N / エントリ M / 行列 …（生 int16 \| matrixa … \| matrixc …）/ blob X B（パーティション Y B。余り Z B）` | **焼き間違いはここで見る。** ⚠️ **この表示はかつて 2 値で、`matrixc` の辞書を焼いても「matrixa」と出ていた**（M-106 §11 で 3 値に直した）。entries と blob 長が期待どおりかも合わせて見る |
 | 3 | **アンダーラン** | `アンダーラン N / M チャンク` | **0 が期待値**（M-88 以降。それ以前は末尾 pull で 1 出ていた） |
 | 4 | **満チャンク pull の xRT** | `定常 xRT = X（満チャンク pull の中央値 / 92.88 ms）` | 要件は **≤ 0.5**。CoreS3 の実測は **0.446**（M-90） |
 | 5 | **発話全体の比** | `合成合計 ... / 音声 ... → 合成/音声 X` | **定義に依らない量。版どうしを比べるならこれ**（xRT の定義は T1 で変わった = C-054） |
@@ -600,6 +726,9 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 | `sdkconfig.defaults` | ターゲット / 最適化 / スタック / パーティション / **QIO** / **D-cache 64 B 行** |
 | `sdkconfig.qemu` | **QEMU 用の上書き**（flash を DIO に戻す。QEMU は QIO を受け付けない。M-86） |
 | `sdkconfig.kanji` | 漢字対応ビルドの上書き（16 MB flash + 表の差し替え） |
+| `partitions_8mb_kanji.csv` / `sdkconfig.kanji8mb` | **8 MB の DevKit 向け**（`matrixa` の辞書 7,123,088 B。M-105） |
+| `partitions_4mb_kanji.csv` / `sdkconfig.kanji4mb` | **4 MB 向け**（`matrixc` + `charr` の辞書 3,006,656 B。⚠️ **第三者の実機で鳴った** = M-109。私は未再現） |
+| `partitions_2mb_kanji.csv` / `sdkconfig.kanji2mb` | **2 MB の枠**（同 977,456 B。M-106 §13）。⚠️ **ESP32-S3 に 2 MB の品番は無い**ので、大きい板の上で枠を確かめるための表 |
 | `sdkconfig.usb_serial_jtag` | コンソールを native USB に切り替える差分 |
 | `components/saanotts_core/CMakeLists.txt` | `csrc/` の 4 ファイル + `g2p.c` + `line.c` を直接参照。**S3 なら PIE を既定で有効**（D-048）。`SAAN_KANJI` で K トラックの 4 ファイル + Open JTalk 34 ファイルが増える |
 | `components/saanotts_core/saan_port_esp32.h` | 配置の注入点（`SAAN_HOT_DATA` → `DRAM_ATTR` など。erf 表を内部 DRAM に載せる） |
@@ -629,7 +758,7 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 | `-DSAAN_ENABLE_PIE=0/1` | **ESP32-S3 では 1**（D-048）。それ以外は 0 | W8A8 + PIE（整数 SIMD）。⚠️ int8 blob が要る。**W8A32 で測るには 0 を明示する** |
 | `-DSAAN_W8A8_NOPIE=1` | 無効 | ⚠️ **陰性対照専用**（W8A8 のままスカラ） |
 | `-DSAAN_QEMU=1` | 無効 | I2S への書き込みを外し、**flash を DIO に戻す**（`sdkconfig.qemu`）。⚠️ **音は出ない** |
-| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ 16 MB flash と辞書 13.7 MB が要る |
+| `-DSAAN_KANJI=1` | 無効 | **端末で漢字を扱う**（K-7）。⚠️ **辞書パーティションが要る**（16 MB で 13.7 MB / 8 MB で 7.1 MB / 4 MB で 3.0 MB / 2 MB 枠で 0.98 MB。容量別の表を見ること） |
 | `-DSAAN_DICT_BLOB=<絶対パス>` | `csrc/k1_dict.bin` | 焼く辞書 blob（`SAAN_KANJI=1` のとき） |
 | `-DSAAN_BOOT_SPEAK=1` | 無効（M5 構成と非対話ビルドでは有効） | 起動時に錨の 1 文を喋る（突き合わせ用） |
 | `-DSAAN_MODEL_RODATA=1` | 無効（**M5 構成では常に有効**） | 重みを app の `.rodata` に埋める（`model` パーティションを焼かない） |
@@ -642,7 +771,7 @@ W8A8+PIE は第三者報告 **1.554** → 自分で測って **0.926**（M-82）
 検査スクリプト（リポジトリのルートから）:
 
 ```bash
-bash scripts/check_esp32_template.sh    # 10 ゲート全部（§10 = 静的 arena が漢字経路を収めるか）
+bash scripts/check_esp32_template.sh    # 12 ゲート全部（§10 = 静的 arena / §11 = OJ ヒープ / §12 = FLASHSIZE）
 uv run python scripts/check_partitions.py
 uv run python scripts/check_partitions.py --file esp32/boards/m5unified/partitions.csv --rodata
 cmake -P scripts/check_cmake_syntax.cmake

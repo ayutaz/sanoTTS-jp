@@ -24,14 +24,62 @@
  *
  * ⚠️ **Viterbi の作業領域は 32 KB あれば held-out 298 文すべてで足りる**
  *    （16 KB だと 1 文落ちる。ホストで実測）。余裕を見て 48 KB 取る。
- * ⚠️ **トークン数の上限は 96。** 端末は ids 350 個までしか喋らない
- *    （`SAAN_MAX_IDS`）ので、1 文あたりの形態素はそれよりずっと少ない
- *    （K-5 の最長文 98 文字で 67 個）。 */
+ * ⚠️ **トークン数の上限は 96。** ただしこれは**配列の寸法**であって
+ *    入力の上限ではない（NJD 段はノードを増やすので下げられない）。
+ *    **入力の上限は `SAAN_KANJI_MAX_INPUT_TOK`（44）**で、そちらが
+ *    Open JTalk の一時ヒープを縛る（下の節。M-98）。 */
 #define SAAN_KANJI_MAX_TOK    96
 #define SAAN_KANJI_MAX_LABEL  512
 #define SAAN_KANJI_KEY_MAX    1024
 #define SAAN_KANJI_FEAT_MAX   320
 #define SAAN_KANJI_VITERBI_N  (48u * 1024u)
+
+/* --- Open JTalk の一時ヒープを縛る（M-98）---------------------------------
+ *
+ * ⚠️ **これは arena ではない。** `mecab2njd` 以降が calloc / strdup で取る分で、
+ *    PSRAM がある板では PSRAM に落ちるが（oj_heap_psram.c）、
+ *    **PSRAM の無い板では内部 DRAM から来る**。
+ *
+ * QEMU（PSRAM 無し）で文長を伸ばして低水位を測ると、**ids に比例する**:
+ *
+ *     OJ ヒープ = 197.6 B × ids + 924 B      （n=6 / R² = 0.99905。M-98）
+ *
+ * そして held-out 2,328 文で **ids ≤ 8 × 形態素 + 54** が例外なく成り立つ
+ * （包絡。中央値は 8.07 ids/形態素）。この 2 つを繋ぐと、
+ * **NJD 段に入る前に形態素数で縛れば OJ ヒープが縛れる**。
+ *
+ * ⚠️ **縛る場所はここしかない。** `jdict_analyze` は arena しか使わないので
+ *    形態素数が分かった時点ではまだ 1 バイトも malloc していない。
+ * ⚠️ **`SAAN_KANJI_MAX_TOK` を下げてはいけない。** あれは NJD 段の配列の寸法も
+ *    兼ねていて、`njd_set_digit` などが**ノードを増やす**ので、下げると
+ *    アクセント段が黙って切れる。入力トークンの上限は**別に持つ**。 */
+#define SAAN_KANJI_IDS_PER_TOK   8      /* 包絡の傾き（実測 8.07 中央 / 8.84 最大） */
+#define SAAN_KANJI_IDS_CONST     54     /* 包絡の切片（held-out 2,328 文で最小） */
+#define SAAN_KANJI_OJ_B_PER_IDS  198    /* 197.6 を切り上げ */
+#define SAAN_KANJI_OJ_B_CONST    1024   /* 924 を切り上げ */
+
+/* 入力 1 文の形態素の上限。**44 で held-out の「喋れる文」を 6/2,314 = 0.26% 落とす**
+ * （落ちるのは形態素 45/45/45/46/46/54 の 6 文。実測であって内挿ではない）。
+ * ⚠️ 96 なら 0% だが、96 は OJ ヒープ 163,780 B を許してしまい、PSRAM 無しの
+ *    実測空き 103,140 B を超える = **M-98 で踏んだ穴**。
+ * ⚠️ 44 は `SAAN_KANJI_OJ_BUDGET_BYTES` 80 KB から逆算した上限でもある
+ *    （45 にすると SAAN_KANJI_OJ_MAX_BYTES が予算を超え、下の _Static_assert で止まる）。 */
+#ifndef SAAN_KANJI_MAX_INPUT_TOK
+#define SAAN_KANJI_MAX_INPUT_TOK 44
+#endif
+
+/* その上限で OJ ヒープが最大いくつになるか（**上の包絡から算出**）。 */
+#define SAAN_KANJI_OJ_MAX_BYTES \
+    ((size_t)SAAN_KANJI_OJ_B_PER_IDS \
+     * ((size_t)SAAN_KANJI_IDS_PER_TOK * SAAN_KANJI_MAX_INPUT_TOK \
+        + SAAN_KANJI_IDS_CONST) \
+     + SAAN_KANJI_OJ_B_CONST)
+
+/* 内部 DRAM から OJ ヒープに回してよい予算。**PSRAM 無しの板向け。**
+ * 既定 80 KB は QEMU 実測の空き 103,140 B（M-98）に 21 KB の余裕を残す値。 */
+#ifndef SAAN_KANJI_OJ_BUDGET_BYTES
+#define SAAN_KANJI_OJ_BUDGET_BYTES (80u * 1024u)
+#endif
 
 /* 16 B 境界への切り上げ（saan_kanji.c の KJ_ALIGN16 と同じ）。 */
 #define SAAN_KANJI_A16(x) ((((size_t)(x)) + 15u) & ~(size_t)15u)

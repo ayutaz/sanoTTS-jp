@@ -104,9 +104,18 @@ if(SAAN_BUFFERED)
     message(STATUS "sanoTTS: 再生 = 貯めてから鳴らす（途切れない。xRT は測れる）")
 endif()
 
-if(SAAN_QEMU)
+# ⚠️ **I2S を切る。** QEMU では必須（I2S の実体が無い）だが、
+#    **実機でも DAC の付いていない板で速度と checksum だけ測りたいことがある**
+#    （例: CoreS3 に DevKit 構成の 8 MB ファームを焼いて Viterbi の速度を測る。M-105）。
+#    そのため `-DSAAN_SKIP_I2S=1` で単独でも立てられるようにしてある。
+#    ⚠️ **音は出ない。** 途切れ・音量・実サンプルレートは**この構成では測れない**。
+if(SAAN_QEMU OR SAAN_SKIP_I2S)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_SKIP_I2S=1)
-    message(STATUS "sanoTTS: SAAN_SKIP_I2S=1（QEMU 用。**音は出ない**）")
+    if(SAAN_QEMU)
+        message(STATUS "sanoTTS: SAAN_SKIP_I2S=1（QEMU 用。**音は出ない**）")
+    else()
+        message(STATUS "sanoTTS: SAAN_SKIP_I2S=1（明示。**実機でも音は出ない** — 速度と checksum 専用）")
+    endif()
 endif()
 
 # --- 起動時に 1 文喋る（既定は喋らない）-------------------------------------

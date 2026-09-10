@@ -1,0 +1,13 @@
+# Target labels
+ bootloader
+# Source files and their labels
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/CMakeFiles/bootloader
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/CMakeFiles/bootloader.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/CMakeFiles/bootloader-complete.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule
+/Users/s19447/Desktop/saanoTTS-jp/esp32/k8hw/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule

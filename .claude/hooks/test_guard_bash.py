@@ -30,6 +30,33 @@ CASES: list[tuple[str, str, str]] = [
     ("deny", f"sed -i '' s/a/b/ {PP}/x.py", "in-place 編集"),
     ("deny", f"cd {PP} && git checkout v1.13.0", "作業ツリーを動かす git"),
     ("deny", f"git -C {PP} reset --hard", "同上"),
+    # --- 古い ckpt で成果物を上書きするのを止める（M-102 で実際に踏んだ）---
+    ("deny", "uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt",
+     "M-41 の再現コマンド。既定で csrc/student.bin を v2 に戻す"),
+    ("deny", "uv run python scripts/export_c_weights.py --ckpt runs/v1/stage4.pt --int8",
+     "別の古い ckpt でも同じ"),
+    ("deny", "uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt --out /tmp/x",
+     "⚠️ --out だけそらしても --report が csrc/export.json のまま"),
+    ("allow", "uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt",
+     "**いまの ckpt（D-037）なら通す**"),
+    ("allow", "uv run python scripts/export_c_weights.py --ckpt runs/v2/stage4.pt "
+              "--out /tmp/repro --report /tmp/repro/export.json",
+     "**出力先を全部そらせば再現できる**（測定を妨げない）"),
+    ("allow", "uv run python scripts/export_c_weights.py",
+     "--ckpt が無ければ既定 = 現行なので通す"),
+    # --- 8 MB 用の辞書で 16 MB の出荷辞書を上書きするのを止める（M-104）---
+    ("deny", "uv run python scripts/k1/k1_build_dict.py --entries 228000 "
+             "--matrix affine --out csrc/k1_dict.bin",
+     "⚠️ 落ちずに読みだけ変わる。既定の名前は 16 MB 用"),
+    ("deny", "uv run python scripts/k1/k1_build_dict.py --matrix affine --out ./csrc/k1_dict.bin",
+     "相対パスでも同じ"),
+    ("allow", "uv run python scripts/k1/k1_build_dict.py --entries 228000 "
+              "--matrix affine --out csrc/k1_dict_8mb.bin",
+     "**別名なら通す**（8 MB 版を作るのは正当）"),
+    ("allow", "uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin",
+     "**int16（既定）で 16 MB 用を作り直すのは通す**"),
+    ("allow", "uv run python scripts/k1/k1_build_dict.py --matrix affine",
+     "--out が無ければ書き出さないので実害なし"),
     # --- uv 以外の依存導入を止める ---
     ("deny", "pip install torch", "基本形"),
     ("deny", "pip3 install -r req.txt", "pip3"),

@@ -1,0 +1,35 @@
+# **2 MB flash 相当**に漢字辞書を載せる構成の上書き（M-106 §13）
+#
+# ⚠️⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。
+#    これは「2 MB の枠に収まるか」を**大きい板の上で**確かめるための構成で、
+#    **2 MB のチップで動かした記録ではない**（M-105 の 8 MB と同じ立場）。
+#
+# ⚠️ **`CONFIG_ESPTOOLPY_FLASHSIZE` は「実際に焼く板の容量」にする。**
+#    2MB と書くのではなく、**チップの実容量**を書く。ここは 4 MB 板を想定した既定値。
+#    **枠の検証はパーティション表（partitions_2mb_kanji.csv）が担う。**
+#
+#    ⚠️ **これを書き忘れると起動しない**（M-106 §13 で踏んだ）。sdkconfig.defaults の
+#    **8MB が残り**、4 MB のイメージと食い違って**ブートループする**:
+#      `E spi_flash: Detected size(4096k) smaller than the size in the binary image
+#       header(8192k). Probe failed.` → assert failed → RTC_SW_CPU_RST の繰り返し。
+#    ⚠️ **8 MB / 16 MB の板に焼くときは、その容量に書き換えること。**
+#
+# ⚠️ **辞書が違う。** 接続行列を**行・列クラスタ**（`matrixc`）に、
+#    文字カテゴリを**レンジ表**（`charr`）にし、エントリを 44,000 に絞る:
+#
+#      uv run python scripts/k1/k1_build_dict.py --entries 44000 \
+#          --matrix cluster:256 --char-range --out csrc/k1_dict_2mb.bin
+#
+#    ⚠️ **`charr` が無いと 1 点も入らない**（M-106 §10）。
+#    ⚠️ **k-means は環境が変われば別の解になりうる。作った blob そのものを配ること。**
+#
+# ⚠️ **読みの精度が大きく落ちる**（n=1,495。M-106 §2 / §10）:
+#      438,750 entries + 生 int16    … 音素の誤り 0.63%
+#       44,000 entries + クラスタ 256 … 音素の誤り **3.86%**（**16 MB の 6.1 倍**。M-107 で訂正）
+#
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_ESPTOOLPY_FLASHSIZE="4MB"
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions_2mb_kanji.csv"
+
+# --- PSRAM は**使わない** ---
+# ⚠️ QEMU が octal PSRAM を持っていないので有効にできない（sdkconfig.kanji と同じ理由）。
