@@ -99,6 +99,9 @@ URL が開くのはマージ後。
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
+| — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
+| — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
+| — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-070** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-110。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |

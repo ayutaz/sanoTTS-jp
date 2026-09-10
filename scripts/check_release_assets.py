@@ -40,7 +40,10 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # 表を読むファイル。⚠️ **増やすときは「読者に落とさせている」ファイルだけ**
 DOCS = ["README.md", "README.en.md", "esp32/TESTING.md", "esp32/README.md",
-        "CONTRIBUTING.md", "MODEL_CARD.md"]
+        "CONTRIBUTING.md", "MODEL_CARD.md",
+        # ⚠️ **README からダウンロード表を切り出した先**（2026-09-10）。
+        #    ここを足し忘れると、**表ごと検査から外れて誰も気づかない**。
+        "docs/downloads.md", "docs/downloads.en.md"]
 
 ROW = re.compile(r"^\|\s*\**`([^`]+)`\**\s*\|(.*)$")
 TAG = re.compile(r"releases/tag/([A-Za-z0-9._-]+)")
