@@ -41,6 +41,31 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--matrix-int8", choices=["sym", "affine"], default=None,
                     help="接続行列を 1 B に丸める（K-5 の精度影響を測る）。\n                          sym=行ごと対称 int8 / affine=行ごとアフィン uint8")
+    ap.add_argument("--rec5", action="store_true",
+                    help="レコードを **`rec5`（5 B）**にする（M-107 §4a）。"
+                         "(class, chain, flags) を 12 bit の class2 に畳み、"
+                         "classes 表は 8 → 10 B になる。**無損失**。")
+    ap.add_argument("--char-range", action="store_true",
+                    help="文字カテゴリを **`charr`（レンジ表）**として blob に入れる"
+                         "（M-106 §5）。**完全に無損失**で 262,496 B → 832 B。")
+    ap.add_argument("--matrix-cluster", type=int, default=None, metavar="K",
+                    help="接続行列を **`matrixc`（行・列クラスタ + 代表行列）**として"
+                         "blob に入れる（M-106 §2）。\n"
+                         "⚠️ **--matrix-mode cluster:K:u8 とは別物**: あちらは値だけ丸めて"
+                         "int16 のまま入れる（精度だけを測る）。\n"
+                         "こちらは**実際にその形式で書く**ので、サイズが実測になる。")
+    ap.add_argument("--matrix-affine", action="store_true",
+                    help="接続行列を**セクション `matrixa`（行ごとアフィン uint8）として"
+                         "実際に blob に入れる**（D-051 の ①）。\n"
+                         "⚠️ **--matrix-mode affine とは別物**: あちらは値だけ丸めて"
+                         "int16 のまま入れる（精度だけを測る）。\n"
+                         "こちらは **C リーダの `matrixa` 経路を実際に走らせる**")
+    ap.add_argument("--matrix-mode", default=None,
+                    help="k9_fit_8mb.make_matrix の方式をそのまま使う"
+                         "（int16 / affine / cluster:K[:u8] / lowrank:R）。"
+                         "⚠️ **--matrix-int8 とは別物**: あちらは float スケールの旧形、"
+                         "こちらは C リーダが再現できる整数式（M-99）。"
+                         "⚠️ **定義を 2 つ持たないため make_matrix を import する**")
     ap.add_argument("--entries", type=int, default=120_000,
                     help="ベクタ用は小さめで良い（C の正しさを見るのが目的）")
     ap.add_argument("--cases", type=int, default=300)
@@ -84,7 +109,23 @@ def main() -> int:
                for r in sub]
     matrix = ConnMatrix.from_matrix_bin(
         (pathlib.Path(dic) / "matrix.bin").read_bytes())
-    if a.matrix_int8:
+    if a.matrix_mode:
+        if a.matrix_int8:
+            print("NG! --matrix-int8 と --matrix-mode は同時に使えない")
+            return 1
+        import numpy as np
+        import k9_fit_8mb
+        matrix, msize = k9_fit_8mb.make_matrix(a.matrix_mode)
+        M0 = np.frombuffer(
+            (pathlib.Path(dic) / "matrix.bin").read_bytes()[4:],
+            dtype="<i2").astype(np.int64)
+        M2 = np.frombuffer(matrix.data, dtype="<i2").astype(np.int64)
+        nd = int((M2 != M0).sum())
+        print(f"⚠️ 行列を {a.matrix_mode} にした: {nd:,d} / {M0.size:,d} 要素が変化"
+              f"（{100*nd/M0.size:.2f}%）/ 最大誤差 {int(np.abs(M2-M0).max())}"
+              f" / 実装時の行列サイズ {msize:,d} B")
+        print("   ⚠️ **値は int16 のまま入れている**。ここで測るのは精度への影響だけ")
+    elif a.matrix_int8:
         # K-5: 行ごとスケールの int8 に丸めた「値」を、**int16 のまま**入れる。
         # ⚠️ ここで測るのは**精度への影響だけ**。サイズの削減は別の話
         #    （形式を int8 にして初めて縮む）。混ぜて報告しないこと。
@@ -106,9 +147,48 @@ def main() -> int:
               f"（{100*n_diff/M.size:.2f}%）/ 最大誤差 "
               f"{int(np.abs(M2.astype(np.int32)-M).max())}")
         matrix = ConnMatrix(matrix.lsize, matrix.rsize, M2.tobytes())
+    if a.matrix_cluster:
+        if a.matrix_mode or a.matrix_int8 or a.matrix_affine:
+            print("NG! --matrix-cluster は他の行列オプションと同時に使えない")
+            return 1
+        from saanotts_jp.jdict import ConnMatrixCluster
+        import numpy as np
+        clu = ConnMatrixCluster.from_int16(matrix, a.matrix_cluster)
+        M0 = np.frombuffer(matrix.data, dtype="<i2").astype(np.int64)
+        M2 = np.frombuffer(clu.to_int16().data, dtype="<i2").astype(np.int64)
+        print(f"⚠️ 接続行列を `matrixc`（{clu.kr}x{clu.kc} クラスタ）にした: "
+              f"セクション {len(clu.to_section()):,d} B"
+              f"（生 int16 {len(matrix.to_section()):,d} B）/ "
+              f"最大誤差 {int(np.abs(M2-M0).max())} / "
+              f"{int((M2 != M0).sum()):,d} / {M0.size:,d} 要素が変化")
+        matrix = clu
+    if a.matrix_affine:
+        if a.matrix_mode or a.matrix_int8:
+            print("NG! --matrix-affine は --matrix-mode / --matrix-int8 と同時に使えない")
+            return 1
+        from saanotts_jp.jdict import ConnMatrixAffine
+        aff = ConnMatrixAffine.from_int16(matrix)
+        import numpy as np
+        M0 = np.frombuffer(matrix.data, dtype="<i2").astype(np.int64)
+        M2 = np.frombuffer(aff.to_int16().data, dtype="<i2").astype(np.int64)
+        print(f"⚠️ 接続行列を `matrixa`（行ごとアフィン uint8）にした: "
+              f"セクション {len(aff.to_section()):,d} B"
+              f"（生 int16 {len(matrix.to_section()):,d} B）/ "
+              f"最大誤差 {int(np.abs(M2-M0).max())} / "
+              f"{int((M2 != M0).sum()):,d} / {M0.size:,d} 要素が変化")
+        matrix = aff
     char_prop = CharProperty.from_char_bin((pathlib.Path(dic) / "char.bin").read_bytes())
     unkd = UnkDict.from_unk_dic((pathlib.Path(dic) / "unk.dic").read_bytes())
     blob = DictBlob.build(entries, matrix=matrix, char_prop=char_prop, unk=unkd)
+    if a.rec5:
+        blob.rec5 = True
+        print("⚠️ レコードを `rec5`（5 B）にした（classes は 10 B）")
+    if a.char_range:
+        # ⚠️ `char_range` は DictBlob のインスタンス属性で見る（_section_payloads が読む）
+        blob.char_range = True
+        print(f"⚠️ 文字カテゴリを `charr`（レンジ表）にした: "
+              f"{len(char_prop.to_range_section()):,d} B"
+              f"（生 {len(char_prop.to_section()):,d} B）")
     body = blob.to_bytes()
     print(f"blob {len(body):,d} B / {len(entries):,d} entries / "
           f"matrix {matrix.lsize}x{matrix.rsize}")

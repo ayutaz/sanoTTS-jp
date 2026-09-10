@@ -31,16 +31,46 @@ typedef struct {
     const uint8_t *counts;       /* 見出し語ごとのエントリ数 */
     uint32_t       n_surfaces;
 
-    const uint8_t *records;      /* 9 B 固定 */
+    const uint8_t *records;      /* `records` なら 9 B 固定 / `rec5` なら 5 B */
     uint32_t       n_entries;
+    /* `rec5`（5 B レコード。M-107 §4a）なら 1。**`records` と排他。**
+     * (class, chain, flags) を 12 bit の class2 に畳んである:
+     *     b0..b1  wcost i16
+     *     b2..b3  u16 = class2(bit 0-11) | pron長 下位 4bit(bit 12-15)
+     *     b4      pron長 bit4(bit 0) | extra長(bit 1-6) | 予備(bit 7)
+     * ⚠️ **classes のストライドも 8 → 10 B になる**（chain u8 / flags u8 が末尾に付く）。
+     *    片方だけ直すと黙って別のエントリを読む。 */
+    int            rec5;
+    uint32_t       cls_stride;   /* 8（records） / 10（rec5） */
     const uint8_t *pool;
     uint32_t       pool_len;
 
     const uint8_t *classes;      /* 8 B: lc u16, rc u16, pos6 u16, posid u16 */
     uint32_t       n_classes;
 
-    const int16_t *matrix;       /* 接続コスト。flat[rc_prev + lsize*lc_cur] */
+    const int16_t *matrix;       /* 接続コスト（生 int16）。flat[rc_prev + lsize*lc_cur] */
     uint16_t       lsize, rsize;
+
+    /* 接続コストを**行ごとアフィン uint8** で持つ形（セクション `matrixa`。D-051 の ①）。
+     * ⚠️ **`matrix` と排他。** どちらか一方だけが非 NULL になる。
+     *    2 つの形式を 1 つのセクション名に入れないのは、`matrix` の長さ検査
+     *    `len == 4 + 2*L*R` を厳密なまま残すため（M-100）。
+     * 逆量子化は**整数で閉じる**（float を使うとホストと C で値が食い違う。C-060）:
+     *     v = span ? lo[lc] + (q*span[lc]*2 + 255) / 510 : lo[lc]
+     * 中間値は最大 255*17,342*2 = 8,844,420 で int32 に収まる。 */
+    const uint8_t  *matrix_q;    /* q[rc_prev + lsize*lc_cur]（matrixa）
+                                  * / q[cmap[rc_prev] + kc*rmap[lc_cur]]（matrixc） */
+    const int16_t  *matrix_lo;   /* lo[lc_cur]（matrixa） / lo[rmap[lc_cur]]（matrixc） */
+    const uint16_t *matrix_span; /* span も同様に索引する */
+
+    /* 接続コストを**行・列クラスタ + 代表行列**で持つ形（セクション `matrixc`。M-106 §2）。
+     * ⚠️ **`matrix` / `matrixa` と排他。** 3 つのうち 1 つだけが有効になる。
+     * `matrix_rmap` が非 NULL なら matrixc で、`matrix_lo` / `matrix_span` / `matrix_q` は
+     * **クラスタ番号で索引する**（行数 = kr、1 行の長さ = kc）。
+     * 逆量子化の式は matrixa と同一（整数で閉じる。C-060）。 */
+    const uint16_t *matrix_rmap; /* lc_cur  → 行クラスタ。長さ rsize */
+    const uint16_t *matrix_cmap; /* rc_prev → 列クラスタ。長さ lsize */
+    uint16_t        matrix_kr, matrix_kc;
 
     const uint8_t *keytab;       /* NUL 区切りの文字表（1 B 符号） */
     uint32_t       keytab_len;
@@ -59,8 +89,18 @@ typedef struct {
     /* K-3: 未知語 */
     const uint8_t *char_names;   /* 32 B ずつのカテゴリ名 */
     uint32_t       n_char_cats;
-    const uint8_t *char_info;    /* 65,535 件の CharInfo (u32) */
+    const uint8_t *char_info;    /* 65,535 件の CharInfo (u32)。`charr` のときは NULL */
     uint32_t       n_codepoints;
+
+    /* 文字カテゴリを**レンジ表**で持つ形（セクション `charr`。M-106 §5）。
+     * ⚠️ **`char` と排他**。65,535 符号位置は 106 run しかないので 262,496 B → 832 B。
+     * ⚠️ **完全に無損失**（run に畳むだけ。ホストの往復で bit 一致を確認済み）。
+     *     run[i] は 上位 20 bit = 開始符号位置 / 下位 12 bit = 値表の添字。
+     *     開始位置の昇順なので二分探索で引く。 */
+    const uint8_t *char_runs;    /* u32 × n_char_runs */
+    uint32_t       n_char_runs;
+    const uint8_t *char_vals;    /* u32 × distinct な CharInfo */
+    uint32_t       n_char_vals;
     const uint8_t *unk;          /* 未知語エントリ（可変長） */
     uint32_t       unk_len;
     uint32_t       n_unk;
@@ -72,8 +112,23 @@ typedef struct { uint32_t len; uint32_t rank; } jdict_hit_t;
 
 typedef struct { uint32_t begin, end, entry; } jdict_token_t;
 
-/* blob を開く。0 で成功、負でエラー。 */
+/* blob を開く。0 で成功、負でエラー。
+ *
+ * ⚠️ **`n` は「読んでよい上限」であって blob の長さではない。**
+ *    端末は dict パーティション長を渡す（esp32/main/saan_dict.c）ので、
+ *    実 blob より 125,776 B 大きい。成功したら `d->blob_len` に
+ *    **セクション表から復元した実 extent** が入るので、そちらを使うこと。 */
 int jdict_open(jdict_t *d, const uint8_t *blob, size_t n);
+
+/* jdict_open の戻り値。⚠️ **-1 〜 -10 は既存の値**（変えると既存のログが別の意味になる）。 */
+#define JDICT_ERR_MAGIC    (-1)
+#define JDICT_ERR_VERSION  (-2)
+/* -3 〜 -10 = 必須セクション（louds/counts/surfck/records/pool/classes/keytab/keyesc）が無い */
+#define JDICT_ERR_MATRIX   (-11)  /* matrix / matrixa が無い / 長さが合わない / 寸法が 0 */
+#define JDICT_ERR_SECTAB   (-12)  /* セクション表が壊れている（blob の外を指す等） */
+#define JDICT_ERR_CHAR     (-13)  /* char セクションの長さが宣言と合わない */
+#define JDICT_ERR_UNK      (-14)  /* unk セクションの長さが宣言と合わない */
+#define JDICT_ERR_CKPT     (-15)  /* poolck / termck の長さが件数と合わない */
 
 /* 文字列（UTF-8）を鍵バイト列に符号化する。out_n は入出力。0 で成功。 */
 int jdict_encode_key(const jdict_t *d, const uint8_t *utf8, size_t n,
@@ -93,6 +148,11 @@ void jdict_entry_conn(const jdict_t *d, uint32_t entry,
 
 /* 遷移コスト。⚠️ 索引は flat[rc_prev + lsize*lc_cur]（K-1 §9-3）。 */
 int16_t jdict_trans(const jdict_t *d, uint16_t rc_prev, uint16_t lc_cur);
+
+/* 符号位置 cp の CharInfo（生の u32）。表の外は 0 = DEFAULT / group=0 / invoke=0。
+ * ビット割り当て: type:18 / default_type:8 / length:4 / group:1 / invoke:1。
+ * ⚠️ **`char` と `charr` のどちらでも同じ値を返す**（charr_test.c がこれで突き合わせる）。 */
+uint32_t jdict_char_raw(const jdict_t *d, uint32_t cp);
 
 /* 見出し語 rank の表層形を UTF-8 で書き出す。バイト数を返す（負でエラー）。
  * ⚠️ **LOUDS を親へ遡って組み立てる。** 見出し語の文字列表は blob に無い

@@ -7,10 +7,81 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 セットアップ（`uv sync` の前に piper-plus を向け直す）と、音を出すまでの最短手順がある。
 実機に載せるのは [`../esp32/TESTING.md`](../esp32/TESTING.md)。
 
-**現在地（2026-09-03）**: **速度の要件に届き**（満チャンク 1 pull の xRT **0.446**。M-90）、
+**現在地（2026-09-10 更新）**: **速度の要件に届き**（満チャンク 1 pull の xRT **0.446**。M-90）、
 **スタックチャン（M5 CoreS3）で漢字・カタカナ・ひらがなを喋る**ところまで来た。
 **残っているのは聴取（G32）だけで、それは人を待っている。**
-⚠️ **この音はまだ誰も聴いていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
+⚠️ **この音はまだ対照つきでは聴かれていない。** 指標（SCOREQ / DNSMOS）は**誤読もアクセント誤りも罰しない**。
+
+**小さい flash（2026-09-10 更新）**: ✅ **第三者の実機で 4 MB / 2 MB が鳴った**
+（[M-109](measurements.md#m-109)。⚠️ **私は未再現**）。とくに **PSRAM 無しの ATOMS3** で動いたのが大きい —
+[M-98](measurements.md#m-98) の「PSRAM が無ければ内部 DRAM の余裕が 2,760 B」という懸念に対し、
+`SAAN_KANJI_MAX_INPUT_TOK`(44) の対策が**実機で初めて確かめられた**。
+
+| flash | 辞書 | entries | **音素の誤り** | 状態 |
+|---|---:|---:|---:|---|
+| 16 MB（出荷） | 13,702,320 | 438,750 | **0.63%** | ✅ 実機（M-90） |
+| 8 MB | 7,123,088 | 228,000 | 1.01% | ✅ 実機（M-105） |
+| **4 MB** | **3,006,656** | **135,000** | **1.94%** | ✅ **第三者の実機**（[M-109](measurements.md#m-109)。⚠️ 未再現） |
+| **2 MB 枠** | **977,456** | **44,000** | **3.86%** | ✅ **第三者の実機**（[M-109](measurements.md#m-109)。⚠️ 未再現） |
+
+⚠️ **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）。**4 MB が下限**で、
+2 MB の行は「**枠に収まる**」ことしか言っていない（大きい板の上で確かめた。M-105 の 8 MB と同じ立場）。
+⚠️ **checksum も xRT もアンダーランも報告に無い。** 分かるのは「起動して音が鳴り、
+聴いた人が『良さげ』と言った」ことだけで、⚠️ **1 名・対照なし・盲検なし**（M-109 §5）。
+
+**効いたのは 3 つ**: **予算を接続行列から語彙へ移す**（同じ 966 KB で音素の誤りが 6.75% → 3.86%）/
+**`matrixc`**（行・列クラスタ。行列 3,792,262 → **72,080 B**）/ **`charr`**（文字カテゴリの run 表。
+262,496 → **832 B**。**無損失**。⚠️ **これが無いと 2 MB にも 4 MB にも入らない**）。
+**C リーダは書いてゲートも張った**（`make -C csrc matrixc` / `charr` / `rec5`）。
+**文脈 ID の詰め直しは完全に無損失で C の変更も要らず**、16 MB で −800,800 B / 8 MB で −583,984 B 効く。
+
+**4 つ目が増えた**: **`rec5`**（5 B レコード。**−3.974 B/entry**。無損失。[M-108](measurements.md#m-108)）。
+**16 MB に 538,000 entries が入り**（438,750 の +22.6%）、音素の誤りが **0.64% → 0.60%** になる
+（**改善 21 文 / 悪化 0 文 / McNemar p=9.5e-07**）。⚠️ **買えるものは小さく**（編集距離 502 → 470）、
+⚠️ **焼いていない**（速度も未測定）。**既定はオフ。**
+
+⚠️ **この過程で `charr` にバグを作り込んだ**（[M-107](measurements.md#m-107) / [C-070](decisions.md#c-070)）。
+**未知語ノード生成が丸ごと飛び**、ゲートが経路なしの文を**分母から黙って落として精度が良く見えていた**。
+**「良くなった」も測定器を疑う入口。**
+
+⚠️ **M5StampC5 は flash ではなく FPU と RAM で落ちる**（ESP32-C5 は `rv32imac` = 浮動小数点ユニットが無く、
+`saanotts.c` にソフト FP の呼び出しが 106 か所出る / 要求 RAM 370,980 B に対し SRAM 393,216 B・PSRAM 無し）。
+**Stamp 型なら M5StampS3（ESP32-S3 / 8 MB）が今日そのまま動く。**
+`/deep-research` も回したが、**1 語 20.5 B を半減した先行事例は商用にも学術にも無かった**
+（AqKanji2Koe-M は 17.6〜20.0 B/語でうちと同密度）。⚠️ **報告の 3 点は再現できず訂正した**
+（[C-067](decisions.md#c-067) / [C-068](decisions.md#c-068)）。
+
+**8 MB 板の漢字対応（2026-09-05）**: ✅ **実機で喋った**
+（[M-104](measurements.md#m-104) = QEMU / [M-105](measurements.md#m-105) = **実機**）。
+接続行列を**行ごとアフィン uint8**（セクション `matrixa`）にし、entries を絞ると枠に入る。
+**画面 + スピーカーを積んだ M5Unified 版でも動く。**
+
+| | DevKit の app | **M5Unified の app** |
+|---|---:|---:|
+| app | 1,021,248 B | **1,438,576 B** |
+| dict の枠 | 7,143,424 | **6,815,744** |
+| entries | 228,000 | **213,000** |
+| blob | 7,123,088（余り 20,336） | **6,797,056**（余り 18,688） |
+| 定常 xRT（実機） | **0.445** | **0.448** |
+| アンダーラン | **0** | **0** |
+| **音素の誤り**（n=1,495） | 1.01% | **1.09%** |
+
+⚠️ **枠は app の大きさで変わる。** M-97 の 7,143,424 B は DevKit 前提で、
+**M5Unified を積むと 241,808 B 足りない**（M-105 §4）。**AtomS3 も M5Stack の板。**
+⚠️ **アフィン行列の速度代償は +0.3%**（entries を揃えて実機で測った。M-105 §3）。
+⚠️ **既定ではない。** 出荷は 16 MB（[D-044](decisions.md#d-044)）で、16 MB で使う理由は無い
+（音素の誤りが 0.63% → 1.01% に悪化するだけ。⚠️ ただし**根拠は変わった** = [C-066](decisions.md#c-066)）。
+⚠️ **8 MB flash のチップそのものでは測っていない**（16 MB の板に 8 MB の表を焼いた）。
+⚠️ **対照つきでは聴かれていない**（M-91 / M-93 / M-96 / M-109 はどれも**1 名・対照なし・盲検なし**）。
+✅ **② char レンジ表（`charr`）と ③ 行列クラスタ（`matrixc`）の C リーダは書いた**（[M-106](measurements.md#m-106) §10）。⚠️ **残るのは ④ レコード dedup だけ**で、しかも
+**動作点によって符号が変わる**（438,750 entries で −4.23 B/entry、21,000 では **+0.95 B/entry の損**。[C-067](decisions.md#c-067)）。
+
+⚠️ **当初 [D-051](decisions.md#d-051) は「8 MB の実機が入るまで着手しない」としていたが、
+条件の立て方が間違っていた**（[C-065](decisions.md#c-065)）。C リーダの正しさも枠に入ることも
+起動も、**板なしで確かめられた**（その後 [M-105](measurements.md#m-105) で実機にも載せた）。
+
+あわせて **PSRAM 無しの板の穴**を塞いだ（[M-98](measurements.md#m-98)。Open JTalk の一時ヒープを
+G2P の前に形態素数で縛る。低水位 2,760 → 40,468 B）。
 
 **2026-09-03、W トラック（ブラウザで動くデモ）を足した**（[D-050](decisions.md#d-050) / [M-94](measurements.md#m-94)）。
 `csrc/` の C99 コアと漢字経路を**書き換えずに** wasm にしたもので、
@@ -28,8 +99,11 @@ URL が開くのはマージ後。
 |---|---|---|---|
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-050（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-058** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-96。全数値に再現コマンド付き | 実測のたび |
+| — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
+| — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
+| — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-052（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-070** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-110。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -45,7 +119,7 @@ URL が開くのはマージ後。
 
 ⚠️ 例外は [`upstream-sanotts.md`](upstream-sanotts.md)。**あれは上流の申告値であって、うちの実測ではない。** M-番号と混ぜないこと。
 
-## 現在地（2026-09-03 時点）
+## 現在地（2026-09-10 時点）
 
 ```
 [完了] 論文の仕様抽出        論文 PDF から全数値を抽出
@@ -215,8 +289,12 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 ⚠️ **実機のスピーカーでしか分からないものが残る**（G32 の本体）: **途切れ・音量・実サンプルレートの誤差**。
 checksum が一致しても M5.Speaker の DMA の実挙動は別（M-90 §5）。
 
-⚠️ **これから板を買うなら N16R8。** 8 MB では K トラックの辞書（13.7 MB）が入らない。
-16 MB なら**かなトラックの構成もそのまま焼ける**。**別々に取りに行くと 2 回焼き直しになる。**
+⚠️ **これから板を買うなら N16R8。** 16 MB なら**辞書 13.7 MB がそのまま入り、
+かなトラックの構成もそのまま焼ける**。**別々に取りに行くと 2 回焼き直しになる。**
+✅ **ただし「8 MB では入らない」は古い。** entries を落とせば
+**8 MB（実機。M-105）/ 4 MB / 2 MB（**第三者の実機**。[M-109](measurements.md#m-109)。⚠️ 未再現）**でも動く。
+**代償は読みの精度**で、音素の誤りが 0.63% → 1.01% / 1.94% / 3.86% に落ちる（n=1,495）。
+⚠️ **ESP32-S3 の下限は 4 MB**（WROOM-1 は N4 / N8 / N16。**2 MB の品番は無い**）。
 実測に使っているのはユーザーの M5 CoreS3（16 MB / PSRAM 8 MB Quad。**D-047**）。
 
 **実装として書くものは残っていない。** 1〜5 は「聴く」「決める」「上げ直す」。
@@ -329,9 +407,15 @@ Pages への配置は**別のワークフロー** [`pages.yml`](../.github/workf
 ／ `make -C csrc jdict`（G6〜G11）／ `accent`（G12/G13）／ `njd-rules`（G14a〜c）／ `oj-heap`（G22〜G24）
 ／ `kanji-e2e`（G17）／ `label-ids`（G25〜G27 + **G25b/G25c**: 表を arena に置いても同じ列か）
 ／ `kb-parity`（**K-B の経路判定**がホストと一致するか。596/596）
+／ `matrixa`（**行ごとアフィン uint8** が生 int16 と全 1,896,129 要素で一致するか。M-104）
+／ `matrixc`（**行・列クラスタ**が同じく全要素で一致するか。⚠️ **陽性対照が 2 本**。M-106 §10）
+／ `charr`（**文字カテゴリの run 表**が全 65,535 符号位置で一致するか。M-106 §10）
+／ `rec5`（**5 B レコード**が 9 B 版と全エントリで一致するか。M-108。
+  ⚠️ **ホスト側の `scripts/test_rec5.py` は辞書が要らないので CI で回る**）
 ／ `uv run python scripts/k1/k4b_vendor.py --sdist <tgz> --check`（取り込んだ C の同一性）
-⚠️ **jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids / kb-parity は `all-test` に入れていない**
-（辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い）
+⚠️ **jdict / accent / njd-rules / oj-heap / kanji-e2e / label-ids / kb-parity /
+matrixa / matrixc / charr / rec5 は `all-test` に入れていない**
+（辞書と pyopenjtalk が要る。g2p-corpus と同じ扱い。⚠️ **`matrixc` は scikit-learn も要る**）
 ⚠️ **`β` の聴取は M-60 / D-038 で決着済み**（β=0）。詳細は
 [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
 
@@ -411,8 +495,8 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-050（D-049 は欠番）+ 訂正履歴 C-001〜C-058
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-96
+│   ├── decisions.md                       決定記録 D-001〜D-052（D-049 は欠番）+ 訂正履歴 C-001〜C-070
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-110
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── plan/phase0-1-implementation-plan.md
@@ -427,12 +511,18 @@ sanoTTS-jp/
 ├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
 │   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）
 │   ├── k1_build_dict.py                   本番の辞書 blob を組んで G1〜G5 を通す
+│   │                                        `--matrix affine|cluster:K` / `--char-range`（M-105 / M-106）
 │   ├── k2_gen_vectors.py                  K-2/K-3 の参照ベクタ（参照は MeCab）
 │   ├── k4_gen_vectors.py                  K-4 の参照ベクタ（参照は Python 版の 4 段）
 │   ├── k4b_gen_vectors.py                 K-4b の参照ベクタ（参照は NJD チェーン）
 │   ├── k4b_vendor.py                      **取り込みと --check**（上流 + PATCHES と突き合わせ）
 │   ├── k5_gen_labels.py                   K-5 の basis（ホストのフルコンテキストラベル）
-│   └── k6_gen_vectors.py                  K-6/K-7 の参照ベクタ（ラベル + ids の 2 基準）
+│   ├── k6_gen_vectors.py                  K-6/K-7 の参照ベクタ（ラベル + ids の 2 基準）
+│   ├── k9_fit_8mb.py                      8 MB 枠の動作点を振る（⚠️ **サイズは算術**。M-97）
+│   ├── k10_ctx_compact.py                 **文脈 ID の詰め直し**が無損失かを測る（M-106 §3）
+│   ├── k11_fit_2mb.py                     **実測サイズ**で動作点を決める（`--budget` / `--grid`。M-106 §10）
+│   ├── k12_rec5_gain.py                   `rec5` で浮いた枠に語彙を増やす効果（⚠️ **分母が動いたら NG で止まる**。M-108 §6）
+│   └── k13_rec5_mcnemar.py                文ごとの一致を突き合わせて **McNemar**（改善 21 / 悪化 0）
 ├── src/saanotts_jp/                       ライブラリ（scripts から import する）
 │   ├── _param_reference.py                論文 Table I を再現する層構成
 │   ├── losses.py                          式2 / 3 / 5 / 6 / 7
@@ -468,6 +558,10 @@ sanoTTS-jp/
 │   ├── jdict_test.c / accent_test.c              K-2〜K-4 の受け入れ（どちらも陰性対照つき）
 │   ├── njd_rules_test.c / oj_heap_test.c         K-4b / K-5 の受け入れ
 │   ├── kanji_e2e_test.c / label_ids_test.c              K-6 / K-7 の受け入れ
+│   ├── jdict_hard_test.c                  **辞書リーダの入力検査**（M-100。ASan 版と weak 版を同居）
+│   ├── matrixa_test.c                     **`matrixa`** が生 int16 と全要素一致（M-104）
+│   ├── matrixc_test.c / charr_test.c      **`matrixc` / `charr`** が同じく全要素一致（M-106 §10）
+│   ├── rec5_test.c                       **`rec5`（5 B レコード）**が 9 B 版と全エントリ一致（M-108）
 │   ├── line.h / line.c                    端末の行編集（UTF-8 / BS / CRLF / ESC。369 B）
 │   ├── golden_test.c                      参照実装との一致（Pearson >= 0.98）
 │   ├── stream_test.c                      受け入れ条件 G1〜G4（**stack 込みで判定**）
@@ -485,9 +579,14 @@ sanoTTS-jp/
 │   ├── main/saan_dict.{h,c}               dict パーティションの mmap（**`esp_mmu_map`**。M-90 §4）
 │   ├── main/saan_kanji.{h,c}              **K-7: 漢字文 → 生徒インデックス**（端末の全段）
 │   ├── partitions.csv                     8 MB（かな入力だけの出荷構成）
-│   ├── partitions_16mb.csv                **16 MB + dict 13,828,096 B**（漢字対応）
+│   ├── partitions_16mb.csv                **16 MB + dict 13,828,096 B**（漢字対応・出荷）
+│   ├── partitions_8mb_kanji.csv           8 MB / DevKit（dict 7,143,424。M-105）
+│   ├── partitions_4mb_kanji.csv           **4 MB**（dict 3,014,656。M-109 = 第三者の実機。⚠️ 未再現）
+│   ├── partitions_2mb_kanji.csv           **2 MB の枠**（dict 983,040。M-106 §13。⚠️ **品番は無い**）
 │   ├── sdkconfig.defaults                 **QIO + D-cache 64 B 行**（M-84 / M-86）。PIE は S3 で既定（D-048）
 │   ├── sdkconfig.kanji / .qemu / .usb_serial_jtag   漢字 / QEMU（DIO に戻す）/ USB-JTAG コンソール
+│   ├── sdkconfig.kanji8mb / .kanji4mb / .kanji2mb   小容量の上書き。⚠️ **`CONFIG_ESPTOOLPY_FLASHSIZE` は
+│   │                                        焼く板の実容量に**（書き忘れるとブートループ。M-106 §13）
 │   ├── boards/m5unified/                  **M5Stack（スタックチャン）構成**。重みは app の `.rodata`、
 │   │                                        `partitions.csv` に **dict 0x2D0000（DevKit と同じ offset）**、
 │   │                                        `main/saan_audio_m5.cpp` が M5.Speaker、`saan_ui_m5.cpp` が画面
@@ -507,7 +606,7 @@ sanoTTS-jp/
 ├── pyproject.toml / uv.lock               uv 環境定義
 ├── .claude/
 │   ├── settings.json                      permissions.deny + PreToolUse hook
-│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（94 ケース + commit ガードのテスト付き）
+│   ├── hooks/guard_bash.py                piper-plus 保護 / uv 強制 / 本番パック保護（105 ケース + commit ガードのテスト付き）
 │   └── skills/                            recording-measurements / teacher-inference /
 │                                           student-training / evaluating-quality /
 │                                           verifying-reports / writing-gates
@@ -520,6 +619,7 @@ sanoTTS-jp/
     ├── b_durations_all.py                 全行の duration だけを取る（B-4/7/8 の土台）
     ├── train_student.py                   生徒 4 段の蒸留学習
     ├── test_losses.py / test_labelpack.py / test_discriminator.py
+    ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
@@ -563,8 +663,9 @@ uv run python scripts/kana_g2p.py                # 中間表現変換器（10 �
 uv run python scripts/to_intermediate.py "今日は良い天気ですね。"   # 端末に貼る 1 行
 uv run python scripts/test_losses.py             # 損失の性質（26 項目）
 uv run python scripts/test_labelpack.py          # パック往復 + ゲート発火
+uv run python scripts/test_rec5.py               # rec5 の往復と畳み込み（辞書は要らない）
 uv run python scripts/test_discriminator.py      # 判別器（23 チェック）
-uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（94 ケース + commit ガード）
+uv run python .claude/hooks/test_guard_bash.py   # hook の回帰（105 ケース + commit ガード）
 uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + V=57
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
@@ -579,7 +680,8 @@ make -C csrc all-test                            # golden / stream（held-out 24
                                                  #   g2p / pad / line / erf / range
 make -C csrc prof                                # 段別プロファイラ + --expect-* ゲート（S1 / T1〜T3）
 make -C csrc kb-parity                           # 経路の 3 値判定がホストと一致するか（K-B）
-bash scripts/check_esp32_template.sh             # esp32/ 雛形をホストで検査（§10 = arena の余白）
+bash scripts/check_esp32_template.sh             # esp32/ 雛形をホストで検査（**12 節**。§10 = arena の余白 /
+                                                 #   §11 = OJ の一時ヒープ / §12 = FLASHSIZE の宣言漏れ）
 ```
 
 ⚠️ **`make prof` のホストの時間は実機の内訳ではない**（C-055）。速度の判断は
