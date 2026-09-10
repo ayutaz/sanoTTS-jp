@@ -38,7 +38,7 @@ URL が開くのはマージ後。
 | 0 | [`../CLAUDE.md`](../CLAUDE.md) | 実装時の要点だけを抜き出した運用ルール。**コードを書く前に必ず読む** | 実測のたび |
 | 0.5 | [`requirements.md`](requirements.md) | **要件定義書**。入力仕様・機能/非機能要件・受け入れ条件 | 仕様変更時 |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-057（⚠️ **D-049 は欠番** = RTF の分母用に予約。⚠️ **D-051〜D-053 は未マージの別ブランチが使用中** = [D-054](decisions.md#d-054) / [D-056](decisions.md#d-056) の表）と**訂正履歴 C-001〜C-075**（⚠️ **C-059〜C-070 も別ブランチ**） | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-115（⚠️ **M-97〜M-108 は未マージの別ブランチが使用中**）。全数値に再現コマンド付き | 実測のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-116（⚠️ **M-97〜M-108 は未マージの別ブランチが使用中**）。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -215,7 +215,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ | かな | ✅ **v0.3.0** | `scripts/check_release_assets.py` |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ | 両方 | ✅ **v0.3.0** | `esp32/TESTING.md` |
 | 5 | エントリ数・接続行列（今は 438,750 / int16） | K | 判断 | D-044 を見直すか |
-| **8** | **v4 の出荷物を再凍結する**（golden / int8 blob / firmware / ライセンス文から JSUT を外す） | **L** | 作業 | **未着手**。⚠️ **配布中は今も v3**（[D-057](decisions.md#d-057)） |
+| **8** | **v4 の出荷物を再凍結する** | **L** | 作業 | ✅ **blob / golden / ライセンス文は済んだ**（[M-116](measurements.md#m-116)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB）。⚠️ **残り: firmware のビルドと GitHub Release。配布中は今も v3** |
 | **9** | **教師の声の差し替え** — ⚠️ **これをやるまで [D-054](decisions.md#d-054) のゴールには届かない** | **L** | 判断 + 調達 | 外部の声優への依頼が進行中・未確定 |
 | ~~10~~ | ~~アクセント指標の教師ゲートが生徒依存~~ → ✅ **直した**（[C-075](decisions.md#c-075) / [M-115](measurements.md#m-115)）。ゲートは教師だけのマスク、cos は共通マスクに分けた。3 run で分母が 37/38 にそろった | 両方 | ✅ | `scripts/test_accent_gate.py`（陽性対照つき・CI） |
 
@@ -427,7 +427,7 @@ sanoTTS-jp/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
 │   ├── decisions.md                       決定記録 D-001〜D-057（D-049 は欠番）+ 訂正履歴 C-001〜C-075
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-115
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-116
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
 │   ├── plan/phase0-1-implementation-plan.md

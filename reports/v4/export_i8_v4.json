@@ -1,0 +1,30 @@
+{
+ "ckpt": "runs/v4/stage4.pt",
+ "vocab": 57,
+ "int8": true,
+ "golden_from_quantized": true,
+ "n_tensors_faked": 52,
+ "weights": {
+  "path": "csrc/student_i8.bin",
+  "n_tensors": 183,
+  "bytes": 654032,
+  "sha256": "a1eb6b0812e2ad2a228836088a3e34160cb66731492fb957a5891605db2fa1b6"
+ },
+ "golden": {
+  "path": "csrc/golden_i8.bin",
+  "n_tensors": 8,
+  "bytes": 794240,
+  "sha256": "da360dbe4d541d2930e3e6f0d9fd36f8dd5354eca54dd6055c15a9575608e2f5",
+  "text": "今日は良い天気ですね。",
+  "n_ids": 53,
+  "frames": 108,
+  "samples": 27648
+ },
+ "s_v": 1.2187,
+ "clip": [
+  1,
+  80
+ ],
+ "format": "SAAN v2。ヘッダに name/dtype/shape/offset を持つ自己記述形式。int8 conv 重みの payload は [cout][k][align16(cin)] で 0 埋め（cin==1 の depthwise は padding 無し）。v1 との差はこのレイアウトだけ",
+ "repro": "uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt --out csrc/student_i8.bin --golden csrc/golden_i8.bin --int8 --golden-from-quantized --report csrc/export_i8.json"
+}

@@ -169,7 +169,14 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
   - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
       https://sites.google.com/site/shinnosuketakamichi/publication/jsut
       ライセンス: https://creativecommons.org/licenses/by-sa/4.0/
+      ⚠️ **v4 以降の重みでは不要**（下記）
 ```
+
+⚠️ **JSUT の行は配る重みで要否が変わる**（正典は [`LICENSE-MODEL.md`](LICENSE-MODEL.md) §3.1）:
+**v3 系（現在配布中のすべて）では必須 / v4 系（未リリース）では不要**。
+v3 の資産は今もダウンロードできるので、**2 つは同時に真である。**
+⚠️ **JSUT を外しても他の帰属も出力の用途制限も 1 つも減らない**（それらは
+つくよみちゃんコーパスと教師 base 由来）。
 
 ### (B) 任意（**帰属義務はない**。出所の記録として推奨）
 

@@ -8184,3 +8184,93 @@ v3 の 1.193 / v3_seed2 の 1.031 は変わらず。
 - **`cos` の生徒依存**は残る（⚠️ **それが正しい**。対応するモーラでしか測れない）
 - **過去の測定値は測り直していない**。[M-44](#m-44) / [M-59](#m-59) は旧実装の値のままで、
   ⚠️ **単一モデルの値としては有効**（C-075 の「正しい読み方」参照）
+
+---
+
+<a id="m-116"></a>
+## M-116. **Task 8: v4 の blob と golden を書き出し、C99 コアの全ゲートを通した**（⚠️ **リリースはしていない**）
+
+[D-057](decisions.md#d-057) で v4 を受け入れたので、出荷物を作り直した。
+⚠️ **GitHub Release には上げていない。配布されているのは今も v3。**
+
+再現:
+
+```bash
+uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt \
+    --out csrc/student.bin --golden csrc/golden.bin --report csrc/export.json
+uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt --int8 \
+    --golden-from-quantized --out csrc/student_i8.bin --golden csrc/golden_i8.bin \
+    --report csrc/export_i8.json
+make -C csrc all-test
+```
+
+### 1. blob（v3 と同じサイズ）
+
+| | v3 | **v4** |
+|---|---:|---:|
+| fp32 `student.bin` | 2,249,792 B | **2,249,792 B** |
+| int8 `student_i8.bin` | 654,032 B | **654,032 B** |
+| int8 の tensor 数 | 183 | **183** |
+| version フィールド | 2 | **2** |
+
+SHA-256（v4）: fp32 `ccbded9f9846a1f2…` / int8 `a1eb6b0812e2ad2a…`
+
+⚠️ **サイズが同じなのは形が同じだから**で、中身は違う。**同じ blob だと読まないこと。**
+
+### 2. `make -C csrc all-test` は exit 0
+
+⚠️ **exit 0 だけでは不十分**なので、**強いゲートが実際に走ったか**をログで確認した:
+
+| ゲート | 結果 |
+|---|---|
+| **golden**（参照実装との一致） | `out.log_d` Pearson **1.000000** / SNR 126.17 dB<br>`out.c` Pearson **1.000000** / SNR 131.38 dB<br>`out.pcm` Pearson **1.000000** / SNR 118.16 dB |
+| **stream**（held-out 24 文） | **一括版と bit 完全一致 24/24 文**（エラー 0 / 残差の補完 0 件）。3 レーンとも動作 |
+| **int8-e2e**（held-out 24 文） | 下記 |
+| arena / fft / erf / range / pad / line / g2p | 全部 PASS（**陽性対照つき**） |
+
+### 3. int8 e2e — **v3 より最小 SNR が上がった**
+
+```
+n=24  平均 27.96 dB / 最小 25.98 dB / 最大 30.99 dB  （25 dB 未満 0 文）
+  OK  平均 27.96 dB >= 27.0 dB
+  OK  最小 25.98 dB >= 25.0 dB
+```
+
+| | v3 | **v4** |
+|---|---:|---:|
+| 平均 | 28.1052 dB | **27.9592** |
+| **最小** | 25.7159 dB | **25.9845** |
+| 最大 | 31.5372 dB | 30.9905 |
+| 25 dB 未満 | 0 文 | **0 文** |
+| `d_hat` トークン一致 | 2,395 / 2,425 | **2,396 / 2,425** |
+
+⚠️ **これは [M-113](#m-113) §5 の「波形 SNR 25.8 dB」とは別の測定**である。
+あちらは**ランダム音素列 8 本**、こちらは **held-out 24 文の e2e**。
+**v3 の 25.72 dB と比べてよいのはこちら。**
+
+### 4. ⚠️ 上書きしかけたものを戻した
+
+`export_c_weights.py` と `all-test` は**既存の JSON を書き換える**。
+**v3 の測定値が v4 の値で上書きされていた**ので、v3 側を `git checkout` で戻し、
+v4 の値は **`reports/v4/`** に分離した:
+
+| ファイル | 何が起きた |
+|---|---|
+| `reports/d3c2_int8_e2e.json` | v3 の 28.1052 / 25.7159 が v4 の値で上書き → **戻した** |
+| `reports/d3c_int8.json` | 同上 → 戻した |
+| `csrc/export.json` / `export_i8.json` | 同上 → 戻した |
+| **`csrc/ids_heldout.json`** | ⚠️ **意図的に伏せてあった地名（6 文字）が復活していた** → 戻した |
+
+⚠️ **`sanitize_reports.py` は短い文字列を検出しない**（`MIN_TEXT_LEN`。単独モーラを
+拾わないための設計）。**6 文字の地名は検出されずに通る**ので、
+**再生成で伏せ字が戻ることをゲートは捕まえられない。** 今回は `git diff` で気づいた。
+
+### 5. ⚠️ やっていないこと
+
+| | |
+|---|---|
+| **GitHub Release への公開** | ❌ **していない。配布中は今も v3** |
+| **firmware のビルド** | ❌ ESP-IDF が要る。⚠️ **`esp32/` のビルドは未実施** |
+| **実機での確認** | ❌ 焼いていない |
+| **音** | ❌ **1 秒も聴いていない** |
+| **blob の git 追跡** | ❌ `csrc/*.bin` は `.gitignore` 済み（⚠️ **いま手元にあるのは v4 の blob**） |

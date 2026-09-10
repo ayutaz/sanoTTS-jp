@@ -64,6 +64,10 @@ MIT は「無制限に (without restriction)」の利用を認めます。しか
 本モデルまたはその派生物を再配布する場合、下記 **(A)** を**そのまま**、
 配布物の `NOTICE` / `README` / クレジット表示のいずれかに含めてください。
 
+⚠️ **例外は 1 行だけ**: **JSUT の行は、v4 系の重みを配る場合には含めません**
+（その重みは JSUT を 1 行も使っていないため。詳細は (A) の直後）。
+**それ以外の行は 1 つも省かないでください。**
+
 ⚠️ **2026-09-09 に (A) と (B) に分けた。** それまでは全体を 1 ブロックにして
 「1 行でも欠けると違反」と書いていたが、**3 件が誤っていた**（[`docs/decisions.md`](docs/decisions.md) C-072）:
 
@@ -101,7 +105,20 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
   - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
       https://sites.google.com/site/shinnosuketakamichi/publication/jsut
       ライセンス: https://creativecommons.org/licenses/by-sa/4.0/
+      ⚠️ **v4 以降の重みでは不要**（下記）
 ```
+
+⚠️ **JSUT の行は「どの重みを配るか」で要否が変わります。**
+
+| 配布する重み | JSUT の行 | 理由 |
+|---|---|---|
+| **v3 系**（`saanotts-jp-v3-*` = **現在配布中のすべて**） | **必須** | 蒸留テキストに JSUT 6,380 行を含む |
+| **v4 系**（未リリース） | **不要** | 蒸留テキストが CC0 / PD のみ（[`docs/decisions.md`](docs/decisions.md) D-057 / D-054） |
+
+⚠️ **v3 の資産は今もダウンロードできるので、この 2 行は同時に真である。**
+**自分が配る重みがどちらかを確認してから**、その行を含める / 含めないを決めること。
+⚠️ **JSUT を外しても、(A) の他の項目と §3.2 の用途制限は 1 つも減らない**
+（それらは つくよみちゃんコーパスと教師 base 由来）。
 
 ⚠️ **原典に明示の著作権表示が無い素材は、著作者名で代えています**
 （CC BY 4.0 §3(a)(1)(A) は copyright notice を求めるが、原典が公開していない）。
@@ -226,6 +243,23 @@ comm -12 /tmp/a /tmp/b | wc -l` → 92）
 から実務上この立場が通る公算は低いと判断しましたが、**リスクはゼロではありません**
 （[`docs/decisions.md`](docs/decisions.md) D-035）。
 
+### ✅ v4 でこのリスクは消える（⚠️ **v4 はまだ配布していない**）
+
+2026-09-10 に、**JSUT を外した v4 を学習して受け入れた**
+（[`docs/decisions.md`](docs/decisions.md) D-057）。蒸留テキストは **CC0 / パブリックドメインのみ**
+（14,513 行。論文の 14,343 行を上回る）で、**継承付きの素材を 1 行も含まない。**
+
+| | v3（**現在配布中**） | v4（**未リリース**） |
+|---|---:|---:|
+| JSUT ver1.1 | 6,380 行 | **0 行** |
+| 継承（share-alike）リスク | ⚠️ **本節のとおり残る** | **無し** |
+| 品質（SCOREQ 教師比） | 0.6444 | 0.6361（**差は検出できず**） |
+
+⚠️ **本節は v3 についてのものである。** v3 の資産は今もダウンロードでき、
+**それを使う限りこのリスクは残る。**
+⚠️ **v4 でも §3.2 の出力用途制限と §3.3 の伝播は 1 つも減らない**
+（つくよみちゃんコーパス由来）。**消えるのは蒸留テキストの継承リスクだけ。**
+
 ⚠️ **本節を含む本ファイルの法的評価は、本プロジェクトによる一次ソースの読解であり、
 弁護士による法的助言ではありません。** 重要な用途に使う場合はご自身で確認してください。
 
@@ -339,3 +373,22 @@ were held to be a derivative work of its training text, share-alike could reach 
 weights. We judged this unlikely (Japanese Copyright Act Art. 30-4; we do not
 redistribute the corpus text) but **the risk is not zero**. This is our own reading of
 primary sources, **not legal advice**.
+
+### ✅ v4 removes this risk — ⚠️ **but v4 is not released yet**
+
+On 2026-09-10 we trained and accepted **v4**, distilled from **CC0 / public-domain text
+only** (14,513 rows — above the paper's 14,343), with **no share-alike material at all**
+(`docs/decisions.md` D-057).
+
+| | v3 (**currently distributed**) | v4 (**unreleased**) |
+|---|---:|---:|
+| JSUT ver1.1 rows | 6,380 | **0** |
+| Share-alike risk | ⚠️ **as described above** | **none** |
+| SCOREQ teacher ratio | 0.6444 | 0.6361 (**difference not detectable**) |
+
+⚠️ **This section describes v3.** The v3 assets remain downloadable, and the risk stands
+for anyone using them. In block (A) of §3.1, **the JSUT line is required for v3 weights
+and not required for v4 weights** — check which you are shipping.
+⚠️ **v4 removes nothing from the output-use restrictions or the propagation duty** —
+those come from the Tsukuyomi-chan corpus. **Only the distillation-text share-alike
+risk goes away.**
