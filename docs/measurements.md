@@ -11680,3 +11680,87 @@ I (3058) saanotts:         |max| 7583 / Σx² 84292798374
 | **漢字の入力** | ❌ **`かな>` に漢字文を打っていない。** 上は起動時の 1 発話（かな中間表現の錨）だけ |
 | **実サンプルレートの誤差** | ❌ firmware 自身が「⚠️ 実サンプルレートの誤差は**未測定**」と出している |
 | **出荷イメージ** | ❌ **これは出荷イメージではない**（§4） |
+
+---
+
+<a id="m-124"></a>
+
+## M-124. **出荷イメージ 3 本をマージ後のツリーで作り直し、実機で漢字を喋らせた** — **漢字経路とかな経路が bit 一致**（自己実測。⚠️ **音は未聴取**）
+
+[M-123](#m-123) のイメージは `origin/main` をマージする前のビルドだった。
+マージで firmware のソースが **590 行**変わった（`csrc/jdict.c` / `jdict.h` /
+`esp32/main/main.c` / `saan_dict.c` / `saan_kanji.c` / `saan_kanji.h` /
+`CMakeLists.txt` / `boards/m5unified/partitions*.csv`）ので**作り直した**。
+
+### 1. 3 構成のビルドと結合
+
+```bash
+cd esp32
+idf.py -B build_ship_kanji -DSDKCONFIG=build_ship_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji;sdkconfig.usb_serial_jtag" \
+    -DSAAN_KANJI=1 build
+idf.py -B build_ship_kana -DSDKCONFIG=build_ship_kana/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.usb_serial_jtag" build
+cd boards/m5unified
+idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=<abs>/csrc/k1_dict.bin build
+```
+
+| 構成 | app | イメージ | SHA-256 |
+|---|---:|---:|---|
+| 漢字 16 MB（DevKit / USB Serial-JTAG） | **356,832 B** | 16,777,216 B | `31f0b35ebcd8ab5f…` |
+| かな 8 MB（DevKit / USB Serial-JTAG） | **277,040 B** | 8,388,608 B | `bfdd41b4e5f94f3d…` |
+| M5 CoreS3 16 MB | **1,439,872 B** | 16,777,216 B | `c6e9b6902745c2c0…` |
+
+**v4 が入っていることは抽出して照合した**（[M-119](#m-119) と同じ方法。「ビルドが通った」を証拠にしない）:
+
+| イメージ | 見た場所 | 結果 |
+|---|---|---|
+| 漢字 / かな | `0x210000` から 654,032 B | **`a1eb6b0812e2ad2a…` = v4** |
+| 漢字 / M5 | `0x2d0000` から 13,702,320 B | **`f162c922074d7681…` = 凍結辞書** |
+| M5 | `.rodata`（`0x23ee0`） | **654,032 B が連続で bit 一致** |
+
+### 2. ⚠️ main の 590 行は PCM を動かしていない
+
+起動時の 1 発話（かな中間表現の錨）の checksum:
+
+| | checksum |
+|---|---|
+| QEMU（[M-118](#m-118)） | `0x390bf4b2aef8f2ec` |
+| 実機・マージ前（[M-123](#m-123)） | `0x390bf4b2aef8f2ec` |
+| **実機・マージ後（この節）** | **`0x390bf4b2aef8f2ec`** |
+
+**3 つとも同一。**
+
+### 3. `かな>` に 5 行打った — **漢字とかなが bit 一致**
+
+⚠️ **64 B ずつ 30 ms 間隔で送る**（USB Serial/JTAG の RX リング 1024 B。[M-84](#m-84) §5）。
+
+| 種別 | 入力 | 経路 | ids | 漢字 G2P | checksum | UR | xRT |
+|---|---|---|---:|---:|---|---:|---:|
+| **漢字** | `今日は良い天気ですね。` | 辞書 | 53 | 25.74 ms | **`0x390bf4b2aef8f2ec`** | 0 | 0.448 |
+| **かな** | `きょ][おわよ][いて][んきです°ね` | かな | 53 | — | **`0x390bf4b2aef8f2ec`** | 0 | 0.448 |
+| 漢字 | `蜃気楼が見える。` | 辞書 | 41 | 17.84 ms | `0x0d1704fabcc1c841` | 0 | 0.448 |
+| 漢字 | `齟齬が生じた。` | 辞書 | 35 | 21.12 ms | `0xa77b26aec890fa06` | 0 | 0.448 |
+| カタカナ | `コンピューターを使う。` | 辞書 | 39 | 21.35 ms | `0x217a6182773fd12f` | 0 | 0.448 |
+
+**同じ文を漢字で書いてもかなで書いても PCM が bit 一致した**（53 ids / `0x390bf4b2aef8f2ec`）。
+= [M-90](#m-90) の主張が **v4 でも実機で成り立つ。**
+
+**5 文すべてでアンダーラン 0 / xRT 0.448。** 漢字 G2P は **17.84〜25.74 ms**。
+`蜃気楼` `齟齬` `コンピューター` も checksum が出ている = **無音で落ちていない**
+（⚠️ **読みが正しいかは checksum では分からない**。[C-044](decisions.md#c-044)）。
+
+漢字 G2P 直後の内部 DRAM free **127,131 B** / 最大ブロック 86,016 B。
+arena used は かな 156,688 B / 漢字 156,592 B（確保 180,224 B）。
+
+### 4. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **音** | ❌ **1 秒も聴いていない。** スピーカーからは鳴っているが、判定は人が要る（G32） |
+| **読みの正しさ** | ❌ checksum は「同じ列が出た」しか言わない。`蜃気楼` が「シンキロウ」と読めているかは**聴くか、ホストと突き合わせるしかない** |
+| **実サンプルレートの誤差** | ❌ firmware 自身が「未測定」と出している |
+| **かな 8 MB / 漢字 16 MB の DevKit** | ❌ **焼いていない**（板が無い）。照合したのはイメージの中身だけ |
+| **速度の再現性** | ⚠️ xRT 0.448 は 6 発話すべてで同じ値だった（中央値なので粗い） |
