@@ -74,7 +74,7 @@ def main() -> int:
     if dtype != "int8" and not args.allow_fp32:
         print(f"NG! blob の dtype が {dtype} — **この実装は int8 のみ**。\n"
               f"    {args.blob}\n"
-              f"    csrc/student_i8.bin か、リリースの saanotts-jp-v3-int8.bin を"
+              f"    csrc/student_i8.bin か、リリースの saanotts-jp-v4-int8.bin を"
               f"指すこと。\n"
               f"    どうしても通すなら --allow-fp32（推奨しない）",
               file=sys.stderr)

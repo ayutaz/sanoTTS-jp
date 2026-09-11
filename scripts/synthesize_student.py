@@ -23,7 +23,7 @@ held-out 300 文で ids が 300/300 一致したので外した）。
 OpenJTalk を入れたくない（= リリースの重みだけ持っている）なら、`--intermediate` で
 **かな中間表現を直接**渡す。**端末が受け取るのと同じ形**で、依存は torch / numpy / soundfile だけ:
 
-    uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+    uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v4-stage4.pt \
         --intermediate "きょ][おわよ][いて][んきです°ね" --out /tmp/one
 
 ⚠️ **どちらの経路も同じ ids を作る**（生徒インデックスまで一致することを確認済み）。

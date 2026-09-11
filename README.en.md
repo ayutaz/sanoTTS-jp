@@ -39,7 +39,7 @@ saanotts: プリロール 4 チャンク完了（初回 pull 244.66 ms / 鳴ら�
   ...
 saanotts: 定常 xRT = 0.446（満チャンク pull の中央値 / 92.88 ms）
 saanotts: アンダーラン 0 / 14 チャンク
-saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
 ```
 
 *Excerpted from the raw device log
@@ -126,7 +126,7 @@ All of it on one M5Stack CoreS3 (W8A8 + PIE, the default on ESP32-S3).
 
 | Axis | Value |
 |---|---|
-| **Accent** | **37/37** sign agreement with the teacher across 37 minimal pairs |
+| **Accent** | **31/37** sign agreement with the teacher across 37 minimal pairs (⚠️ **v3 scored 37/37** — this regressed in v4. [D-057](docs/decisions.md#d-057)) |
 | **Kanji G2P** | 5.51–66.30 ms for 15–84 B of input; **1,977/1,977** sentences agree with MeCab |
 | **The two routes** | The same sentence written either way produces **bit-identical PCM**, on the device and on the host alike |
 | **The kanji path** | QEMU synthesizes from kanji end to end (M-76); a CoreS3 reproduces the same checksum |
@@ -164,7 +164,7 @@ Please read [`CONTRIBUTING.md`](CONTRIBUTING.md). **What helps most is telling u
 sounds**, followed by speed measurements on a different ESP32-S3.
 
 > 🙏 **Telling us how it sounds needs no board** — just play
-> [`saanotts-jp-v3-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
+> [`saanotts-jp-v4-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest).
 > **"It sounds off" can carry more information than a table of n=24 numbers.**
 
 **The known limitations, and how each was measured, are in

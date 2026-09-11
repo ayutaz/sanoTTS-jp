@@ -28,10 +28,23 @@
 | 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（最大ブロック 86,016。漢字辞書込みの構成で） |
 | arena（静的確保 / 実機の used） | 212,992 / 195,808 B | **180,224 / 157,360 B** |
 
-**PCM の checksum は M-82 から 1 bit も変わっていない**: W8A8+PIE **`0xa69a7ebbb5ccb05f`** /
-W8A32 **`0xe4b645c30835d42d`**。速度の作り直し（S1〜S5b / T1〜T5）は**すべて出力を変えない変更**だった。
+**PCM の checksum は重みの版で決まる。** ⚠️ **v1.0.0 で重みが v3 → v4 に変わったので、
+値も変わった**（[D-057](../docs/decisions.md#d-057)。**速度の作り直しではない**）:
+
+| 重み | W8A8 + PIE（**既定**） | W8A32（`-DSAAN_ENABLE_PIE=0`） |
+|---|---|---|
+| **v4**（v1.0.0 = 配布中） | **`0x390bf4b2aef8f2ec`**（27,136 sample） | **`0x9cbe622a4a53af7e`**（**27,648 sample**） |
+| v3（v0.1.0〜v0.3.1） | `0xa69a7ebbb5ccb05f`（27,136） | `0xe4b645c30835d42d`（27,136） |
+
+⚠️ **v4 では 2 つのレーンで sample 数が違う**（v3 では偶然どちらも 27,136 だった）。
+W8A32 は活性化が fp32 なので **fp32 レーンと同じ 108 フレーム**、W8A8 は量子化で 106 になる。
+**「両レーンのフレーム数は同じ」を前提にしたゲートは v3 で通って v4 で壊れる**
+（[M-132](../docs/measurements.md#m-132) / [C-079](../docs/decisions.md#c-079)）。
+
+**速度の作り直し（S1〜S5b / T1〜T5）は出力を変えなかった** — v3 の値が M-82 から
+1 bit も動いていないのがその証拠である。
 ⚠️ **配布イメージ v0.2.0 までは旧コアの `0x04de91103a0e49f9` / `0x78c209af06affc01`**（S3 = GELU の erf 近似で変わった。D-046）。
-⚠️ **blob は v2**（654,032 B）。✅ **v0.3.0 のリリース資産も v2** なのでそのまま使える
+⚠️ **blob は v2**（654,032 B）。✅ **v1.0.0 / v0.3.x のリリース資産も v2** なのでそのまま使える
 （⚠️ **かつて「リリース資産は v1 のまま」と書いていたが誤り** = [C-057](../docs/decisions.md#c-057)）。
 ⚠️ **v0.2.0 以前の資産は今も v1** で、このコアは `SAAN_ERR_VERSION` で拒む。
 
@@ -335,7 +348,8 @@ cd esp32/boards/m5unified && idf.py -B build_m58 -DSDKCONFIG=build_m58/sdkconfig
 | 漢字 G2P（53 ids） | — | **21.58 ms** |
 | **定常 xRT** | **0.445** | **0.448** |
 | アンダーラン | **0 / 14** | **0 / 22・0 / 19** |
-| checksum | `0xa69a7ebbb5ccb05f` | `0xa69a7ebb…`（⚠️ 先頭 8 桁のみ） |
+| checksum（⚠️ **v3 での実測**） | `0xa69a7ebbb5ccb05f` | `0xa69a7ebb…`（⚠️ 先頭 8 桁のみ） |
+| checksum（**v4** = 配布中） | **`0x390bf4b2aef8f2ec`** | 同値（[M-124](../docs/measurements.md#m-124) / [M-130](../docs/measurements.md#m-130) で実機確認） |
 | 音 | 出さない（`SAAN_SKIP_I2S=1`） | **スピーカー有効** |
 
 ⚠️ **M5 版は USB Serial/JTAG のログが溢れて checksum の後半が落ちる**
@@ -374,7 +388,8 @@ PSRAM に落ちる（component の `-include oj_heap_psram.h`）ので、**内�
 
 ⚠️ **blob は git 管理外。** クローンしただけでは存在しない。
 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の
-`saanotts-jp-v3-int8.bin` を落とすか、自分で書き出すこと（上記）。
+`saanotts-jp-v4-int8.bin` を落とすか、自分で書き出すこと（上記）。
+⚠️ **v0.3.x を使うなら `saanotts-jp-v3-int8.bin`**（重みが違うので checksum も違う。上の表）。
 
 ⚠️ **かつて fp32 を既定にしていたが、それは int8 経路が確定していない時期の
 保守的な選択だった。** flash と D-cache では int8 のほうが 3.5 倍有利で、
@@ -404,7 +419,7 @@ M-39 の PTQ 実測（≥ 25 dB）と同水準で、**劣化ではなく想定�
 | モデルだけの差し替え | できる（`model` だけ焼き直す） | **できない**（app ごと再ビルド） |
 | いつ使うか | DevKit | **`boards/m5unified/`（M5Stack）**。この表には `model` パーティション自体が無い |
 
-どちらも QEMU で同じ checksum を出す（A-2 時点で `0x04de91103a0e49f9`。S3 以降は `0xa69a7ebbb5ccb05f`。起動直後の内部 DRAM free も 72.8 KB で同じ）。
+どちらも QEMU で同じ checksum を出す（**v4 は `0x390bf4b2aef8f2ec`**。v3 では A-2 時点で `0x04de91103a0e49f9` / S3 以降は `0xa69a7ebbb5ccb05f`。起動直後の内部 DRAM free も 72.8 KB で同じ）。
 fp32 blob は `blob_to_header.py` が**ビルド時に拒否する**（回帰: `scripts/test_blob_to_header.py`）。
 
 ⚠️ **かつてここに「CoreS3 では `CONFIG_SPIRAM=y` だと mmap が `ESP_ERR_NO_MEM` で落ちた（第三者報告・未再現）」

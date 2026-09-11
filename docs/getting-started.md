@@ -6,8 +6,8 @@
 
 | | やりたいこと | 要るもの | 所要 |
 |---|---|---|---|
-| **A** | **音を聴く** | [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` だけ | 1 分 |
-| **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v3-stage4.pt` | 10 分 |
+| **A** | **音を聴く** | [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v4-samples.zip` だけ | 1 分 |
+| **B** | **好きな文を合成する** | + 最小セットアップ + `saanotts-jp-v4-stage4.pt` | 10 分 |
 | **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
 | **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
 | **E** | **ブラウザで試す** | ブラウザだけ。**インストール不要** | 1 分 |
@@ -28,11 +28,11 @@ uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 ## B. 好きな文を合成する
 
 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) から
-`saanotts-jp-v3-stage4.pt`（2.7 MB）を落として、**かな中間表現**を渡す。
+`saanotts-jp-v4-stage4.pt`（2.7 MB）を落として、**かな中間表現**を渡す。
 
 ```bash
 uv run --no-project python scripts/synthesize_student.py \
-    --ckpt saanotts-jp-v3-stage4.pt \
+    --ckpt saanotts-jp-v4-stage4.pt \
     --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
 #   → out/cli_000.wav（22.05 kHz / 1.2 秒）「今日は良い天気ですね。」
 ```
@@ -45,7 +45,7 @@ uv run --no-project python scripts/synthesize_student.py \
 漢字→かなを行うため）:
 
 ```bash
-uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v4-stage4.pt \
     --text "今日は良い天気ですね。" --out out/
 ```
 
@@ -163,7 +163,7 @@ uv run --no-project python scripts/test_labelpack.py
 bash web/build.sh                                   # → web/dist/*.wasm と *.mjs
 mkdir -p /tmp/saan-site
 cp web/index.html web/main.js web/dist/*.mjs web/dist/*.wasm /tmp/saan-site/
-cp csrc/student_i8.bin /tmp/saan-site/              # = リリースの saanotts-jp-v3-int8.bin
+cp csrc/student_i8.bin /tmp/saan-site/              # = リリースの saanotts-jp-v4-int8.bin
 gzip -9 -c csrc/k1_dict.bin > /tmp/saan-site/k1_dict.bin.gz   # = k1-dict-438750.bin
 
 # ⚠️ **ここまでで止めると footer の 4 本が全部 404 になる**（実測。音は鳴るので、

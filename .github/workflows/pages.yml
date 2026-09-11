@@ -53,7 +53,7 @@ env:
   # ⚠️ **タグを固定する。** 省くと `latest` を引き、リリースを切った瞬間に
   #    配っているモデルと辞書が黙って別物になる（ci.yml の golden job と同じ理由）。
   #    **リリースを出したらここを上げること。**
-  RELEASE_TAG: v0.3.0
+  RELEASE_TAG: v1.0.0
   # ⚠️ **emcc の版を固定する。** `setup-emsdk` の `version` 既定は `latest` で、
   #    固定しないと M-94 に記録した数値（速度・サイズ・bit 一致）が再現しない。
   EMSDK_VERSION: 6.0.9
@@ -104,10 +104,10 @@ jobs:
           set -eu
           mkdir -p rel
           gh release download "$RELEASE_TAG" -R ${{ github.repository }} --dir rel --clobber \
-            --pattern 'saanotts-jp-v3-int8.bin' \
-            --pattern 'saanotts-jp-v3-fp32.bin' \
-            --pattern 'golden-v3-int8.bin' \
-            --pattern 'golden-v3-fp32.bin' \
+            --pattern 'saanotts-jp-v4-int8.bin' \
+            --pattern 'saanotts-jp-v4-fp32.bin' \
+            --pattern 'golden-v4-int8.bin' \
+            --pattern 'golden-v4-fp32.bin' \
             --pattern 'k1-dict-438750.bin' \
             --pattern 'NOTICE.txt' \
             --pattern 'NOTICE-openjtalk.txt' \
@@ -137,8 +137,8 @@ jobs:
             printf '  OK  %-28s %s\n' "$2" "$got"
           }
           bad=0
-          for f in saanotts-jp-v3-int8.bin saanotts-jp-v3-fp32.bin \
-                   golden-v3-int8.bin golden-v3-fp32.bin k1-dict-438750.bin \
+          for f in saanotts-jp-v4-int8.bin saanotts-jp-v4-fp32.bin \
+                   golden-v4-int8.bin golden-v4-fp32.bin k1-dict-438750.bin \
                    NOTICE.txt NOTICE-openjtalk.txt NOTICE-dictionary.txt LICENSE-MODEL.md; do
             verify "$f" "$f" || bad=1
           done
@@ -160,15 +160,15 @@ jobs:
       - name: ゲートが読む名前で重みを置く
         run: |
           set -eu
-          cp rel/saanotts-jp-v3-fp32.bin csrc/student.bin
-          cp rel/golden-v3-fp32.bin      csrc/golden.bin
-          cp rel/saanotts-jp-v3-int8.bin csrc/student_i8.bin
-          cp rel/golden-v3-int8.bin      csrc/golden_i8.bin
+          cp rel/saanotts-jp-v4-fp32.bin csrc/student.bin
+          cp rel/golden-v4-fp32.bin      csrc/golden.bin
+          cp rel/saanotts-jp-v4-int8.bin csrc/student_i8.bin
+          cp rel/golden-v4-int8.bin      csrc/golden_i8.bin
           # 大きさで取り違えを止める（この先では「数値が合わない」形でしか出てこない）
           test "$(wc -c < csrc/student.bin)"    -eq 2249792
-          test "$(wc -c < csrc/golden.bin)"     -eq 779584
+          test "$(wc -c < csrc/golden.bin)"     -eq 786912
           test "$(wc -c < csrc/student_i8.bin)" -eq 654032
-          test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
+          test "$(wc -c < csrc/golden_i8.bin)"  -eq 794240
 
       - name: wasm ゲート 8 本（帰属ブロック・golden 一致・ストリーミング経路・SIMD の bit 一致・経路判定・fp32 拒否・出荷バイナリの実行）
         env:
@@ -203,7 +203,7 @@ jobs:
           cp web/index.html web/main.js _site/
           cp web/dist/saan_web_w8a32.mjs web/dist/saan_web_w8a32.wasm _site/
           cp web/dist/saan_web_w8a8.mjs  web/dist/saan_web_w8a8.wasm  _site/
-          cp rel/saanotts-jp-v3-int8.bin _site/student_i8.bin
+          cp rel/saanotts-jp-v4-int8.bin _site/student_i8.bin
           gzip -9 -c rel/k1-dict-438750.bin > _site/k1_dict.bin.gz
           # ⚠️ **展開して元と bit 一致することを確かめる。** 壊れた .gz は
           #    ブラウザで初めて分かる（そして辞書が無いと漢字が黙って読めなくなる）

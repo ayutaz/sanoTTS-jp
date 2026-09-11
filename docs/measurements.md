@@ -12276,3 +12276,192 @@ shasum -a 256 csrc/k1_dict.bin
 | **PSRAM 無しの板** | ❌ 未測定（AtomS3 など） |
 | **検査を入れた実装** | ❌ **入れていない。** これは**測定だけ**で、`jdict_open` に組み込む変更は別途 |
 | **失敗したときの振る舞い** | ❌ **決めていない**（起動を止めるか / 警告して続けるか） |
+
+---
+
+## M-132. **v4 の W8A32 の checksum を測った** — `0x9cbe622a4a53af7e` / 27,648 sample（ドキュメントの穴を埋めた）
+
+**2026-09-12。QEMU（`esp32s3`）。** [`docs/release-notes/v1.0.0.md`](release-notes/v1.0.0.md) の
+内部節が **「v4 の W8A32 の checksum は測っていない — `esp32/*.md` の W8A32 の行は
+測ってから書くこと（推測で置き換えない）」**と警告していた。
+**v1.0.0 を出して `releases/latest` が v4 に移ったので、その行を直す前に測った。**
+
+⚠️ **QEMU は QIO を受け付けない**ので `-DSAAN_QEMU=1`（`sdkconfig.qemu` が DIO に戻す）。
+**PCM の値は flash モードで変わらない**（[M-85](#m-85) / [M-86](#m-86)）。
+
+再現:
+
+```bash
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
+. ~/esp/esp-idf/export.sh
+
+# --- W8A32（PIE 無効） ---
+cd esp32 && idf.py -B build_w4a32 -DSDKCONFIG=build_w4a32/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.qemu" \
+    -DSAAN_ENABLE_PIE=0 -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 build
+cd build_w4a32 && esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB \
+    -o /tmp/flash_w4a32.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/flash_w4a32.bin,if=mtd,format=raw
+
+# --- 陽性対照: PIE 有効（既定）にすると既知の値が出るか ---
+cd esp32 && idf.py -B build_w4a8 -DSDKCONFIG=build_w4a8/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.qemu" \
+    -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 build
+```
+
+⚠️ **`timeout 300 qemu ...` は macOS では動かない**（`timeout` は GNU coreutils で、
+**127 = command not found**）。**最初はこれで「QEMU を回した」と読み違えた** —
+`QEMU_RC=127` が出ているのに 3 行の grep 結果が空で、失敗が成功と区別できなかった。
+Python から `Popen` して checksum の行を見たら止める形に変えた
+（`scratchpad/qemu_run.py`。⚠️ **見つからなければ exit 1**）。
+
+### 1. 結果（どちらも `今日は良い天気ですね。` / 53 ids）
+
+| レーン | PIE 命令 | sample | **FNV-1a** | `\|max\|` | `Σx²` | 出所 |
+|---|---:|---:|---|---:|---:|---|
+| **W8A8 + PIE**（出荷の既定） | **74** | 27,136 | **`0x390bf4b2aef8f2ec`** | 7,583 | 84,292,798,374 | ✅ **既知**（[M-124](#m-124) / [M-130](#m-130) の実機値を再現） |
+| **W8A32**（`-DSAAN_ENABLE_PIE=0`） | **0** | **27,648** | **`0x9cbe622a4a53af7e`** | **8,023** | **82,400,207,857** | ⚠️ **これが新しい値** |
+
+**v3 の対応する値**（参考。**混ぜないこと**）: W8A8+PIE `0xa69a7ebbb5ccb05f` /
+W8A32 `0xe4b645c30835d42d`（どちらも 27,136 sample）。
+
+### 2. ⚠️ **v4 では 2 つのレーンで sample 数が違う**（v3 では同じだった）
+
+| | v3 | **v4** |
+|---|---:|---:|
+| W8A8 + PIE | 27,136 | **27,136** |
+| W8A32 | 27,136 | **27,648**（+512 = **2 フレーム**） |
+
+**フレーム数は duration predictor が決める。** W8A32 は活性化が fp32 なので
+**fp32 レーンと同じ 108 フレーム**になり、W8A8 は活性化を量子化するので 106 になる。
+**v3 では偶然どちらも同じ数に落ちていた。**
+
+⚠️ **これは [C-079](decisions.md#c-079) と同じ層の罠である。** 「両レーンのフレーム数が
+同じ」を前提にしたゲートは、**v3 では通って v4 で黙って壊れる**
+（実際に `check_web_gates.sh` が 27,136 をハードコードしていて、v4 で嘘の診断を出した）。
+
+### 3. 陽性対照が言えること
+
+**PIE 命令が 74 / 0 と分かれ、PIE 有効側が既知の実機値を bit 一致で再現した。**
+→ `-DSAAN_ENABLE_PIE=0` が**実際に効いていた**と言える
+（値が違うだけでは「フラグが効いた」と「ビルドが壊れた」を区別できない）。
+
+起動ログも分かれた: PIE 有効側だけが `W8A8 + PIE 有効 / int8 blob を確認` を出す。
+
+### 4. ⚠️ 見ていないもの
+
+| | |
+|---|---|
+| **実機** | ❌ **QEMU だけ**（W8A32 の実機値は v4 では未測定）。⚠️ ただし W8A8+PIE 側は実機と一致している（[M-130](#m-130)） |
+| **配布イメージそのもの** | ❌ 測ったのは**手元のビルド**。配布の `esp32s3-firmware-w8a32.bin` は QIO で焼いてあり、**QEMU では動かない**（[M-86](#m-86)）。⚠️ **PCM は flash モードで変わらない**ので同じ値になるはずだが、**それは測定ではない** |
+| **速度** | ❌ QEMU の時間は実機の速度を予測しない（[C-055](decisions.md#c-055)） |
+| **音** | ❌ 聴いていない |
+
+---
+
+## M-133. **v1.0.0 を出し、CI / Pages を v4 に向け直した** — ⚠️ **リンク切れ 6 本をゲートが即座に捕まえた**（残タスク 12 / 16）
+
+**2026-09-12。** 資産 **28 本 / 140,291,218 B** を `v1.0.0` に上げ、
+**落とし直して照合**し、**CI が掴む資産とドキュメント 58 行を v3 → v4 に向け直した。**
+
+### 1. 上げたもの（28 本）と、その照合
+
+```bash
+gh release create v1.0.0 -R ayutaz/sanoTTS-jp --latest \
+    --title "v1.0.0 — 商用利用の条件を確定させ、継承リスクを外した" \
+    --notes-file <make_release_body.py の出力> <資産 28 本>
+
+# 上げた後に落として照合する（「上げたつもり」を潰す）
+gh release download v1.0.0 -R ayutaz/sanoTTS-jp --dir /tmp/dl
+cd /tmp/dl && shasum -a 256 -c SHA256SUMS.txt
+```
+
+| 段 | 結果 |
+|---|---|
+| 上げる前（staged） | ✅ `check_release_table.py` が **27 本すべてサイズと SHA-256 が表どおり** |
+| リリースの状態 | ✅ **28 本すべて `uploaded`**（API の `state`） |
+| **落とし直し** | ✅ **28 本落ちて `SHA256SUMS.txt` と 27/27 一致** |
+| 落としたものを表と | ✅ **27 本すべてサイズと SHA-256 が表どおり** |
+| 名前の実在 | ✅ `check_release_assets.py` が **22/22 を `v1.0.0` と `latest` の両方で確認** |
+
+⚠️ **`SHA256SUMS.txt` は自分自身の行を持たない**ので分母は 27（[D-045](decisions.md#d-045) の 3）。
+
+### 2. ⚠️ **ゲートが即座にリンク切れ 6 本を捕まえた**
+
+`--latest` を付けたので `releases/latest` が v1.0.0（= v4 の資産）に移り、
+**README などが指していた v3 の資産名が latest に無くなった**:
+
+```
+NG! 6 件足りない:
+  latest に golden-v3-fp32.bin が無い（README 本文が latest を指している）
+  latest に golden-v3-int8.bin が無い
+  latest に saanotts-jp-v3-fp32.bin が無い
+  latest に saanotts-jp-v3-int8.bin が無い
+  latest に saanotts-jp-v3-samples.zip が無い
+  latest に saanotts-jp-v3-stage4.pt が無い
+```
+
+✅ **これは [C-052](decisions.md#c-052) の再発防止が働いた瞬間である**
+（v0.2.0 のときは同じことが起きて**誰も気づかなかった**）。
+⚠️ **`check_doc_links.py` では捕まらない**（相対リンクしか見ない）。
+
+### 3. 向け直した場所（**実測で数えた**）
+
+| 場所 | 何が v3 に縛られていたか | 直した |
+|---|---|---|
+| `ci.yml`（`golden` / `web` の 2 job） | `gh release download v0.3.0` + 資産名 | ✅ `v1.0.0` + `-v4-` |
+| `pages.yml` | `RELEASE_TAG: v0.3.0` + 資産名 13 箇所 | ✅ |
+| **寸法のアサート 12 行** | `golden.bin` / `golden_i8.bin` を **どちらも 779,584 B** | ✅ **fp32 786,912 / int8 794,240** |
+| `check_web_gates.sh` | 重みが無いときの案内文（読者を v0.3.0 に案内） | ✅ |
+| 読者向けドキュメント **58 行 / 9 ファイル** | checksum / アクセント / 資産名 | ✅ |
+| `synthesize_student.py` / `blob_to_header.py` | 使い方とエラーメッセージの資産名 | ✅ |
+
+### 4. ✅ **v4 で初めて 2 本の golden の大きさが分かれた**（v3 では同じだった）
+
+| | v3 | **v4** |
+|---|---:|---:|
+| `golden.bin`（fp32） | 779,584 | **786,912** |
+| `golden_i8.bin`（int8） | 779,584 | **794,240** |
+
+⚠️ **v3 の寸法アサートは 2 本に同じ値を書いていた** ので、
+**fp32 の golden を int8 のつもりで置いても通った**（[C-079](decisions.md#c-079) と同じ層）。
+**v4 では通らない。** 手元で確かめた:
+
+```
+OK  4 本すべて v4 の寸法どおり
+OK  fp32 の golden（786912 B）は int8 の 794,240 B を通らない   ← 陽性対照
+```
+
+**CI の `golden` job と同じ経路を手元で回した**（v1.0.0 の資産をそのまま置いて）:
+
+| レーン | 結果 |
+|---|---|
+| fp32（`make -C csrc test`） | ✅ Pearson **1.000000** / SNR **118.16 dB** / n=27,392 |
+| int8（`make -C csrc int8-golden`） | ✅ Pearson **1.000000** / SNR **113.20 dB** / n=**27,648** |
+| 陽性対照（両レーン） | ✅ NaN 1 個 → 落ちる / 振幅 0.5 倍 → 落ちる（[C-056](decisions.md#c-056)） |
+
+### 5. ⚠️ 一括置換がまた歴史的記述を壊した（[C-064](decisions.md#c-064) の **4 度目**）
+
+`v0.3.0` → `v1.0.0` / `-v3-` → `-v4-` を `ci.yml` に一括で当てたら、
+**過去の誤りを説明しているコメント**まで書き換わった:
+
+| 壊れた記述 | なぜ悪いか |
+|---|---|
+| 「リリースの `saanotts-jp-v4-int8.bin` は blob v1 だと書いてあった」 | **v4 は当時存在しない。** 誤りの記録が読めなくなる |
+| 「v1.0.0 の … **SHA-256 の頭は 2d2b8543**」 | ⚠️ **`2d2b8543` は v3 の blob の値。** v4 は **`a1eb6b08`** = **虚偽になった** |
+| 「int8 が v2 なのは **v1.0.0** 以降」 | 事実は **v0.3.0 以降** |
+
+→ 手で戻し、**「上の 2 つの値は v3 のもの」という但し書きを足した**。
+⚠️ **v3 と v4 の int8 blob は同じ 654,032 B で中身が違う** ので、
+**寸法のアサートだけでは取り違えを止められない**（この注記も入れた）。
+
+### 6. ⚠️ 見ていないもの
+
+| | |
+|---|---|
+| **音** | ❌ **誰も 1 秒も聴いていない**（G32。残タスク 1） |
+| **残り 9 本の firmware** | ❌ 焼いていない（中身は [M-126](#m-126) / [M-128](#m-128) で照合済み） |
+| **4 MB / 2 MB の実機** | ❌ 板が無い（残タスク 11） |
+| **Pages の再ビルド** | ⏳ `main` への push で走る。⚠️ **この変更をマージするまでデモは v3 を動かしている** |
+| **資産の中身がその版の説明か** | ❌ ゲートは名前とハッシュだけを見る（[C-086](decisions.md#c-086) はそれで起きた） |
