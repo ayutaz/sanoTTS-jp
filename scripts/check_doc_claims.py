@@ -23,7 +23,12 @@
 ⚠️ **見ないもの**: 数値が**同じ行**に在るか（ログのどこかに在ればよい）/
 ログに無い散文の主張 / 抜粋の切り方。
 
-## G-D2. **案内文書が名指ししたリポジトリ内のパスが実在するか**
+## G-D2. **案内文書が名指ししたリポジトリ内のパスが「追跡されて」いるか**
+
+⚠️ **`exists()` で見てはいけない。** 手元の作業ツリーには**ビルド生成物が残っている**ので、
+**手元では緑、新規 clone の CI でだけ赤**になる（[C-041](../docs/decisions.md#c-041) の形）。
+**このゲート自身の初回 CI がそれで落ちた** — `web/dist` と `esp32/sdkconfig` は
+手元に在ったが追跡物ではない。**`git ls-files` の集合で見れば手元と CI が一致する。**
 
 ⚠️ **これも実際に壊れていた** — 消したスクリプト 2 本が `CLAUDE.md` のゲート表に、
 消したリリースノートが `.github/workflows/README.md` に残っていた。
@@ -35,7 +40,7 @@ piper-plus 側のパス（`src/python/…`）。
 ---
 
     uv run --no-project python scripts/check_doc_claims.py
-    uv run --no-project python scripts/check_doc_claims.py --self-test   # 陽性対照 5 件
+    uv run --no-project python scripts/check_doc_claims.py --self-test   # 陽性対照 9 件
 """
 
 from __future__ import annotations
@@ -153,16 +158,45 @@ REPO_PATH = re.compile(
 )
 
 # 手元にしか無い / 生成物 / piper-plus 側 / 説明用の名前。**無くて当たり前。**
+# ⚠️ **ここを広げるときは「そのコマンドが作るもの」か「別リポジトリのもの」かを書くこと。**
 NOT_TRACKED = re.compile(
     r"^(reports/|runs/|data/|dict_build/|_site/"
     r"|csrc/[\w./-]*\.(bin|json|txt)$"
     r"|esp32/build|esp32/k[248]hw"
+    r"|web/dist(/|$)"        # `bash web/build.sh` が作る
+    r"|esp32/sdkconfig$"     # `idf.py` が作る（`sdkconfig.defaults` は追跡物なので `$` 必須）
     r"|src/python/"          # piper-plus 相対（表の見出しにそう書いてある）
     r"|scripts/(xxx|yyy)\.py$"
     r"|docs/(plan|research|superpowers)(/|$)|docs/requirements\.md$"
     r"|docs/release-notes(/|$)"  # 2026-09-12 に削除。正典は GitHub Releases
     r")"
 )
+
+
+def tracked_paths() -> set[str] | None:
+    """**追跡されているパス**（ファイル + その親ディレクトリ）。取れなければ `None`。
+
+    ⚠️ **`exists()` で見てはいけない。** 手元の作業ツリーには**ビルド生成物が残っている**ので、
+    「手元では緑、新規 clone の CI でだけ赤」になる（[C-041](../docs/decisions.md#c-041) と同じ形）。
+    **実際にこのゲートの初回 CI がそれで落ちた** — `web/dist` と `esp32/sdkconfig` は
+    手元に在ったが追跡物ではない。**追跡集合で見れば手元と CI が一致する。**
+    """
+    import subprocess
+
+    try:
+        out = subprocess.run(["git", "-C", str(ROOT), "ls-files"],
+                             capture_output=True, text=True, check=True, timeout=60).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    paths: set[str] = set()
+    for f in out.split("\n"):
+        if not f:
+            continue
+        paths.add(f)
+        parts = f.split("/")
+        for i in range(1, len(parts)):
+            paths.add("/".join(parts[:i]))
+    return paths
 
 # ⚠️ **この見出しの節は丸ごと見ない。** 中のパスは**別リポジトリ相対**なので、
 #    ここに無くて当たり前である（見出し自身がそう書いている）。
@@ -171,9 +205,19 @@ SKIP_SECTIONS = {
 }
 
 
-def check_named_paths(docs: list[str], min_paths: int = 100) -> list[str]:
+def check_named_paths(docs: list[str], min_paths: int = 100,
+                      tracked: set[str] | None | str = "auto") -> list[str]:
     bad: list[str] = []
     seen = 0
+    if tracked == "auto":
+        tracked = tracked_paths()
+    if tracked is None:
+        print("  ⚠️ git が使えないので**作業ツリーの実在**で代用する"
+              "（手元の生成物のぶん甘くなる）")
+
+    def known(ref: str) -> bool:
+        return ref in tracked if tracked is not None else (ROOT / ref).exists()
+
     for rel in docs:
         p = ROOT / rel
         if not p.exists():
@@ -194,9 +238,10 @@ def check_named_paths(docs: list[str], min_paths: int = 100) -> list[str]:
                 if NOT_TRACKED.match(ref):
                     continue
                 seen += 1
-                if not (ROOT / ref).exists():
-                    bad.append(f"{rel}:{ln} 実在しないパス: {ref}\n        {line.strip()[:110]}")
-    print(f"G-D2  名指しされたパス {seen} 件を照合")
+                if not known(ref):
+                    bad.append(f"{rel}:{ln} 追跡されていないパス: {ref}\n        {line.strip()[:110]}")
+    print(f"G-D2  名指しされたパス {seen} 件を照合"
+          f"（{'追跡集合' if tracked is not None else '作業ツリー'}と突き合わせ）")
     if seen < min_paths:
         bad.append(f"G-D2: 拾えたパスが {seen} 件しかない — 検出が壊れている（空虚なゲート）")
     return bad
@@ -269,6 +314,15 @@ def self_test() -> int:
             doc("なにも名指ししていない\n")
             cases.append(("拾えたパスが 0 件なら落とす",
                           bool(check_named_paths(["d.md"], min_paths=1))))
+
+            # 8) ⚠️ **作業ツリーには在るが追跡されていない** = 初回 CI が落ちた形。
+            #    `exists()` で見ていると**手元だけ緑**になる（C-041 と同じ）。
+            doc("`docs/x.md` を読む\n")
+            cases.append(("作業ツリーに在っても追跡外なら落とす",
+                          bool(check_named_paths(["d.md"], min_paths=1, tracked=set()))))
+            cases.append(("追跡集合に在れば通る",
+                          not check_named_paths(["d.md"], min_paths=1,
+                                                tracked={"docs", "docs/x.md"})))
         finally:
             ROOT = real_root
 
@@ -298,7 +352,7 @@ def main() -> int:
             print(f"NG  {b}")
         print(f"\nNG  {len(bad)} 件")
         return 1
-    print("OK  引用した数値はすべて実ログに在り、名指しされたパスはすべて実在する")
+    print("OK  引用した数値はすべて実ログに在り、名指しされたパスはすべて追跡されている")
     print("⚠️ 見ていないもの: 数値が**同じ行**に在るか / ログに無い散文の主張 / "
           "一次ソース 2 本（追記専用なので対象外）")
     return 0
