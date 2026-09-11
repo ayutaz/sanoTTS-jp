@@ -31,14 +31,21 @@ MIT は「無制限に (without restriction)」の利用を認めます。しか
 
 本ライセンスは、GitHub Release で配布される次の成果物（以下「本モデル」）に適用されます。
 
+⚠️ **版（`v3` / `v4`）を問いません。** `N` は配布された版を指します。
+
 | ファイル | 内容 |
 |---|---|
-| `saanotts-jp-v3-stage4.pt` | PyTorch checkpoint（fp32、3 つの生徒モデル） |
-| `saanotts-jp-v3-int8.bin` | C99 コア用 int8 重みブロブ（SAAN 形式。v0.2.0 の資産は v1、2026-09-02 以降のコアは v2 を読む） |
-| `saanotts-jp-v3-fp32.bin` | 同 fp32 版 |
-| `golden-v3-fp32.bin` / `golden-v3-int8.bin` | 移植検証用のゴールデン中間出力 |
-| `samples/*.wav` | 本モデルが生成した音声サンプル |
+| `saanotts-jp-vN-stage4.pt` | PyTorch checkpoint（fp32、3 つの生徒モデル） |
+| `saanotts-jp-vN-int8.bin` | C99 コア用 int8 重みブロブ（SAAN 形式。v0.2.0 の資産は v1、2026-09-02 以降のコアは v2 を読む） |
+| `saanotts-jp-vN-fp32.bin` | 同 fp32 版 |
+| `golden-vN-fp32.bin` / `golden-vN-int8.bin` | 移植検証用のゴールデン中間出力 |
+| `saanotts-jp-vN-samples.zip` / `samples/*.wav` | 本モデルが生成した音声サンプル |
 | `esp32s3-firmware-*.bin` | **重みを含む** ESP32-S3 用の flash イメージ（v0.1.1 以降） |
+| **`m5-cores3-firmware-*.bin`** | 同上（M5Stack CoreS3 向け。**`.rodata` に重みを埋め込む**） |
+
+⚠️ **辞書だけの資産（`k1-dict-*.bin`）には本ライセンスは適用されません。**
+あれは NAIST-JDIC の派生物で、条件は [`NOTICE.md`](NOTICE.md) の辞書の節に従います
+（**本モデルの重みを 1 バイトも含みません**）。
 
 本モデルから派生したもの（ファインチューン、量子化、変換、蒸留の結果を含む）、
 および**本モデルが生成した音声**にも、本ライセンスの条件が及びます。
