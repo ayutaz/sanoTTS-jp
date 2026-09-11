@@ -81,6 +81,10 @@ jobs:
           if [ "$n" -lt 1 ]; then echo "NG! ノートを 1 本も見ていない"; exit 1; fi
           echo "OK  リリースノート $n 本すべて内部の手順が外れている"
 
+      # ⚠️ **索引は節が増えるたびに古くなる**（C-042 と同じ形）。生成物なので検査できる。
+      - name: measurements.md の索引が最新か
+        run: uv run --no-project --python 3.12 python scripts/build_measurements_index.py --check
+
       - name: hook の回帰
         run: uv run --no-project --python 3.12 python .claude/hooks/test_guard_bash.py
 

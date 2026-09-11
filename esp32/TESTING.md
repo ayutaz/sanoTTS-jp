@@ -322,7 +322,7 @@ idf.py -B build_core2 -p /dev/cu.usbserial* flash monitor
 下の「報告してほしいもの」に加えて、**`-DSAAN_PROFILE=1` で焼き直したときの表**
 （`----- 段別プロファイル -----` から `1 step = ... cyc` まで）を丸ごと。
 1 チャンクの時間がどの段（QUANT / GELU / MAC / TOKEN / DW …）に行っているかが、
-実機でしか取れない数字です（[`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)）。
+実機でしか取れない数字です（経緯は `../docs/measurements.md` M-80〜M-90）。
 ⚠️ **速度の報告は `SAAN_PROFILE=0` のビルドで。** 計測自体にコストがあります。
 
 ---
@@ -624,4 +624,4 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 詳細な設計判断は [`README.md`](README.md)、実測値は
 [`../docs/measurements.md`](../docs/measurements.md) の **M-62 / M-63**（QEMU）と
 **M-83 / M-84 / M-86 / M-88 / M-89 / M-90**（CoreS3 の実機）にあります。
-速度の作り直しの経緯は [`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)。
+速度の作り直しの経緯は `../docs/measurements.md` M-80〜M-90。

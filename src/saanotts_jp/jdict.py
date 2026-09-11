@@ -1,7 +1,7 @@
 """K-1: TTS 専用の辞書バイナリ形式。
 
-計画は `docs/plan/k1-kanji-implementation-plan.md` K-1、
-根拠の実測は `docs/research/k1-kanji-katakana-ondevice.md`。
+決定は `docs/decisions.md` D-042〜D-044、
+根拠の実測は `docs/measurements.md` M-77。
 
 ⚠️ **設計は調査で測って決まっている。実装で再検討しない**（計画 §0）:
 

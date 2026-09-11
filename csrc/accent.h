@@ -1,6 +1,6 @@
 /* K-4: pyopenjtalk-plus のアクセント規則 4 段を C に移植したもの。
  *
- * 根拠は docs/research/k1-kanji-katakana-ondevice.md §5。
+ * 根拠は docs/measurements.md M-69（NJD チェーンがホストと 635/635 一致）。
  * **この 4 段が C 実装のアクセント天井 76% の正体**で、外部資源は
  * `_DAN_MAP`（かな 76 件）しか要らない。SudachiDict 217 MB と nani ONNX の
  * 寄与は合計 0.13pt しかない。

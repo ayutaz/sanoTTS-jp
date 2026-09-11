@@ -3,6 +3,12 @@
 決定の**理由**を残すためのファイル。「なぜそうなっているか」を後から辿れるようにする。
 数値の根拠は [`measurements.md`](measurements.md) を参照。
 
+⚠️ **2026-09-12 に `docs/research/` `docs/plan/` `docs/requirements.md` を消した。**
+本文にその名前（`plan/k1-kanji-implementation-plan.md` など）が出てくるのは
+**当時の記録**で、**ファイルは git 履歴にしか無い**（`git log --all -- docs/plan/` で辿れる）。
+**主張そのものは書き換えていない** — 書き換えると当時何を見て決めたかが分からなくなる。
+設計・計画の内容で生きているものは、**このファイルと `measurements.md` に集約してある**。
+
 ⚠️ **見出しの直前に `<a id="d-048">` / `<a id="c-055">` を置いてある。** 他の md からは
 `[D-048](decisions.md#d-048)` の短い形で参照できる（GitHub が見出しから作るスラグは
 見出しの文言が変わると黙って壊れるので使わない）。
@@ -147,7 +153,7 @@
 **2026-09-03 追記（[D-050](#d-050)）**: **この決定は生きている。**
 ブラウザで動くデモ（GitHub Pages）を配ることにしたが、**成果物は今も 567 K の embedded tier**で、
 Web は**触れる入口**でしかない。⚠️ **「ブラウザ向けに作り直す」ことは今も対象外**
-（[requirements.md](requirements.md) §2.2 の非目標のまま）。
+（requirements.md §2.2 の非目標のまま）。
 動いているのは **`csrc/` の C99 コアそのもの**で、arena も ESP32 と同じ 180,224 B。
 経緯と制約は [D-050](#d-050)、実測は [M-94](measurements.md#m-94)。
 
@@ -172,7 +178,7 @@ WER は日本語では分かち書きが問題になる。
 
 - **日付**: 2026-08-26
 - **状態**: **測定完了。ユーザー判断待ちの論点が 3 つ残る**
-- **一次データ**: [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md),
+- **一次データ**: `research/b0-g2p-footprint.md`,
   `reports/b0_{size,coverage,alternatives,flash_budget,feature_fields}.json`
 
 ### 測定結果（すべて実ビルド + held-out 2,325 文）
@@ -308,7 +314,7 @@ D-010 はその**中間点**を作る:
 ## D-011: 入力仕様を確定 — ひらがな + アクセント記号 + 無声化マーク
 
 - **日付**: 2026-08-26（ユーザー決定）
-- **状態**: **確定。要件定義書 [`requirements.md`](requirements.md) に反映済み**
+- **状態**: **確定。要件定義書 `requirements.md` に反映済み**
 
 ### 決定
 
@@ -383,7 +389,7 @@ piper-plus は `[tool.uv.sources]` の **path 依存 (editable)** で参照す�
 向こうで生成するほうが桁違いに安い。教師 ckpt (927 MB) は HF から直接取得できる。
 ラベルが環境非依存で bit 一致することは上記で確認済みなので、この分割は安全。
 
-インスタンス要件は [`requirements.md`](requirements.md) §8.4。
+インスタンス要件は `requirements.md` §8.4。
 
 ### ⚠️ 未検証
 
@@ -865,7 +871,7 @@ deny したまま（ローカル生成そのものは通す、D-026）。
 **未通過の CUDA parity ゲートを含む手順書を残す方が、誤用の危険が大きい。**
 
 残してあるもの: `deploy/vastai_bootstrap.sh` / `deploy/retarget_sources.py` /
-`scripts/b4_device_parity.py`（CUDA parity ゲートの実装）/ [`requirements.md`](requirements.md) §8.4 の要件表。
+`scripts/b4_device_parity.py`（CUDA parity ゲートの実装）/ `requirements.md` §8.4 の要件表。
 **再びリモートで回すなら、まず §8.4 と D-015 を読み、`b4_device_parity.py --device cuda` を先に通すこと。**
 
 ---
@@ -2832,7 +2838,7 @@ ESP32 に載らない SudachiDict 217 MB と nani ONNX の寄与は**合計 0.13
 残りは**外部定数がほぼゼロの 4 関数 126 行**で、
 **語彙 2 段だけ切るとアクセントは 100.00% 一致する**（自己実測、全 2,333 文）。
 
-詳細は [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) §5。
+詳細は `research/k1-kanji-katakana-ondevice.md` §5。
 
 ⚠️ **私自身、この件で 2 回間違えた。** (1) 単一ソースの先頭 400 文で測って
 「天井は 91.25%」と報告した（全数では 81.70%）。(2) 差の主因を「単位が違うから」と
@@ -2850,8 +2856,8 @@ ESP32 に載らない SudachiDict 217 MB と nani ONNX の寄与は**合計 0.13
 > ⚠️ **エントリ数 370,863 は D-044 で置き換わっている。**
 > ボード（N16R8）/ OTA 無し / 辞書予算 13,828,096 B / 辞書リビジョンの SHA-256 は
 > **そのまま有効**。**この節の「370,863」だけが古い。**
-- **一次データ**: [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) /
-  [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) §1 /
+- **一次データ**: `research/k1-kanji-katakana-ondevice.md` /
+  `plan/k1-kanji-implementation-plan.md` §1 /
   `scripts/k1/k0_{mmu_window,fit_point,dict_inventory}.py`
 
 ### 決定
@@ -3011,7 +3017,7 @@ C-046 は「外挿を避けて実測したが、**測った対象が本番と違
 
 - **日付**: 2026-08-31（ユーザー決定）
 - **状態**: **確定**
-- **関連**: [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) / D-042 / C-047
+- **関連**: `plan/k1-kanji-implementation-plan.md` / D-042 / C-047
 
 ### 決定
 
@@ -3408,7 +3414,7 @@ S4 で確保の順番（`qp` を 1 つ足した）が変わって `sx` や `y` �
 ## D-046: 速度改善の出力基準 — **bit 同一か丸め水準かを先に宣言し、W8A8 は fp32 比 SNR の分布で判定する**。blob は **v2**
 
 **2026-09-02。** 第三者の実機報告（M5Stack CoreS3 で W8A8+PIE **1.554× RT**。
-[`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md)）を受けて、
+`research/s1-m5-cores3-speed.md`）を受けて、
 積和以外の処理を削る S1〜S5a を入れた（M-80 / M-81、ブランチ `feat/s1-speed-m5`）。
 そのとき**出力をどう守るか**を決めた。
 
@@ -3495,7 +3501,7 @@ USB は `Espressif / USB JTAG_serial debug unit`（ioreg）。**USB-UART ブリ�
 <a id="c-054"></a>
 ## C-054: M-82 §4 の仮説 4 つと「定常 xRT 0.926」の読み — **測ったら半分が違った**
 
-**2026-09-03。** S2 計画（[`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md)）のために
+**2026-09-03。** S2 計画（`plan/s2-fast-kanji-m5-plan.md`）のために
 コードと ELF を 6 視点で読み直し、審査 3 名で検算し、実機で 2 本測った（M-84 / M-85）。
 
 | M-82 に書いたこと | 実際 | 根拠 |
@@ -3637,8 +3643,8 @@ SNR が効いていないと (2) は素通りする。
 
 - **日付**: 2026-09-03
 - **決定**: `csrc/` の C99 コアと `esp32/main/saan_kanji.c` の漢字経路を**書き換えずに** WebAssembly へ持っていき、
-  GitHub Pages で「**漢字かな交じり文を打つと喋る**」最小デモを配る（W トラック。[`plan/web-demo-plan.md`](plan/web-demo-plan.md)）
-- **⚠️ D-049 は使わない**（RTF の分母用に予約してある。[`requirements.md`](requirements.md) §6.2）
+  GitHub Pages で「**漢字かな交じり文を打つと喋る**」最小デモを配る（W トラック。`plan/web-demo-plan.md`）
+- **⚠️ D-049 は使わない**（RTF の分母用に予約してある。`requirements.md` §6.2）
 
 ⚠️ **番号が飛んでいるのは間違いではない。** D-049 は先に予約され、複数のファイルから前方参照されている。
 
@@ -3658,7 +3664,7 @@ SNR が効いていないと (2) は素通りする。
 
 したがって **D-007 の「成果物は 567 K の embedded tier」は変わらない**。
 変わったのは「**ブラウザ向けに作らない**」から「**ESP32 のバイナリ経路を、ブラウザからも触れるようにする**」だけ。
-⚠️ **Web が要件に入ったわけではない**（[`requirements.md`](requirements.md) §2.2 の非目標のまま。§2.2 に追記した）。
+⚠️ **Web が要件に入ったわけではない**（`requirements.md` §2.2 の非目標のまま。§2.2 に追記した）。
 
 ### なぜ今なら成立すると言えるのか
 
@@ -3809,8 +3815,8 @@ od -A d -t u4 -N 16 /tmp/saanotts-jp-v3-int8.bin
 **直した場所**（3 箇所。⚠️ 元の記述は消さず、この訂正への参照を残した）:
 
 - `CLAUDE.md`（K トラックの現在地の節）
-- [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md)
-- [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md)
+- `research/b0-g2p-footprint.md`
+- `research/k1-kanji-katakana-ondevice.md`
 
 ⚠️ **判断は変わらない。** D-044（438,750 entries / int16）は**音素の 0.32%** で決めており、
 文単位の数は根拠に使っていない。⚠️ 一次ソース（M-77 §1 の表と M-78 の「ids が違う 44 文」）は
@@ -3867,7 +3873,7 @@ make -C csrc label_ids_test
 **9 ファイル 18 箇所**が「未決 = D-049 で決める」と名指ししている
 
 ⚠️ **これは当時の数である。** ✅ **D-049 は 2026-09-11 に埋めた**（[D-049](#d-049)）ので、**「未決」と書いてあった箇所は全部書き換えた**（9 ファイル。`MODEL_CARD.md` = 配布物も含む）。
-（[`requirements.md`](requirements.md) §6.2 / [`README.md`](README.md) / CLAUDE.md ほか）。
+（`requirements.md` §6.2 / [`README.md`](README.md) / CLAUDE.md ほか）。
 
 数え方:
 
@@ -3882,8 +3888,8 @@ grep -rn "D-049" --include="*.md" . | grep -v "^./docs/decisions.md" | wc -l
 
 ⚠️ **番号について。** この決定は本来 D-049 として起草を頼まれたが、**D-049 は
 「RTF ≤ 0.5 の分母」のために予約済み**で、**9 ファイル 18 箇所**が
-「未決 = D-049 で決める」と名指ししている（[`requirements.md`](requirements.md) §6.2 /
-[`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) §7 #1 の
+「未決 = D-049 で決める」と名指ししている（`requirements.md` §6.2 /
+`plan/s2-fast-kanji-m5-plan.md` §7 #1 の
 「**D-049 は空き番**」/ [`README.md`](README.md) / CLAUDE.md ほか）。
 **そこに別の決定を入れると 18 箇所が黙って別の話を指す**（C-052 の
 「番号がずれる」ではなく「番号が入れ替わる」形）ので、**D-049 は空けたまま D-050 を採った。**
@@ -4705,7 +4711,7 @@ D-053 の罠は「**上限を `<1.0` → `<2.0` に緩めるだけでは lock �
 
 - 決定日: 2026-09-04
 - 状態: **確定**（ユーザー判断）
-- 調査: [`research/l1-commercial-use-licensing.md`](research/l1-commercial-use-licensing.md)
+- 調査: `research/l1-commercial-use-licensing.md`
 - 前提を変えた決定: [D-035](#d-035)（初期リリースは現行素材のまま）/ [D-039](#d-039)（重みは MIT ではない）
 
 ⚠️ **採番の飛びは欠番ではない。** 未マージの 2 ブランチが使用中である:
@@ -4767,7 +4773,7 @@ CML-TTS (CC-BY-4.0) が帰属表示を要求する。これを外すには
 声が確定するまでは **つくよみちゃんのままでよい**。ただし
 **その間は D-054 のゴールに届いていない**ことを明示しておく:
 つくよみちゃんの 4 禁止事項は**利用規約として課すことが義務**であり、
-再配布者に**コピーレフトする**（[L-1](research/l1-commercial-use-licensing.md) §2.2 / §2.3。一次ソースの原文）。
+再配布者に**コピーレフトする**（L-1 §2.2 / §2.3。一次ソースの原文）。
 
 ⚠️ **「名前だけ記載すれば済む」ではない。** クレジット自体は指定文面の掲載でよく、
 **エンドユーザーにクレジットを義務付ける必要はない**（同 §2.4）が、
@@ -4785,7 +4791,7 @@ CML-TTS (CC-BY-4.0) が帰属表示を要求する。これを外すには
 
 - **声の最終決定**（外部の声優 / Common Voice / 現状維持）
 - **[`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.2 を一次ソースに合わせて直すか**（[C-072](#c-072)）
-- つくよみちゃん側が求めている**リリース前の連絡**（[L-1](research/l1-commercial-use-licensing.md) §2.5）を行うか
+- つくよみちゃん側が求めている**リリース前の連絡**（L-1 §2.5）を行うか
 - **音は 1 つも聴いていない。** 候補教師の品質比較は未実施
 
 ---
@@ -4835,7 +4841,7 @@ CML-TTS (CC-BY-4.0) が帰属表示を要求する。これを外すには
 問題は「アダルト用途は一切不可」と読めることで、**商用利用の判断を誤らせうる**点にある。
 
 ⚠️ **法的助言ではない。** 一次ソースの読解であり、「原則的には禁止です」という別の記述の
-含みまでは判断していない（[L-1](research/l1-commercial-use-licensing.md) §2.8）。
+含みまでは判断していない（L-1 §2.8）。
 
 ---
 
@@ -4898,12 +4904,12 @@ piper-plus 側で処理される」**という整理も取れた。理由 3 つ�
 - **base の 6 データセットが本当に全部この教師の上流にいるか** —
   `data-sources.yml` の `used_only_in` の有無から推論した（7 件中 1 件だけが持つ）。
   **piper-plus の学習ログでは確認していない**
-- つくよみちゃん側が求める**リリース前の連絡**（[L-1](research/l1-commercial-use-licensing.md) §2.5）
+- つくよみちゃん側が求める**リリース前の連絡**（L-1 §2.5）
 - ⚠️ **LibriTTS-R / CML-TTS / AISHELL-3 のライセンス・URL・著者表記は未検証。**
   [`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.1 (A) に必須帰属として入れた 3 行は、
   `~/Documents/piper-plus/data-sources.yml` をそのまま転記したもので、
   openslr.org / aishelltech.com / CML-TTS の GitHub リポジトリで**一次ソースを
-  確認していない**（[L-1](research/l1-commercial-use-licensing.md) §7 に追記）。
+  確認していない**（L-1 §7 に追記）。
   「freds0 et al.」は CML-TTS の GitHub ハンドルであり、確認済みの著者名ではない。
   この台帳は [C-029](#c-029) / [C-030](#c-030) / [C-031](#c-031) で 3 回間違っている。
 
@@ -4955,7 +4961,7 @@ grep -c "used_only_in" ~/Documents/piper-plus/data-sources.yml  # 1
 ## C-074: 「CC-BY 4.0 と つくよみちゃんの条件が衝突する」は誤りだった（2026-09-09）
 
 **何を書いたか**: 2026-09-08 に「⚠️ CC BY 4.0 と つくよみちゃんの条件が**理屈上ぶつかる**」と
-報告し、[L-1](research/l1-commercial-use-licensing.md) と [D-054](#d-054) にもその趣旨を書いた。
+報告し、L-1 と [D-054](#d-054) にもその趣旨を書いた。
 根拠にしたのは CC BY 4.0 §2(a)(5)(ii):
 
 > "You may not offer or impose any additional or different terms or conditions on ...
@@ -4994,7 +5000,7 @@ grep -c "used_only_in" ~/Documents/piper-plus/data-sources.yml  # 1
 - 成果物: ラベルパック `data/pack_cc0` / 学習 `runs/v4`（どちらも git 管理外）
 - 実測: [M-113](measurements.md#m-113)
 - 前提: [D-054](#d-054)（商用向けのゴール）/ [D-055](#d-055)（帰属表示）
-- 計画: [`superpowers/plans/2026-09-09-cc0-only-distillation-text.md`](superpowers/plans/2026-09-09-cc0-only-distillation-text.md)
+- 計画: ⚠️ **実装計画（Task 1〜8）は消した**（2026-09-12。全 Task 完走したので）。**判定の一次ソースは [`../src/saanotts_jp/corpus_license.py`](../src/saanotts_jp/corpus_license.py)**
 
 ⚠️ **採番の飛びは欠番ではない。** パターンは [D-054](#d-054) の表と同じ。
 2026-09-09 に `git fetch origin --prune` で再確認した現在のスナップショット:
@@ -5357,7 +5363,7 @@ I (1126) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホ�
 - 決定日: 2026-09-10
 - 状態: **確定**（ユーザー判断）
 - 改める対象: [D-054](#d-054)（「帰属表示のみ・出力制限なし・継承なし」というゴール）
-- 関連: [D-057](#d-057)（v4 の受け入れ）/ [L-1](research/l1-commercial-use-licensing.md)
+- 関連: [D-057](#d-057)（v4 の受け入れ）/ L-1
 
 ### 何を決めたか
 
@@ -6184,7 +6190,7 @@ AISHELL-3 は **Apache-2.0 = 許容的**で、**用途制限もコピーレフ�
 
 **3 素材のライセンス・URL・著者表記は一次ソースと突き合わせていない。**
 `~/Documents/piper-plus/data-sources.yml` の転記である
-（[L-1](research/l1-commercial-use-licensing.md) の未確認事項）。
+（L-1 の未確認事項）。
 ⚠️ **この台帳は過去に 3 回間違っている**（[C-029](#c-029) / [C-030](#c-030) / [C-031](#c-031)）。
 **「AISHELL-3 が Apache-2.0 である」ことすら、一次ソースでは確認していない。**
 
@@ -6395,7 +6401,7 @@ grep -rn "アダルト\|素材としての再配布\|ゾーニング" --include=
 <a id="c-089"></a>
 ## C-089. **「測っていない」と書いた指標が、実は測ってあった**（受け入れ条件 5）
 
-**2026-09-11。** [`docs/requirements.md`](requirements.md) の受け入れ条件に v4 の列を足したとき、
+**2026-09-11。** `docs/requirements.md` の受け入れ条件に v4 の列を足したとき、
 
 > | 5 | 摩擦音の平坦度が教師比 ≥ 0.85 | ❌ **v4 では測っていない**（v3 でも v2 の値のまま） |
 
@@ -6451,7 +6457,7 @@ for t in ('v3_full','v4_full'):
 
 - 決定日: 2026-09-11
 - 状態: **確定**（ユーザー判断。しきい値 0.8 s もユーザーが決めた）
-- 予約されていた節: [`docs/requirements.md`](requirements.md) §6.2（2026-09-03 から**欠番のまま**だった）
+- 予約されていた節: `docs/requirements.md` §6.2（2026-09-03 から**欠番のまま**だった）
 - 材料: 同 §6.2 の「D-049 を決めるための整理」/ [M-90](measurements.md#m-90) / [M-83](measurements.md#m-83)
 
 ### 何を決めたか

@@ -3,7 +3,7 @@
 
 B-10 が検査したのは教師の **FT** テキスト (つくよみちゃん = JSUT voiceactress100 /
 repeat500) だけで、**事前学習テキストとの重複は未検査**のまま残っていた
-(docs/plan/phase0-1-implementation-plan.md:1538)。ここを埋める。
+(B-12。決定は docs/decisions.md)。ここを埋める。
 
 教師 `ayousanz/piper-plus-zero-shot-tsukuyomi` の base は v7 multilingual
 (571 話者 / 6 言語 / 497,519 発話)。うち**日本語は MOE-Speech 20speakers の

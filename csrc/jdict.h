@@ -1,6 +1,6 @@
 /* K-1 辞書バイナリの読み出しと K-2 の Viterbi。
  *
- * 設計は docs/plan/k1-kanji-implementation-plan.md K-2。
+ * 設計の決定は docs/decisions.md D-042〜D-044、実測は docs/measurements.md M-69〜M-77。
  * blob の形式は src/saanotts_jp/k1_dict.py が作るもの（magic "K1D1"）。
  *
  * 規約（csrc の他のコアと同じ）:

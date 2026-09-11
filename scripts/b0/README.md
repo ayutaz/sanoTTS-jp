@@ -1,6 +1,6 @@
 # B-0 の測定スクリプト
 
-[`docs/research/b0-g2p-footprint.md`](../../docs/research/b0-g2p-footprint.md) と
+`docs/decisions.md` D-009 と
 [`reports/b0_*.json`](../../reports/) を生成したスクリプト群。**測定の記録として保全している。**
 
 ## ⚠️ そのままでは動かない

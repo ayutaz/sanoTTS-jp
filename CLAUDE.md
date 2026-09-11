@@ -2,6 +2,30 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+---
+
+## ✅ 開発は終了した（2026-09-12）
+
+**`v1.0.0` を配っている。** https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0
+
+| | |
+|---|---|
+| 出荷物 | **資産 28 本 / 140,291,218 B**（重みは **v4** = 蒸留テキストが CC0 / PD のみ） |
+| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.448** / アンダーラン **0** / 漢字==かな bit 一致 |
+| デモ | https://ayutaz.github.io/sanoTTS-jp/ （**実機と同じ C99 コア**の wasm） |
+| CI | 6 job。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |
+
+**⚠️ 残っているのは 2 件で、どちらも人が要る**（私にはできない）:
+
+1. **対照つきの聴取**（G32）— ⚠️ **v4 の音は誰も 1 秒も聴いていない。**
+   ボードは要らない（`saanotts-jp-v4-samples.zip` を再生するだけ）
+2. **4 MB / 2 MB の実機の数字** — 板が無い（第三者は鳴らしたが checksum / xRT / UR の報告が無い）
+
+**新しく書く実装は無い。** このファイルの残りは**直しに入るときの地図**である。
+⚠️ **下の「⚠️」は全部、実際に踏んだ事故から来ている。** 消さないこと。
+
+---
+
 ## プロジェクトの目的
 
 arXiv:2608.21378 "sanoTTS: The Smallest Real-Time Neural TTS on a General-Purpose Microcontroller"
@@ -29,25 +53,13 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | **このファイル** | 実装時の要点だけ。**コードを書く前に必ず読む** |
 | [`docs/measurements.md`](docs/measurements.md) | **数値の一次ソース**。全項目に再現コマンド付き。食い違ったらここが正 |
 | [`docs/decisions.md`](docs/decisions.md) | 決定の理由と**訂正履歴**（同じ間違いを繰り返さないため） |
-| [`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md) | 速度 T1〜T5 / 64 B 行 / M5 への漢字搭載。**残りは聴取だけ** |
-| [`docs/plan/web-demo-plan.md`](docs/plan/web-demo-plan.md) | **いちばん新しい計画**。W トラック（GitHub Pages のランタイムデモ）。W-0〜W-8 / 受け入れゲート 8 本（G-W1〜G-W7 + G-W2b）。⚠️ **成果物は今も ESP32**（D-050）で Web は入口。実測は M-94 |
-| [`docs/plan/phase0-1-implementation-plan.md`](docs/plan/phase0-1-implementation-plan.md) | かなトラックの作業計画。B-0〜B-12 と Phase 0〜D。**ほぼ履歴**（§10 の残りは全部片づいた） |
 | [`README.md`](README.md) の「はじめかた」 | **外の人向けの入口**。セットアップ → 合成 → 実機 |
 | [`esp32/TESTING.md`](esp32/TESTING.md) | **実機を持っている人への依頼**（焼く・喋らせる・報告） |
-| [`docs/requirements.md`](docs/requirements.md) | 要件定義。入力仕様・受け入れ条件 |
-| [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md) | **K-1**。端末で漢字を扱えるかの実測。B-0 の否定的結論のうち 4 つが崩れた |
-| [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md) | K トラックの実装計画 K-0〜K-8。**実機まで完走した**（M-83 / M-90）。残りは聴取と、エントリ数・接続行列の判断 |
-| [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-09-11）**: **3 つのトラックが走った**（かな / 漢字 K / 商用利用 L）。
-**どれも実機で動き、速度の要件も満たした。**
-⚠️ **残りは 2 件で、どちらも「人が要る」**（聴取 1 / 4・2 MB の実機 1）。
-✅ **v1.0.0 を出し**（2026-09-12。資産 28 本 / 140 MB）、**作業として書くものは残っていない。**
-**実装として書くものは残っていない。**
-
-⚠️ **いま配っているのは v3 で、v1.0.0（v4）はまだ上げていない。**
-⚠️ **v4 の音は誰も 1 秒も聴いていない。**
+**現状（2026-09-12）**: **3 つのトラックが走り、全部終わった**（かな / 漢字 K / 商用利用 L）。
+**どれも実機で動き、速度の要件も満たし、`v1.0.0` として配っている。**
+⚠️ **v4 の音は誰も 1 秒も聴いていない**（残タスク 1）。
 
 ⚠️ **下の「(1)」「(2)」は 2026-09-03 時点の記述**（かなと漢字のトラック）。
 **L トラックは別に下の節にある。**
@@ -61,7 +73,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
 ⚠️ **経緯**: 2026-09-01〜02 に**第三者の実機報告が 2 件**来て、実時間に間に合っていないと分かった
 （CoreS3 で W8A8+PIE 1.554× RT / AtomS3 で 1.718。checksum は M-62 と一致。**どちらも未再現・S1 前の値**）。
 1 step の内訳を取ると、活性化の量子化 / GELU / テンソル検索 / 重みのコピーが MAC と同等以上だった（M-80）。
-**S1〜S5a**（M-81 / D-046）→ **S2 計画の T1〜T5 + 64 B キャッシュ行**（[`docs/plan/s2-fast-kanji-m5-plan.md`](docs/plan/s2-fast-kanji-m5-plan.md)）
+**S1〜S5a**（M-81 / D-046）→ **T1〜T5 + 64 B キャッシュ行**（M-84〜M-89）
 → **S5b** と削り、要件に届いた:
 
 | | M-82（9/2 夜） | **最新（9/3）** |
@@ -95,8 +107,7 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 **`!` の印は要らない** — 端末が 3 値（かな / 辞書 / 拒否）で経路を決める（`saan_g2p_classify`。
 ホストの `to_intermediate.py` と **596/596 一致**）。**同じ文をかなで書いても漢字で書いても PCM が bit 一致する。**
 辞書 13.7 MB は **`esp_mmu_map`** で貼る（`esp_partition_mmap` は ROM 実装の 128 ページ = 8 MB 制限に当たる。M-90 §4）。
-→ [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md)（結論）
-／ [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md)（計画）
+→ 根拠は [M-76](docs/measurements.md#m-76)〜[M-90](docs/measurements.md#m-90)、決定は [D-042](docs/decisions.md#d-042)〜[D-044](docs/decisions.md#d-044)
 
 設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は 2026-09-11 に埋めた** = RTF の分母）。実行はすべて手元の M4 Max（D-027）、実機はユーザーの M5 CoreS3（D-047）。
 
@@ -109,7 +120,7 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 **P-1 は M-57 / M-58、P-2（β）は M-60 / D-038、E-1 は M-50 / D-034、E-2 は M-49 / D-033、E-2b は M-52 で決着**。
 **E-2c は中止**（結果がどちらでも打つ手が変わらない。D-036）。**S5b と D-048 も入った**（M-90 / D-048）。
 
-**(2) K トラックの現在地**（`docs/plan/k1-kanji-implementation-plan.md`）:
+**(2) K トラックの現在地**（根拠は M-69〜M-90）:
 
 | | 状態 |
 |---|---|
@@ -585,6 +596,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `bash scripts/check_dict_integrity.sh` | **G34 = 辞書の SHA-256 検査**（[D-063](docs/decisions.md#d-063) / [M-134](docs/measurements.md#m-134)）。ビルドして QEMU で 2 回起動する: A) 正しい辞書 → 一致して漢字経路が生きる / **B) flash の dict 領域を 1 ビット反転 → 不一致を検出し、漢字経路だけ無効にしてかな専用で続く**（起動は止まらない）。⚠️ **真ん中を壊すこと** — 先頭だと `jdict_open` のマジック検査に先に引っかかり、**SHA-256 を試験していない**。⚠️ **ビルドログを見てはいけない** — `message(STATUS)` は再構成時しか出ないので**増分ビルドで必ず落ちる**（実際に踏んだ）。見るのは `compile_commands.json`。⚠️ ESP-IDF + QEMU + 辞書が要るので **CI では回らない** |
 | テスト | `scripts/check_dict_blob.py` | blob の自己整合と manifest の照合（**陽性対照 5 種を内蔵**） |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
+| テスト | `scripts/build_measurements_index.py --check` | **`measurements.md` の索引（134 件）が見出しと一致するか**。⚠️ **索引は手で書かない** — 節は測るたびに増えるので、手書きは**必ず古くなる**（[C-042](docs/decisions.md#c-042) と同じ形）。**生成物なので検査できる。** CI で回る |
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
 | テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか** + **番号リンクのラベルとアンカーが一致するか**（`[C-085](#c-083)` を捕まえる。**陽性対照 2 本**）。⚠️ **番号の一括置換でラベルだけ動く形は、2026-09-10 までどのゲートにも掛からなかった**（C-064 の 3 度目で 4 件出た = C-085）。⚠️ **外部 URL は見ない**。⚠️ **アンカーが実在するかは見ない**（食い違いだけ）。⚠️ **同一ファイル内の `#anchor` の実在も見ない**（C-057 の壊れたリンクはこれで見逃されていた）。⚠️ **リンクになっていない素の引用**（`C-082 の入口`）は見えない。⚠️ **リンク先が git 管理外**でも、手元にファイルが在れば通る（新規 clone の CI でだけ落ちる） |
 | テスト | `scripts/test_corpus_license.py` | **蒸留テキストのライセンス判定**（G-L1a。D-054）。許可 7 / 拒否 9 / **未知 5**。⚠️ **完全一致で判定する**（`cv/` の前方一致だと europarl 由来が自動で通る = C-029）。⚠️ **表しか見ない** — 判定が実際に呼ばれたかは G-L1b が見る |
@@ -701,7 +713,7 @@ hook が本番パック `data/pack` の破棄と再生成を deny する。
 使う理由（λ の並列探索 / 1.4 M z-line）がどちらも消え、走らせた記録も無いのに
 **未通過の CUDA parity ゲートを含む手順**を残す方が危なかった。
 再びリモートで回すなら `deploy/vastai_bootstrap.sh` と `scripts/b4_device_parity.py --device cuda`、
-[`docs/requirements.md`](docs/requirements.md) §8.4 から組み直すこと。
+[D-027](docs/decisions.md#d-027) から組み直すこと。
 
 ## piper-plus の参照点
 
@@ -731,7 +743,7 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 
 ⚠️ **2026-09-03、W トラックを足した（D-050）。この行は撤回していない。**
 `csrc/` の C99 コアと `esp32/main/saan_kanji.c` を**書き換えずに** wasm にして、
-GitHub Pages で「漢字文を打つと喋る」デモを配る（[`docs/plan/web-demo-plan.md`](docs/plan/web-demo-plan.md)）。
+GitHub Pages で「漢字文を打つと喋る」デモを配る（[D-050](docs/decisions.md#d-050)）。
 **成果物は今も ESP32 の 567 K で、Web は触れる入口**でしかない
 （piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 180,224 B）。
 実測は M-94（node）/ **M-95（Chrome 152）** / **M-96（聴取）**。**ブラウザで PCM が node と bit 一致**し、短文が **0.008〜0.019 ×RT** で合成でき、**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定**。
@@ -761,7 +773,7 @@ GitHub Pages で「漢字文を打つと喋る」デモを配る（[`docs/plan/w
 
 2026-08-26 に HF API で全 repo を調査して確定。公開 repo の
 `piper-plus-tsukuyomi-chan` / `piper-plus-css10-ja-6lang` は **ONNX しか無く、
-ONNX からは潜在 `z` が取れないので蒸留に使えない**（`docs/research/` §2.2）。
+ONNX からは潜在 `z` が取れないので蒸留に使えない**（[D-002](docs/decisions.md#d-002)）。
 
 この ckpt を選んだ根拠 — `config.json` が公開 canonical モデルと一致する:
 
@@ -844,7 +856,7 @@ import sys; sys.path.insert(0, "~/Documents/piper-plus/src/python")
 ## 入力仕様（確定）
 
 **中間表現「ひらがな + アクセント記号 + 無声化マーク」**。
-要件定義は [`docs/requirements.md`](docs/requirements.md)、決定の経緯は D-010 / D-011。
+決定の経緯は [D-010](docs/decisions.md#d-010) / [D-011](docs/decisions.md#d-011)。
 ⚠️ **「漢字は端末で扱わない」は 2026-09 に半分だけ古くなった。** K トラック（`-DSAAN_KANJI=1`）を
 入れた板は**漢字文をそのまま受ける**（M-90）。端末は 3 値で経路を決め、**かな行と漢字行から同じ PCM が出る**。
 この節の中間表現は**その両方の共通の中間表現**であって、蒸留・学習・ホスト側の経路は今も全部これ。
@@ -920,16 +932,16 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-11 更新。**残り 5 件: 人が要る 2**（聴取 / 4・2 MB の実機）**／ 作業 3**（**v1.0.0 のリリース** / CI のタグ / 辞書の SHA-256 検査）。⚠️ **判断は全部片づいた**）
+## 残っているタスク（2026-09-12 更新。**残り 2 件。どちらも人が要る** — ⚠️ **判断も作業も全部片づいた**）
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
 K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-063 として凍結（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母。⚠️ **2026-09-10 に main へマージ済み** — 8 MB ブランチと Dependabot 対応が入り、番号衝突を C-078 で解消した）。
 現在地は [`docs/README.md`](docs/README.md)。
 
-⚠️ **L トラック（商用利用）が加わった**（[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md)）。
+⚠️ **L トラック（商用利用）が加わった**（[D-054](docs/decisions.md#d-054)〜[D-058](docs/decisions.md#d-058)）。
 **JSUT を外した v4 を学習して受け入れた**（D-057 / M-115〜M-117）。
 blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字を喋らせた**（M-119〜M-124。xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **音は誰も 1 秒も聴いていない。**
-⚠️ **GitHub Release に上げていないので、配布されているのは今も v3。**
+✅ **`v1.0.0` として配っている**（2026-09-12。資産 28 本。M-133）。
 
 **2026-09-10、声は つくよみちゃんのままにすると決めた**（**D-058**）。
 **D-054 のゴール（帰属表示のみ・出力制限なし）はこれに合わせて改めた** —
