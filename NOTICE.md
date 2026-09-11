@@ -42,13 +42,19 @@ MIT ライセンス（[`LICENSE`](LICENSE)）が適用されるのは**このリ
 
 ## コーパスのライセンス（本プロジェクトが調査した範囲）
 
-| ソース | 行数 | ライセンス | 再配布 |
-|---|---:|---|---|
-| [ROHAN4600](https://github.com/mmorise/rohan4600) | 4,600 | CC0 / PD | ✅ |
-| [ITA コーパス](https://github.com/mmorise/ita-corpus) | 422 | PD | ✅ |
-| [JSUT ver1.1](https://sites.google.com/site/shinnosuketakamichi/publication/jsut) | 7,189 | subset 別 CC-BY-SA（`precedent130` は PD） | ⚠️ 継承が要る |
-| [Common Voice ja](https://commonvoice.mozilla.org/) | 11,060 | **CC0-1.0（一次ソースで確認済み）** | ✅ |
-| 自作（疑問 EOS） | 47 | MIT（このリポジトリ） | ✅ |
+⚠️ **どの重みを配るかで中身が違う**（[`docs/decisions.md`](docs/decisions.md) D-057）:
+
+| ソース | 行数 | ライセンス | 再配布 | **v3** | **v4** |
+|---|---:|---|---|:-:|:-:|
+| [ROHAN4600](https://github.com/mmorise/rohan4600) | 4,600 | CC0 / PD | ✅ | ✅ | ✅ |
+| [ITA コーパス](https://github.com/mmorise/ita-corpus) | 422 | PD | ✅ | ✅ | ✅ |
+| [JSUT ver1.1](https://sites.google.com/site/shinnosuketakamichi/publication/jsut) | 7,189 | subset 別 CC-BY-SA（`precedent130` は PD） | ⚠️ 継承が要る | ✅ | ❌ **外した** |
+| [Common Voice ja](https://commonvoice.mozilla.org/) | 11,060 | **CC0-1.0（一次ソースで確認済み）** | ✅ | ✅ | ✅ |
+| 自作（疑問 EOS） | 47 | MIT（このリポジトリ） | ✅ | ✅ | ✅ |
+
+⚠️ **行数はコーパス全体の数**で、実際に学習に使った train の行数ではない
+（train は v3 が 20,893 行 / **v4 が 14,513 行**）。
+⚠️ **配布中は今も v3**（JSUT 込み）。**v4 は次のタグ `v1.0.0` から。**
 
 ### Common Voice は CC0 で確定（2026-08-28 に再調査）
 
@@ -78,10 +84,17 @@ README が挙げる唯一の例外は `europarl-VERSION-LANG.txt`（Europarl Cor
 （探した範囲: PR 本文 / リポジトリ内 `yumie` 全文検索 0 件）。
 落としても CC0 分は **13,092 行**残る。
 
-**CC0 のみで再構成した場合**: Common Voice 9,954 + ROHAN 4,140 + ITA 380 + 自作 39
-= **14,513 行**（train）で、論文の 14,343 行を上回る。**JSUT を外しても行数は足りる。**
-ただし JSUT の `countersuffix26`（助数詞）/ `loanword128`（カタカナ語）/
-`onomatopee300`（オノマトペ）は日本語固有の多様性軸なので、**CC0 での補充が要る**。
+✅ **CC0 のみで再構成した = v4**（2026-09-10 に実行した。もはや仮定ではない）:
+Common Voice 9,954 + ROHAN 4,140 + ITA 380 + 自作 39 = **14,513 行**（train）で、
+論文の 14,343 行を上回る。**JSUT を外しても行数は足りた。**
+
+⚠️ **JSUT の `countersuffix26`（助数詞）/ `loanword128`（カタカナ語）/
+`onomatopee300`（オノマトペ）は補充していない。** 日本語固有の多様性軸だが、
+**音素カバレッジには穴が出なかった**（ユニーク 54 で v3 と同じ。
+[`docs/measurements.md`](docs/measurements.md) M-115）。
+⚠️ **品質では SCOREQ も かな CER も差を検出できなかった**が、
+**アクセントは 37/37 → 31/37 に落ちた**（M-116 / M-118。
+⚠️ **大部分は seed のばらつきで、テキストの寄与は分離できていない**）。
 
 ## 教師モデル
 
