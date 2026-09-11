@@ -218,6 +218,11 @@ URL が開くのはマージ後。
                             （[D-058](decisions.md#d-058)）、継承リスクを外した **v4** の重みを配る。
                             ✅ 実機で漢字を喋った（[M-124](measurements.md#m-124)。xRT 0.448 / UR 0）。
                             ⚠️ **1.0 でも未決**: 聴取 / RTF の分母 / 10 本中 9 本は未焼き / アクセント 31/37
+[決定] 2026-09-11           **AISHELL-3 は外さない**（[D-060](decisions.md#d-060)。教師 base 由来で、
+                            生徒の再学習では変わらず、外しても義務が減らない）。
+                            **v0.3.x の帰属は直さない**（[D-061](decisions.md#d-061)）。
+                            ⚠️ **帰属義務を満たしていない資産が配布され続けることを、承知で受け入れた。**
+                            ✅ `releases/latest` と Pages は v1.0.0 で直る
 [完了] **v0.3.1 リリース**      **小さい flash（8 / 4 / 2 MB）**を正式に配る。⚠️ **モデルは v3 のまま**。
                             ⚠️ **帰属が 3 素材ぶん足りない**（[C-081](decisions.md#c-081)）。❌ **差し替えないと決めた**（[D-061](decisions.md#d-061)）
 [完了] **v0.3.0 リリース**      **スタックチャン（M5 CoreS3）の配布イメージ**を追加。焼いた実機で確認済み（M-90 / M-91）。
@@ -538,7 +543,9 @@ sanoTTS-jp/
 │   ├── decisions.md                       決定記録 D-001〜D-061（D-049 は欠番）+ 訂正履歴 C-001〜C-087
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-126
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
-│   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
+│   ├── release-notes/                     各リリースの変更点（**訂正も残す**）。6 本: v0.1.0 / v0.1.1 / v0.2.0 / v0.3.0 / v0.3.1 / v1.0.0
+│   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
+│   │                                     **タグの打ち方と「打った後にやること」もそこに書いてある**
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/k1-kanji-implementation-plan.md  K トラックの実装計画（K-0〜K-8）
 │   ├── plan/s2-fast-kanji-m5-plan.md        **S2（T1〜T5 / 64 B 行 / M5 への漢字搭載）+ §10 に S-1 の前史**
@@ -664,6 +671,9 @@ sanoTTS-jp/
     ├── test_losses.py / test_labelpack.py / test_discriminator.py
     ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
     ├── check_lock_vs_pyproject.py         **pyproject の制約 vs uv.lock の固定版**（C-071。**CI で回る**）
+    ├── check_attribution.py                **帰属義務の成果物**（G-A1 写しが 3 か所で一致 / G-A2 同梱した全文。C-080 / C-081。**CI で回る**）
+    ├── check_release_table.py              **リリースノートの資産表 vs 実物**（C-087。⚠️ **CI は自己テストのみ**）
+    ├── make_release_body.py                リリースページ用に相対リンクを絶対 URL に直す（⚠️ **CI で回らない**）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
@@ -715,6 +725,8 @@ uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引�
 uv run python scripts/check_lock_vs_pyproject.py # pyproject の制約 vs uv.lock（陽性対照 6 / 陰性対照 2）
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
 uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（G-A1 / G-A2）
+uv run python scripts/check_release_table.py --self-test  # 資産表 vs 実物（陽性対照 5 件）。
+                                                 #   ⚠️ 本体は --notes と --dir が要る（リリース時）
 uv run python scripts/check_release_assets.py    # 表の資産がリリースに在るか（要ネットワーク）
 uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
 uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か

@@ -87,6 +87,8 @@ hook が止めます。
 ```bash
 uv run python scripts/check_doc_counters.py         # 索引の M/D/C 番号・件数・引用アンカー
 uv run python scripts/check_doc_links.py            # md の相対リンクが実在するか
+uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（陽性対照 7 件）
+uv run python scripts/check_release_table.py --self-test # 資産表 vs 実物（陽性対照 5 件）
 uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（105 ケース）
 uv run python scripts/test_sanitize_reports.py      # レポートに本文が混じっていないか
 uv run python scripts/test_blob_to_header.py        # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
@@ -185,6 +187,8 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 ```bash
 uv run python scripts/check_doc_counters.py         # index numbers, counts, citation anchors
 uv run python scripts/check_doc_links.py            # relative links in markdown resolve
+uv run python scripts/check_attribution.py --self-test   # attribution artifacts (7 positive controls)
+uv run python scripts/check_release_table.py --self-test # release table vs the real files (5 positive controls)
 uv run python scripts/check_release_assets.py       # assets named in the docs exist in the release
 uv run python .claude/hooks/test_guard_bash.py      # hook regression (105 cases)
 uv run python scripts/test_sanitize_reports.py      # no corpus text in reports
