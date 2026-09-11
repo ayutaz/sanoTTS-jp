@@ -2,6 +2,7 @@
 
 #include <inttypes.h>
 #include <stdint.h>
+#include <stdio.h>      /* snprintf — D-063 の digest を 16 進にする */
 #include <string.h>
 
 #include "sdkconfig.h"
@@ -45,14 +46,36 @@
 #  endif
 #endif
 
-#if SAAN_DICT_MMU
-#include "esp_mmu_map.h"
-
 #if SAAN_DICT_INTEGRITY_PROBE
-/* ⚠️ **測定専用**（残タスク 8 の材料）。既定ビルドには 1 バイトも入らない。 */
+/* ⚠️ **測定専用**（M-131 の材料）。既定ビルドには 1 バイトも入らない。
+ * ⚠️ **かつてこの 2 行は `#if SAAN_DICT_MMU` の中にあった** = DevKit 構成では
+ *    コンパイルされていなかった（M-131 を測ったのは M5 構成なので気づかなかった）。 */
 #include "esp_crc.h"
+#endif
+
+
+/* --- D-063: 辞書の完全性検査 -------------------------------------------------
+ * ビルド時に CMake が焼いた SHA-256（`SAAN_DICT_SHA256`）と、mmap した blob の
+ * 先頭 `d->blob_len` バイトの digest を比べる。
+ *
+ * ⚠️ **なぜ SHA-256 か**: 実測で**いちばん速かった**（M-131。471 ms <
+ *    CRC32 681 < 32bit 読むだけ 802）。ESP32-S3 の SHA アクセラレータが
+ *    flash 読み出しと重なるため。**最も強い検査が最も安い。**
+ * ⚠️ **何を守るか**: (a) 焼き損ね・化け、(b) `blob_len` とファイル長の食い違い
+ *    （M-100 §8 の 1・2）、(c) **辞書の取り違え** — v0.3.1 から辞書単体を 5 本
+ *    配っているので、4 MB 用を 16 MB 版に焼いても**有効な blob なので黙って起動し、
+ *    読みが悪くなるだけ**だった。
+ * ⚠️ **不一致でも起動は止めない**（B2）。`false` を返すと main.c が
+ *    「かな入力だけで続ける」に落ちる。**漢字が読めないより、喋れない方が悪い。**
+ */
+/* ⚠️ **プローブ（M-131）も同じヘッダを使う**ので、どちらかが立っていれば入れる。
+ *    片方だけの条件にすると「プローブは有効だが辞書を渡していない」構成で落ちる。 */
+#if defined(SAAN_DICT_SHA256) || SAAN_DICT_INTEGRITY_PROBE
 #include "mbedtls/sha256.h"
 #endif
+
+#if SAAN_DICT_MMU
+#include "esp_mmu_map.h"
 #endif
 
 static const char *TAG = "saan_dict";
@@ -209,6 +232,55 @@ bool saan_dict_open(jdict_t *d) {
                  (double)t_read2 / 1000.0, 100.0 * (double)t_read2 / (double)t_read);
         ESP_LOGW(TAG, "=== 測定おわり（⚠️ このビルドは出荷物ではない）===");
     }
+#endif
+
+#ifdef SAAN_DICT_SHA256
+    /* --- D-063: ビルド時に焼いた digest と照合する ---------------------------
+     * ⚠️ **`d->blob_len` バイトを見る**（パーティション全体ではない）。
+     *    jdict_open がセクション表から復元した実 extent なので、これが一致すれば
+     *    **長さも内容も正しい**（M-100 §8 の 1 と 2 が同時に閉じる）。 */
+    {
+        static const char k_want[] = SAAN_DICT_SHA256;
+        /* ⚠️ **長さを先に見る。** 64 桁でなければ CMake 側が壊れている。
+         *    ここを見ないと、空文字を「一致した」と読む経路ができる。 */
+        if (sizeof(k_want) - 1 != 64) {
+            ESP_LOGE(TAG, "焼かれた SHA-256 が %u 桁（64 のはず）— ビルドが壊れている",
+                     (unsigned)(sizeof(k_want) - 1));
+            return false;
+        }
+        const int64_t t0 = esp_timer_get_time();
+        uint8_t dig[32];
+        mbedtls_sha256_context sh;
+        mbedtls_sha256_init(&sh);
+        const bool ok = mbedtls_sha256_starts(&sh, 0) == 0
+                     && mbedtls_sha256_update(&sh, (const uint8_t *)ptr, d->blob_len) == 0
+                     && mbedtls_sha256_finish(&sh, dig) == 0;
+        mbedtls_sha256_free(&sh);
+        if (!ok) {
+            ESP_LOGE(TAG, "SHA-256 の計算に失敗した");
+            return false;
+        }
+        char got[65];
+        for (int i = 0; i < 32; i++)
+            snprintf(got + i * 2, 3, "%02x", dig[i]);
+        got[64] = '\0';
+        const int64_t dt = esp_timer_get_time() - t0;
+        if (strcmp(got, k_want) != 0) {
+            /* ⚠️ **両方を出す。** 「壊れている」と「取り違えた」は対処が違う
+             *    （前者は焼き直し / 後者は正しい辞書を選ぶ）。読み手が判断できるように。 */
+            ESP_LOGE(TAG, "⚠️ 辞書の SHA-256 が合わない（%u B を %.0f ms で計算）",
+                     (unsigned)d->blob_len, (double)dt / 1000.0);
+            ESP_LOGE(TAG, "    焼いた  : %s", k_want);
+            ESP_LOGE(TAG, "    読んだ  : %s", got);
+            ESP_LOGE(TAG, "  → **漢字経路を無効にして、かな入力だけで続ける。**"
+                          " 焼き損ねか、容量違いの辞書を焼いた可能性がある");
+            return false;
+        }
+        ESP_LOGI(TAG, "辞書の SHA-256 一致（%u B / %.0f ms）: %.16s…",
+                 (unsigned)d->blob_len, (double)dt / 1000.0, got);
+    }
+#else
+    ESP_LOGW(TAG, "⚠️ 辞書の SHA-256 を照合していない（SAAN_DICT_SHA256 が焼かれていない）");
 #endif
 
     /* ⚠️ **行列の形式を必ず出す。** これが無いと、辞書を差し替えたつもりで

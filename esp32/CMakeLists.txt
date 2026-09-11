@@ -55,6 +55,32 @@ if(SAAN_QEMU)
     message(STATUS "sanoTTS: SAAN_QEMU=1 → sdkconfig.qemu（flash DIO）を重ねる: ${SDKCONFIG_DEFAULTS}")
 endif()
 
+# --- D-063: 辞書の SHA-256 をビルド時に焼く（project() より前）-----------------
+#
+# ⚠️ **ここでなければ届かない。** IDF は project() の中で component を
+#    add_subdirectory するので、**後から set した変数は main/ からは見えない**。
+# ⚠️ **`main/CMakeLists.txt` は 2 つある**（DevKit と boards/m5unified）。
+#    片方だけに書くと**フラグが黙って無視される**（実際に踏んだ。M-131）。
+# 起動時の照合は saan_dict.c。不一致なら漢字経路だけ無効化して**かな専用で続く**。
+if(SAAN_KANJI)
+    if(NOT DEFINED SAAN_DICT_BLOB)
+        set(SAAN_DICT_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/k1_dict.bin")
+    endif()
+    get_filename_component(SAAN_DICT_BLOB "${SAAN_DICT_BLOB}" ABSOLUTE)
+    set(SAAN_DICT_BLOB "${SAAN_DICT_BLOB}" CACHE INTERNAL "辞書 blob の絶対パス")
+    if(NOT EXISTS "${SAAN_DICT_BLOB}")
+        message(FATAL_ERROR
+            "辞書 blob が無い: ${SAAN_DICT_BLOB}\n"
+            "  uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin\n"
+            "で作るか、-DSAAN_DICT_BLOB=<絶対パス> を渡すこと。")
+    endif()
+    # ⚠️ **Python は要らない**（CMake が持っている）。
+    file(SHA256 "${SAAN_DICT_BLOB}" SAAN_DICT_BLOB_SHA256)
+    set(SAAN_DICT_BLOB_SHA256 "${SAAN_DICT_BLOB_SHA256}"
+        CACHE INTERNAL "辞書 blob の SHA-256（起動時の照合に焼く）")
+    message(STATUS "sanoTTS: dict sha256 ${SAAN_DICT_BLOB_SHA256}")
+endif()
+
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(saanotts_jp)
 
@@ -94,16 +120,9 @@ endif()
 #
 # ⚠️ **12 MB 以上ある。** リポジトリには入れない（生成物）。作り方:
 #     uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin
+# ⚠️ **パスの解決・存在検査・SHA-256 は project() より前**で済ませてある（上）。
+#    ここは**焼く指示だけ** — esptool_py_flash_to_partition は project() の後でないと無い。
 if(SAAN_KANJI)
-    if(NOT DEFINED SAAN_DICT_BLOB)
-        set(SAAN_DICT_BLOB "${CMAKE_CURRENT_LIST_DIR}/../csrc/k1_dict.bin")
-    endif()
-    if(NOT EXISTS "${SAAN_DICT_BLOB}")
-        message(FATAL_ERROR
-            "辞書 blob が無い: ${SAAN_DICT_BLOB}\n"
-            "  uv run python scripts/k1/k1_build_dict.py --out csrc/k1_dict.bin\n"
-            "で作るか、-DSAAN_DICT_BLOB=<絶対パス> を渡すこと。")
-    endif()
     file(SIZE "${SAAN_DICT_BLOB}" SAAN_DICT_BLOB_SIZE)
     message(STATUS "sanoTTS: dict blob ${SAAN_DICT_BLOB} (${SAAN_DICT_BLOB_SIZE} B)")
     esptool_py_flash_to_partition(flash "dict" "${SAAN_DICT_BLOB}")
