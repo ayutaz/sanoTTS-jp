@@ -132,7 +132,7 @@ URL が開くのはマージ後。
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
 | 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-062（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-089** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-129。全数値に再現コマンド付き | 実測のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-130。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -318,7 +318,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | # | 何 | トラック | 種類 | ゲート |
 |---|---|---|---|---|
 | **1** | **対照つきの聴取** — ざっとは聴かれた（M-91。⚠️ 1 名・対照なし・盲検なし）が、**`reports/k8_listen/` の 12 組**と**アクセントのミニマルペア**は未聴取 | 両方 | **人が要る** | **G32** |
-| **12** | **v1.0.0 をリリースする**（v4 の出荷物の再凍結） | **L** | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（[M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・firmware 10 本は全部 v4 と正しい辞書が入っていることを抽出照合 = [M-126](measurements.md#m-126)・M5 CoreS3 で xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **走らせたのは 1 本だけ**。⚠️ **1 本は中身が間違っていた** — `MODEL_CARD.md` が **v3 のカード**だった（[C-086](decisions.md#c-086)）。⚠️ **2026-09-11 に D-062 込みで作り直した**（[M-128](measurements.md#m-128)）。⚠️⚠️ **実機に焼いたのは 1 つ前のビルド**である（⚠️ QEMU では同じソースを通した = [M-129](measurements.md#m-129)）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
+| **12** | **v1.0.0 をリリースする**（v4 の出荷物の再凍結） | **L** | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（[M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・firmware 10 本は全部 v4 と正しい辞書が入っていることを抽出照合 = [M-126](measurements.md#m-126)・M5 CoreS3 で xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **走らせたのは 1 本だけ**。⚠️ **1 本は中身が間違っていた** — `MODEL_CARD.md` が **v3 のカード**だった（[C-086](decisions.md#c-086)）。⚠️ **2026-09-11 に D-062 込みで作り直した**（[M-128](measurements.md#m-128)）。✅ **作り直したイメージも実機で確かめた**（[M-130](measurements.md#m-130)）— `？〜` == `？～` の bit 一致 / M-124 の基準を再現 / QEMU と完全一致。⚠️ **残り 9 本は焼いていない**。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
 | **16** | ⚠️ **CI が掴む資産が `v0.3.0`（= v3）のタグ固定** — `golden` / `web` job が落とすのは `saanotts-jp-v3-*` なので、**出荷物が v4 になった日に CI は出荷物を 1 度も通さない**（[C-083](decisions.md#c-083)）| **L** | 作業（タグの後） | `ci.yml` の 2 job と `pages.yml` の `RELEASE_TAG` |
 
 <details>
@@ -556,7 +556,7 @@ sanoTTS-jp/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
 │   ├── decisions.md                       決定記録 D-001〜D-062（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-089
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-129
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-130
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   ├── release-notes/                     各リリースの変更点（**訂正も残す**）。6 本: v0.1.0 / v0.1.1 / v0.2.0 / v0.3.0 / v0.3.1 / v1.0.0
 │   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
