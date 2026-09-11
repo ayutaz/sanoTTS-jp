@@ -684,6 +684,7 @@ sanoTTS-jp/
     ├── test_losses.py / test_labelpack.py / test_discriminator.py
     ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
     ├── check_lock_vs_pyproject.py         **pyproject の制約 vs uv.lock の固定版**（C-071。**CI で回る**）
+    ├── check_doc_commands.py               **docs が書いたコマンドの実体**（スクリプト / make ターゲット。**CI で回る**）
     ├── check_attribution.py                **帰属義務の成果物**（G-A1 写しが 3 か所で一致 / G-A2 同梱した全文。C-080 / C-081。**CI で回る**）
     ├── check_release_table.py              **リリースノートの資産表 vs 実物**（C-087。⚠️ **CI は自己テストのみ**）
     ├── make_release_body.py                リリースページ用に相対リンクを絶対 URL に直す（⚠️ **CI で回らない**）
@@ -737,6 +738,7 @@ uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + 
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_lock_vs_pyproject.py # pyproject の制約 vs uv.lock（陽性対照 6 / 陰性対照 2）
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
+uv run python scripts/check_doc_commands.py      # docs のコマンドの実体（陽性対照 5 件）
 uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（G-A1 / G-A2）
 uv run python scripts/check_release_table.py --self-test  # 資産表 vs 実物（陽性対照 5 件）。
                                                  #   ⚠️ 本体は --notes と --dir が要る（リリース時）
