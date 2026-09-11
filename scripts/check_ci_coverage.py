@@ -128,6 +128,10 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     #    （本体は照合 0 本なら落とすようにしてある）。⚠️ **手で走らせるゲートはいずれ走らせなくなる。**
     "scripts/check_release_table.py":
         "リリース資産の実物（git 管理外・130 MB 超）。⚠️ 自己テスト（--self-test。陽性対照 5 件）は CI で回している",
+    # ⚠️ **リリースのときだけ使う変換器。** 入力はリポジトリ内の md なので原理的には
+    #    CI で回せるが、**出力を使う先（GitHub Release の本文）が CI に無い**。
+    "scripts/make_release_body.py":
+        "リリースページの本文を作る道具。出力先（GitHub Release）が CI に無い。⚠️ 変換の正しさは check_doc_links.py が repo 側のリンクで担保する",
     "scripts/kana_g2p.py": "pyopenjtalk と piper-plus（凍結テーブルとの突き合わせ。表だけの検査は `make -C csrc g2p` が CI で回している）",
     "scripts/k1/k0_verify_dict.py": "凍結した sys.dic（103 MB。git 管理外）",
     "scripts/k1/k4b_vendor.py": "上流の sdist（pyopenjtalk-plus の tar.gz）",
