@@ -691,7 +691,8 @@ sanoTTS-jp/
     ├── check_doc_commands.py               **docs が書いたコマンドの実体**（スクリプト / make ターゲット。**CI で回る**）
     ├── check_attribution.py                **帰属義務の成果物**（G-A1 写しが 3 か所で一致 / G-A2 同梱した全文。C-080 / C-081。**CI で回る**）
     ├── check_release_table.py              **リリースノートの資産表 vs 実物**（C-087。⚠️ **CI は自己テストのみ**）
-    ├── make_release_body.py                リリースページ用に相対リンクを絶対 URL に直す（⚠️ **CI で回らない**）
+    ├── make_release_body.py                リリースページ用の本文を作る（相対リンク → 絶対 URL +
+    │                                       **内部の手順を外す**）。⚠️ **CI で回る**（陽性対照 5 件 + 実物 6 本）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py

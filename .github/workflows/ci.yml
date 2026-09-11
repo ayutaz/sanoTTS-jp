@@ -62,6 +62,25 @@ jobs:
       - name: リリースノートの資産表 vs 実物 — **自己テストのみ**（陽性対照 5 件）
         run: uv run --no-project --python 3.12 python scripts/check_release_table.py --self-test
 
+      # ⚠️ **内部の手順をリリースページに出さないための印**。片方だけ書くと
+      #    **黙って何も外れない**ので、対になっているかを陽性対照で要求する。
+      - name: リリース本文の変換（内部の手順を外す。陽性対照 5 件）
+        run: uv run --no-project --python 3.12 python scripts/make_release_body.py --self-test
+
+      - name: リリース本文に内部の手順が残っていないか（**実物のノートで**）
+        run: |
+          set -e
+          n=0
+          for f in docs/release-notes/*.md; do
+            uv run --no-project --python 3.12 python scripts/make_release_body.py "$f" > /tmp/body.md
+            if grep -qE "gh release create|タグの打ち方|タグを打った" /tmp/body.md; then
+              echo "NG! $f の本文に内部の手順が残っている"; exit 1
+            fi
+            n=$((n + 1))
+          done
+          if [ "$n" -lt 1 ]; then echo "NG! ノートを 1 本も見ていない"; exit 1; fi
+          echo "OK  リリースノート $n 本すべて内部の手順が外れている"
+
       - name: hook の回帰
         run: uv run --no-project --python 3.12 python .claude/hooks/test_guard_bash.py
 
