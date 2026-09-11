@@ -208,6 +208,28 @@ uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 
     --out reports/eval_v3
 ```
 
+⚠️ **`--all` では再現できない**（`--all` は全段を同じ `--steps` で回す）。
+**`--stage N --steps M` を 4 回**呼ぶこと。段ごとに step 数が違う（M-114）。
+
+⚠️⚠️ **蒸留テキストを変えたら stage1 / stage2 を流用してはいけない。**
+`runs/v3` の stage1 / stage2 は **v2 からのコピー**だった（SHA-256 で bit 一致。M-114 §2）。
+テキストが同じなら正しい省略だが、**変えたら duration と acoustic の教師信号が変わる**ので
+**必ず 1 段目から回す**。v4（JSUT を外した 14,513 行）は**4 段とも回した** —
+`runs/v4/log.jsonl` の最大 step が **20,000 / 60,000 / 80,000 / 60,000** で
+4 段そろっている（各 40 行）。**確かめ方**:
+
+```bash
+uv run --no-project python -c "
+import json, collections
+mx = {}
+for l in open('runs/v4/log.jsonl'):
+    d = json.loads(l); mx[d['stage']] = max(mx.get(d['stage'], 0), d['step'])
+print(mx)"
+```
+
+⚠️ **`.pt` が手元に無くても log で分かる。** `runs/v3/` は `.pt` を追跡していないので、
+**「v3 と bit 一致か」を確かめたいなら M-114 §2 の記録を見ること。**
+
 ⚠️ **Stage 3 は 80,000 step。40,000 ではない**（D-037）。
 40k → 80k にしただけで SCOREQ +0.0653 [+0.022, +0.108] / DNSMOS +0.0660 /
 アクセント 35/36 → **37/37** と 5 指標すべて改善した（M-59）。
