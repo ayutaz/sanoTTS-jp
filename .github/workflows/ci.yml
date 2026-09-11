@@ -199,6 +199,11 @@ jobs:
       - name: S9 範囲版カーネル vs [0,T) 版（ランダム形状 bit 一致 + LN の T 非依存。陽性対照つき。重み不要）
         run: make -C csrc range
 
+      # ⚠️ **辞書も pyopenjtalk も要らない。** label_ids_convert() は合成した最小ラベル
+      #    3 本で足りるので、重みも辞書も無い CI で回る（D-062 / M-127）。
+      - name: 疑問 EOS 4 種 + U+301C の正規化（G33。陽性対照つき。重み・辞書不要）
+        run: make -C csrc qeos
+
       - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
         run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
 

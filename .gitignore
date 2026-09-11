@@ -98,6 +98,10 @@ __pycache__/
 /csrc/erf_test
 /csrc/erf_test_linear
 /csrc/erf_test_clamp
+/csrc/qeos_test
+/csrc/qeos_test_nonorm
+/csrc/k7_ids_bss.txt
+/csrc/k7_ids_ext.txt
 /csrc/range_test
 
 # レーン比較の生成物（`make -C csrc lanes` で再生成できる）。

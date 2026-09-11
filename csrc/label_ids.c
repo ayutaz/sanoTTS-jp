@@ -56,6 +56,38 @@ static const char *question_type(const char *text) {
     size_t k = n < sizeof buf - 1 ? n : sizeof buf - 1;
     memcpy(buf, text, k); buf[k] = 0;
 
+    /* ⚠️ **U+301C（〜 WAVE DASH）を U+FF5E（～）に寄せる。**
+     *
+     * ホストは `kana_g2p.normalize_input()` で**同じ写像**をしてから G2P に渡す。
+     * 端末が寄せないと `？〜` が疑問にならず、**ホストと違う列**になる（M-103 §2）。
+     * ⚠️ **日本語で普通に使われるのは U+301C の方**で、コーパスの `?~` 学習行 10 本は
+     *    **全部 U+301C 綴り**だった（U+FF5E は両コーパスに 0 件）。
+     *
+     * ⚠️ **ここでしか寄せない。** 実測で、寄せる位置によって差が出るのは
+     *    **疑問判定だけ**だと分かっている:
+     *      - 文中（`あ〜と` / `あ～と`）は **ids が完全に一致**する
+     *      - 末尾（`？〜` / `？～`）だけ `?~` の有無で 2 ids 違う
+     *    形態素分割は変わるが（4 個 / 3 個）、**〜 はどちらの綴りでも音素を 1 つも
+     *    生まないので ids には出ない。**
+     *
+     * ⚠️ **ホストの表にある他の 2 つは写さない**（`U+2212 → U+FF0D` /
+     *    `U+00A0 → 空白`）。U+2212 は辞書の keyesc に居るが **U+FF0D は辞書に無い**
+     *    （生の符号位置に落ちる）ので、寄せると**今より悪くなりうる**。
+     *    どちらもコーパスに 0 件で、**寄せる利益が測れていない。**
+     *
+     * ⚠️ これは「端末だけの規則」ではない。**ホストに在る規則が端末に無かった**のを
+     *    埋めるもので、入力仕様の目的（ホストと端末で同じ列）に**沿う**方向である。
+     *
+     * 3 バイト → 3 バイトなので長さは変わらない。 */
+#ifndef QEOS_TEST_NO_NORMALIZE   /* ⚠️ **陽性対照専用**（make -C csrc qeos） */
+    for (size_t i = 0; i + 3 <= k; i++) {
+        if ((unsigned char)buf[i] == 0xE3 && (unsigned char)buf[i+1] == 0x80
+            && (unsigned char)buf[i+2] == 0x9C) {
+            buf[i] = (char)0xEF; buf[i+1] = (char)0xBD; buf[i+2] = (char)0x9E;
+        }
+    }
+#endif
+
     if (ends_with(buf, "?!") || ends_with(buf, "\xEF\xBC\x81\xEF\xBC\x9F")   /* ！？ */
                              || ends_with(buf, "\xEF\xBC\x9F\xEF\xBC\x81"))  /* ？！ */
         return "?!";
