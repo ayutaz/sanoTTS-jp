@@ -2,10 +2,12 @@
 
 #include <inttypes.h>
 #include <stdint.h>
+#include <string.h>
 
 #include "sdkconfig.h"
 #include "esp_log.h"
 #include "esp_partition.h"
+#include "esp_timer.h"
 
 /* --- 貼り方の選択 -----------------------------------------------------------
  *
@@ -45,6 +47,12 @@
 
 #if SAAN_DICT_MMU
 #include "esp_mmu_map.h"
+
+#if SAAN_DICT_INTEGRITY_PROBE
+/* ⚠️ **測定専用**（残タスク 8 の材料）。既定ビルドには 1 バイトも入らない。 */
+#include "esp_crc.h"
+#include "mbedtls/sha256.h"
+#endif
 #endif
 
 static const char *TAG = "saan_dict";
@@ -144,6 +152,65 @@ bool saan_dict_open(jdict_t *d) {
         ESP_LOGE(TAG, "jdict_open: %d — %s", r, why);
         return false;
     }
+#if SAAN_DICT_INTEGRITY_PROBE
+    /* ⚠️ **測定専用。** 13.7 MB の完全性検査に何 ms かかるかを 3 通りで測る
+     *    （残タスク 8 = M-100 §8 の 1・2 を塞ぐかの判断材料）。
+     * ⚠️ **1 回目は flash から読む / 2 回目以降はキャッシュが効きうる**ので、
+     *    **読むだけ → CRC32 → SHA-256 の順に 1 回ずつ**測り、最後に読むだけをもう 1 度測って
+     *    「キャッシュが効いたか」を見る。 */
+    {
+        const uint8_t *b = (const uint8_t *)ptr;
+        const size_t n = d->blob_len;
+        ESP_LOGW(TAG, "=== 完全性検査コストの測定（%u B）===", (unsigned)n);
+
+        int64_t t0 = esp_timer_get_time();
+        uint32_t acc = 0;
+        for (size_t i = 0; i + 4 <= n; i += 4) {
+            uint32_t v; memcpy(&v, b + i, 4); acc += v;
+        }
+        int64_t t_read = esp_timer_get_time() - t0;
+        ESP_LOGW(TAG, "  1) 読むだけ（32bit 加算）: %.1f ms  （%.1f MB/s）acc=0x%08" PRIx32,
+                 (double)t_read / 1000.0,
+                 (double)n / 1048576.0 / ((double)t_read / 1e6), acc);
+
+        t0 = esp_timer_get_time();
+        uint32_t crc = esp_crc32_le(0, b, n);
+        int64_t t_crc = esp_timer_get_time() - t0;
+        ESP_LOGW(TAG, "  2) CRC32（ROM）: %.1f ms  （%.1f MB/s）crc=0x%08" PRIx32,
+                 (double)t_crc / 1000.0,
+                 (double)n / 1048576.0 / ((double)t_crc / 1e6), crc);
+
+        t0 = esp_timer_get_time();
+        uint8_t dig[32];
+        mbedtls_sha256_context sh;
+        mbedtls_sha256_init(&sh);
+        if (mbedtls_sha256_starts(&sh, 0) == 0
+            && mbedtls_sha256_update(&sh, b, n) == 0
+            && mbedtls_sha256_finish(&sh, dig) == 0) {
+            int64_t t_sha = esp_timer_get_time() - t0;
+            ESP_LOGW(TAG, "  3) SHA-256（mbedtls / HW 支援）: %.1f ms  （%.1f MB/s）"
+                          "先頭 %02x%02x%02x%02x%02x%02x%02x%02x",
+                     (double)t_sha / 1000.0,
+                     (double)n / 1048576.0 / ((double)t_sha / 1e6),
+                     dig[0], dig[1], dig[2], dig[3], dig[4], dig[5], dig[6], dig[7]);
+        } else {
+            ESP_LOGE(TAG, "  3) SHA-256 が失敗した");
+        }
+        mbedtls_sha256_free(&sh);
+
+        t0 = esp_timer_get_time();
+        acc = 0;
+        for (size_t i = 0; i + 4 <= n; i += 4) {
+            uint32_t v; memcpy(&v, b + i, 4); acc += v;
+        }
+        int64_t t_read2 = esp_timer_get_time() - t0;
+        ESP_LOGW(TAG, "  4) 読むだけ（2 回目 = キャッシュの効き）: %.1f ms"
+                      "  （1 回目の %.0f%%）",
+                 (double)t_read2 / 1000.0, 100.0 * (double)t_read2 / (double)t_read);
+        ESP_LOGW(TAG, "=== 測定おわり（⚠️ このビルドは出荷物ではない）===");
+    }
+#endif
+
     /* ⚠️ **行列の形式を必ず出す。** これが無いと、辞書を差し替えたつもりで
      *    差し替わっていない状態（= 前後で差が出ない）を**区別できない**。
      *    実際に affine の速度を測るとき、blob 長で判別するはめになった（M-105）。 */

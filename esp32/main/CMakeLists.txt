@@ -40,7 +40,10 @@ idf_component_register(
     #    DevKit は CONFIG_SPI_FLASH_ROM_IMPL=n なので既定では esp_partition_mmap の
     #    ままだが、`-DSAAN_DICT_MMU=1` で切り替えられるようにここに置いておく
     #    （REQUIRES を書かないと include が見つからず、切り替えた瞬間に落ちる）。
-    REQUIRES saanotts_core driver esp_partition esp_mm esp_timer
+    # ⚠️ `mbedtls` は**測定専用**（残タスク 8 の SHA-256）。常に並べてあるが、
+    #    `SAAN_DICT_INTEGRITY_PROBE=0`（既定）ならコードが 1 行も入らないので
+    #    リンクされない。⚠️ **M5 側は別の CMakeLists** で、そちらは条件つきにしてある。
+    REQUIRES saanotts_core driver esp_partition esp_mm esp_timer mbedtls
 )
 
 if(SAAN_MODEL_RODATA)
@@ -82,6 +85,13 @@ endif()
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の表の出力がこれを見る。
 if(SAAN_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PROFILE=1)
+endif()
+
+# ⚠️ **測定専用**（残タスク 8 の材料）。13.7 MB の完全性検査に何 ms かかるかを
+#    起動時に 3 通り（読むだけ / CRC32 / SHA-256）測って出す。
+#    **既定は 0 で、出荷物には 1 バイトも入らない。**
+if(SAAN_DICT_INTEGRITY_PROBE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_DICT_INTEGRITY_PROBE=1)
 endif()
 
 # --- arena をヒープ（PSRAM 優先）から取る ---------------------------------------
