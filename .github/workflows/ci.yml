@@ -105,8 +105,8 @@ jobs:
           uv run --no-project --python 3.12 python scripts/check_lock_vs_pyproject.py --self-test
 
   # ------------------------------------------------- 参照実装との一致（重みを落とす）
-  # リリース **v0.3.0** の fp32 資産（`saanotts-jp-v3-fp32.bin` 2.2 MB + `golden-v3-fp32.bin` 0.8 MB）と
-  # **int8 資産**（`saanotts-jp-v3-int8.bin` 654,032 B + `golden-v3-int8.bin` 0.8 MB）で
+  # リリース **v1.0.0** の fp32 資産（`saanotts-jp-v4-fp32.bin` 2.2 MB + `golden-v4-fp32.bin` 0.8 MB）と
+  # **int8 資産**（`saanotts-jp-v4-int8.bin` 654,032 B + `golden-v4-int8.bin` 0.8 MB）で
   # ゴールデンテストと arena ストレスを回す。**C コアの数値が参照実装と合うか**を PR ごとに見る。
   #
   # ⚠️ **訂正（C-057）。** ここには長らく
@@ -114,21 +114,28 @@ jobs:
   #     （S4 以降のコアが `SAAN_ERR_VERSION` で拒む）」
   #    と書いてあった。**これは v0.2.0 までの話で、今は誤り。**
   #    v0.3.0 の `saanotts-jp-v3-int8.bin` は **blob v2**（654,032 B。SHA-256 の頭は 2d2b8543）で、
-  #    手元の v2 blob と bit 一致する（`docs/release-notes/v0.3.0.md` も v2 と書いている）。
+  #    当時の手元の v2 blob と bit 一致した（`docs/release-notes/v0.3.0.md` も v2 と書いている）。
   #    → int8 レーンを**この job に足した**（下の 2 ステップ）。
   #    ⚠️ **消さずに残してある。** 同じ思い込みを繰り返さないため。
+  #    ⚠️ **上の 2 つの値は v3 のもの。** 今この job が落とすのは
+  #       `saanotts-jp-v4-int8.bin`（同じ 654,032 B だが **SHA-256 の頭は a1eb6b08**）。
+  #       **同じ大きさで中身が違う** ので、寸法のアサートだけでは取り違えを止められない。
   #
-  # ⚠️ **タグを `v0.3.0` に固定した**（前はタグ無し = `latest` 追従だった）。理由:
+  # ⚠️ **タグを固定してある**（前はタグ無し = `latest` 追従だった）。理由:
   #    (a) int8 が v2 なのは **v0.3.0 以降**なので、latest 追従だと
   #        「int8 レーンが何を測っているか」がリリースのたびに黙って変わる、
   #    (b) latest 追従だと**リリースを切った瞬間に、無関係な PR の CI の意味が変わる**。
   #    ⚠️ **代償**: 新しいリリースの重みはこの job では 1 度も試されない。
   #    **リリースを出したらこのタグを上げること。** latest 側は `release-assets` job が見ている。
+  #    ✅ **2026-09-12 に v0.3.0 → v1.0.0 へ上げた**（重みも v3 → **v4**）。
+  #    ⚠️ **このとき golden の大きさが 2 本で分かれた**（v3 はどちらも 779,584 B）:
+  #       fp32 **786,912** / int8 **794,240**。**v3 では fp32 の golden を int8 の
+  #       つもりで置いても寸法アサートが通った**（[C-079](../../docs/decisions.md#c-079) と同じ層）。
   #
   # ⚠️ **held-out 24 文の多文 G2 は入れられない。** `ids_heldout.bin` はコーパス由来で
   #    git にもリリースにも無い（`scripts/check_ci_coverage.py` の EXCLUDED_TARGETS に理由がある）。
   golden:
-    name: 参照実装との一致（fp32 + int8・重みはリリース v0.3.0 から）
+    name: 参照実装との一致（fp32 + int8・重みはリリース v1.0.0 から）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -136,21 +143,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download v0.3.0 -R ${{ github.repository }} \
-            --pattern 'saanotts-jp-v3-fp32.bin' --pattern 'golden-v3-fp32.bin' \
-            --pattern 'saanotts-jp-v3-int8.bin' --pattern 'golden-v3-int8.bin' \
+          gh release download v1.0.0 -R ${{ github.repository }} \
+            --pattern 'saanotts-jp-v4-fp32.bin' --pattern 'golden-v4-fp32.bin' \
+            --pattern 'saanotts-jp-v4-int8.bin' --pattern 'golden-v4-int8.bin' \
             --dir csrc --clobber
-          mv csrc/saanotts-jp-v3-fp32.bin csrc/student.bin
-          mv csrc/golden-v3-fp32.bin      csrc/golden.bin
-          mv csrc/saanotts-jp-v3-int8.bin csrc/student_i8.bin
-          mv csrc/golden-v3-int8.bin      csrc/golden_i8.bin
+          mv csrc/saanotts-jp-v4-fp32.bin csrc/student.bin
+          mv csrc/golden-v4-fp32.bin      csrc/golden.bin
+          mv csrc/saanotts-jp-v4-int8.bin csrc/student_i8.bin
+          mv csrc/golden-v4-int8.bin      csrc/golden_i8.bin
           ls -l csrc/student.bin csrc/golden.bin csrc/student_i8.bin csrc/golden_i8.bin
           # ⚠️ 大きさを固定で確かめる。落とし損ね・資産の取り違えは、この先では
           #    「数値が合わない」という原因の分かりにくい形でしか出てこない
           test "$(wc -c < csrc/student.bin)"    -eq 2249792
-          test "$(wc -c < csrc/golden.bin)"     -eq 779584
+          test "$(wc -c < csrc/golden.bin)"     -eq 786912
           test "$(wc -c < csrc/student_i8.bin)" -eq 654032
-          test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
+          test "$(wc -c < csrc/golden_i8.bin)"  -eq 794240
       - name: ゴールデンテスト（fp32・参照実装との一致）
         run: make -C csrc test
       # int8 統合の**主ゲート**: int8 コアが PyTorch の fake-quant と一致するか。
@@ -285,7 +292,7 @@ jobs:
   #    `check_web_gates.sh` は exit 0 のままだった（あれは `csrc/` だけを建てていた）。
   #    → **`bash web/build.sh` を独立した step として足し、ゲート側にも G-W6 を入れた。**
   #
-  # ⚠️ **重みが要る**ので `golden` job と同じくリリース **v0.3.0** の資産を落とす
+  # ⚠️ **重みが要る**ので `golden` job と同じくリリース **v1.0.0** の資産を落とす
   #    （タグを固定する理由は `golden` job の注記と同じ）。
   # ⚠️ **emcc は 6.0.9 に固定する。** `emsdk install latest` にすると M-94 の実測
   #    （`-msimd128` の有無での bit 一致 / SNR / 速度）が再現しなくなる。
@@ -324,18 +331,18 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release download v0.3.0 -R ${{ github.repository }} \
-            --pattern 'saanotts-jp-v3-fp32.bin' --pattern 'golden-v3-fp32.bin' \
-            --pattern 'saanotts-jp-v3-int8.bin' --pattern 'golden-v3-int8.bin' \
+          gh release download v1.0.0 -R ${{ github.repository }} \
+            --pattern 'saanotts-jp-v4-fp32.bin' --pattern 'golden-v4-fp32.bin' \
+            --pattern 'saanotts-jp-v4-int8.bin' --pattern 'golden-v4-int8.bin' \
             --dir csrc --clobber
-          mv csrc/saanotts-jp-v3-fp32.bin csrc/student.bin
-          mv csrc/golden-v3-fp32.bin      csrc/golden.bin
-          mv csrc/saanotts-jp-v3-int8.bin csrc/student_i8.bin
-          mv csrc/golden-v3-int8.bin      csrc/golden_i8.bin
+          mv csrc/saanotts-jp-v4-fp32.bin csrc/student.bin
+          mv csrc/golden-v4-fp32.bin      csrc/golden.bin
+          mv csrc/saanotts-jp-v4-int8.bin csrc/student_i8.bin
+          mv csrc/golden-v4-int8.bin      csrc/golden_i8.bin
           test "$(wc -c < csrc/student.bin)"    -eq 2249792
-          test "$(wc -c < csrc/golden.bin)"     -eq 779584
+          test "$(wc -c < csrc/golden.bin)"     -eq 786912
           test "$(wc -c < csrc/student_i8.bin)" -eq 654032
-          test "$(wc -c < csrc/golden_i8.bin)"  -eq 779584
+          test "$(wc -c < csrc/golden_i8.bin)"  -eq 794240
 
       - name: emcc 6.0.9 を入れる（⚠️ latest にしない）
         run: |

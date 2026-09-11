@@ -9,7 +9,7 @@
 
 | # | 何 | ボードが要るか |
 |---|---|---|
-| **1** | **音を聴いた感想** — [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v3-samples.zip` | ❌ 不要 |
+| **1** | **音を聴いた感想** — [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) の `saanotts-jp-v4-samples.zip` | ❌ 不要 |
 | **2** | **ESP32-S3 実機での速度実測**（満チャンク 1 pull の xRT） | ✅ 要る |
 | **3** | 手順書をなぞって**詰まった場所**の報告 | ❌ 不要 |
 
@@ -146,7 +146,7 @@ Japanese, but issues and PRs in English are fine.
 
 | # | What | Board needed? |
 |---|---|---|
-| **1** | **What it sounds like to you** — `saanotts-jp-v3-samples.zip` in [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | ❌ No |
+| **1** | **What it sounds like to you** — `saanotts-jp-v4-samples.zip` in [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | ❌ No |
 | **2** | **Measured speed on real ESP32-S3 hardware** (xRT of one full chunk pull) | ✅ Yes |
 | **3** | Where the instructions broke for you | ❌ No |
 

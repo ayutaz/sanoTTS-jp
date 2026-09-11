@@ -157,15 +157,15 @@ if [ -n "$MISSING" ]; then
     cat <<'MSG'
       ⚠️ **これは skip ではない。** ここが無いと G-W1 / G-W2 / G-W3 / G-W5 は
          「0 件中 0 件一致 = OK」になってしまうので、落とす方を選んでいる。
-      リリース v0.3.0 から落として名前を合わせること:
-         gh release download v0.3.0 -R <owner>/<repo> \
-           --pattern 'saanotts-jp-v3-fp32.bin' --pattern 'golden-v3-fp32.bin' \
-           --pattern 'saanotts-jp-v3-int8.bin' --pattern 'golden-v3-int8.bin' \
+      リリース v1.0.0 から落として名前を合わせること:
+         gh release download v1.0.0 -R <owner>/<repo> \
+           --pattern 'saanotts-jp-v4-fp32.bin' --pattern 'golden-v4-fp32.bin' \
+           --pattern 'saanotts-jp-v4-int8.bin' --pattern 'golden-v4-int8.bin' \
            --dir csrc --clobber
-         mv csrc/saanotts-jp-v3-fp32.bin csrc/student.bin
-         mv csrc/golden-v3-fp32.bin      csrc/golden.bin
-         mv csrc/saanotts-jp-v3-int8.bin csrc/student_i8.bin
-         mv csrc/golden-v3-int8.bin      csrc/golden_i8.bin
+         mv csrc/saanotts-jp-v4-fp32.bin csrc/student.bin
+         mv csrc/golden-v4-fp32.bin      csrc/golden.bin
+         mv csrc/saanotts-jp-v4-int8.bin csrc/student_i8.bin
+         mv csrc/golden-v4-int8.bin      csrc/golden_i8.bin
 MSG
     printf '\033[1mNG: 重みが無いのでゲートを回していない。\033[0m\n'
     exit 1
@@ -474,8 +474,8 @@ for lane in a32 a8; do
     #    **27,648 sample** になり、このゲートは**中身が正しいのに 6 か所で落ちた**
     #    （C-079 と同じ形 = ゲートが特定の成果物に縛られている）。
     #    → **構造の不変量だけを見る**: 4 B/sample・hop 256 → 1 フレーム 1,024 B。
-    #    ⚠️ CI の `web` job は `v0.3.0`（= v3）をタグ固定で落とすので、
-    #    **v4 が出荷物になっても CI は v3 を測り続ける。** これは別の穴である。
+    #    ✅ **2026-09-12 に CI の `web` job を `v1.0.0`（= v4）に上げた**ので、
+    #    「出荷物が v4 なのに CI は v3 を測っている」穴は塞がった（残タスク 16）。
     sz="$(( $(wc -c < "$TMP/$lane.raw") ))"
     if [ "$(( sz % 1024 ))" -ne 0 ] || [ "$sz" -lt 80000 ]; then
         ng "$label の PCM が $sz B（1,024 B の倍数かつ 80,000 B 以上のはず）— 合成か抽出が壊れている"

@@ -9,8 +9,8 @@
 
 | | What you want | What you need | Time |
 |---|---|---|---|
-| **A** | **Hear it** | Just `saanotts-jp-v3-samples.zip` from [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | 1 min |
-| **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v3-stage4.pt` | 10 min |
+| **A** | **Hear it** | Just `saanotts-jp-v4-samples.zip` from [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) | 1 min |
+| **B** | **Synthesize your own text** | + minimal setup + `saanotts-jp-v4-stage4.pt` | 10 min |
 | **C** | **Make an ESP32-S3 speak** | A board (DAC optional). **Flashing alone needs no ESP-IDF** | 15–30 min |
 | **D** | **Run the code gates** | Minimal setup only | 5 min |
 | **E** | **Try it in a browser** | A browser. **Nothing to install** | 1 min |
@@ -29,13 +29,13 @@ uv venv && uv pip install "torch>=2.11" "numpy<2.5" "soundfile>=0.14"
 
 ## B. Synthesize your own text
 
-Download `saanotts-jp-v3-stage4.pt` (2.7 MB) from
+Download `saanotts-jp-v4-stage4.pt` (2.7 MB) from
 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest) and pass the
 **kana intermediate form**.
 
 ```bash
 uv run --no-project python scripts/synthesize_student.py \
-    --ckpt saanotts-jp-v3-stage4.pt \
+    --ckpt saanotts-jp-v4-stage4.pt \
     --intermediate "きょ][おわよ][いて][んきです°ね" --out out/
 #   → out/cli_000.wav (22.05 kHz, 1.2 s) "今日は良い天気ですね。"
 ```
@@ -48,7 +48,7 @@ uv run --no-project python scripts/synthesize_student.py \
 kanji→kana goes through OpenJTalk:
 
 ```bash
-uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v3-stage4.pt \
+uv run python scripts/synthesize_student.py --ckpt saanotts-jp-v4-stage4.pt \
     --text "今日は良い天気ですね。" --out out/
 ```
 
@@ -175,7 +175,7 @@ layout `.github/workflows/pages.yml` builds in CI:
 bash web/build.sh                                   # → web/dist/*.wasm and *.mjs
 mkdir -p /tmp/saan-site
 cp web/index.html web/main.js web/dist/*.mjs web/dist/*.wasm /tmp/saan-site/
-cp csrc/student_i8.bin /tmp/saan-site/              # = saanotts-jp-v3-int8.bin from the release
+cp csrc/student_i8.bin /tmp/saan-site/              # = saanotts-jp-v4-int8.bin from the release
 gzip -9 -c csrc/k1_dict.bin > /tmp/saan-site/k1_dict.bin.gz   # = k1-dict-438750.bin
 
 # ⚠️ **Stopping here leaves all four footer links 404** (measured; the demo still speaks,

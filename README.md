@@ -28,12 +28,14 @@ M5Stack CoreS3（スタックチャン）にファームを 1 本焼くと、シ
 saanotts: 経路: 辞書
 saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.69 ms
 saanotts: init 21.56 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
-saanotts: 定常 xRT = 0.446（満チャンク pull の中央値 / 92.88 ms）
+saanotts: 定常 xRT = 0.448（満チャンク pull の中央値 / 92.88 ms）
 saanotts: アンダーラン 0 / 14 チャンク
-saanotts: 出力 PCM: 27136 sample / FNV-1a 0xa69a7ebbb5ccb05f
+saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
 ```
 
-*（実機の生ログ [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log) から抜粋）*
+*（実機の生ログ [`reports/m130_cores3/device_v4_kanji.log`](reports/m130_cores3/device_v4_kanji.log) から抜粋。
+⚠️ **v3 のログは [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log)** —
+checksum は重みの版で変わる）*
 
 | | |
 |---|---:|
@@ -115,7 +117,7 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 
 | 軸 | 値 |
 |---|---|
-| **アクセント** | ミニマルペア 37 ペアで教師との**符号一致 37/37** |
+| **アクセント** | ミニマルペア 37 ペアで教師との**符号一致 31/37**（⚠️ **v3 は 37/37 だった** — v4 で落ちた。[D-057](docs/decisions.md#d-057)） |
 | **漢字 G2P** | 5.51〜66.30 ms（入力 15〜84 B）。MeCab と **1,977/1,977 文一致** |
 | **かな経路と漢字経路** | 同じ文を**どちらで書いても PCM が bit 一致**する（端末・ホストとも） |
 | **アンダーラン** | **0**（全文）。鳴らし始めまで **384 ms** |
@@ -151,7 +153,7 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 **一番ありがたいのは聴いた感想**、次が別の ESP32-S3 での速度実測です。
 
 > 🙏 **聴いた感想にはボードが要りません**
-> （[`saanotts-jp-v3-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest) を再生するだけ）。
+> （[`saanotts-jp-v4-samples.zip`](https://github.com/ayutaz/sanoTTS-jp/releases/latest) を再生するだけ）。
 > **「変な音がする」の一言が、n=24 の数字より情報量が多いことがあります。**
 
 **既知の制約と、それをどう測ったかは [`MODEL_CARD.md`](MODEL_CARD.md) §4** にまとめてあります。
