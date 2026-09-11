@@ -88,6 +88,12 @@ if(SAAN_KANJI)
     set(SAAN_DICT_BLOB "${SAAN_DICT_BLOB}" CACHE INTERNAL "辞書 blob の絶対パス")
     file(SIZE "${SAAN_DICT_BLOB}" SAAN_DICT_BLOB_SIZE)
     message(STATUS "sanoTTS: dict blob ${SAAN_DICT_BLOB} (${SAAN_DICT_BLOB_SIZE} B) → dict パーティション")
+    # --- D-063: 起動時に照合する SHA-256 をここで焼く ---
+    # ⚠️ **project() より前**でないと main/ からは見えない（この行はまだ前にある）。
+    file(SHA256 "${SAAN_DICT_BLOB}" SAAN_DICT_BLOB_SHA256)
+    set(SAAN_DICT_BLOB_SHA256 "${SAAN_DICT_BLOB_SHA256}"
+        CACHE INTERNAL "辞書 blob の SHA-256（起動時の照合に焼く）")
+    message(STATUS "sanoTTS: dict sha256 ${SAAN_DICT_BLOB_SHA256}")
 endif()
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)

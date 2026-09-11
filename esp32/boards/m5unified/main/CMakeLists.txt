@@ -90,3 +90,13 @@ if(_saan_target STREQUAL "esp32")
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_ARENA_HEAP=1)
     message(STATUS "sanoTTS: IDF_TARGET=esp32 → arena はヒープ（PSRAM 優先）。速度の測定には使わない")
 endif()
+
+# --- D-063: 辞書の SHA-256 を焼く ---------------------------------------------
+# ⚠️ **`REQUIRES` を `if()` の中に書くと届かない**（IDF の早期展開。実際に踏んだ）。
+#    `mbedtls` は上の REQUIRES 行に直接並べてある。
+# ⚠️ 空文字なら saan_dict.c は照合を飛ばす（辞書を渡さないビルドのため）。
+if(SAAN_KANJI AND SAAN_DICT_BLOB_SHA256)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE
+                               SAAN_DICT_SHA256="${SAAN_DICT_BLOB_SHA256}")
+    message(STATUS "sanoTTS: 起動時に辞書の SHA-256 を照合する（D-063）")
+endif()
