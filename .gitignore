@@ -59,7 +59,15 @@ __pycache__/
 /runs/*/stage*.pt
 # 合成音声
 /reports/eval_*/
+# ⚠️ **末尾スラッシュはディレクトリにしか効かない。** worktree では本体側の
+#    `reports/eval_*` を symlink で借りることがあり、symlink は git から見て
+#    ディレクトリではないので上の行では無視されない。スラッシュ無しも要る。
+#    （`git ls-files "reports/eval_*"` は 0 件なので緩めても追跡物に当たらない）
+/reports/eval_*
 /reports/student_wav/
+# ⚠️ `student_wav_v3` / `_v4` などは **`index.json` だけ追跡し、wav は追跡しない**
+#    （`/reports/student_wav/` はディレクトリ名の完全一致なので `_v3` 付きには効かない）。
+/reports/student_wav_*/*.wav
 /reports/_fake_idf/
 /reports/esp32_hoststub/
 
@@ -90,6 +98,10 @@ __pycache__/
 /csrc/erf_test
 /csrc/erf_test_linear
 /csrc/erf_test_clamp
+/csrc/qeos_test
+/csrc/qeos_test_nonorm
+/csrc/k7_ids_bss.txt
+/csrc/k7_ids_ext.txt
 /csrc/range_test
 
 # レーン比較の生成物（`make -C csrc lanes` で再生成できる）。
@@ -195,6 +207,8 @@ csrc/k6_vectors.bin
 # `pages.yml` と同じ手順を手元でなぞると出るディレクトリ（配置用のコピーとリリース資産）
 /_site/
 /rel/
+# superpowers の作業用スクラッチ（SDD の台帳・ブリーフ・レビュー package）
+/.superpowers/
 /csrc/jdict_hard_test_asan
 /csrc/jdict_hard_test_asan_weak
 /csrc/jdict_asan.log

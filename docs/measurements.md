@@ -6218,6 +6218,7 @@ esptool.py --chip esp32s3 --port /dev/cu.usbmodem2101 --baud 921600 write_flash 
 
 ⚠️ **「焼くだけ」の配布物は DevKit（UART ブリッジ付き）専用だった。** 手順書に書いた（`esp32/TESTING.md` A）。
 次のリリースでは USB Serial/JTAG 入力のイメージも配る。
+→ ✅ **v0.3.0 で配った**（2026-09-03。この段落は当時の記録）。
 
 ### 2. v0.2.0 の**コード**（タグ `v0.2.0` の worktree、v1 blob、コンソールだけ USB-JTAG）
 
@@ -6548,6 +6549,7 @@ T5 の修正（M-87）を入れ、D-cache 64 B 行（M-84）と合わせて M5 �
 **要件（`docs/requirements.md` §6.2「ESP32-S3 RTF ≤ 0.5」）は「満チャンク 1 pull / そのチャンクの音声長」の定義で達成**（0.497〜0.498）。
 ⚠️ **発話全体で見ると 0.550〜0.693 でまだ 0.5 を超える**（warmup の 38 フレーム分が初回 pull に乗るため。文が長いほど 0.5 に近づく）。
 要件がどちらの分母かは `requirements.md` に書かれていないので、**両方を記録する**（D-049 で決める。C-054）。
+→ ✅ **2026-09-11 に決まった**（[D-049](decisions.md#d-049)）: **定常が要件で、発話全体は参考値**。
 checksum は 3 文とも M-84 / M-87 と同一 = **すべて bit 同一の変更**（T1 / T2 / T3 は出力を変えない。T5 修正も S3 と bit 一致）。
 
 ### 2. 段別（`SAAN_PROFILE=1`、53 ids）
@@ -7324,7 +7326,7 @@ git checkout -- web/saan_web.c
 |---|---|
 | `web/saan_web.c` が**どのゲートでもコンパイルされない** | **G-W6**: `web/build.sh` を回し、出荷する `web/dist/*.mjs` を `instantiateWasm` で叩く |
 | G-W1/G-W2 が**一括版**を見ていて、ブラウザが通る**ストリーミング版**が未検査 | **G-W2b**: `stream_test` を wasm で 3 レーン |
-| ライセンス帰属ブロックの一致が**未検査** | **G-W7**: `LICENSE-MODEL.md` §3.1 と 22 行照合（⚠️ 行番号で切らない） |
+| ライセンス帰属ブロックの一致が**未検査** | **G-W7**: `LICENSE-MODEL.md` §3.1 と照合（⚠️ 行番号で切らない）<br>→ ⚠️ **「22 行」は当時の値**。[C-073](decisions.md#c-073) で **26 行**になった。✅ **このゲートは実際に欠陥を捕まえた**（[C-080](decisions.md#c-080)） |
 
 ⚠️ **同時に、ゲートが緑のまま残っていた欠陥が 2 件見つかった**（どちらも例外が出ない）:
 
@@ -10425,3 +10427,1706 @@ gh pr list --state open --json number,title,author -q '.[] | "#\(.number) \(.aut
 - **`monthly` の発火は見ていない。** 見たのは**マージ直後の初回スキャン**だけで、
   月次のスケジュールが実際に回るのは最短で 2026-10
 - **Dependabot の 2 本を実際に入れたときに CI が通るかは測っていない**
+
+---
+
+<a id="m-112"></a>
+## M-112. 差し替え候補の教師 2 件を実測した（**構成のみ。音は聴いていない**）
+
+[L-1 調査](research/l1-commercial-use-licensing.md)（商用利用可能なモデル）で、
+[D-035](decisions.md#d-035) が「いずれも未検証」として挙げた 2 つの候補を初めて実測した。
+
+⚠️ **どちらも `gated: manual`** なので、認証つきでないと `raw/main/...` が 401 を返す。
+素で `curl` すると「Access to model ... is restricted」という**本文が 200 バイト弱で返ってくる**ので、
+中身を見ずにパースすると YAML が空として通りうる。
+
+再現:
+
+```bash
+# 公開状態とファイル構成（認証不要）
+curl -sL https://huggingface.co/api/models/ayousanz/piper-plus-moe-speech-top-5speakers
+
+# hparams 本体（⚠️ gated。~/.cache/huggingface/token が要る）
+uv run python -c "
+from huggingface_hub import hf_hub_download
+import pathlib
+p = hf_hub_download('ayousanz/piper-plus-moe-speech-top-5speakers',
+                    'lightning_logs/version_2/hparams.yaml')
+print(pathlib.Path(p).read_text())"
+```
+
+### 1. リポジトリの状態
+
+| repo | public | gated | ファイル数 | `.ckpt` | 最終更新 |
+|---|---|---|---:|---:|---|
+| `ayousanz/piper-plus-moe-speech-top-5speakers` | ✅ | `manual` | 165 | 154 | 2025-12-05 |
+| `ayousanz/piper-plus-zero-shot-multi-7lang-v8` | ✅ | `manual` | 313 | 187 | 2026-08-24 |
+| `ayousanz/piper-plus-zero-shot-tsukuyomi`（現行教師） | ❌ private | — | — | — | — |
+
+### 2. `moe-speech-top-5speakers` の構成（`lightning_logs/version_2/hparams.yaml`）
+
+| 項目 | 現行教師 | 候補 | |
+|---|---|---|---|
+| `inter_channels` | 192 | **192** | ✅ c-line は移植できる |
+| `hop_length` | 256 | **256** | ✅ |
+| `sample_rate` | 22050 | **22050** | ✅ |
+| `gin_channels` | 512 | **512** | ✅ |
+| `num_symbols` | 173 | **58** | ⚠️ **音素表が別系統** |
+| `num_speakers` | 1 | **5** | ⚠️ |
+| `upsample_rates` | (4,4) + MB-iSTFT | **(8,8,4)** | ⚠️ **標準 HiFi-GAN**（3 段） |
+| `upsample_kernel_sizes` | — | **(16,16,8)** | ⚠️ |
+| prosody / zero-shot | `prosody_dim=16` / `use_zero_shot=True` | **どちらも記載なし** | ⚠️ 日本語専用 |
+
+⚠️ **`upsample_rates` の積は 8×8×4 = 256 で hop と一致する。**
+[D-035](decisions.md#d-035) が「MB-iSTFT ではない」と書いたのは正しいが、
+**hop が変わるという意味ではない**（読み違えやすいので明記しておく）。
+
+### 3. 何が言えるか
+
+- **c-line（40 次元の潜在インターフェース）は移植できる** — `inter_channels` / `hop` / `sample_rate` が一致する
+- ⚠️ **`num_symbols=58` は `csrc/g2p_table.json`（端末の 877 B テーブル）と
+  `src/saanotts_jp/vocab.py` の `TEACHER_TO_STUDENT` を作り直しにする**
+- ⚠️ **教師の decoder が MB-iSTFT でなくなる。** 生徒の decoder は自前の iSTFT なので
+  アーキテクチャ上は成立するが、**蒸留先の音の性質が変わる**
+
+### 4. ⚠️ 測っていないこと
+
+- **音を 1 秒も聴いていない / 合成していない**（`.ckpt` を落としてもいない。読んだのは `hparams.yaml` だけ）
+- **`zero-shot-multi-7lang-v8` の `hparams.yaml` は存在しない** — メタは
+  `onnx/*.onnx.json`（piper の config）しか無く、**そちらの構成は確認していない**
+- **ライセンス上の適否は別問題**（[L-1](research/l1-commercial-use-licensing.md) §4）。
+  ⚠️ 構成が合うことは、使ってよいことを意味しない
+
+---
+
+<a id="m-113"></a>
+## M-113. CC0/PD のみに絞った蒸留テキストの統計（train 20,985 → 14,513 行）
+
+[D-054](decisions.md#d-054) の (b)（蒸留テキストから JSUT を外す）を実装した
+`scripts/check_corpus_license.py` / `scripts/gen_teacher_labels_filter.py`
+（Task 3 / Task 4。設計は
+[`superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`](superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md)）
+に実データを通した結果。**ラベルはまだ再生成していない**（次は Task 6）。
+
+再現（Task 4 の統計レポート。⚠️ `data/splits/*` は git 管理外なので手元にコーパスが要る）:
+
+```bash
+uv run --no-project --python 3.12 python scripts/check_corpus_license.py --report
+```
+
+出力:
+
+```
+train: 20,985 行 → 14,513 行 （除外 6,472）
+
+=== v3 (JSUT 込み) ===
+  文長  中央 24 / 平均 26.9 / 最短 1 / 最長 97
+  文字種 ひらがな 53.6% / 漢字 27.6% / カタカナ 11.6% / 約物 6.8% / 英数 0.2% / その他 0.1%
+
+=== CC0/PD のみ ===
+  文長  中央 24 / 平均 26.2 / 最短 1 / 最長 83
+  文字種 ひらがな 54.5% / 漢字 26.2% / カタカナ 13.0% / 約物 6.1% / その他 0.1% / 英数 0.0%
+
+⚠️ **これは代理指標である。**
+   音素カバレッジは中間表現が要る（OpenJTalk 依存）ので、ラベル生成後に **パックの tokens.npz** で測ること（計画 Task 6）。
+⚠️ 失う多様性軸は 525 行: 助数詞 23 / カタカナ語 115 / オノマトペ 270 / 法令文 117。**効いているかは誰も測っていない**
+```
+
+再現（Task 3 の絞り込み関数を train / heldout 両方に通す。上と独立な経路で行数を検算）:
+
+```bash
+uv run --no-project --python 3.12 python - <<'PY'
+import csv, sys
+sys.path.insert(0, "scripts")
+from gen_teacher_labels_filter import filter_by_license
+for split in ("train", "heldout"):
+    rows = [r for r in csv.reader(
+        open(f"data/splits/corpus_{split}.tsv"), delimiter="\t")
+        if r and r[-1] and r[0] != "source"]
+    kept, dropped = filter_by_license(rows)
+    print(f"{split:8s} {len(rows):6,} → {len(kept):6,}  (除外 {sum(dropped.values()):,})")
+PY
+```
+
+出力:
+
+```
+train    20,985 → 14,513  (除外 6,472)
+heldout   2,333 →  1,616  (除外 717)
+```
+
+### 1. 行数
+
+| 項目 | 値 |
+|---|---:|
+| train（v3。JSUT 込み） | 20,985 行 |
+| train（CC0/PD のみ） | 14,513 行 |
+| 除外 | 6,472 行（30.84%） |
+| 論文の英語版 | 14,343 行 |
+| held-out | **2,333 行のまま（据え置き）** |
+
+⚠️ **held-out はあえて絞り込んでいない。** `--heldout` は上と別のパスで、
+JSUT を含む v3 の held-out（2,333 行 = ヘッダ込み 2,334 行）を SHA-256 で検証するだけ
+（`check_corpus_license.py --heldout` が別途 PASS 済み。Task 4）。
+「JSUT 込みで 1,616 行に絞った held-out」は**現時点では作っていない**（上の 1,616 は
+Task 3 の絞り込み関数を機械的に heldout.tsv にも通した参考値で、どのパックにも使われていない）。
+
+### 2. ⚠️ 文字種の割合は「構成」であって「網羅」ではない — カタカナが増えたのは良い兆候ではない
+
+**カタカナの比率は 11.6% → 13.0% に上がる。** しかし専用のカタカナ語サブセット
+`jsut/loanword128`（115 行）は、まさに今回除外される素材のひとつである。
+
+矛盾していない。文字種の比率は合計 100% になる**ゼロサムの指標**なので、
+どれかが増えれば他のどれかが減る。実際の変化幅（pt = percentage point）:
+
+| 文字種 | v3（JSUT 込み） | CC0/PD のみ | 変化 |
+|---|---:|---:|---:|
+| ひらがな | 53.6% | 54.5% | **+0.9pt** |
+| カタカナ | 11.6% | 13.0% | **+1.4pt** |
+| 漢字 | 27.6% | 26.2% | **−1.4pt** |
+| 約物 | 6.8% | 6.1% | **−0.7pt** |
+| 英数 | 0.2% | 0.0% | **−0.2pt** |
+| その他 | 0.1% | 0.1% | ±0.0pt |
+
+除外される JSUT のサブセット（`basic5000` など）は漢字・約物・英数の比率が高い塊である。
+**その塊を丸ごと落とすと、漢字・約物・英数の取り分が減り、残った文字（ひらがなと
+カタカナ）の取り分がその分だけ機械的に増える。** 上がったのはカタカナだけでなく
+ひらがなも同じ向きに動いており、下がったのはカタカナ語サブセットとは無関係な
+漢字・約物・英数の 3 クラスである。
+
+**「カタカナが増えた」を「カタカナ語という多様性軸が生き残った証拠」と読んではいけない。**
+この指標は**残った文字の構成比**を測っているのであって、**特定の語彙・言い回しが
+カバーされているか**（＝カバレッジ）は別物。カタカナ語サブセット自体は消えており、
+残った 13.0% のカタカナは主に他ソースの地名・外来語の断片に由来する（内訳は未集計）。
+カバレッジを言うには音素・語彙単位の測定が要り、それは Task 6 のラベル生成後にしかできない。
+
+### 3. 「その他 0.1%」の内訳（CC0/PD のみ・独自に検証）
+
+再現:
+
+```bash
+uv run --no-project --python 3.12 python - <<'PY'
+import csv, sys, collections, unicodedata
+sys.path.insert(0, "scripts")
+from gen_teacher_labels_filter import filter_by_license
+
+rows = [r for r in csv.reader(
+    open("data/splits/corpus_train.tsv"), delimiter="\t")
+    if r and r[-1] and r[0] != "source"]
+kept, _ = filter_by_license(rows)
+
+def is_other(ch):
+    if "぀" <= ch <= "ゟ": return False
+    if "゠" <= ch <= "ヿ": return False
+    if "一" <= ch <= "鿿": return False
+    if ch.isascii() and ch.isalnum(): return False
+    if unicodedata.category(ch).startswith("P"): return False
+    return True
+
+cc = collections.Counter()
+for r in kept:
+    for ch in r[-1]:
+        if is_other(ch):
+            cc[ch] += 1
+for ch, n in cc.most_common():
+    print(f"U+{ord(ch):04X} {unicodedata.name(ch, '?')} {ch!r} {n}")
+print("distinct:", len(cc), "total:", sum(cc.values()))
+PY
+```
+
+出力:
+
+```
+U+3005 IDEOGRAPHIC ITERATION MARK '々' 544
+U+0020 SPACE ' ' 11
+U+3007 IDEOGRAPHIC NUMBER ZERO '〇' 3
+U+003D EQUALS SIGN '=' 2
+distinct: 4 total: 560
+```
+
+**CC0/PD のみ（14,513 行）を対象にした値。** `々`（U+3005 踊り字）は
+`scripts/check_corpus_license.py` の `_char_classes()` が使う漢字レンジ
+`"一"（U+4E00）〜"鿿"（U+9FFF）`に入らないため「その他」に分類される
+（実装の判断であってバグではない）。
+
+⚠️ **同じ内訳を v3（JSUT 込み・20,985 行）で取ると `々` は 691 件になる**
+（total 707）。**14,513 行と 20,985 行のどちらの母集団かで数字が変わる**ので、
+「その他の内訳」を書くときは必ずどちらの行集合を数えたか明記すること。
+また空白文字は**半角スペース (U+0020)** であって全角スペース (U+3000) ではない
+（実測で確認済み）。
+
+### 4. ⚠️ このレポートが測っていないもの
+
+- **音素カバレッジは測っていない。** 中間表現の生成に OpenJTalk が要るため、
+  ラベル生成後にパックの `tokens.npz` で測る（Task 6 の範囲）
+- **音質は測っていない。** 誰も音を聴いていない
+- **失われる 4 つの多様性軸（助数詞 23 / カタカナ語 115 / オノマトペ 270 /
+  法令文 117 = 525 行）が実際にモデルの性能に効いているかは未検証の仮定。**
+  誰もこれらの軸の寄与を測っていない
+- **`cv/yumie-text-1`（1,421 行）は個別の CC0 waiver が未確認のまま残している。**
+  `src/saanotts_jp/corpus_license.py` のコメントの通り、Common Voice の一括規約
+  でのみ担保されている（PR 本文とリポジトリ内 `yumie` 全文検索では waiver の
+  個別確認が取れなかった）。**継承付きではない**ので D-054 のゴールを脅かさないが、
+  外すと 14,513 − 1,421 = **13,092 行**になり、論文の英語版 14,343 行を下回る。
+  これが**保持する理由**（除けば水準未達になる）
+
+---
+
+<a id="m-114"></a>
+## M-114. **v3 の学習スケジュールを ckpt から復元した** — どこにも書かれていなかった（⚠️ `CLAUDE.md` の「各 20k step」は古い）
+
+[D-056](decisions.md#d-056) で v4（CC0/PD のみのテキスト）を学習すると決めたが、
+**v3 と同じスケジュールで回さないと品質を比較できない**。ところが実際の step 数は
+**どのドキュメントにも書かれていなかった。**
+
+- `runs/v3/summary.json` は**最後の呼び出しぶんだけ**（`steps: 60000` = stage 4）
+- `runs/v3/log.jsonl` には **stage 3 と 4 しか無い**
+- [`../CLAUDE.md`](../CLAUDE.md) の「学習 4 段（各 20k step）… 約 1.3 時間」は
+  **当初のレシピで、v3 ではない**
+
+`scripts/train_student.py` の `save_ckpt` が `{"args": vars(args), "elapsed_sec": …}` を
+保存しているので、**ckpt 自身が正典**だった。
+
+再現:
+
+```bash
+uv run python - <<'PY'
+import pathlib, torch
+for st in (1, 2, 3, 4):
+    d = torch.load(pathlib.Path(f"runs/v3/stage{st}.pt"),
+                   map_location="cpu", weights_only=False)
+    a = d["args"]
+    print(f"stage{st}: steps={a['steps']:,} batch={a['batch']} accum={a['accum']} "
+          f"lr={a['lr']} seed={a['seed']} elapsed={d['elapsed_sec']:.1f}s")
+PY
+```
+
+出力:
+
+```
+stage1: steps=20,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=139.0s
+stage2: steps=60,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=1858.2s
+stage3: steps=80,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=3087.4s
+stage4: steps=60,000 batch=8 accum=8 lr=0.0002 seed=20260827 elapsed=3312.8s
+```
+
+| Stage | steps | 実測 | ms/step |
+|---|---:|---:|---:|
+| 1 duration | 20,000 | 139.0 s | 7.0 |
+| 2 acoustic | **60,000** | 1,858.2 s | 31.0 |
+| 3 decoder | **80,000** | 3,087.4 s | 38.6 |
+| 4 共適応 | **60,000** | 3,312.8 s | 55.2 |
+| **合計** | | **8,397.4 s = 2.33 時間** | |
+
+`decoder_width` は stage 3/4 とも **76**。device は `None`（= 自動選択で mps）。
+
+### 1. ⚠️ `--all` は使えない
+
+`scripts/train_student.py:523` は `stages = [1,2,3,4] if args.all else [args.stage]` で、
+**全 stage を同じ `--steps` で回す**。v3 は 20k / 60k / 80k / 60k と**段ごとに違う**ので、
+`--all` では再現できない。**`--stage N --steps M` を 4 回**呼ぶ。
+
+### 2. ⚠️ v3 の stage1/stage2 は v2 からのコピーだった
+
+SHA-256 で確認した:
+
+```bash
+uv run python -c "
+import hashlib, pathlib
+for st in ('stage1.pt','stage2.pt'):
+    for run in ('v2','v3','s160000'):
+        p = pathlib.Path(f'runs/{run}/{st}')
+        print(run, st, hashlib.sha256(p.read_bytes()).hexdigest()[:16])"
+```
+
+`v3/stage1.pt` は `v2/stage1.pt` および `s160000/stage1.pt` と **bit 一致**（stage2 も同じ）。
+[D-037](decisions.md#d-037) の「Stage 3 の step 数だけを 40k → 80k にした」はそのとおりで、
+**stage 1/2 は再学習せず流用された。**
+
+⚠️ **v4 では流用できない。** 蒸留テキストが変わる以上、duration と acoustic も
+新しいパックで学習し直さなければ「JSUT を外した影響」を測ったことにならない。
+
+### 3. ⚠️ この記録が見ていないもの
+
+- **v1 / v2 の stage 1/2 がどう学習されたか**は分からない（両者に `log.jsonl` が無い）。
+  分かるのは「v3 の stage1/2 は v2 のもので、その ckpt が `steps=20000` /
+  `steps=60000` と申告している」ことだけ
+- **elapsed は当時のマシン状態込み**。M4 Max の他の負荷次第で変わる
+  （[`../.claude/skills/recording-measurements/SKILL.md`](../.claude/skills/recording-measurements/SKILL.md) の
+  「ホストのベンチは CPU 競合で 1.5 倍ずれる」）
+- **v4 が同じ時間で終わる保証は無い。** パックは 30.84% 小さいが、学習は
+  step 数で回るので**時間はほぼ変わらないはず** — ⚠️ これは予測であって実測ではない
+
+---
+
+<a id="m-115"></a>
+## M-115. **CC0/PD のみのラベルパック `data/pack_cc0` を生成した** — 音素カバレッジに穴は無い（⚠️ 音は未聴取・品質は未測定）
+
+[D-056](decisions.md#d-056) の判断に従って Task 6 を実行した。
+
+再現:
+
+```bash
+uv run python scripts/gen_teacher_labels.py --split train --out data/pack_cc0
+uv run --no-project --python 3.12 python scripts/check_corpus_license.py --pack data/pack_cc0
+```
+
+### 1. 生成の実測
+
+```
+ライセンス絞り込み: ON  (train の既定 = ON（D-054。評価専用と分かっていない split の安全側デフォルト）)
+  ライセンス除外 合計 6,472 行 / 20,985 行
+train: 14,513 行（教師 FT テキストとの重複 0 行を除外, B-10）
+採用 14,426 / 棄却 87 / 113 shard / 141 ms/文
+```
+
+| | v3 (`data/pack`) | **v4 (`data/pack_cc0`)** |
+|---|---:|---:|
+| 入力行 | 20,893 | **14,513** |
+| 採用 | 20,790 | **14,426** |
+| 棄却 | 103（0.49%） | **87（0.60%）** |
+| shard | — | 113 |
+| source 種 | 13 | **6** |
+| ms/文 | 116（[D-027](decisions.md#d-027) の記録） | **141** |
+
+⚠️ **`ms/文` が 116 → 141 と遅い**が、これは行数ではなくマシンの状態
+（`recording-measurements` skill の「ホストのベンチは CPU 競合で 1.5 倍ずれる」）。
+**同時に別の処理を走らせていたので、この値を「遅くなった」と読んではいけない。**
+
+⚠️ **B-10 の除外が 0 行**である。JSUT を先に落とすと、教師 FT テキストと重複する
+92 uid（`jsut/repeat500` 90 + `jsut/voiceactress100` 2）は**すでに消えている**ため。
+[C-073](decisions.md#c-073) / M-113 の「6,472 と 6,380」の関係がここで実際に現れた。
+
+### 2. 棄却 87 件の内訳
+
+```
+棄却: "逆引きできない音素: 'fy'" — 49 件
+棄却: G12: 発話速度 3.61 mora/s が範囲外（音素化を疑え） — 2 件
+棄却: G12: 発話速度 3.23 mora/s が範囲外（音素化を疑え） — 2 件
+棄却: G12: 発話速度 2.92 mora/s が範囲外（音素化を疑え） — 2 件
+棄却: G12: 発話速度 3.92 mora/s が範囲外（音素化を疑え） — 2 件
+```
+
+⚠️ **`fy` の 49 件は新しい問題ではない。** 棄却率は 0.49% → 0.60% で、
+比率としては同程度（v3 のログは残っていないので**内訳の比較はできない**）。
+
+### 3. G-L1b: 出荷パックに許可外の source は 0 件
+
+```
+      curated/question_eos           39 発話  (MIT)
+      cv/sentence_collector       8,504 発話  (CC0-1.0)
+      cv/yumie-text-1             1,421 発話  (CC0-1.0)
+      ita/emotion100                 79 発話  (PD)
+      ita/recitation324             291 発話  (PD)
+      rohan4600                   4,092 発話  (CC0-1.0)
+
+OK  14,426 発話すべて許可された source （6 種）
+```
+
+⚠️ **`cv/singleword-benchmark`（11 行）がパックに 1 件も無い。**
+分割には在るので、**11 件すべてが 13 ゲートのどれかで棄却された**ことになる
+（単語 1 語なので G12 の発話速度に当たる可能性が高い）。**原因は未確認。**
+
+### 4. ✅ 音素カバレッジに穴は無い（学習前に確認できる唯一の欠陥）
+
+再現:
+
+```bash
+uv run python - <<'PY'
+import sys; sys.path.insert(0, "src")
+import numpy as np
+from saanotts_jp.labelpack import PackReader
+for name in ("data/pack", "data/pack_cc0"):
+    r = PackReader(name)
+    ids = np.concatenate([r.ids[r.offsets[i]:r.offsets[i+1]] for i in range(len(r))])
+    u, c = np.unique(ids, return_counts=True)
+    print(f"{name:18s} 発話 {len(r):6,} / ユニーク {len(u)} / 最小出現 {c.min():,} (id={u[c.argmin()]})")
+PY
+```
+
+出力:
+
+```
+data/pack          発話 20,790 / ユニーク 54 / 最小出現 8 (id=5)
+data/pack_cc0      発話 14,426 / ユニーク 54 / 最小出現 8 (id=5)
+```
+
+| | v3 | v4 |
+|---|---:|---:|
+| 音素 ID 総数 | 2,728,488 | 1,839,959 |
+| **ユニーク音素 ID** | **54** | **54** |
+| 最小出現 | 8（id=5） | **8（id=5）** |
+
+- **v3 に在って v4 に無い音素 ID: なし**
+- **v4 に在って v3 に無い音素 ID: なし**
+- ⚠️ **最も稀な 3 音素（id=4/5/6）は出現回数まで同一**（10 / 8 / 8）
+  = それらは JSUT 由来ではなかった
+- 最も減ったのは id=43 で 304 → 275（**90.46%**）
+
+**行を 30.84% 落としても語彙は 1 つも失われていない。**
+
+### 5. ⚠️ この記録が言っていないこと
+
+- **品質は測っていない。** SCOREQ / DNSMOS / かな CER / アクセントはすべて学習後
+- **音は 1 秒も聴いていない**
+- **音素カバレッジは「語彙の穴」しか見ていない。** 出現回数が減ったこと
+  （id=43 で 90.46%）が品質に効くかは**分からない**
+- **失った多様性軸 525 行**（助数詞 / カタカナ語 / オノマトペ / 法令文）の寄与は
+  依然として**測っていない仮定**のまま（M-113 §4）
+- `cv/singleword-benchmark` 11 件が全滅した理由（§3）
+
+---
+
+<a id="m-116"></a>
+## M-116. **v4（CC0/PD のみ）の品質** — SCOREQ と CER は同等、⚠️ **アクセントだけ落ちた**（31/36 → **後に 31/37 に訂正**。原因は未分離）
+
+> ⚠️ **この節のアクセントの分母 36 は古い。** [M-118](#m-118) で教師ゲートの
+> 生徒依存（[C-076](decisions.md#c-076)）を直した結果、**3 run すべて分母 37 にそろい**、
+> v4 は **31/37 = 0.838** になった。**最新の値は [M-118](#m-118) §3。**
+> （SCOREQ / CER / DNSMOS はゲートに依存しないので**この節の値がそのまま最新**。）
+
+[D-056](decisions.md#d-056) の Task 7。学習は v3 と同じスケジュール（[M-114](#m-114)）、
+パックは [M-115](#m-115) の `data/pack_cc0`（14,426 発話）。
+
+再現:
+
+```bash
+# 1) 評価音声（教師と同じパディング経路）
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v4/stage4.pt \
+    --out reports/eval_v4_full
+# 2) SCOREQ（⚠️ G1/G2/G3 と陽性対照が先に走る）
+uv run --extra eval python scripts/release_metrics.py --out reports/release_v4
+# 3) かな CER
+uv run --extra eval python scripts/measure_cer.py --eval-dir reports/eval_v4_full \
+    --out reports/release_v4/cer_v4.json
+# 4) アクセント
+uv run --extra eval python scripts/d4_accent_pairs.py --ckpt runs/v4/stage4.pt \
+    --out reports/d4_accent_v4
+# 5) int8
+uv run python scripts/quantize_student.py --ckpt runs/v4/stage4.pt --out reports/quant_v4
+```
+
+### 1. 主指標の比較
+
+| 指標 | v3（JSUT 込み） | **v4（CC0/PD のみ）** | 判定 |
+|---|---:|---:|---|
+| SCOREQ synthetic/nr（生徒） | 1.2716 | **1.2552** | |
+| SCOREQ 教師比 | 0.6444 [0.6044, 0.6843] | **0.6361** [0.5902, 0.6853] | |
+| **SCOREQ v4 − v3（対応あり）** | — | **−0.0164 [−0.0671, +0.0361]** | ⚠️ **CI が 0 を跨ぐ = 検出できず** |
+| かな CER（生徒） | 0.1671 | **0.1670** | |
+| かな CER（教師との差） | +0.0320 | **+0.0319** [−0.0329, +0.0859] | 実質同一（差 +0.0001） |
+| **アクセント符号一致** | **37/37 = 1.000** [1.000, 1.000] | **31/36 = 0.861** [0.775, **0.943**] | ❌ **CI が重ならない** |
+| `magnitude_ratio` | 1.193 | **1.253** [1.074, 1.478]（中央 1.163） | 過剰強調がやや増 |
+| int8 blob 合計 | 624,692 B | **624,692 B** | 完全一致 |
+| UTMOS 教師比 | — | 0.7700 [0.7404, 0.8021] | 併記 |
+
+**⚠️ 検出できた差はアクセントだけである。** SCOREQ と CER は CI が 0 を跨ぐ。
+対比として [M-59](#m-59) の v3 − v2 は **+0.0653 [+0.0215, +0.1082]** で跨いでおらず、
+**あれは検出できた差だった**。同じ n=24 で今回は跨いでいる。
+
+### 2. ⚠️ アクセントの解釈に 3 つの留保がある
+
+1. **v3 の CI [1.000, 1.000] は退化している。** 37/37 の満点はブートストラップが
+   広がらないので、「1.000 vs 0.861」の見た目より不確実である
+2. **分母が違う**（37 → 36）。教師ゲートを通ったペア数が変わっており、
+   **同じ 37 ペアで 31 になったのではない**（評価セットは 38 ペアで同じ）
+3. **経験的ヌルも違う**（v3 0.614 / v4 **0.547**）。⚠️ ヌルは並べ替えで出すので
+   実行ごとに動く。**0.861 はヌルより十分高く、v4 もアクセントを再現してはいる**
+
+### 3. 落ちているのは「難しいペア」
+
+| 教師の差の大きさ | 一致 |
+|---|---|
+| 全体 | 31/36 = 0.861（cos 平均 0.622） |
+| \|Δ_T\| ≥ 3.0 st | **19/21 = 0.905** |
+| \|Δ_T\| ≥ 3.5 st | **17/17 = 1.000** |
+
+| アクセント型の組合せ | n | 教師\|Δ\| 平均 | cos |
+|---|---:|---:|---:|
+| 0型 vs 1型 | 18 | 3.71 | 0.7734 |
+| 0型 vs 2型 | 6 | 2.72 | 0.6486 |
+| **1型 vs 2型** | 14 | **2.77（min 0.36）** | **0.3824** |
+
+**教師の差が 3.5 半音以上あるペアは 17/17 で全部当てている。**
+落ちているのは差が小さいペア、特に **1型 vs 2型**。
+
+### 4. ⚠️ **原因は分離できていない**
+
+**「JSUT を外したから落ちた」とは言えない。** 排除できていない説明が 3 つある:
+
+| 説明 | なぜ排除できないか |
+|---|---|
+| **学習の乱数** | seed は v3 と同じ 20260827 だが、**パックが違えばバッチの中身も違う**。同一パックで seed を変えた対照を取っていない |
+| **学習量の減少そのもの** | 14,426 発話は v3 の 69.4%。⚠️ [M-52](#m-52) は「効くのは学習量」と測っている（Stage 3 の steps 20k→40k で gap −0.1090）。**行数の減少が同じ向きに効く可能性がある** |
+| **JSUT 固有の何か** | アクセント記号 `[ ] #` は JSUT 固有ではない。⚠️ ただし失った 525 行に**助数詞・オノマトペ**が含まれ、これらは特殊なアクセント型を持つ |
+
+**切り分けには対照が要る**（例: 同じ `data/pack` で seed だけ変えて再学習し、
+アクセントの測定ばらつきを見る。約 4.5 時間）。**やっていない。**
+
+### 5. int8 量子化（v4）
+
+```
+blob1 (duration+acoustic) 263,828 B / blob2 (decoder) 360,864 B / 合計 624,692 B
+log_d SNR 37.5 dB（d が完全一致 4/8）/ c SNR 39.0 dB / 波形 SNR 25.8 dB
+```
+
+⚠️ **v3 の「int8 最小 SNR 25.72 dB」とは別の測定である。**
+あちらは held-out 24 文の e2e、こちらは**ランダム音素列 8 本の平均**。
+**同じ数字として並べてはいけない。** 言えるのは「桁が同じで量子化は壊れていない」だけ。
+
+### 6. 学習の実測（[M-114](#m-114) のスケジュールで）
+
+| Stage | steps | v3 last | v4 last | v3 時間 | v4 時間 |
+|---|---:|---:|---:|---:|---:|
+| 1 duration | 20,000 | 0.0246 | 0.0208 | 139 s | 125 s |
+| 2 acoustic | 60,000 | 0.5280 | 0.4071 | 1,858 s | 1,995 s |
+| 3 decoder | 80,000 | 0.0287 | 0.0291 | 3,087 s | 5,402 s |
+| 4 共適応 | 60,000 | 0.0843 | 0.1723 | 3,313 s | 8,565 s |
+| 合計 | | | | **2.33 h** | **4.47 h** |
+
+⚠️ **損失は v3 と比較できない**（学習データが違うので分母が違う）。
+⚠️ **時間の差（2.33 → 4.47 h）を「v4 は遅い」と読んではいけない** —
+並行して検証スクリプトを回していた。`recording-measurements` skill の
+「ホストのベンチは CPU 競合で 1.5 倍ずれる」。
+
+**同じ held-out パックで測るので比較の意味がある中間指標**は `val_snr_db` で、
+Stage 3 末尾が **v3 11.20 dB / v4 11.01 dB**（n=1 の点推定）。
+
+### 7. ⚠️ 測っていないもの
+
+| | 理由 |
+|---|---|
+| **音** | **1 秒も聴いていない。** 私は音を聞けない。⚠️ `magnitude_ratio` 1.253 の過剰強調も聴取でしか判断できない |
+| **DNSMOS** | **測らないと決めた。** (a) [D-034](decisions.md#d-034) が「合否に使わず併記プローブに留める」と決めている (b) ⚠️ **その陽性対照 G6 が FAIL している**（ハードクリップ SNR 10.5 dB で 4 スコアとも下がらない）= 劣化を検出できないことが実測済み (c) `e1_dnsmos.py` は `reports/eval_v2` 固定、`e2_dnsmos.py` は `ladder.json` のレーン構造が要るので足場から作ることになる (d) ⚠️ `speechmos` は UTMOS の torch.hub checkout と同名で衝突する。**陽性対照が落ちる指標のために足場を組んで判断に使えない数字を出すのは、「測った」ように見せるだけで害がある** |
+| **アクセント劣化の原因** | §4。対照を取っていない |
+| **摩擦音の平坦度** | 測っていない |
+| **実機（ESP32）** | blob 化も焼きもしていない |
+
+### 8. ⚠️ CER の 2 つの検定が食い違う
+
+```
+差 +0.0319 CI95 [-0.0329, +0.0859]  paired-t p=0.3199 / Wilcoxon p=0.0370
+```
+
+**paired-t は有意でない（p=0.32）が、Wilcoxon は有意（p=0.037）。**
+⚠️ これは「生徒 vs **教師**」の差についてで、**v4 vs v3 の話ではない**
+（v3 も同じ形の差を持つ）。⚠️ **有利な方だけを引用しないために両方書いておく。**
+
+---
+
+<a id="m-117"></a>
+## M-117. **seed 対照** — アクセントの劣化は大部分が run 間のばらつきだった（⚠️ **テキストの影響を否定はできない**）
+
+> ⚠️ **この節の「共通 36 ペア」は古い分母である。** [M-118](#m-118) でゲートを直したら
+> **3 run すべてが 37/38 を通過**し、共通ペアを取る必要が無くなった
+> （v3 37/37 / v3_seed2 34/37 / v4 **31/37**）。**結論（seed で −3 が説明つく）は変わらない。**
+> **最新の値は [M-118](#m-118) §3。**
+
+[M-116](#m-116) で v4 のアクセントが 31/36 に落ちた。**「JSUT を外したせい」か
+「学習 run の差」かを分離する**ため、**v3 と seed 以外を完全に一致させた対照**を回した。
+
+### 0. 先に確認したこと: 測定は決定的
+
+**既存の `runs/v3/stage4.pt` をもう一度測った**（重みは 1 bit も変わっていない）:
+
+```bash
+uv run --extra eval python scripts/d4_accent_pairs.py \
+    --ckpt runs/v3/stage4.pt --out reports/d4_accent_v3_recheck
+```
+
+→ **37/37 = 1.000 / `magnitude_ratio` 1.193** で [M-59](#m-59) と完全一致。
+**測定は決定的で、v4 の 31/36 は測定ノイズではない。**
+
+### 1. 対照の設計
+
+```bash
+# v3 と seed 以外を完全に一致させる（スケジュールは M-114）
+for s in "1:20000" "2:60000" "3:80000" "4:60000"; do
+  uv run python scripts/train_student.py --run runs/v3_seed2 \
+      --stage "${s%%:*}" --steps "${s##*:}" \
+      --pack data/pack --val-pack data/pack_heldout --seed 20260909
+done
+uv run --extra eval python scripts/d4_accent_pairs.py \
+    --ckpt runs/v3_seed2/stage4.pt --out reports/d4_accent_v3_seed2
+```
+
+| | v3 | **v3_seed2** | v4 |
+|---|---|---|---|
+| パック | `data/pack`（20,790） | **`data/pack`（同一）** | `pack_cc0`（14,426） |
+| seed | 20260827 | **20260909** | 20260827 |
+| その他 | — | **すべて同一** | 同一 |
+
+⚠️ **v4 のパックで seed を変えなかった**のは、それだと「0.86 が 2 回出た」場合でも
+「v3 パックも半分は 0.86 かもしれない」が残って決着しないため。
+**検証すべきは「37/37 という基準値が再現するか」だった。**
+
+### 2. 結果 — 共通ペアで比べる
+
+⚠️ 教師ゲートは生徒依存なので（[C-076](decisions.md#c-076)）各 run の分母が違う
+（37 / 37 / 36）。**3 run すべてで通過した 36 ペア**で測り直した:
+
+| run | 変えたもの | 共通 36 ペアでの符号一致 |
+|---|---|---:|
+| **v3** | — | **36/36 = 1.000** |
+| **v3_seed2** | **seed だけ** | **33/36 = 0.917** |
+| **v4** | テキスト（JSUT 除去） | **31/36 = 0.861** |
+
+**seed を変えただけで 3 ペア落ちた。** v4 は 5 ペアなので、
+**差 −5 のうち −3 は seed だけで説明がつく。**
+
+### 3. ⚠️ 決定的な所見: 落ちたペアが一致する
+
+```
+v3_seed2 が落とした 3 ペア: asa c0 朝/麻 / ishi c0 石/意思 / kashi c0 菓子/貸し
+v4       が落とした 5 ペア: 上の 3 + hashi c0 箸/橋 + kaki c0 牡蠣/垣
+```
+
+**v3_seed2 が落とした 3 ペアは、すべて v4 も落としている。**
+⚠️ **テキストと無関係に、この 3 ペアは不安定である。**
+
+**そして v3 の 37/37 は「余裕の正解」ではなかった** — 落ちた 3 ペアの v3 の cos は
+**+0.100 / +0.132 / +0.721** で、2 つは符号がかろうじて正だっただけ。
+
+### 4. ⚠️ `c0` への偏りはテキストではなくキャリア文の性質
+
+落ちたペアは **3 run とも全部 `c0`**（キャリア文 0）だった:
+
+| | c0 / c1 | 偶然なら |
+|---|---|---:|
+| v3_seed2 | 3 / 0 | 11.43% |
+| v4 | 5 / 0 | **2.27%** |
+
+（共通 36 ペアは c0=18 / c1=18 で均衡）
+
+⚠️ **seed 対照でも同じ偏りが出た**ので、これは**テキストではなく `c0` の文型の性質**である。
+⚠️ M-116 の時点では「別の要因を示唆する」と書いたが、**その要因はテキストではなかった。**
+
+### 5. 他の指標も run 間ばらつきの方が大きい
+
+| 指標 | v3 | **v3_seed2（seed だけ）** | v4（テキスト） |
+|---|---:|---:|---:|
+| Stage 2 損失 last | 0.5280 | **0.3574** | 0.4071 |
+| Stage 3 `val_snr_db` 末尾 | 11.20 dB | **11.61** | 11.01 |
+| `magnitude_ratio` | 1.193 | **1.031** | 1.253 |
+| 符号一致（共通 36） | 1.000 | 0.917 | 0.861 |
+
+⚠️ **`val_snr_db` は同じ held-out パックで測るので比較の意味がある。**
+seed だけで **+0.41 dB** 動き、テキストの差 **−0.19 dB** の 2 倍以上。
+
+⚠️ **損失は本来 v4 と比較できない**（学習データが違う）が、
+**v3 と v3_seed2 の間の差は比較できる**（同じパック）。0.5280 → 0.3574 と動いている。
+
+### 6. ⚠️ この対照が**言えないこと**
+
+| | |
+|---|---|
+| **「テキストの影響はゼロ」** | ❌ **言えない。** seed で −3、テキスト込みで −5。**残る 2 ペア**（`hashi c0` / `kaki c0`）が偶然かテキスト由来かは、**n=1 の対照 1 本では区別できない** |
+| **分布** | ❌ **2 点では分からない。** ⚠️ 真の一致率が 0.90〜0.95 程度なら 36/36 と 31/36 の**両方が起こりえる** |
+| **音** | ❌ **1 秒も聴いていない。** `magnitude_ratio` の過剰強調は聴取でしか判断できない |
+| **時間** | ⚠️ v3_seed2 は Stage 3 が **18,360 s（230 ms/step）** で v3 の 6 倍。**マシン競合であり、性能の主張には使えない**（同じ理由で v4 の時間も使えない） |
+
+### 7. 判断への含意
+
+**seed だけで 36/36 → 33/36 が起きる指標である以上、v4 の 31/36 を
+「JSUT を外した劣化」として単独で読むことはできない。**
+⚠️ ただし **v4 の方が 2 ペア多く落ちている**ことも事実で、
+**「影響なし」と断言するには対照が足りない**（seed をもう 2〜3 本振るなど）。
+
+---
+
+<a id="m-118"></a>
+## M-118. **C-076 を直した** — 教師ゲートが生徒に依存しなくなり、3 run で分母がそろった
+
+[C-076](decisions.md#c-076) で「教師ゲートが生徒依存」と記録したが**直していなかった**。
+2026-09-10 に直し、実測で確かめた。
+
+### 1. 何を変えたか
+
+`src/saanotts_jp/accent.py` の `contrast()` に **`teacher_mask` 引数**を足し、
+**ゲート専用の値 `gate_teacher_st` を教師だけのマスクで計算する**ようにした。
+`scripts/d4_accent_pairs.py` は
+
+- `teacher_gate` の判定を `norm_teacher_st` → **`gate_teacher_st`**
+- `gate_sensitivity` の層別も **`gate_teacher_st`** で切る
+  （⚠️ 従来は「|Δ_T| ≥ 3.0 の層」の中身が生徒によって変わっていた）
+
+⚠️ **`cos` は今も共通マスクで測る。** 生徒が欠測したモーラでは対応が取れないので、
+**そちらが生徒依存なのは正しい。** 動いてはいけなかったのは**ゲート**の方だった。
+
+### 2. 効果（3 run を測り直した）
+
+再現:
+
+```bash
+for r in /Users/.../runs/v3/stage4.pt runs/v3_seed2/stage4.pt runs/v4/stage4.pt; do
+  uv run --extra eval python scripts/d4_accent_pairs.py --ckpt "$r" --out <out>
+done
+```
+
+| run | **修正前** 通過 / 符号 | **修正後** 通過 / 符号 | 落選ペアのゲート値 |
+|---|---|---|---|
+| v3 | 37/38 / **37/37** | **37/38** / **37/37 = 1.000** | 牡蠣/垣 **1.495 st** |
+| v3_seed2 | 37/38 / 34/37 | **37/38** / **34/37 = 0.919** | 牡蠣/垣 **1.495 st** |
+| v4 | **36/38** / 31/36 | **37/38** / **31/37 = 0.838** | 牡蠣/垣 **1.495 st** |
+
+**3 run すべてで通過ペアが 37/38 にそろい、落選ペアもゲート値も同一になった。**
+⚠️ **修正前は同じペアのゲート値が 1.495 / 1.495 / 0.364 とばらついていた**
+（v4 では `kata c0` も落ちて分母が 36 になっていた）。
+
+### 3. ⚠️ 結論は変わらない
+
+| run | 変えたもの | 符号一致（分母 37 でそろった） |
+|---|---|---:|
+| v3 | — | **37/37 = 1.000** |
+| **v3_seed2** | **seed だけ** | **34/37 = 0.919** |
+| v4 | テキスト | **31/37 = 0.838** |
+
+**seed だけで 3 ペア落ちる。** v4 は 6 ペアなので、**差 −6 のうち −3 は seed で説明がつく**
+（[M-117](#m-117) の結論と同じ。[D-057](decisions.md#d-057) の判断は変わらない）。
+
+⚠️ `magnitude_ratio` は v4 が **1.253 → 1.283** に動いた（分母のペアが 1 つ増えたため）。
+v3 の 1.193 / v3_seed2 の 1.031 は変わらず。
+
+### 4. 回帰ゲート `scripts/test_accent_gate.py`（新規・CI に入れた）
+
+| | 見るもの |
+|---|---|
+| **G-A1** | 同じ教師 F0 なら、**生徒を変えてもゲートの判定が変わらない** |
+| **G-A2** | ⚠️ **陽性対照**: 旧実装（共通マスクで判定）だと**判定が変わる**（5.196 st → 0.000 st で反転） |
+| **G-A3** | `cos` は共通マスク（3 モーラ）/ ゲートは教師のマスク（4 モーラ）と**分かれている** |
+| **G-A4** | 教師を変えればゲートは変わる（**ゲートが教師を見ている**ことの確認） |
+
+⚠️ **numpy が要るので `--no-project` では動かない**。CI の `python` job で回している。
+
+### 5. ⚠️ この修正が見ていないもの
+
+- **実際の F0 抽出**（合成音が要る）。テストは合成した輪郭で判定ロジックだけを見る
+- **`cos` の生徒依存**は残る（⚠️ **それが正しい**。対応するモーラでしか測れない）
+- **過去の測定値は測り直していない**。[M-44](#m-44) / [M-59](#m-59) は旧実装の値のままで、
+  ⚠️ **単一モデルの値としては有効**（C-076 の「正しい読み方」参照）
+
+---
+
+<a id="m-119"></a>
+## M-119. **Task 8: v4 の blob と golden を書き出し、C99 コアの全ゲートを通した**（⚠️ **リリースはしていない**）
+
+[D-057](decisions.md#d-057) で v4 を受け入れたので、出荷物を作り直した。
+⚠️ **GitHub Release には上げていない。配布されているのは今も v3。**
+
+再現:
+
+```bash
+uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt \
+    --out csrc/student.bin --golden csrc/golden.bin --report csrc/export.json
+uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt --int8 \
+    --golden-from-quantized --out csrc/student_i8.bin --golden csrc/golden_i8.bin \
+    --report csrc/export_i8.json
+make -C csrc all-test
+```
+
+### 1. blob（v3 と同じサイズ）
+
+| | v3 | **v4** |
+|---|---:|---:|
+| fp32 `student.bin` | 2,249,792 B | **2,249,792 B** |
+| int8 `student_i8.bin` | 654,032 B | **654,032 B** |
+| int8 の tensor 数 | 183 | **183** |
+| version フィールド | 2 | **2** |
+
+SHA-256（v4）: fp32 `ccbded9f9846a1f2…` / int8 `a1eb6b0812e2ad2a…`
+
+⚠️ **サイズが同じなのは形が同じだから**で、中身は違う。**同じ blob だと読まないこと。**
+
+### 2. `make -C csrc all-test` は exit 0
+
+⚠️ **exit 0 だけでは不十分**なので、**強いゲートが実際に走ったか**をログで確認した:
+
+| ゲート | 結果 |
+|---|---|
+| **golden**（参照実装との一致） | `out.log_d` Pearson **1.000000** / SNR 126.17 dB<br>`out.c` Pearson **1.000000** / SNR 131.38 dB<br>`out.pcm` Pearson **1.000000** / SNR 118.16 dB |
+| **stream**（held-out 24 文） | **一括版と bit 完全一致 24/24 文**（エラー 0 / 残差の補完 0 件）。3 レーンとも動作 |
+| **int8-e2e**（held-out 24 文） | 下記 |
+| arena / fft / erf / range / pad / line / g2p | 全部 PASS（**陽性対照つき**） |
+
+### 3. int8 e2e — **v3 より最小 SNR が上がった**
+
+```
+n=24  平均 27.96 dB / 最小 25.98 dB / 最大 30.99 dB  （25 dB 未満 0 文）
+  OK  平均 27.96 dB >= 27.0 dB
+  OK  最小 25.98 dB >= 25.0 dB
+```
+
+| | v3 | **v4** |
+|---|---:|---:|
+| 平均 | 28.1052 dB | **27.9592** |
+| **最小** | 25.7159 dB | **25.9845** |
+| 最大 | 31.5372 dB | 30.9905 |
+| 25 dB 未満 | 0 文 | **0 文** |
+| `d_hat` トークン一致 | 2,395 / 2,425 | **2,396 / 2,425** |
+
+⚠️ **これは [M-116](#m-116) §5 の「波形 SNR 25.8 dB」とは別の測定**である。
+あちらは**ランダム音素列 8 本**、こちらは **held-out 24 文の e2e**。
+**v3 の 25.72 dB と比べてよいのはこちら。**
+
+### 4. ⚠️ 上書きしかけたものを戻した
+
+`export_c_weights.py` と `all-test` は**既存の JSON を書き換える**。
+**v3 の測定値が v4 の値で上書きされていた**ので、v3 側を `git checkout` で戻し、
+v4 の値は **`reports/v4/`** に分離した:
+
+| ファイル | 何が起きた |
+|---|---|
+| `reports/d3c2_int8_e2e.json` | v3 の 28.1052 / 25.7159 が v4 の値で上書き → **戻した** |
+| `reports/d3c_int8.json` | 同上 → 戻した |
+| `csrc/export.json` / `export_i8.json` | 同上 → 戻した |
+| **`csrc/ids_heldout.json`** | ⚠️ **意図的に伏せてあった地名（6 文字）が復活していた** → 戻した |
+
+⚠️ **`sanitize_reports.py` は短い文字列を検出しない**（`MIN_TEXT_LEN`。単独モーラを
+拾わないための設計）。**6 文字の地名は検出されずに通る**ので、
+**再生成で伏せ字が戻ることをゲートは捕まえられない。** 今回は `git diff` で気づいた。
+
+### 5. ⚠️ やっていないこと
+
+| | |
+|---|---|
+| **GitHub Release への公開** | ❌ **していない。配布中は今も v3** |
+| **firmware のビルド** | ❌ ESP-IDF が要る。⚠️ **`esp32/` のビルドは未実施** |
+| **実機での確認** | ❌ 焼いていない |
+| **音** | ❌ **1 秒も聴いていない** |
+| **blob の git 追跡** | ❌ `csrc/*.bin` は `.gitignore` 済み（⚠️ **いま手元にあるのは v4 の blob**） |
+
+---
+
+<a id="m-120"></a>
+## M-120. **v4 の firmware をビルドし、QEMU で起動から合成まで通した**（⚠️ **実機ではない / 音は聴いていない**）
+
+[M-119](#m-119) で書き出した v4 の blob を載せた firmware を作り、動くことを確かめた。
+
+### 1. 実機向けビルド（既定 = QIO + W8A8/PIE）
+
+```bash
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"
+. ~/esp/esp-idf/export.sh
+cd esp32 && idf.py set-target esp32s3 && idf.py build
+```
+
+| | 値 |
+|---|---:|
+| ESP-IDF | v5.5 |
+| app サイズ | **0x47200 B（290,304）** / パーティション 0x200000 の **14%** |
+| bootloader | 0x5800 B（31% 空き） |
+| 焼く blob | `../csrc/student_i8.bin` @ 0x210000 |
+| その blob の SHA-256 | **`a1eb6b0812e2ad2a…`** = [M-119](#m-119) の v4 |
+
+⚠️ **「ビルドが通った」は「v4 が載っている」ことを意味しない。**
+`flash_args` が指す blob の SHA-256 を確認して初めて言える。
+
+### 2. ⚠️ 既定ビルドは QEMU でブートループする（既知）
+
+QEMU に食わせたら**再起動を繰り返した**:
+
+```
+E (108) qio_mode: Failed to set QIE bit, not enabling QIO mode
+assert failed: 0x42001cc6 <cached disabled>:118
+rst:0xc (RTC_SW_CPU_RST),boot:0x4 (SPI_FLASH_BOOT)   ← 以後ループ
+```
+
+⚠️ **これは `esp32/sdkconfig.qemu` のコメントに逐語で書かれている既知の症状**である
+（「QEMU の flash モデルは QIO を受け付けない…spi_flash の初期化で assert →
+ブートループ（pie_probe の T6 で実際に踏んだ）」）。
+**実機向けの既定が QIO なのは正しい**（[D-048](decisions.md#d-048)）。QEMU で見るときは
+`-DSAAN_QEMU=1` を付けて DIO に戻す。
+
+### 3. QEMU 構成でのビルドと起動
+
+```bash
+cd esp32 && idf.py -B build_qemu -DSDKCONFIG=build_qemu/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults" \
+    -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 build
+cd build_qemu && esptool.py --chip esp32s3 merge_bin --fill-flash-size 8MB \
+    -o /tmp/flash_q.bin @flash_args
+qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+    -drive file=/tmp/flash_q.bin,if=mtd,format=raw
+```
+
+出力:
+
+```
+I (102) saanotts: arena 180224 B を .bss に静的確保 (0x3fc9d7b0) / G2P の ids 4108 B
+I (108) saanotts: W8A8 + PIE 有効 / int8 blob を確認
+I (144) saanotts: init 13.64 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+I (145) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (248) saanotts: プリロール 4 チャンク完了（初回 pull 66.50 ms / 鳴らし始めまで 102 ms）
+I (353) saanotts: 合成合計 192.18 ms … 音声 1.231 s → 合成/音声 0.156
+I (361) saanotts: int16 クリップ 0 sample
+I (361) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
+かな>
+```
+
+### 4. **v4 が載っていることの証拠 = checksum が v3 と違う**
+
+| | v3 | **v4** |
+|---|---|---|
+| PCM checksum（W8A8+PIE） | `0xa69a7ebbb5ccb05f` | **`0x390bf4b2aef8f2ec`** |
+| sample 数 | 27,136 | **27,136**（同じ） |
+| arena used / 確保 | 157,360 / 180,224 B | **156,688 / 180,224 B** |
+| int16 クリップ | — | **0 sample** |
+| 再起動 | — | **1 回**（ブートループなし） |
+
+⚠️ **同じ blob を焼いていたら checksum は一致していたはず**なので、
+**これが「v4 の重みが実際に動いた」ことの証拠**である。
+⚠️ **arena が 672 B 減った**（157,360 → 156,688）。重みの中身が違うので
+duration の出力フレーム数が変わり、一時領域が変わったため。
+
+### 5. ⚠️ この記録が言えないこと
+
+| | |
+|---|---|
+| **実機で動く** | ❌ **QEMU である。** 焼いていない。⚠️ QEMU のサイクルは実機の速度を予測しない（[C-055](decisions.md#c-055)） |
+| **速度** | ❌ **QEMU の 0.156 は使えない数字**（[M-83](#m-83) と同じ理由）。実機の xRT は測っていない |
+| **音** | ❌ **1 秒も聴いていない。** checksum が合っても出音は別（[M-90](#m-90) §5） |
+| **漢字構成** | ❌ ビルドしていない（辞書 13.7 MB と 16 MB flash が要る） |
+| **M5 構成** | ❌ ビルドしていない |
+| **リリース** | ❌ **GitHub Release に上げていない。配布中は今も v3** |
+
+---
+
+<a id="m-121"></a>
+## M-121. **v4 で 3 構成すべてビルドした** — 漢字構成は QEMU で辞書 mmap まで通った（⚠️ **実機ではない / 音は聴いていない**）
+
+[M-120](#m-120) の 8 MB かな構成に続き、**漢字構成**と **M5 CoreS3 構成**もビルドした。
+
+### 1. 3 構成の app サイズ
+
+| 構成 | app | 備考 |
+|---|---:|---|
+| `esp32/build`（かな・8 MB） | **291,328 B** | [M-120](#m-120) |
+| `esp32/build_kanji`（漢字・16 MB） | **366,352 B** | 辞書パーティションつき |
+| `esp32/boards/m5unified/build_m5k`（M5 CoreS3・16 MB） | **1,436,960 B** | M5Unified / M5GFX / IPA フォント込み |
+
+### 2. 漢字構成（16 MB）
+
+```bash
+cd esp32 && idf.py -B build_kanji -DSDKCONFIG=build_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 -DSAAN_BOOT_SPEAK=1 build
+```
+
+`flash_args`（**v4 の blob と辞書の両方が入っている**）:
+
+```
+--flash_mode dio --flash_freq 80m --flash_size 16MB
+0x0      bootloader/bootloader.bin
+0x8000   partition_table/partition-table.bin
+0x10000  saanotts_jp.bin
+0x210000 ../../csrc/student_i8.bin     ← v4（sha256 a1eb6b0812e2ad2a…）
+0x2d0000 ../../csrc/k1_dict.bin        ← 13,702,320 B（D-044 の凍結値）
+```
+
+QEMU（16 MB イメージ）での出力:
+
+```
+I (699) saan_dict: esp_partition_mmap OK: vaddr 0x3c110000 (ESP_OK)
+I (699) saan_dict: 辞書 OK: 見出し語 355768 / エントリ 438750 / 行列 1377x1377
+I (708) saanotts: 漢字経路の作業領域 144640 B（最低限）/ Viterbi に渡る 84736 B （arena 180224 B のうち）
+I (708) saanotts: 辞書 mmap 後: 内部 DRAM free 102428 B / 最大ブロック 90112 B
+I (759) saanotts: init 20.64 ms / 53 ids / 106 frames / 27136 sample
+I (760) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (1109) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
+```
+
+**エントリ数 438,750 / 行列 1377x1377 は [D-044](decisions.md#d-044) の凍結値と一致。**
+**PCM checksum は かな構成（[M-120](#m-120)）と同一** = 漢字構成でも同じ重みが動いている。
+
+| | v3（M-90） | **v4** |
+|---|---:|---:|
+| 辞書 mmap 後の内部 DRAM free | 132,039 B | **102,428 B** |
+| 最大ブロック | 86,016 B | **90,112 B** |
+
+⚠️ **free が 29,611 B 少ない**。M-90 は M5 構成での測定で、**こちらは DevKit 構成**なので
+**同じ条件の比較ではない**（M5 は blob を `.rodata` に置くのでパーティションを mmap しない）。
+
+### 3. M5 CoreS3 構成
+
+```bash
+cd esp32/boards/m5unified && idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=<abs>/csrc/k1_dict.bin build
+```
+
+⚠️ **`flash_args` に `student_i8.bin` が無い。** M5 版は blob を **`.rodata` に埋め込む**ので、
+パーティションを焼かない。**「ビルドが通った」だけでは v4 が入っている証拠にならない。**
+ビルドログが出す SHA-256 で確認した:
+
+```
+saan_model_blob.h: 654,032 B / dtype int8 / sha256 a1eb6b0812e2ad2a…
+-- sanoTTS: 重みは **.rodata 埋め込み**。model パーティションは焼かない
+```
+
+**`a1eb6b0812e2ad2a…` は [M-119](#m-119) の v4 と一致。**
+
+### 4. ⚠️ 初回起動で 1 度だけ panic した（再現しない）
+
+漢字構成の**最初の QEMU 起動で core 1 が落ちた**:
+
+```
+Guru Meditation Error: Core  1 panic'ed (LoadProhibited). Exception was unhandled.
+A2: 0x00000000   EXCVADDR: 0x00000000   EXCCAUSE: 0x0000001c
+```
+
+その回は `app_main` が banner を出して 132 ms で return しており、**辞書も合成もしていない**。
+
+**3 回追試したが再現しなかった**（panic 0 回 / 起動 1 回 / checksum 同一 ×3）。
+かな構成でも 0 回。
+
+⚠️ **再現しないことは「無害」ではない。** null 参照（`EXCVADDR: 0x0`）が
+**起動直後の core 1** で起きており、**原因を特定していない。**
+QEMU 固有の競合の可能性はあるが**確かめていない。**
+
+### 5. ⚠️ 副産物: 訂正済みの古い数値がソースに残っていた
+
+**ファームウェアが [C-058](decisions.md#c-058) で訂正済みの数値を印字していた:**
+
+```
+I (1126) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 15.44% の文で読みが変わる**
+```
+
+C-058 は docs 3 箇所を直したが **`esp32/main/main.c:756` を見落としていた**（→ 14.77% に修正）。
+**同じ形が他にないか**訂正値 9 種でソース全体（追跡分 / `reports/*.json` 除く）を検索し、
+**さらに 2 件**見つけた:
+
+| 場所 | 古い値 | 実際 |
+|---|---|---|
+| `esp32/main/main.c:756` | 15.44% | **14.77%**（C-058） |
+| `esp32/main/saan_kanji.h:8` | 17.79% | **370,863 entries のときの値**。出荷構成では 14.77% |
+| `scripts/esp32_memory_budget.py:16` | 951 B | **877 B**（C-042） |
+| `scripts/a1_path_unification.py:6` | 951 B | 同上（⚠️ A-1 当時の記述なので注記で残した） |
+
+⚠️ `scripts/d6_ema_ablation.py`（12.53 dB）と `scripts/release_metrics.py`（0.6613）の
+言及は**訂正を説明するための意図的なもの**なので変えていない。
+
+### 6. ⚠️ この記録が言えないこと
+
+| | |
+|---|---|
+| **実機で動く** | ❌ **QEMU である。焼いていない。** M5 構成は**QEMU でも動かしていない**（QIO のため） |
+| **速度** | ❌ QEMU の値は使えない（[C-055](decisions.md#c-055)） |
+| **音** | ❌ **1 秒も聴いていない** |
+| **漢字の読み** | ❌ **QEMU に漢字文を打ち込んでいない**（`SAAN_BOOT_SPEAK=1` のかな 1 行だけ）。辞書が mmap できたことと、読めることは別 |
+| **panic の原因** | ❌ 特定していない（§4） |
+
+---
+
+## M-122. **出荷用の firmware を作り直した** — `build_kanji` は QEMU 用で**出荷できなかった**（⚠️ **実機ではない / 音は聴いていない**）
+
+[M-121](#m-121) で「3 構成すべてビルドした」と記録したが、**リリース資産を組む段で
+漢字構成がそのまま配れないことが分かった。**
+
+### 1. ⚠️ 何が出荷できなかったか
+
+`esp32/build_kanji` は **QEMU 検証用**にビルドしてあった:
+
+```bash
+grep -hE '^CONFIG_ESPTOOLPY_FLASHMODE_(QIO|DIO)=y' esp32/build_kanji/sdkconfig
+grep -hE '^SAAN_(QEMU|BOOT_SPEAK)' esp32/build_kanji/CMakeCache.txt
+```
+
+```
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+SAAN_BOOT_SPEAK:UNINITIALIZED=1
+SAAN_QEMU:UNINITIALIZED=1
+```
+
+| | `build_kanji`（M-121） | 出荷に必要 |
+|---|---|---|
+| フラッシュモード | **DIO**（`-DSAAN_QEMU=1` が戻す） | **QIO**（[D-048](decisions.md#d-048) の既定） |
+| 起動時発話 | **する**（`-DSAAN_BOOT_SPEAK=1`） | **しない**（`かな> ` を出す。[D-040](decisions.md#d-040)） |
+| コンソール | UART0（`sdkconfig.usb_serial_jtag` を重ねていない） | **native USB**（[M-83](#m-83) の板で操作できない） |
+
+⚠️ **「ビルドが通った」と「配れる」は別だった。** M-121 は QEMU で通すためのビルドで、
+**3 点とも出荷構成と違っていた**。DIO で配れば実機で遅くなり、起動時発話は
+[D-040](decisions.md#d-040)（勝手に喋らない）に反し、UART0 では CoreS3 / AtomS3 で操作できない。
+
+### 2. 出荷用に作り直した
+
+```bash
+cd esp32
+idf.py -B build_ship_kanji -DSDKCONFIG=build_ship_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji;sdkconfig.usb_serial_jtag" \
+    -DSAAN_KANJI=1 build
+idf.py -B build_ship_kana -DSDKCONFIG=build_ship_kana/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.usb_serial_jtag" build
+```
+
+⚠️ **`-DSDKCONFIG` を新しいパスにするのが要る。** `SDKCONFIG_DEFAULTS` は
+`sdkconfig` を**新規に作るときだけ**効くので、既存の build ディレクトリに重ねても
+**ビルドは成功するのに設定は変わらない**（`esp32/TESTING.md` に実測として書いてある罠）。
+
+| 構成 | app | flash | FLASHMODE | コンソール | `SAAN_QEMU` / `SAAN_BOOT_SPEAK` |
+|---|---:|---:|---|---|---|
+| `build_ship_kanji` | **353,408 B** | 16 MB | **QIO** | **USB Serial/JTAG** | **未設定** |
+| `build_ship_kana` | **277,952 B** | 8 MB | **QIO** | **USB Serial/JTAG** | **未設定** |
+| `boards/m5unified/build_m5k` | 1,436,960 B | 16 MB | **QIO** | native USB | `BOOT_SPEAK=1`（**M5 の既定。意図どおり**） |
+
+⚠️ **M5 の起動時発話は板の CMakeLists が既定で 1 にしている**
+（`esp32/boards/m5unified/CMakeLists.txt:58`）。スタックチャン用の意図的な既定で、
+v0.3.0 も同じ。DevKit 側の既定は 0（`esp32/main/main.c:88`）。
+
+### 3. 焼くだけのイメージに結合し、**v4 が入っていることを抽出して照合した**
+
+```bash
+esptool.py --chip esp32s3 merge_bin --fill-flash-size 16MB -o <out>.bin @flash_args
+```
+
+| ファイル | サイズ | SHA-256 |
+|---|---:|---|
+| `m5-cores3-firmware-kanji-16mb.bin` | 16,777,216 B | `73bb6dc89894d236…` |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | 16,777,216 B | `15efe00c979ea1d3…` |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | 8,388,608 B | `30ff7bb3a6be3cdd…` |
+
+**⚠️ 「ビルドが通った」を v4 の証拠にしない**（[M-121](#m-121) §3 と同じ理由）。
+イメージから**実際に抜き出して**突き合わせた:
+
+```bash
+dd if=esp32s3-firmware-kanji-16mb-usbjtag.bin bs=1 skip=$((0x210000)) count=654032 | shasum -a 256
+dd if=esp32s3-firmware-kanji-16mb-usbjtag.bin bs=1 skip=$((0x2d0000)) count=13702320 | shasum -a 256
+```
+
+| イメージ | 見た場所 | 出た値 | 期待値 |
+|---|---|---|---|
+| 漢字 16 MB | `0x210000` / 654,032 B | `a1eb6b0812e2ad2a…` | **v4 int8 blob と一致** |
+| かな 8 MB | `0x210000` / 654,032 B | `a1eb6b0812e2ad2a…` | **一致** |
+| 漢字 16 MB | `0x2d0000` / 13,702,320 B | `f162c922074d7681…` | **凍結辞書と一致**（[D-044](decisions.md#d-044)） |
+| M5 16 MB | `0x2d0000` / 13,702,320 B | `f162c922074d7681…` | **一致** |
+| M5 16 MB | `.rodata`（パーティションを焼かない） | **654,032 B が連続で bit 一致**（`0x23c40`） | **一致** |
+
+M5 の照合は `img.find(v4_blob)` で行った（部分スライスではなく**全長 654,032 B の一致**）。
+
+### 4. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **実機** | ❌ **焼いていない。** ユーザーの CoreS3 が要る |
+| **QEMU** | ❌ **この 3 イメージは QEMU で動かない**（QIO のため）。QEMU で通したのは同じソース・同じ blob の **DIO ビルド**（[M-120](#m-120) / [M-121](#m-121)）で、違いはフラッシュモードと起動時発話とコンソールの 3 点 |
+| **音** | ❌ **1 秒も聴いていない** |
+| **速度** | ❌ 測っていない（実機でしか測れない。[C-055](decisions.md#c-055)） |
+| **QIO で本当に速いか** | ❌ **v4 では測っていない**。QIO が速いのは [M-84](#m-84) の v3 の実測 |
+
+---
+
+<a id="m-123"></a>
+
+## M-123. **v4 を実機（M5 CoreS3）で喋らせた** — checksum が QEMU と bit 一致（自己実測。⚠️ **マージ前のビルド / 音は未聴取**）
+
+[M-118](#m-118) は QEMU までだった。**同じイメージを実機に焼いて起動から合成完了まで通した。**
+
+⚠️ **焼いたのは `origin/main` をマージする前のビルド**である（マージで
+`csrc/jdict.c` / `esp32/main/main.c` / `saan_kanji.c` などが 590 行変わったので、
+**出荷イメージは作り直す**。§4）。
+
+### 0. 手順（退避 → 焼く → 起動ログ）
+
+```bash
+# ⚠️ 退避は 921600 では落ちた（"Corrupt data, expected 0x1000 bytes but received 0xfd2 bytes"）
+esptool.py --chip esp32s3 -p /dev/cu.usbmodem2101 -b 460800 \
+    read_flash 0 0x1000000 cores3_backup_before_v4.bin      # 397.4 s / 16,777,216 B
+esptool.py --chip esp32s3 -p /dev/cu.usbmodem2101 -b 460800 \
+    write_flash 0x0 m5-cores3-firmware-kanji-16mb.bin        # 78.5 s / Hash of data verified
+```
+
+⚠️ **`--flash_mode qio` は渡さない**（[M-86](#m-86)）。イメージのヘッダが既に QIO。
+
+### 1. 速度 — 要件を満たしている
+
+| | v3 実機（[M-90](#m-90)） | **v4 実機** | v4 QEMU（[M-118](#m-118)） |
+|---|---:|---:|---:|
+| 満チャンク 1 pull の xRT | 0.446 | **0.448**（中央値 41.64 ms / 92.88 ms） | 使えない値 |
+| 平均で見た xRT | — | 0.462（42.94 ms） | — |
+| 初回 pull | — | **245.81 ms** | — |
+| 鳴らし始めまで | 384 ms | **385 ms** | — |
+| アンダーラン | 0 | **0 / 14 チャンク** | 0 |
+| init | — | **21.57 ms** | 20.64 ms |
+| 発話全体（合成/音声） | 0.541〜0.712 | **0.618**（761.12 ms / 1.231 s） | — |
+
+**満チャンク 1 pull では要件 RTF ≤ 0.5 を満たす**（0.448）。
+⚠️ **発話全体では 0.618 で超える。** 分母は今も未決（[D-049](decisions.md#d-049)）。
+
+### 2. checksum — **QEMU と bit 一致**
+
+```
+I (3058) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
+I (3058) saanotts:         |max| 7583 / Σx² 84292798374
+```
+
+**`0x390bf4b2aef8f2ec` は [M-118](#m-118) の QEMU 値と同一。**
+= 実機と QEMU で同じ重み・同じ経路が動いている。
+⚠️ **v3 の `0xa69a7ebbb5ccb05f` とは違う。** v4 は別の重みなので当然である。
+
+### 3. メモリ
+
+| | v3（[M-90](#m-90)） | **v4** |
+|---|---:|---:|
+| arena used / peak / 確保 | 157,360 / — / 180,224 | **156,688 / 156,688 / 180,224** |
+| 1 発話後の内部 DRAM free | 132,039 | **129,003** |
+| 最大ブロック | 86,016 | **86,016** |
+| タスクスタック残り | — | **10,996 B**（16,384 B 中） |
+| int16 クリップ | — | **0 sample** |
+
+### 4. ⚠️ このイメージは出荷しない
+
+起動ログが**マージ前の文言を印字している**:
+
+```
+⚠️ 端末の辞書は枝刈りしてあるので、**ホストと 14.77% の文で読みが変わる**（音素では 0.32%。M-77）
+```
+
+マージ後のソースは [C-059](decisions.md#c-059) の n=1,495 の値（**15.6% / 0.63%**）を印字する。
+**同じ量を違う n で言っているだけで、どちらも誤りではない**が、
+**出荷イメージはマージ後のツリーから作り直す**（→ [M-124](#m-124)）。
+
+### 5. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **音** | ❌ **1 秒も聴いていない。** スピーカーからは鳴っているが、判定は人が要る |
+| **漢字の入力** | ❌ **`かな>` に漢字文を打っていない。** 上は起動時の 1 発話（かな中間表現の錨）だけ |
+| **実サンプルレートの誤差** | ❌ firmware 自身が「⚠️ 実サンプルレートの誤差は**未測定**」と出している |
+| **出荷イメージ** | ❌ **これは出荷イメージではない**（§4） |
+
+---
+
+<a id="m-124"></a>
+
+## M-124. **出荷イメージ 3 本をマージ後のツリーで作り直し、実機で漢字を喋らせた** — **漢字経路とかな経路が bit 一致**（自己実測。⚠️ **音は未聴取**）
+
+[M-123](#m-123) のイメージは `origin/main` をマージする前のビルドだった。
+マージで firmware のソースが **590 行**変わった（`csrc/jdict.c` / `jdict.h` /
+`esp32/main/main.c` / `saan_dict.c` / `saan_kanji.c` / `saan_kanji.h` /
+`CMakeLists.txt` / `boards/m5unified/partitions*.csv`）ので**作り直した**。
+
+### 1. 3 構成のビルドと結合
+
+```bash
+cd esp32
+idf.py -B build_ship_kanji -DSDKCONFIG=build_ship_kanji/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji;sdkconfig.usb_serial_jtag" \
+    -DSAAN_KANJI=1 build
+idf.py -B build_ship_kana -DSDKCONFIG=build_ship_kana/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.usb_serial_jtag" build
+cd boards/m5unified
+idf.py -B build_m5k -DSDKCONFIG=build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_DICT_BLOB=<abs>/csrc/k1_dict.bin build
+```
+
+| 構成 | app | イメージ | SHA-256 |
+|---|---:|---:|---|
+| 漢字 16 MB（DevKit / USB Serial-JTAG） | **356,832 B** | 16,777,216 B | `31f0b35ebcd8ab5f…` |
+| かな 8 MB（DevKit / USB Serial-JTAG） | **277,040 B** | 8,388,608 B | `bfdd41b4e5f94f3d…` |
+| M5 CoreS3 16 MB | **1,439,872 B** | 16,777,216 B | `c6e9b6902745c2c0…` |
+
+**v4 が入っていることは抽出して照合した**（[M-119](#m-119) と同じ方法。「ビルドが通った」を証拠にしない）:
+
+| イメージ | 見た場所 | 結果 |
+|---|---|---|
+| 漢字 / かな | `0x210000` から 654,032 B | **`a1eb6b0812e2ad2a…` = v4** |
+| 漢字 / M5 | `0x2d0000` から 13,702,320 B | **`f162c922074d7681…` = 凍結辞書** |
+| M5 | `.rodata`（`0x23ee0`） | **654,032 B が連続で bit 一致** |
+
+### 2. ⚠️ main の 590 行は PCM を動かしていない
+
+起動時の 1 発話（かな中間表現の錨）の checksum:
+
+| | checksum |
+|---|---|
+| QEMU（[M-118](#m-118)） | `0x390bf4b2aef8f2ec` |
+| 実機・マージ前（[M-123](#m-123)） | `0x390bf4b2aef8f2ec` |
+| **実機・マージ後（この節）** | **`0x390bf4b2aef8f2ec`** |
+
+**3 つとも同一。**
+
+### 3. `かな>` に 5 行打った — **漢字とかなが bit 一致**
+
+⚠️ **64 B ずつ 30 ms 間隔で送る**（USB Serial/JTAG の RX リング 1024 B。[M-84](#m-84) §5）。
+
+| 種別 | 入力 | 経路 | ids | 漢字 G2P | checksum | UR | xRT |
+|---|---|---|---:|---:|---|---:|---:|
+| **漢字** | `今日は良い天気ですね。` | 辞書 | 53 | 25.74 ms | **`0x390bf4b2aef8f2ec`** | 0 | 0.448 |
+| **かな** | `きょ][おわよ][いて][んきです°ね` | かな | 53 | — | **`0x390bf4b2aef8f2ec`** | 0 | 0.448 |
+| 漢字 | `蜃気楼が見える。` | 辞書 | 41 | 17.84 ms | `0x0d1704fabcc1c841` | 0 | 0.448 |
+| 漢字 | `齟齬が生じた。` | 辞書 | 35 | 21.12 ms | `0xa77b26aec890fa06` | 0 | 0.448 |
+| カタカナ | `コンピューターを使う。` | 辞書 | 39 | 21.35 ms | `0x217a6182773fd12f` | 0 | 0.448 |
+
+**同じ文を漢字で書いてもかなで書いても PCM が bit 一致した**（53 ids / `0x390bf4b2aef8f2ec`）。
+= [M-90](#m-90) の主張が **v4 でも実機で成り立つ。**
+
+**5 文すべてでアンダーラン 0 / xRT 0.448。** 漢字 G2P は **17.84〜25.74 ms**。
+`蜃気楼` `齟齬` `コンピューター` も checksum が出ている = **無音で落ちていない**
+（⚠️ **読みが正しいかは checksum では分からない**。[C-044](decisions.md#c-044)）。
+
+漢字 G2P 直後の内部 DRAM free **127,131 B** / 最大ブロック 86,016 B。
+arena used は かな 156,688 B / 漢字 156,592 B（確保 180,224 B）。
+
+### 4. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **音** | ❌ **1 秒も聴いていない。** スピーカーからは鳴っているが、判定は人が要る（G32） |
+| **読みの正しさ** | ❌ checksum は「同じ列が出た」しか言わない。`蜃気楼` が「シンキロウ」と読めているかは**聴くか、ホストと突き合わせるしかない** |
+| **実サンプルレートの誤差** | ❌ firmware 自身が「未測定」と出している |
+| **かな 8 MB / 漢字 16 MB の DevKit** | ❌ **焼いていない**（板が無い）。照合したのはイメージの中身だけ |
+| **速度の再現性** | ⚠️ xRT 0.448 は 6 発話すべてで同じ値だった（中央値なので粗い） |
+
+---
+
+<a id="m-125"></a>
+## M-125. **v4 は同じ入力で 3 通りの発話長になる**（v3 は 3 レーンとも同じだった。自己実測）
+
+**2026-09-10。** `check_web_gates.sh` が **v4 の重みで 6 か所落ちた**のを調べて分かった
+（→ [C-083](decisions.md#c-083)）。落ちた理由はゲートが **v3 の値を直書き**していたことで、
+**v4 側の欠陥ではない**。ただし調べる途中で**記録していなかった事実**が出た。
+
+同じかな中間表現 `きょ][おわよ][いて][んきです°ね`（53 ids）で:
+
+| レーン | 重みと活性化 | **発話長** | どこで測ったか |
+|---|---|---:|---|
+| **fp32** | fp32 重み / fp32 活性化 | **27,392 sample** | `csrc/golden.bin`（[C-079](decisions.md#c-079)） |
+| **W8A32** | int8 重み / fp32 活性化 | **27,648 sample** | `csrc/golden_i8.bin` / web `saan_web_w8a32` |
+| **W8A8** | int8 重み / **int8 活性化** | **27,136 sample** | web `saan_web_w8a8` / **実機の出荷構成**（[M-124](#m-124)） |
+
+⚠️ **v3 では 3 つとも 27,136 だった。** だから
+
+- ゲートが `27136` を直書きしていても通っていた（[C-083](decisions.md#c-083)）
+- `check_esp32_template.sh` §8 が **int8 の出力を fp32 の golden と比べていても**通っていた
+  （[C-079](decisions.md#c-079)）
+
+**どちらの空虚さも「3 レーンの長さが偶然一致していた」ことに支えられていた。**
+
+再現:
+
+```bash
+bash scripts/check_web_gates.sh 2>&1 | grep "基準の発話長"
+```
+
+```
+--  W8A32: 基準の発話長を 27648 sample に採った
+--  W8A8:  基準の発話長を 27136 sample に採った
+```
+
+```bash
+bash scripts/check_esp32_template.sh 2>&1 | grep "bit 完全一致"
+```
+
+```
+OK  [厳密] C 一括版 → int16 と 27392 sample **bit 完全一致**      ← fp32   (student.bin)
+OK  [厳密] C 一括版 → int16 と 27648 sample **bit 完全一致**      ← W8A32  (student_i8.bin)
+```
+
+⚠️ **3 つとも 2026-09-10 にこのツリーで実測した**（fp32 / W8A32 は上のホスト stub、
+W8A8 は wasm の出荷 dist）。[C-079](decisions.md#c-079) の表と同じ値。
+
+### なぜ違うのか
+
+フレーム数は **duration predictor の出力の丸め**で決まる。W8A8 は duration の段も
+int8 活性化で通るので、境界にある 1 フレームが落ちる / 増える。
+**2 フレーム = 512 sample** の差はこの経路でしか出ない。
+
+### ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **音の差** | ❌ 512 sample = **23 ms**。⚠️ **聴いていない**（G32）。語末が切れているのか無音が付くのかも未確認 |
+| **どのレーンが「正しい」か** | ❌ **決めていない。** 教師比の品質評価（M-115〜M-117）は fp32 レーンで測った |
+| **v3 で本当に 3 つとも同じだったか** | ⚠️ **W8A8 の 27,136 は M-62 以降の記録から**。fp32 / W8A32 を v3 で並べて測り直してはいない |
+| **他の文でも 2 フレーム差か** | ❌ **この 1 文だけ。** 差の大きさが文に依存するかは未測定 |
+
+---
+
+<a id="m-126"></a>
+## M-126. **出荷イメージ 10 本すべてに v4 と正しい辞書が入っていることを抽出照合した**（自己実測。⚠️ **7 本は焼いても走らせてもいない**）
+
+**2026-09-10。** [M-124](#m-124) が照合したのは **3 構成だけ**だった
+（漢字 16 MB / かな 8 MB / M5 16 MB）。ところが `CLAUDE.md` と `docs/README.md` には
+**「firmware 10 本は全部 v4 が入っていることを抽出照合」**と書いてあった。
+**残り 7 本の記録が無かった**ので、測り直した（結果は主張どおりだったが、
+**根拠が無い状態で書いていた**）。
+
+### 1. 方法 — **オフセットを仮定しない**
+
+パーティション表が構成ごとに違い、M5 は `.rodata` 埋め込みなので、
+**全長の一致を検索する**（`img.find(blob)`。[M-122](#m-122) と同じ）。
+
+```bash
+uv run --no-project python - <<'PY'
+import hashlib, pathlib
+v4 = pathlib.Path("csrc/student_i8.bin").read_bytes()      # 654,032 B / a1eb6b08…
+for p in sorted(pathlib.Path("<資産のディレクトリ>").glob("*firmware*.bin")):
+    print(p.name, hex(p.read_bytes().find(v4)))
+PY
+```
+
+### 2. 重み（10/10）
+
+| イメージ | flash | v4 blob の位置 |
+|---|---:|---|
+| `esp32s3-firmware-kanji-16mb.bin` / `-usbjtag` | 16 MB | `0x210000` |
+| `m5-cores3-firmware-kanji-16mb.bin` | 16 MB | **`0x23ee0`**（`.rodata`） |
+| `esp32s3-firmware-kanji-8mb.bin` | 8 MB | `0x21b80` |
+| `m5-cores3-firmware-kanji-8mb.bin` | 8 MB | **`0x23ee0`**（`.rodata`） |
+| `esp32s3-firmware-kanji-4mb.bin` | 4 MB | `0x21b80` |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | 4 MB | `0x21b80` |
+| `esp32s3-firmware-w8a8-pie.bin` / `-usbjtag` / `-w8a32.bin` | 8 MB | `0x210000` |
+
+**10 本すべてで全長 654,032 B が一致**（`a1eb6b0812e2ad2a…` = v4）。
+
+### 3. 辞書（7/7）— **容量ごとに別物なので取り違えを見る**
+
+| イメージ | 入っていた辞書 | 大きさ | 位置 |
+|---|---|---:|---|
+| 漢字 16 MB × 3 | `k1-dict-438750.bin` | 13,702,320 B | `0x2d0000` |
+| `esp32s3-firmware-kanji-8mb.bin` | `k1-dict-228000-8mb.bin` | 7,123,088 B | `0x130000` |
+| `m5-cores3-firmware-kanji-8mb.bin` | `k1-dict-213000-8mb-m5.bin` | 6,797,056 B | `0x180000` |
+| `esp32s3-firmware-kanji-4mb.bin` | `k1-dict-135000-4mb.bin` | 3,006,656 B | `0x120000` |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | `k1-dict-44000-2mb.bin` | 977,456 B | `0x110000` |
+
+**陽性対照**: `4 MB` のイメージに **8 MB 用の辞書は入っていない**（`find` が −1）。
+⚠️ これが無いと「何かしら辞書が入っている」で満点を取れてしまう。
+**DevKit 用と M5 用は entries が違う**（228,000 / 213,000）ので、取り違えると
+[M-105](#m-105) §4 のとおり 241,808 B 入らない。
+
+### 4. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **7 本は走らせていない** | ❌ **焼いてもいない / QEMU にも入れていない。** 見たのは**イメージの中身だけ**。実機で動かしたのは **M5 CoreS3 16 MB の 1 本だけ**（[M-124](#m-124)） |
+| **小容量の v4 が起動するか** | ❌ **v3 では QEMU（[M-106](#m-106) §11 / §13）と第三者の実機（[M-109](#m-109)）で鳴っている**が、**v4 では 1 度も動かしていない** |
+| **読みの精度** | ❌ 容量を落とすと落ちる（0.63% → 1.01% / 1.94% / 3.86%。n=1,495）。**v4 では測っていない**（v3 の値） |
+| **音** | ❌ **v4 は 1 秒も聴かれていない**（G32） |
+
+---
+
+<a id="m-127"></a>
+## M-127. **`？` + `〜`(U+301C) が端末で疑問にならない件を直した** — n=1,495 で **1,494 → 1,495**（自己実測）
+
+**2026-09-11。** [M-103](#m-103) §2 で見つけて**判断待ちにしていた**もの（残タスク 9）。
+⚠️ **M-103 はレーンが仮に直して測った値**で、**本体は直していなかった。**
+
+### 1. 何が違っていたか
+
+| | `？〜`(U+301C) を受けたとき |
+|---|---|
+| **ホスト** | `kana_g2p.normalize_input()` が **U+301C → U+FF5E** に寄せてから G2P → **`?~`** |
+| **端末（修正前）** | 生のテキストを見る。`？～`(U+FF5E) と `？` しか照合しない → **平叙（`$`）** |
+
+⚠️ **日本語で普通に使われるのは U+301C の方。** コーパスの `?~` 学習行 10 本は**全部 U+301C 綴り**で、
+**U+FF5E は train / held-out のどちらにも 1 件も無い**（実測）。
+
+### 2. どこで寄せるかを**測ってから**決めた
+
+`csrc/wave_probe.c`（使い捨て）で辞書と全段を通し、**入口で寄せる**案と
+**`question_type()` の中だけで寄せる**案を比べた:
+
+| 入力 | 形態素 | ids |
+|---|---:|---|
+| `まじで？〜`（U+301C・修正前） | 4（`まじ`/`で`/`？`/`〜`） | 19 個。末尾 `13 0 2` = **`$`** |
+| `まじで？～`（U+FF5E） | 3（`まじ`/`で`/`？～`←未知語） | 21 個。末尾 `13 0 6 0 2` = **`?~`** |
+| `まじで？`（対照） | 3 | 21 個。末尾 `13 0 3 0 2` = `?` |
+| **`あ〜と`（文中・U+301C）** | 3 | **12 個** |
+| **`あ～と`（文中・U+FF5E）** | 3 | **12 個。完全に同じ列** |
+
+**分かったこと 2 つ:**
+
+- ✅ **文中では ids が変わらない。** 形態素分割は変わる（`〜` が独立トークンか未知語かで）が、
+  **`〜` はどちらの綴りでも音素を 1 つも生まない**ので **ids には出ない**。
+  → **入口で寄せる必要は無い。`question_type()` の中だけでよい。**
+- ⚠️ **ホストの他の 2 つは写してはいけない。** 辞書の文字集合を `jdict_encode_key` の
+  出力長で判別すると:
+
+| 文字 | 出力長 | どこに居るか |
+|---|---:|---|
+| U+301C `〜` / U+FF5E `～` / U+FF1F `？` / U+2212 `−` | 3 B | **keyesc**（エスケープ表） |
+| **U+FF0D `－`** | **4 B** | ❌ **辞書に無い**（生の符号位置に落ちる） |
+
+  ホストは `U+2212 → U+FF0D` に寄せるが、**端末で同じことをすると
+  「辞書が知っている文字」を「知らない文字」に変えてしまう。**
+  ⚠️ **どちらもコーパスに 0 件**なので、**寄せる利益が測れていない。** → **写さない。**
+
+### 3. 直したもの
+
+`csrc/label_ids.c` の `question_type()` の作業バッファで **U+301C → U+FF5E**（3 B → 3 B）。
+
+```bash
+uv run python scripts/k1/k6_gen_vectors.py --cases 1500 --out /tmp/qeos_vectors_1500.bin
+cd csrc && ./label_ids_test /tmp/qeos_vectors_1500.bin        # 修正後
+cc -O2 -std=c99 -DCHARSET_UTF_8 -DQEOS_TEST_NO_NORMALIZE=1 -Iopenjtalk -I. \
+    -o /tmp/li_nonorm label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c \
+    openjtalk/*.c -lm && /tmp/li_nonorm /tmp/qeos_vectors_1500.bin   # 修正前
+```
+
+| | G25（ラベル → ids がホストと一致） |
+|---|---|
+| **修正前** | **1,494 / 1,495**（食い違い 1） |
+| **修正後** | ✅ **1,495 / 1,495**（食い違い 0） |
+
+⚠️ **既定の `make -C csrc label-ids`（n=298）は修正前も 298/298 で緑だった。**
+**この 2 文をサンプルしないため**で、[M-103](#m-103) §5 の項番 2 に書いた「ゲートが原理的に盲」がこれ。
+
+### 4. ✅ 波形は 1 bit も動いていない
+
+`bash scripts/check_esp32_template.sh` の §8 が **fp32 27,392 / W8A32 27,648 sample で
+bit 完全一致**のまま。正規化は **U+301C を含む入力にしか触らない**ので当然だが、**確かめた。**
+
+### 5. ✅ 専用ゲート `make -C csrc qeos`（G33）
+
+⚠️ **辞書もコーパスも pyopenjtalk も要らない** — `label_ids_convert()` は
+**合成した最小ラベル 3 本**で足りるので **`all-test` と CI で回る**。
+
+| | |
+|---|---|
+| 見るもの | 疑問符 4 種 × ASCII / 全角 = 8 + **U+301C の 2 順序** + 末尾空白 |
+| 陰性対照 | 疑問でない 4 件（`a` / `。` / `〜` だけ / `～` だけ）に記号を付けない |
+| **陽性対照** | `-DQEOS_TEST_NO_NORMALIZE=1` で**正規化を外すと 3 ケースが落ちる**（実測） |
+
+### 6. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **実機** | ❌ **焼いていない。** ホストの全段でしか測っていない |
+| **音** | ❌ `?~` が `?` や `$` とどう違って聞こえるかは**聴いていない** |
+| **ホストの他の 2 つの正規化** | ❌ **端末に入れていない**（上記 §2。U+FF0D は辞書に無い） |
+| **`？〜` 以外の U+301C の位置** | ⚠️ 文中は ids が同じと確かめたが、**`〜` を含む語**（`〜的` など）は測っていない |
+
+---
+
+<a id="m-128"></a>
+## M-128. **出荷イメージ 10 本を D-062 込みで作り直した** — 漢字 7 本が **+96 B** / **かな 3 本は ±0**（自己実測）
+
+**2026-09-11。** [D-062](decisions.md#d-062)（`？〜` の U+301C を疑問にする）を入れたので、
+**staged の 10 本は修正前のビルドだった**。作り直した。
+
+### 1. ⚠️ SHA-256 は「中身が変わった」ことを意味しない
+
+```
+CONFIG_APP_COMPILE_TIME_DATE=y
+```
+
+**ビルド時刻が app に埋まる**ので、**ソースが 1 バイトも変わらなくても SHA は毎回変わる。**
+→ **検証は app のサイズで行う**（時刻はサイズを変えない）。
+
+### 2. `label_ids.c` は `SAAN_KANJI` ビルドにしか入らない
+
+`esp32/components/saanotts_core/CMakeLists.txt` の `SAAN_K_SRCS` は
+`if(SAAN_KANJI)` の中にある。→ **かな 3 本はサイズが変わってはいけない。**
+
+| イメージ | 経路 | app 前 | app 後 | 差 |
+|---|---|---:|---:|---:|
+| `esp32s3-firmware-kanji-16mb.bin` | 漢字 | 371,216 | 371,312 | **+96** |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | 漢字 | 356,832 | 356,928 | **+96** |
+| `esp32s3-firmware-kanji-8mb.bin` | 漢字 | 1,024,960 | 1,025,056 | **+96** |
+| `esp32s3-firmware-kanji-4mb.bin` | 漢字 | 1,024,960 | 1,025,056 | **+96** |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | 漢字 | 1,024,960 | 1,025,056 | **+96** |
+| `m5-cores3-firmware-kanji-16mb.bin` | 漢字 | 1,439,872 | 1,439,968 | **+96** |
+| `m5-cores3-firmware-kanji-8mb.bin` | 漢字 | 1,439,872 | 1,439,968 | **+96** |
+| `esp32s3-firmware-w8a8-pie.bin` | かな | 291,424 | 291,424 | **±0** |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | かな | 277,040 | 277,040 | **±0** |
+| `esp32s3-firmware-w8a32.bin` | かな | 289,968 | 289,968 | **±0** |
+
+✅ **漢字 7 本が揃って +96 B / かな 3 本が揃って ±0。**
+**正規化ループ（3 バイト比較 + 書き換え）のぶんだけ増え、他は 1 バイトも動いていない。**
+
+### 3. 中身の照合（[M-126](#m-126) と同じ方法・陽性対照つき）
+
+⚠️ **オフセットを仮定しない**（`img.find(blob)`）:
+
+| | 結果 |
+|---|---|
+| **v4 の blob**（全長 654,032 B / `a1eb6b08…`） | ✅ **10/10**（`0x210000` / `0x21b80` / `.rodata 0x23ee0`） |
+| **容量ごとの辞書**（438,750 / 228,000 / **213,000**(M5) / 135,000 / 44,000） | ✅ **7/7** |
+| **陽性対照** | ✅ 4 MB のイメージに **8 MB 用の辞書は入っていない** |
+
+再現:
+
+```bash
+bash <scratchpad>/rebuild10.sh          # 10 本を作り直して merge
+uv run --no-project python <scratchpad>/verify_rebuild.py
+```
+
+### 4. SHA-256 と表の追従
+
+```bash
+uv run --no-project python scripts/check_release_table.py \
+    --notes docs/release-notes/v1.0.0.md --dir <資産のディレクトリ>
+```
+
+```
+OK  27 本すべてサイズと SHA-256 が表どおり
+```
+
+`SHA256SUMS.txt`（27 行）も作り直し、`shasum -a 256 -c` が **27/27 OK**。
+
+### 5. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **実機** | ❌ **焼いていない。** ⚠️ **[M-123](#m-123) / [M-124](#m-124) で実機に載せたのは 1 つ前のビルド**で、**いま staged の M5 イメージはそれとは別のバイト列**である |
+| **`？〜` が実機で疑問になるか** | ❌ **確かめていない**（ホストの全段では確かめた = [M-127](#m-127)） |
+| **かな 3 本の SHA が変わったこと** | ⚠️ **中身は同一**（サイズ ±0 / `label_ids.c` を含まない）。**埋まった時刻だけが違う** |
+| **音** | ❌ **1 秒も聴いていない** |
+
+---
+
+<a id="m-129"></a>
+## M-129. **D-062 を QEMU の firmware 経路で確認した** — `？〜` と `？～` が **PCM bit 一致**、`？` だけは違う（自己実測。⚠️ **実機ではない**）
+
+**2026-09-11。** [M-127](#m-127) はホストの全段で測った値で、**firmware では 1 度も走らせていなかった**。
+⚠️ **出荷イメージは QIO なので QEMU で動かせない** → **同じソースを `-DSAAN_QEMU=1`（DIO）で建てて**通した。
+
+再現:
+
+```bash
+cd esp32 && idf.py -B build_qeos -DSDKCONFIG=build_qeos/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.kanji" \
+    -DSAAN_KANJI=1 -DSAAN_QEMU=1 build          # app 369,488 B / DIO
+cd build_qeos && esptool.py --chip esp32s3 merge_bin --fill-flash-size 16MB \
+    -o /tmp/flash_qeos.bin @flash_args
+# ⚠️ QEMU の UART は stdin。行を流し込む（起動に 90 秒みる）
+{ sleep 90; printf 'まじで？〜\r\n'; sleep 45; printf 'まじで？～\r\n'; sleep 45;
+  printf 'まじで？\r\n'; sleep 45; } | \
+  qemu-system-xtensa -nographic -machine esp32s3 -m 4M \
+      -drive file=/tmp/flash_qeos.bin,if=mtd,format=raw
+```
+
+### 1. 結果
+
+| 入力 | B | 形態素 | ids | frames | sample | **checksum** |
+|---|---:|---:|---:|---:|---:|---|
+| **`まじで？〜`**（U+301C） | 15 | **4** | 21 | 53 | 13,568 | **`0x2af5b17be5e104da`** |
+| **`まじで？～`**（U+FF5E・対照） | 15 | **3** | 21 | 53 | 13,568 | **`0x2af5b17be5e104da`** |
+| `まじで？`（対照） | 12 | 3 | 21 | **67** | **17,152** | `0xdcf0d512fe14e4af` |
+
+✅ **U+301C と U+FF5E が bit 一致の PCM を出す** = **D-062 が firmware で効いている。**
+✅ **`？` だけは違う** = `?~` が実際に適用されている（「疑問なら何でも同じ」ではない）。
+✅ **形態素数は 4 と 3 で違うのに ids と PCM が同一** = [M-127](#m-127) §2 の予測どおり
+（`〜` はどちらの綴りでも音素を 1 つも生まない）。
+
+⚠️ **`?~` は `?` より短い**（53 vs 67 frames / 0.615 vs 0.778 s）。**疑問の型で音声長が変わる。**
+
+### 2. 起動と資源
+
+| | |
+|---|---|
+| 再起動 | **1 回**（ブートループなし） |
+| 辞書 | **見出し語 355,768 / エントリ 438,750 / 行列 1377x1377 / blob 13,702,320 B**（枠 13,828,096。余り 125,776） |
+| 辞書 mmap 後の内部 DRAM free | **102,380 B** / 最大ブロック 90,112 / 低水位 102,380 |
+| 漢字 G2P 直後の低水位 | **92,640 B** |
+| int16 クリップ | **0 sample**（3 文すべて） |
+| G2P セルフテスト | ✅ **53 ids が `demo_ids.h` の錨と完全一致** |
+
+### 3. ⚠️ 何を見ていないか
+
+| | |
+|---|---|
+| **実機** | ❌ **QEMU である。** ⚠️ **出荷イメージは QIO で、これは DIO ビルド**（同じソースだがバイト列は違う） |
+| **時間** | ❌ **QEMU の値は使えない**（[C-055](decisions.md#c-055)）。G2P 35.30 / 60.61 / 5.97 ms も**実機の値ではない** |
+| **音** | ❌ **聴いていない。** ⚠️ `?~` と `?` で音声長が 26% 違うので、**聴けば分かる差のはず** |
+| **読みの正しさ** | ❌ checksum は「同じ列が出た」しか言わない |

@@ -40,8 +40,16 @@ hook が `gh api .../contents/*.c` / `git clone` / `uv add sanotts` を deny す
 | [`docs/research/sanotts-jp-feasibility.md`](docs/research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し |
 | [`docs/README.md`](docs/README.md) | 索引と現在地 |
 
-**現状（2026-09-03）**: 2 つのトラックが走っている。**どちらも実機で動き、速度の要件も満たした。**
-**残っているのは聴取（G32）だけで、それは人を待っている。**
+**現状（2026-09-11）**: **3 つのトラックが走った**（かな / 漢字 K / 商用利用 L）。
+**どれも実機で動き、速度の要件も満たした。**
+⚠️ **残りは 7 件で、内訳は「聴取 1 / 実機 1 / 判断 3 / 作業 2」**（下の「いま止まっているもの」）。
+**実装として書くものは残っていない。**
+
+⚠️ **いま配っているのは v3 で、v1.0.0（v4）はまだ上げていない。**
+⚠️ **v4 の音は誰も 1 秒も聴いていない。**
+
+⚠️ **下の「(1)」「(2)」は 2026-09-03 時点の記述**（かなと漢字のトラック）。
+**L トラックは別に下の節にある。**
 
 **(1) かな中間表現の生徒モデル（完了）**
 Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
@@ -69,7 +77,7 @@ W8A32 `0xe4b645c30835d42d`）= **T1〜T5 も S5b も 64 B 行も波形を変え�
 ⚠️ **発話全体で見ると 0.54〜0.71 でまだ 0.5 を超える**（M-88 の 3 文 0.550〜0.693 / M-90 の 4 文 0.541〜0.712。
 warmup 38 フレームが初回 pull に乗るため、文が長いほど 0.5 に近づく）。
 **要件がどちらの分母かは書かれていなかったので、両方を記録してある**（M-88 §1 / C-054）。
-**分母は未決で、D-049 で決める**（[`docs/requirements.md`](docs/requirements.md) §6.2）。
+✅ **分母は 2026-09-11 に決めた**（[D-049](docs/decisions.md#d-049)）— **定常の分母で ≤ 0.5** + **アンダーラン 0** + **鳴らし始めまで ≤ 0.8 s**（実測 約 479 ms）。⚠️ **発話全体は参考値**（≤ 0.5 に必要な音声長が 3.43〜4.40 秒 = 合否が文の長さで決まる）。⚠️ **G2P の「1% 未満」は廃止**（分母が動く）。
 ⚠️ **音は聴いていない**（G32）。
 ⚠️ **S3（GELU の erf 近似）で基準 checksum が変わった**: W8A8+PIE `0x04de91103a0e49f9` → **`0xa69a7ebbb5ccb05f`**
 （|max| 9744 → 9627）、W8A32 `0x78c209af06affc01` → **`0xe4b645c30835d42d`**（|max| 9529 同一・Σx² 相対差 8.7e-9）。
@@ -89,7 +97,7 @@ B-0 / D-009 の「G2P は端末に載らない」を**測り直したら 4 つ�
 → [`docs/research/k1-kanji-katakana-ondevice.md`](docs/research/k1-kanji-katakana-ondevice.md)（結論）
 ／ [`docs/plan/k1-kanji-implementation-plan.md`](docs/plan/k1-kanji-implementation-plan.md)（計画）
 
-設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約）。実行はすべて手元の M4 Max（D-027）、実機はユーザーの M5 CoreS3（D-047）。
+設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は 2026-09-11 に埋めた** = RTF の分母）。実行はすべて手元の M4 Max（D-027）、実機はユーザーの M5 CoreS3（D-047）。
 
 ⚠️ **成果物は `runs/v3/stage4.pt`**（Stage 3 = 80,000 step。D-037）。
 `runs/v2` は M-49 など過去の測定の再現用に残してある。**混同しないこと。**
@@ -266,10 +274,18 @@ uv run python scripts/test_losses.py               # 損失の性質（26 項目
 uv run python scripts/test_labelpack.py            # パック往復 + ゲート発火
 uv run python scripts/test_discriminator.py        # 判別器（23 チェック）
 uv run python .claude/hooks/test_guard_bash.py     # hook の回帰（105 ケース + commit ガード）
-uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート（16 ケース・陽性/陰性対照）
+uv run python scripts/test_sanitize_reports.py     # 本文検出ゲート**の自己テスト**（16 ケース・陽性/陰性対照）
+uv run python scripts/sanitize_reports.py          # ⚠️ **本文検出の本体**（追跡物にコーパス本文が
+                                                   #   残っていないか）。**CI では回らない**（第三者
+                                                   #   コーパスが要る）ので**手元で回す**。C-075
+uv run python scripts/test_corpus_license.py       # 蒸留テキストのライセンス判定（G-L1a。陽性対照つき）
+uv run python scripts/check_corpus_license.py --self-test   # G-L1b / G-L2（陽性対照 4 件）
 uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **引用アンカー**
                                                    #   （陽性対照つき。C-042 / C-052）
 uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
+uv run python scripts/check_attribution.py --self-test   # **帰属義務の成果物**（G-A1 写しが
+                                                   #   3 か所で一致 / G-A2 同梱した全文が記載
+                                                   #   どおり）。陽性対照 7 件。C-080 / C-081
 uv run python scripts/check_lock_vs_pyproject.py   # pyproject の制約 vs uv.lock の固定版（C-071。
                                                    #   陽性対照 6 / 陰性対照 2。⚠️ **制約を緩めた
                                                    #   だけの変更は捕まらない**）
@@ -302,7 +318,7 @@ bash scripts/check_esp32_template.sh               # esp32/ 雛形をホスト�
                                                    #   の作業領域 + 14,464 B。陽性対照つき**）
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / pad / line / erf / **range**）
+                                                   #   g2p / pad / line / erf / **range** / **qeos**）
                                                    #   ⚠️ stream は **held-out 24 文 × 3 レーン**を見る
 ```
 
@@ -564,8 +580,12 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/check_dict_blob.py` | blob の自己整合と manifest の照合（**陽性対照 5 種を内蔵**） |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
-| テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか**（陽性対照つき）。⚠️ **外部 URL は見ない** |
+| テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか** + **番号リンクのラベルとアンカーが一致するか**（`[C-085](#c-083)` を捕まえる。**陽性対照 2 本**）。⚠️ **番号の一括置換でラベルだけ動く形は、2026-09-10 までどのゲートにも掛からなかった**（C-064 の 3 度目で 4 件出た = C-085）。⚠️ **外部 URL は見ない**。⚠️ **アンカーが実在するかは見ない**（食い違いだけ）。⚠️ **同一ファイル内の `#anchor` の実在も見ない**（C-057 の壊れたリンクはこれで見逃されていた）。⚠️ **リンクになっていない素の引用**（`C-082 の入口`）は見えない。⚠️ **リンク先が git 管理外**でも、手元にファイルが在れば通る（新規 clone の CI でだけ落ちる） |
+| テスト | `scripts/test_corpus_license.py` | **蒸留テキストのライセンス判定**（G-L1a。D-054）。許可 7 / 拒否 9 / **未知 5**。⚠️ **完全一致で判定する**（`cv/` の前方一致だと europarl 由来が自動で通る = C-029）。⚠️ **表しか見ない** — 判定が実際に呼ばれたかは G-L1b が見る |
+| テスト | `scripts/check_corpus_license.py` | **G-L1b**（出荷パックに許可外 source が 0 件）/ **G-L2**（held-out が 1 行も変わっていない）/ 統計レポート。**陽性対照 4 件**は `--self-test`。⚠️ **CI では回らない**（パックとコーパス本文が要る） |
+| テスト | `scripts/sanitize_reports.py` | ⚠️ **本文検出の本体。** 追跡物にコーパス本文が残っていないか。**CI では回らない**ので手元で回す。⚠️ **第三者コーパスが無いと exit 2 で「回せなかった」と出る**（「0 箇所」で緑にしない）。C-075 で実際に 56 箇所を見逃していた |
 | テスト | `scripts/check_release_assets.py` | **ドキュメントの表に名前がある資産が、実際にそのタグに在るか**。⚠️ **ネットワークと GitHub のトークンが要る** — 素で回すと rate limit (403) で **NG を返し、「資産が無い」と読み違える**（M-101）。`GH_TOKEN="$(gh auth token)"` を付ける。⚠️ 見るのは名前だけで**中身は見ない**（C-052） |
+| テスト | `make -C csrc qeos` | **疑問 EOS の 4 種と U+301C の正規化**（G33。D-062 / M-127）。⚠️ **辞書もコーパスも pyopenjtalk も要らない** — `label_ids_convert()` は**合成した最小ラベル 3 本**で足りるので `all-test` と CI で回る。**陽性対照**: `-DQEOS_TEST_NO_NORMALIZE=1` で**正規化を外すと 3 ケースが落ちる**。⚠️ **既定の `label-ids`（n=298）は修正前も緑だった** — 該当 2 文をサンプルしないため |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
 | テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
@@ -573,13 +593,16 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
 | テスト | `uv run python scripts/test_rec5.py` | `rec5` の**往復と畳み込み**（合成エントリだけなので**辞書が要らない = CI で回る**）。⚠️ **合成データが畳み込みを踏んでいるか**も検査する（周期が互いに素でないと cid と 1:1 になり、**往復が通っても畳み込みを 1 度も試していない**。M-108） |
 | テスト | `make -C csrc charr` | **`charr`（文字カテゴリの run 表）**が `char` と**全 65,535 符号位置**で一致するか（M-106 §10）。262,496 → 832 B で**完全に無損失**。⚠️ 陽性対照は**いちばん長い run** を選ぶ（短い run だと数件しか動かず弱い） |
-| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13） |
+| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で **6 job**（docs / golden / csrc / python / release-assets / **web**）。⚠️ **かつて「4 job」と書いてあったが、数えたら違った**（job は増える）。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
 | CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
 | テスト | `scripts/check_lock_vs_pyproject.py` | **`pyproject.toml` の制約を `uv.lock` の固定版が満たしているか**（陽性対照 6 / 陰性対照 2。C-071）。⚠️ **CI のどの job も `uv.lock` / `pyproject.toml` を解決しない**（4 job が `--no-project` / `python` job は `uv pip install` の即席 venv / `golden` は python 無し）ので、lock を見るゲートはこれ 1 本だけ。⚠️ **捕まえるのは「制約を厳しくして `uv lock` を忘れた」形だけ** — **制約を緩めただけの変更（`<1.0` → `<2.0`）は不整合にならないので捕まらない**。lock が実際に解決するかは piper-plus の絶対パスが要るので CI では原理的に測れない |
+| テスト | `scripts/check_doc_commands.py` | **ドキュメントが「打て」と書いたコマンドの実体が在るか**（スクリプト 36 種 / `make -C csrc` の 23 ターゲット。**陽性対照 5 件**）。⚠️ **`check_doc_links.py` はコードフェンスの中を見ない** — 読者が最初に打つのはそこである（C-040）。⚠️ **在るかだけで、通るかは見ない**。⚠️ **拾えた数が少なすぎたら落とす**（正規表現が当たらないと「0 件」で緑になるため） |
+| テスト | `scripts/check_release_table.py` | **リリースノートの資産表**（名前 / サイズ / SHA-256 の頭）**が実物と合っているか**。⚠️ **タグを打つ直前に手で回す** — 資産が git 管理外なので CI では回らない（自己テストの陽性対照 5 件だけ CI）。実際に **3 行ずれていた**（C-084 / C-086 で資産を直したのに表を直していなかった）。⚠️ **照合 0 本なら落とす**（名前が 1 つも一致しないと「食い違い 0」で緑になるため）。⚠️ **中身がその版の説明かは見ない**（C-086 はそれで起きた） |
+| テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **3 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 7 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
 | テスト | `scripts/test_cve_reach.py` | **Dependabot が名指しした脆弱 API が実経路で呼ばれないか**（nltk 6 + transformers 4 の 10 sink / 陰性対照 `load_from_json` / 陽性対照は `--self-test` の 5 件）。実測は発火 **0 / 10**（[`docs/measurements.md`](docs/measurements.md) M-111 / 決定は D-053）。⚠️ **主張は「呼ばれない」だけで「パッケージが安全」ではない**。⚠️ **CI では回らない** — piper-plus の checkout / `nltk_data` / 教師 snapshot の `config.json` が要り、**最後のものが private**（`scripts/check_ci_coverage.py` の `EXCLUDED_SCRIPTS` に理由つきで登録）。⚠️ **手で走らせるゲートはいずれ走らせなくなる** |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** / **古い ckpt での成果物の上書き**（M-102）を deny（**105 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
@@ -606,6 +629,21 @@ uv add <pkg>                  # 依存追加（pip install しない）
 - **`pip install` を直接使わない。** `uv add` で `pyproject.toml` と `uv.lock` に記録する
 - piper-plus は `[tool.uv.sources]` の **path 依存 (editable)** で参照する。
   **piper-plus のリポジトリは読み取り専用**（checkout / commit / 編集の禁止）
+
+⚠️ **git worktree の中では `uv run` が毎回 `uv.lock` を書き換える。**
+`[tool.uv.sources]` の editable が**相対パス**で記録されているので、worktree
+（`.claude/worktrees/<name>/` = 4 階層深い）から走らせると
+`../../Documents/...` が `../../../../../Documents/...` に書き直される。
+**これをコミットすると main チェックアウト側の lock が壊れる。**
+
+```bash
+git checkout -- uv.lock          # コミット前に必ず戻す
+git status --short uv.lock       # 何度でも戻ってくるので、その都度見る
+```
+
+⚠️ 同じ形で **`make -C csrc fft` が `csrc/fft_bench.json` を書き換える**（実行時間の実測値なので
+マシンの状態で毎回変わる）。**どちらも「走らせただけ」で出る差分**なので、
+`git status` に出たら中身を見て戻すこと。
 - uv 環境には M-1.1 の stale な `piper_train` が存在しないので、
   `sys.path.insert` は不要（既存スクリプトのものは冗長だが害はない）
 
@@ -620,6 +658,22 @@ uv 環境 (py3.14.0/torch2.13) で **教師ラベルは bit 完全一致**する
 |---|---|---|
 | ラベル生成 train 20,894 文 | **CPU** | 116 ms/文 → **約 40 分** / 4.5 GB |
 | 学習 4 段（各 20k step） | **MPS** | 58 / 81 / 58 / 39 ms/step → 約 1.3 時間 |
+
+⚠️ **上の学習の行は当初のレシピで、成果物 v3 のスケジュールではない**（M-114 で判明）。
+**v3 は段ごとに step 数が違う**（ckpt の `args` から復元した。どこにも書かれていなかった）:
+
+| Stage | steps | 実測 | ms/step |
+|---|---:|---:|---:|
+| 1 duration | 20,000 | 139.0 s | 7.0 |
+| 2 acoustic | **60,000** | 1,858.2 s | 31.0 |
+| 3 decoder | **80,000** | 3,087.4 s | 38.6 |
+| 4 共適応 | **60,000** | 3,312.8 s | 55.2 |
+| 合計 | | **8,397.4 s = 2.33 時間** | |
+
+⚠️ **`--all` では再現できない**（`--all` は全段を同じ `--steps` で回す）。
+**`--stage N --steps M` を 4 回**呼ぶこと。
+⚠️ **v3 の stage1/stage2 は v2 からのコピー**（SHA-256 で bit 一致を確認。M-114 §2）。
+蒸留テキストを変えたら**流用してはいけない**。
 
 ```bash
 uv run python scripts/gen_teacher_labels.py --split train   --out data/pack
@@ -859,25 +913,63 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-06 更新。**対照つきの聴取と、判断が 4 つ、実機待ちが 1 つ**）
+## 残っているタスク（2026-09-11 更新。**残り 5 件: 人が要る 2**（聴取 / 4・2 MB の実機）**／ 判断 1**（辞書の完全性）**／ 作業 2**（**v1.0.0 のリリース** / CI のタグ））
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
-K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-050 として凍結（⚠️ **D-049 は欠番** = RTF の分母用に予約）。
+K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-062 として凍結（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母。⚠️ **2026-09-10 に main へマージ済み** — 8 MB ブランチと Dependabot 対応が入り、番号衝突を C-078 で解消した）。
 現在地は [`docs/README.md`](docs/README.md)。
+
+⚠️ **L トラック（商用利用）が加わった**（[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md)）。
+**JSUT を外した v4 を学習して受け入れた**（D-057 / M-115〜M-117）。
+blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字を喋らせた**（M-119〜M-124。xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **音は誰も 1 秒も聴いていない。**
+⚠️ **GitHub Release に上げていないので、配布されているのは今も v3。**
+
+**2026-09-10、声は つくよみちゃんのままにすると決めた**（**D-058**）。
+**D-054 のゴール（帰属表示のみ・出力制限なし）はこれに合わせて改めた** —
+**L トラックの成果は「継承（share-alike）リスクの除去」に確定した。**
+⚠️ **出力の用途制限 4 項目とコピーレフトは残る。**
+⚠️ **本モデルを製品に組み込む側は、その 4 項目を自社の利用規約に書く義務がある**
+（`LICENSE-MODEL.md` §3.2。⚠️ 「商用利用可」だけを見て組み込むと義務を落とす）。
+
+### いま止まっているもの（**5 件**。⚠️ **順序に依存がある**）
+
+| 誰が | # | 何 | 止まっている理由 |
+|---|---|---|---|
+| **人** | **1** | **対照つきの聴取**（G32） | ⚠️ **私は音を聞けない。** ボードは要らない（zip を再生するだけ） |
+| **人** | 11 | 4 MB / 2 MB の**実機の数字** | 板が無い。第三者の報告に checksum / xRT / UR が無い |
+| **判断** | 8 | 辞書 blob を端末で検査するか | 13.7 MB を起動時に舐めるコストが**未測定** |
+| **作業** | **12** | **v1.0.0 をリリースする** | ✅ 資産 28 本は揃っている。**タグを打つ操作だけ** |
+| **作業** | 16 | CI / Pages を v1.0.0 に向ける | ⚠️ **12 の後でないとできない**（タグが無いと CI が落ちる） |
+
+**依存は 12 → 16 だけ。** ⚠️ **1 と 12 は独立**（聴かずに出すこともできるし、その逆もできる）。
 
 | # | 何 | 種類 | ゲート |
 |---|---|---|---|
 | **1** | **対照つきの聴取** — ⚠️ **ざっとした聴取は済んでいる**（M-91 / M-93 = 実機 / M-96 = ブラウザ。どれも**1 名・対照なし・盲検なし**）。残るのは `reports/k8_listen/` の 12 組（枝刈りの誤読）と `reports/d4_accent/`（アクセントの過剰強調 `magnitude_ratio` 1.193） | **人が要る**（私は音を聞けない） | **G32** |
-| 2 | RTF の分母（満チャンク 1 pull = 0.446 で達成 / 発話全体 = 0.54〜0.71 で未達） | 判断 | **未決。D-049 で決める**（`docs/requirements.md` §6.2） |
+| **8** | **辞書 blob の完全性を端末で検査するか**（M-100 §8 の 1・2。いま端末は blob 長も SHA-256 も見ていない） | 判断 | 版を上げる / firmware に SHA-256 を焼く / CRC。⚠️ **13.7 MB を起動時に舐めるコストが未測定** |
+| **11** | **4 MB / 2 MB の実機の数字**（⚠️ **起動と音は第三者が確認した** = [M-109](docs/measurements.md#m-109)。**PSRAM 無しの ATOMS3 でも鳴った**。⚠️ **checksum も xRT もアンダーランも報告に無い**） | 人が要る | 報告者に checksum / xRT / アンダーランを聞く。⚠️ **8M が入らなかった理由も未確認**（M-109 §3。DevKit 版を試した可能性）。⚠️ **私は 1 つも再現していない**。⚠️⚠️ **さらに『どうやって打ち込んだか』も未解決** — DevKit 向け小容量版 3 本はビルド手順上 UART0 のはずで、native USB の ATOMS3 では届かないはず。起動時発話は既定で無効（`SAAN_BOOT_SPEAK=0`）。**配布バイナリからコンソールを判別する probe は作れなかった**（`strings` は UART0 と分かっている 16 MB 版と同じ値を返す） |
+| **12** | **v1.0.0 をリリースする**（L トラックの出荷物の再凍結） | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（M-119〜M-124。firmware 10 本は全部 v4 と**正しい容量の辞書**が入っていることを抽出照合 = **M-126**（陽性対照つき）/ M5 CoreS3 で xRT 0.448・アンダーラン 0・漢字==かな bit 一致）。⚠️ **走らせたのは 10 本のうち 1 本だけ**（残り 9 本は焼いても QEMU にも入れていない）。⚠️ **ただし 1 本は中身が間違っていた** — `MODEL_CARD.md` が **v3 のカード**だった（C-086。版に縛られない 1 枚に直した）。**揃っていたのは本数である。** ⚠️ **2026-09-11 に D-062 込みで作り直した**（[M-128](docs/measurements.md#m-128)。漢字 7 本 +96 B / かな 3 本 ±0）。⚠️⚠️ **したがって [M-123](docs/measurements.md#m-123) / [M-124](docs/measurements.md#m-124) で実機に焼いたのは 1 つ前のビルド**で、**いま staged のイメージは実機で走らせていない**（⚠️ **QEMU では同じソースの DIO ビルドを通した** = [M-129](docs/measurements.md#m-129)）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
+| **16** | ⚠️ **CI が掴む資産が `v0.3.0`（= v3）のタグ固定** — `golden` job と `web` job が落とすのは `saanotts-jp-v3-*`。**出荷物が v4 になった日に、CI は出荷物を 1 度も通さない**（C-083）。⚠️ `pages.yml` の `RELEASE_TAG` も同じ | 作業（**v1.0.0 のタグを打った後**） | `.github/workflows/ci.yml` の 2 job と `pages.yml` のタグ文字列・資産名。⚠️ **リリースしただけでは直らない** |
+
+<details>
+<summary><b>決着したもの 10 件</b>（⚠️ <b>番号は付け替えない</b> — 他のファイルからの参照が黙って壊れる。C-064 / C-078 / C-085）</summary>
+
+| # | 何 | 種類 | ゲート |
+|---|---|---|---|
+| ~~2~~ | ~~RTF の分母~~ → ✅ **決めた**（[D-049](docs/decisions.md#d-049)。2026-09-11）。**定常の分母で ≤ 0.5**（実測 0.446 / 0.448）+ **アンダーラン 0** + **鳴らし始めまで ≤ 0.8 s**（実測 約 479 ms = 余裕 40%）。⚠️ **発話全体は参考値**（合否が文の長さだけで決まるため）。⚠️ **G2P の「1% 未満」は廃止**（分母が動く。改善したのに落ちた） | ✅ | — |
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ → ✅ **v0.3.0 で既に v2 だった**（誤りだった。C-057） | — | — |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ → ✅ **v0.3.0 で配っている**（`esp32s3-firmware-kanji-16mb-usbjtag.bin` / `esp32s3-firmware-w8a8-pie-usbjtag.bin` の実在をリリースで確認）。⚠️ **v0.2.0 以前のイメージは UART0 のまま**なので、CoreS3 / AtomS3 では入れ替えが要る（M-83） | — | — |
 | ~~5~~ | ~~K トラックのエントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](docs/decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | — | — |
 | ~~6~~ | ~~GitHub Pages の有効化~~ → ✅ **2026-09-04 に有効化された**（`build_type: workflow`。⚠️ **手作業だった** — `configure-pages` の `enablement: true` は既定トークンでは効かない）。⚠️ **`pages.yml` は `main` への push でしか走らない**ので、URL が開くのはマージ後 | — | — |
 | ~~7~~ | ~~ブラウザでの実測と聴取~~ → ✅ **測った**（**M-95** Chrome 152）**+ 聴いてもらった**（**M-96** 両レーンとも「問題なかった」/ 途切れ無し）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | — | — |
-| **8** | **辞書 blob の完全性を端末で検査するか**（M-100 §8 の 1・2。いま端末は blob 長も SHA-256 も見ていない） | 判断 | 版を上げる / firmware に SHA-256 を焼く / CRC。⚠️ **13.7 MB を起動時に舐めるコストが未測定** |
-| **9** | **`？` + `〜`(U+301C) 終わりの文が端末で疑問にならない**（M-103 §2）。ホストは `normalize_input()` で U+FF5E に寄せるが端末は寄せない。held-out 2 文 / train 8 文（全部 `curated/question_eos`） | 判断 | ⚠️ **「端末では正規化も推定もしない」と正面から衝突**。(a) 端末に足す (b) コーパスを U+FF5E に直す (c) 受け入れる |
+| ~~9~~ | ~~`？` + `〜`(U+301C) 終わりの文が端末で疑問にならない~~ → ✅ **直した**（[D-062](docs/decisions.md#d-062) / [M-127](docs/measurements.md#m-127)。2026-09-11）。**`question_type()` の中だけで U+301C → U+FF5E** に寄せる。n=1,495 で **1,494 → 1,495**。⚠️ **波形は 1 bit も動いていない**。⚠️ **ホストの他 2 つの正規化は写さない**（U+FF0D は辞書に無い）。✅ ゲート `make -C csrc qeos`（G33。陽性対照つき）| ✅ | — |
 | ~~10~~ | ~~小容量版を配布するか~~ → ✅ **v0.3.1 で正式に配った**（2026-09-10。8 / 4 / 2 MB のイメージ 4 本 + 辞書単体 4 本）。**[D-045](docs/decisions.md#d-045) の 1 に従い v0.3.0 の 18 資産も置き直して単独で完結させた**（資産 27 本 / 134 MB。落とす → 照合 → 上げる → 落とし直して再照合で **26/26 OK**）。⚠️ **読みは 0.63% → 1.01%（8 MB）/ 1.94%（4 MB）/ 3.86%（2 MB 枠）に落ちる**。⚠️ **辞書単体を並べたので取り違えても止まらない**（残タスク 8 が未解決） | — | — |
-| **11** | **4 MB / 2 MB の実機の数字**（⚠️ **起動と音は第三者が確認した** = [M-109](docs/measurements.md#m-109)。**PSRAM 無しの ATOMS3 でも鳴った**。⚠️ **checksum も xRT もアンダーランも報告に無い**） | 人が要る | 報告者に checksum / xRT / アンダーランを聞く。⚠️ **8M が入らなかった理由も未確認**（M-109 §3。DevKit 版を試した可能性）。⚠️ **私は 1 つも再現していない**。⚠️⚠️ **さらに『どうやって打ち込んだか』も未解決** — DevKit 向け小容量版 3 本はビルド手順上 UART0 のはずで、native USB の ATOMS3 では届かないはず。起動時発話は既定で無効（`SAAN_BOOT_SPEAK=0`）。**配布バイナリからコンソールを判別する probe は作れなかった**（`strings` は UART0 と分かっている 16 MB 版と同じ値を返す） |
+| ~~13~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（D-058）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** — L トラックの成果は**継承リスクの除去**に確定 | ✅ | — |
+| ~~15~~ | ~~配布中の v0.3.0 / v0.3.1 の帰属差し替え~~ → ❌ **やらないと決めた**（[D-061](docs/decisions.md#d-061)。2026-09-11）。⚠️ **`v0.3.0` / `v0.3.1` は LibriTTS-R / CML-TTS / AISHELL-3 の記載と Apache 全文を欠いたまま配布され続ける。**✅ **Pages と `releases/latest` は v1.0.0 で直る**（項番 16） | ✅ | — |
+
+</details>
+
+
 
 **素材はそろっている。** 端末の ids はホストの生徒モデルにそのまま入るので、
 **端末の音とホストの音は実機なしで直接比べられる**（M-78）:

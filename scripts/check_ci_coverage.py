@@ -98,6 +98,14 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     "scripts/check_esp32_template.sh": "ESP-IDF の xtensa toolchain（約 2 GB）と重み blob",
     "scripts/check_partitions.py": "重み blob と辞書 blob（大きさを突き合わせる）",
     "scripts/test_discriminator.py": "ラベルパック data/pack_sibdense（git 管理外）",
+    "scripts/check_corpus_license.py": "ラベルパック（data/pack_cc0）とコーパス本文（data/splits/*.tsv。どちらも git 管理外）。⚠️ 表だけの検査は scripts/test_corpus_license.py が CI で回している",
+    # ⚠️ **CI に足してはいけない。** 新規 clone には第三者コーパスが無く、
+    #    追跡されている `corpus_embedded.tsv`（自作 184 行）だけが照合対象になるので、
+    #    **183 件しか見ずに「0 箇所」で緑になる**（= 漏れの 99.2% を見逃す）。
+    #    2026-09-09 にその状態で `reports/k1_measure_out.json` の本文 56 箇所が
+    #    見逃されていたことが判明した（C-075）。今は照合対象が自作だけなら
+    #    **exit 2 で「回せなかった」と言う**ので、CI に足せば必ず落ちる。
+    "scripts/sanitize_reports.py": "第三者コーパス本文（data/splits/corpus_{train,heldout,sibdense}.tsv。git 管理外）。⚠️ **無い環境では exit 2 で「回せなかった」と出る**ので CI では緑にできない。自己テストは scripts/test_sanitize_reports.py が CI で回している",
     # ⚠️ **docs job には入れられない**（依存ゼロ・ネットワーク無しが売りなので）。
     #    要るもの 3 つ: piper-plus の checkout / nltk と transformers（≈ torch 込みで数 GB。
     #    `nltk_data` の averaged_perceptron_tagger_eng も要る — **g2p_en が import 時に
@@ -115,6 +123,15 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
         "piper-plus の checkout・nltk_data（g2p_en が要る）・"
         "教師 snapshot の config.json（private repo 由来。CI では取れない）",
     "scripts/test_k1_dict.py": "pyopenjtalk（3 件が辞書の実体を要る）",
+    # ⚠️ **タグを打つ直前に手で回すゲート。** 資産（firmware / blob / 辞書 = 130 MB 超）が
+    #    git 管理外なので CI では照合対象が 1 本も無く、**「食い違い 0」で緑になってしまう**
+    #    （本体は照合 0 本なら落とすようにしてある）。⚠️ **手で走らせるゲートはいずれ走らせなくなる。**
+    "scripts/check_release_table.py":
+        "リリース資産の実物（git 管理外・130 MB 超）。⚠️ 自己テスト（--self-test。陽性対照 5 件）は CI で回している",
+    # ⚠️ **リリースのときだけ使う変換器。** 入力はリポジトリ内の md なので原理的には
+    #    CI で回せるが、**出力を使う先（GitHub Release の本文）が CI に無い**。
+    "scripts/make_release_body.py":
+        "リリースページの本文を作る道具。出力先（GitHub Release）が CI に無い。⚠️ 変換の正しさは check_doc_links.py が repo 側のリンクで担保する",
     "scripts/kana_g2p.py": "pyopenjtalk と piper-plus（凍結テーブルとの突き合わせ。表だけの検査は `make -C csrc g2p` が CI で回している）",
     "scripts/k1/k0_verify_dict.py": "凍結した sys.dic（103 MB。git 管理外）",
     "scripts/k1/k4b_vendor.py": "上流の sdist（pyopenjtalk-plus の tar.gz）",
@@ -127,7 +144,13 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
 SCRIPT_GLOBS = ("scripts/test_*.py", "scripts/check_*.py", "scripts/check_*.sh",
                 ".claude/hooks/test_*.py", "scripts/k1/k0_verify_dict.py",
                 "scripts/k1/k4b_vendor.py", "scripts/k1/kb_route_parity.py",
-                "scripts/kana_g2p.py")
+                "scripts/kana_g2p.py",
+                # ⚠️ **`test_*` / `check_*` に当たらないゲートは、この表に足さないと
+                #    「CI に無い」ことすら誰も気づかない。** 実際に
+                #    `sanitize_reports.py`（本文検出の**本体**）が漏れており、
+                #    CI は自己テスト `test_sanitize_reports.py` だけ回して
+                #    **本体を一度もリポジトリに向けていなかった**（C-075）。
+                "scripts/sanitize_reports.py")
 
 FAILED: list[str] = []
 

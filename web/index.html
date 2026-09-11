@@ -196,10 +196,12 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
 <h2>ライセンスと帰属</h2>
 
 <h3>モデルの帰属表示（<code>LICENSE-MODEL.md</code> §3.1・必須）</h3>
-<!-- ⚠️ 下のブロックは LICENSE-MODEL.md の 68〜89 行を一字一句そのまま貼ったもの。
-     ⚠️ NOTICE.md:127-145 版は 3 箇所違う（`sanoTTS-jp — URL` 行が無い / JSUT 行が英語 /
-        `教師実装: piper-plus` 行が無い）ので、そちらを写さないこと。
-     ⚠️ 1 行でも欠けると対応する素材の条件に違反する。整形・改行の削除もしないこと。 -->
+<!-- ⚠️ 下のブロックは LICENSE-MODEL.md §3.1 の (A) を一字一句そのまま貼ったもの。
+     ⚠️ **行番号で切り出さないこと**（§3.1 の上に 1 行入ると黙ってずれる。C-080）。
+     ⚠️ **「NOTICE.md 版は違うので写すな」と書いてあったが、2026-09-09 以降は同一**
+        （C-073 で一致させた。3 か所とも sha256 e9f33fd641b1dda2…）。正典は §3.1。
+     ⚠️ 1 行でも欠けると対応する素材の条件に違反する。整形・改行の削除もしないこと。
+     ⚠️ scripts/check_attribution.py（G-A1）と check_web_gates.sh（G-W7）が一致を見ている。 -->
 <pre class="verbatim">This model was distilled from a piper-plus teacher model.
 sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
 
@@ -208,29 +210,46 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
   （© 夢前黎）が無料公開している音声データを使用しています。
   https://tyc.rei-yumesaki.net/material/corpus/
 
-MOE-Speech (litagin) — https://huggingface.co/spaces/litagin/moe-speech-license
-  著作権法 30 条の 4（情報解析のための利用）に基づき学習に使用。
+教師 base の学習に使用した音声コーパス
+（⚠️ 改変あり: いずれも音声合成モデルの学習に使用しています）:
+  - LibriTTS-R (en) — Koizumi et al., 2023 — CC BY 4.0
+      素材:       https://www.openslr.org/141/
+      ライセンス: https://creativecommons.org/licenses/by/4.0/
+  - CML-TTS (es / fr / pt) — freds0 et al. — CC BY 4.0
+      素材:       https://github.com/freds0/CML-TTS-Dataset
+      ライセンス: https://creativecommons.org/licenses/by/4.0/
+  - AISHELL-3 (zh) — Shi et al., 2020 — Apache-2.0
+      素材:       https://www.aishelltech.com/aishell_3
+      ライセンス: https://www.apache.org/licenses/LICENSE-2.0
+  上記 3 素材は現状のまま (AS IS) 提供され、明示・黙示を問わず保証はありません。
 
 蒸留に使用したテキストコーパス:
-  - Common Voice ja (Mozilla) — CC0-1.0
-      https://github.com/common-voice/common-voice
-  - ROHAN4600 (森勢将雅) — CC0-1.0
-      https://github.com/mmorise/rohan4600
-  - ITA コーパス — CC0-1.0
-      https://github.com/mmorise/ita-corpus
   - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
       https://sites.google.com/site/shinnosuketakamichi/publication/jsut
-
-教師実装: piper-plus (MIT) — https://github.com/ayutaz/piper-plus</pre>
+      ライセンス: https://creativecommons.org/licenses/by-sa/4.0/
+      ⚠️ **v4 以降の重みでは不要**（下記）</pre>
 
 <h3>出力の用途制限（<code>LICENSE-MODEL.md</code> §3.2・必須・伝播します）</h3>
 <p>つくよみちゃんコーパスの条件により、<strong>このページが生成した音声</strong>は次に使えません。</p>
+<p class="sub">⚠️ <strong>このページが動かしているのは v3 の重みです</strong>
+（リリース <code>v0.3.0</code> をタグ固定で読み込んでいます）。上の帰属ブロックの
+<strong>JSUT の行は必須</strong>です。</p>
+<!-- ⚠️ ここは LICENSE-MODEL.md §3.2 の**訂正後**の文言に合わせること（C-072 / C-088）。
+     かつて「❌ アダルト用途」「❌ 素材としての再配布」と書いていたが、**どちらも一次ソースより
+     厳しく、誤り**だった。提供元は「適切なゾーニングがあれば成人向け表現も制限しない」
+     「鑑賞用の作品として配布・販売は問題ない」と明言している。
+     ⚠️ **条件節（「ゾーニングなしで」「許可する形で」）を落とすと意味が変わる。** -->
 <ul>
-  <li>❌ 個人・団体への攻撃・批判</li>
-  <li>❌ 政治・宗教上の主張</li>
-  <li>❌ アダルト用途</li>
-  <li>❌ 素材としての再配布（生成音声そのものを「音声素材集」として配布すること）</li>
+  <li>❌ 人を批判・攻撃すること</li>
+  <li>❌ 特定の政治的立場・宗教・思想への賛同または反対を呼びかけること</li>
+  <li>❌ <strong>刺激の強い表現をゾーニングなしで</strong>公開すること</li>
+  <li>❌ <strong>他者に対して二次利用（素材としての利用）を許可する形で</strong>公開すること</li>
 </ul>
+<p class="sub">⚠️ <strong>成人向け表現そのものは禁止されていません</strong>
+（提供元は「適切なゾーニングが実施されている限りにおいては、成人向け表現や残酷な表現についても
+制限を設けておりません」と明言しています）。
+⚠️ <strong>鑑賞用の作品として配布・販売することも問題ありません</strong> —
+禁止されているのは<strong>他者に二次利用を許可する形での公開</strong>です。</p>
 <p>一次ソース: <a href="https://tyc.rei-yumesaki.net/material/corpus/" rel="noopener">https://tyc.rei-yumesaki.net/material/corpus/</a>
 （<strong>条件は提供元が更新しうるため、配布・利用の前に一次ソースを確認してください。
 一次ソースと本ページが食い違う場合、一次ソースが優先します。</strong>）</p>

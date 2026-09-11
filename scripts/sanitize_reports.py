@@ -116,6 +116,23 @@ def main() -> int:
         raise SystemExit("コーパスが読めない。data/splits/ が要る")
     print(f"コーパス本文 {len(texts):,} 件を照合対象にする")
 
+    # ⚠️ **照合対象がほぼ無い状態で「0 箇所」と出すのは空虚である。**
+    #    `corpus_embedded.tsv`（自作 184 行）だけが git 追跡されており、
+    #    第三者コーパス（train / heldout / sibdense）は管理外。新規 clone では
+    #    **183 件しか照合できず、第三者本文の漏れを 1 件も検出できない**まま
+    #    exit 0 になる。**それを「検査した」と読ませない。**
+    #    （2026-09-09 に実測して踏んだ。C-075）
+    third_party = [sp for sp in ("train", "heldout", "sibdense")
+                   if pathlib.Path(f"data/splits/corpus_{sp}.tsv").exists()]
+    if not third_party:
+        print("\n⚠️ **このゲートは回せなかった。**")
+        print("   第三者コーパス（corpus_train / heldout / sibdense）がどれも無く、")
+        print(f"   照合できたのは自作の corpus_embedded {len(texts):,} 件だけ。")
+        print("   **この状態の「0 箇所」は「漏れが無い」ではなく「見ていない」である。**")
+        print("   コーパスを取得して回すこと（手順は docs/README.md）。")
+        return 2
+    print(f"  第三者コーパス: {', '.join(third_party)}")
+
     total = 0
     roots = [pathlib.Path(x) for x in args.root.split(",")]
     # ⚠️ **git が追跡しないものは走査しない。** 公開されないので伏せる必要が無く、

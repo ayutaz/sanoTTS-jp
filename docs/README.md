@@ -83,6 +83,35 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 あわせて **PSRAM 無しの板の穴**を塞いだ（[M-98](measurements.md#m-98)。Open JTalk の一時ヒープを
 G2P の前に形態素数で縛る。低水位 2,760 → 40,468 B）。
 
+**2026-09-10、L トラック（商用利用）が加わった**（[L-1](research/l1-commercial-use-licensing.md) /
+[D-054](decisions.md#d-054) / [D-057](decisions.md#d-057)）。
+**JSUT（唯一の継承付き素材）を外した v4 を学習して受け入れた** — 品質は SCOREQ も
+かな CER も**差を検出できず**、アクセントの差は **seed 対照で大部分が run 間ばらつきと分かった**
+（[M-117](measurements.md#m-117)）。
+✅ **v4 は実機（M5 CoreS3）で漢字を喋った**（[M-124](measurements.md#m-124)。xRT **0.448** / アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**）。⚠️ **音は誰も 1 秒も聴いていない。**
+⚠️ **配布されているのは今も v3**（GitHub Release に上げていない。blob / golden /
+firmware は [M-119](measurements.md#m-119) / [M-120](measurements.md#m-120) / [M-121](measurements.md#m-121) で作ってある）。
+
+**2026-09-10、声は つくよみちゃんのままにすると決めた**（[D-058](decisions.md#d-058)）。
+**したがって [D-054](decisions.md#d-054) のゴール（帰属表示のみ・出力制限なし）は改めた** —
+**L トラックの成果は「継承（share-alike）リスクの除去」に確定した。**
+⚠️ **出力の用途制限 4 項目とコピーレフトは残る。**
+⚠️ **本モデルを製品に組み込む側は、その 4 項目を自社の利用規約に書く義務がある**
+（[`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.2）。
+
+**2026-09-11、L トラックの残り 2 件はどちらも「やらない」で決着した。**
+
+| 問い | 結果 |
+|---|---|
+| **AISHELL-3 を外せば義務が減るか** | ❌ **減らない**（[D-060](decisions.md#d-060)）。**教師 base の学習音声**なので**生徒の再学習では変わらず**、外して消えるのは Apache-2.0 §4(a) の全文同梱の一手間だけ |
+| **配布中の v0.3.x の帰属を直すか** | ❌ **直さない**（[D-061](decisions.md#d-061)）。⚠️ **帰属義務を満たしていない資産が配布され続けることを、承知で受け入れた**。✅ `releases/latest` と Pages は v1.0.0 で直る |
+
+**= L トラックで動かせたのは「蒸留テキスト」の段だけだった。**
+教師 base（帰属）と fine-tune（用途制限 + コピーレフト）は**手つかずで残る。**
+
+⚠️ **同日、公開中のデモが C-072 で訂正済みの用途制限を出し続けていたことが分かった**
+（[C-088](decisions.md#c-088)）。**§3.2 の「言い換えた要約」にはゲートが無い。**
+
 **2026-09-03、W トラック（ブラウザで動くデモ）を足した**（[D-050](decisions.md#d-050) / [M-94](measurements.md#m-94)）。
 `csrc/` の C99 コアと漢字経路を**書き換えずに** wasm にしたもので、
 **成果物は今も ESP32**（[D-007](decisions.md#d-007) は撤回していない）。
@@ -102,8 +131,8 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-053（⚠️ **D-049 は欠番** = RTF の分母用に予約）と**訂正履歴 C-001〜C-071** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-111。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-062（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-089** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-129。全数値に再現コマンド付き | 実測のたび |
 | 3 | [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) | 作業計画（かなトラック）。B-0〜B-12 の検証タスクと Phase 0〜D の状態。**§10 の P-1/P-2/E-1/E-2 は全部決着したので、いまはほぼ履歴** | 固定 |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 | 4 | [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md) | B-0 の結論レポート。辞書枝刈りが不成立と判定した根拠 | 固定 |
@@ -112,6 +141,9 @@ URL が開くのはマージ後。
 | 4.7 | [`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md) | **S-1: 実機で初めて速度が出た**（第三者の M5Stack CoreS3 報告 W8A8+PIE **1.55× RT**。⚠️ 未再現・S1 前）。1 step の内訳をホスト + QEMU で取り、**QUANT / GELU / LOOKUP / WCOPY が MAC と同等以上**と分かった（M-80）。⚠️ **§4 の仮説は半分が外れた**（C-054。§5 は「直し方」で、そちらは全部入った） | 固定 |
 | 4.9 | [`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) | 速度の計画。⚠️ **§10 に S-1（M5Unified 対応 A-0〜A-5 / 速度 S1〜S5a）の前史**を畳んである（旧 `plan/s1-speed-implementation-plan.md` は削除）。T1（末尾 pull の早期終了）/ T2（S9）/ T3（S6）/ T4（arena）/ T5（GELU）/ 64 B 行 と、M5 への漢字搭載。**要件 RTF ≤ 0.5 を達成して完了**（M-88 → M-90）。残りは聴取 | 固定 |
 | 4.95 | [`plan/web-demo-plan.md`](plan/web-demo-plan.md) | **いちばん新しい計画**。**W トラック**（GitHub Pages のランタイムデモ）。W-0〜W-8 と受け入れゲート **G-W1 / G-W2 / G-W2b / G-W3 / G-W4 / G-W5 / G-W6 / G-W7**（8 本）。⚠️ **成果物は今も ESP32**（[D-050](decisions.md#d-050)）で、Web は入口。実測は [M-94](measurements.md#m-94)（node）/ [M-95](measurements.md#m-95)（Chrome）/ [M-96](measurements.md#m-96)（聴取）。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定** | 固定 |
+| 4.99 | [`research/l1-commercial-use-licensing.md`](research/l1-commercial-use-licensing.md) | **L-1: 商用利用可能なモデルにするには何を差し替えればよいか**（[D-054](decisions.md#d-054)）。出力の用途制限は **fine-tune の 100 発話だけ**から来ている。つくよみちゃん / MOE-Speech の**規約原文**と、候補教師の実測（[M-112](measurements.md#m-112)）、声の候補 9 件の一次ソース確認。⚠️ **§0.1 に「その後どうなったか」** — **提案 2 つのうち JSUT 除去だけ実行し、声の差し替えは [D-058](decisions.md#d-058) でやらないと決めた**ので、**§0 のゴールは達成されない** | 固定（§0.1 だけ追記） |
+| 4.995 | [`superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`](superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md) | **設計: 蒸留テキストを CC0 / PD のみにする**（JSUT 6,472 行を外す。[D-054](decisions.md#d-054) の声と独立な半分）。`source` allowlist / held-out は据え置き / **ゲート 2 本 + 統計レポート**。✅ **実装は完了**（Task 1〜8。[D-057](decisions.md#d-057)）。⚠️ **§ の「声の差し替え待ち」は古い** — [D-058](decisions.md#d-058) で差し替えないと決めた | 履歴 |
+| 4.996 | [`superpowers/plans/2026-09-09-cc0-only-distillation-text.md`](superpowers/plans/2026-09-09-cc0-only-distillation-text.md) | **上の実装計画**（Task 1〜8）。✅ **全 Task 完走**（Task 5 / Task 7 の判断点はどちらもユーザーが「進む」を選択）。⚠️ **残りは GitHub Release だけ** | 履歴 |
 | 5 | [`research/sanotts-jp-feasibility.md`](research/sanotts-jp-feasibility.md) | 初期調査。論文の全数値と piper-plus の資産棚卸し。⚠️ 結論の一部は更新済み | ほぼ固定 |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -195,6 +227,17 @@ URL が開くのはマージ後。
                             mora テーブルを csrc/g2p_table.json に凍結（SHA-256 検証つき）
                             ⚠️ **リリース v0.1.0 の手順は動かなかった**（C-040）
                             ⚠️ 「piper-plus 無しで通った」と**誤って観測**した（C-041）
+[未]   **v1.0.0 リリース**      ⚠️ **資産 28 本は用意済み。まだ上げていない。** 商用利用の条件を確定させ
+                            （[D-058](decisions.md#d-058)）、継承リスクを外した **v4** の重みを配る。
+                            ✅ 実機で漢字を喋った（[M-124](measurements.md#m-124)。xRT 0.448 / UR 0）。
+                            ⚠️ **1.0 でも未決**: 聴取 / 10 本中 9 本は未焼き / アクセント 31/37（✅ **RTF の分母は D-049 で決めた**）
+[決定] 2026-09-11           **AISHELL-3 は外さない**（[D-060](decisions.md#d-060)。教師 base 由来で、
+                            生徒の再学習では変わらず、外しても義務が減らない）。
+                            **v0.3.x の帰属は直さない**（[D-061](decisions.md#d-061)）。
+                            ⚠️ **帰属義務を満たしていない資産が配布され続けることを、承知で受け入れた。**
+                            ✅ `releases/latest` と Pages は v1.0.0 で直る
+[完了] **v0.3.1 リリース**      **小さい flash（8 / 4 / 2 MB）**を正式に配る。⚠️ **モデルは v3 のまま**。
+                            ⚠️ **帰属が 3 素材ぶん足りない**（[C-081](decisions.md#c-081)）。❌ **差し替えないと決めた**（[D-061](decisions.md#d-061)）
 [完了] **v0.3.0 リリース**      **スタックチャン（M5 CoreS3）の配布イメージ**を追加。焼いた実機で確認済み（M-90 / M-91）。
                             ⚠️ **モデルは v0.1.0 から bit 同一**（再学習していない）。変わったのは端末のコード。
                             ✅ **v0.2.0 の欠陥 2 件を直した**: int8 blob が v1 で現行コアに拒まれる（→ **v2 / 654,032 B**）／
@@ -232,7 +275,7 @@ URL が開くのはマージ後。
 [完了] **要件 RTF ≤ 0.5 達成**   満チャンク 1 pull の xRT **0.497**、アンダーラン **0**、鳴らし始め 434 ms（M-88。かな構成）。
                                  ⚠️ **出荷構成（M5 + 漢字 + S5b）は xRT 0.446 / 鳴らし始め 384 ms**（M-90）。
                             T4 で内部 DRAM の空きが **+36,420 B**（M-89）
-                            ⚠️ **発話全体で見ると 0.550〜0.693** でまだ 0.5 超（分母は未決 = D-049）
+                            ⚠️ **発話全体で見ると 0.550〜0.693** で 0.5 超（✅ **要件は定常の分母** = D-049）
 [完了] D-048                  **ESP32-S3 では W8A8 + PIE を既定にする**（フラグ無しで有効）
 [完了] **スタックチャンで喋った** 辞書 + 漢字 + W8A8/PIE + T1〜T5 + S5b を 1 本のファームに載せ、
                             **漢字・カタカナ・ひらがなを M5.Speaker へ**（M-90）。xRT **0.446** /
@@ -268,15 +311,32 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 
 ---
 
-## 残っているタスク（**2026-09-03 更新。対照つきの聴取だけ**）
+## 残っているタスク（**2026-09-11 更新。この表は 3 件**: 聴取 1 / リリース 1 / CI のタグ 1。⚠️ **プロジェクト全体では 5 件** — 項番 8 / 11 は [`../CLAUDE.md`](../CLAUDE.md) にしかない）
+
+⚠️ **項番 8〜11 は [`../CLAUDE.md`](../CLAUDE.md) の表にしかない**（小容量版の配布・辞書の完全性検査・疑問符の正規化・4 MB / 2 MB の実機）。**番号は両方の表で一意にしてある。**
 
 | # | 何 | トラック | 種類 | ゲート |
 |---|---|---|---|---|
 | **1** | **対照つきの聴取** — ざっとは聴かれた（M-91。⚠️ 1 名・対照なし・盲検なし）が、**`reports/k8_listen/` の 12 組**と**アクセントのミニマルペア**は未聴取 | 両方 | **人が要る** | **G32** |
-| 2 | RTF の分母（満チャンク 1 pull = 0.446 で達成 / 発話全体 = 0.54〜0.71 で未達） | かな | 判断 | **未決。D-049 で決める**（[`requirements.md`](requirements.md) §6.2） |
+| **12** | **v1.0.0 をリリースする**（v4 の出荷物の再凍結） | **L** | 作業 | ✅ **資産 28 本すべて揃い、実機でも喋った**（[M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。`all-test` 全通過・held-out 24 文 bit 一致・int8 最小 SNR 25.98 dB・firmware 10 本は全部 v4 と正しい辞書が入っていることを抽出照合 = [M-126](measurements.md#m-126)・M5 CoreS3 で xRT 0.448 / アンダーラン 0 / 漢字==かな bit 一致）。⚠️ **走らせたのは 1 本だけ**。⚠️ **1 本は中身が間違っていた** — `MODEL_CARD.md` が **v3 のカード**だった（[C-086](decisions.md#c-086)）。⚠️ **2026-09-11 に D-062 込みで作り直した**（[M-128](measurements.md#m-128)）。⚠️⚠️ **実機に焼いたのは 1 つ前のビルド**である（⚠️ QEMU では同じソースを通した = [M-129](measurements.md#m-129)）。⚠️ **残り: GitHub Release と聴取。配布中は今も v3** |
+| **16** | ⚠️ **CI が掴む資産が `v0.3.0`（= v3）のタグ固定** — `golden` / `web` job が落とすのは `saanotts-jp-v3-*` なので、**出荷物が v4 になった日に CI は出荷物を 1 度も通さない**（[C-083](decisions.md#c-083)）| **L** | 作業（タグの後） | `ci.yml` の 2 job と `pages.yml` の `RELEASE_TAG` |
+
+<details>
+<summary><b>決着したもの 7 件</b>（⚠️ <b>番号は付け替えない</b> — 他のファイルからの参照が黙って壊れる。C-064 / C-078 / C-085）</summary>
+
+| # | 何 | トラック | 種類 | ゲート |
+|---|---|---|---|---|
+| ~~2~~ | ~~RTF の分母~~ → ✅ **決めた**（[D-049](decisions.md#d-049)）。**定常で ≤ 0.5** + **アンダーラン 0** + **鳴らし始めまで ≤ 0.8 s**（実測 約 479 ms）。⚠️ **発話全体は参考値** / **G2P の「1% 未満」は廃止** | かな | ✅ | — |
 | ~~3~~ | ~~リリース資産の blob を v1 → v2 に上げる~~ | かな | ✅ **v0.3.0** | `scripts/check_release_assets.py` |
 | ~~4~~ | ~~配布イメージを USB Serial/JTAG 入力でも配る~~ | 両方 | ✅ **v0.3.0** | `esp32/TESTING.md` |
-| 5 | エントリ数・接続行列（今は 438,750 / int16） | K | 判断 | D-044 を見直すか |
+| ~~5~~ | ~~エントリ数・接続行列~~ → ✅ **D-044 を維持と決めた**（[D-051](decisions.md#d-051)。接続行列 uint8 は 16 MB では買うものが無く、MeCab 一致を 1,696 → 1,693 に落とす） | K | ✅ | — |
+| ~~13~~ | ~~教師の声の差し替え~~ → ✅ **やらないと決めた**（[D-058](decisions.md#d-058)）。つくよみちゃんの条件（出力の用途制限 4 項目 + コピーレフト）を**受け入れて配布する**。⚠️ **D-054 のゴールはこれに合わせて改めた** | **L** | ✅ | — |
+| ~~14~~ | ~~アクセント指標の教師ゲートが生徒依存~~ → ✅ **直した**（[C-076](decisions.md#c-076) / [M-118](measurements.md#m-118)）。ゲートは教師だけのマスク、cos は共通マスクに分けた。3 run で分母が 37/38 にそろった | 両方 | ✅ | `scripts/test_accent_gate.py`（陽性対照つき・CI） |
+| ~~15~~ | ~~配布中の v0.3.0 / v0.3.1 の帰属差し替え~~ → ❌ **やらない**（[D-061](decisions.md#d-061)）。⚠️ **欠陥版が配布され続ける。**✅ Pages と latest は v1.0.0 で直る | **L** | ✅ | — |
+
+</details>
+
+
 
 ✅ **「音の測定」は済んだ**（M-78）。実機は要らなかった — 端末の ids はホストの
 生徒モデルにそのまま入るので、**端末の音とホストの音を直接比べられる**。
@@ -471,7 +531,7 @@ matrixa / matrixc / charr / rec5 は `all-test` に入れていない**
    **誤読を罰せず**（M-78）、DNSMOS は**アクセント誤りに無反応**（M-50）。
    ここだけは指標では埋まらない
 2. ~~ESP32 で実時間に間に合うか~~ — ✅ **満チャンク 1 pull の xRT 0.446**（M-90。CoreS3 / W8A8+PIE）。
-   ⚠️ **発話全体では 0.54〜0.71**（M-88 / M-90）で、**分母は未決**（D-049 で決める）。
+   ⚠️ **発話全体では 0.54〜0.71**（M-88 / M-90）。✅ **要件は定常の分母に決まった**（[D-049](decisions.md#d-049)）。**発話全体は参考値**（合否が文の長さで決まるため）。
    ⚠️ **「PIE の int8 カーネルが必須」は当たった**（同じ板で W8A32 は 0.92〜1.09。M-86）が、
    **M-43 の外挿 0.088× RT は実機の 18 倍外れた**（M-80）
 3. ~~ESP32 に載るか~~ — ✅ **arena 176 KB / 実測 used 157,360 B**、内部 DRAM の空き 132 KB
@@ -495,18 +555,23 @@ sanoTTS-jp/
 ├── docs/
 │   ├── README.md                          このファイル
 │   ├── requirements.md                    要件定義書
-│   ├── decisions.md                       決定記録 D-001〜D-053（D-049 は欠番）+ 訂正履歴 C-001〜C-071
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-111
+│   ├── decisions.md                       決定記録 D-001〜D-062（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-089
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-129
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
-│   ├── release-notes/                     各リリースの変更点（**訂正も残す**）
+│   ├── release-notes/                     各リリースの変更点（**訂正も残す**）。6 本: v0.1.0 / v0.1.1 / v0.2.0 / v0.3.0 / v0.3.1 / v1.0.0
+│   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
+│   │                                     **タグの打ち方と「打った後にやること」もそこに書いてある**
 │   ├── plan/phase0-1-implementation-plan.md
 │   ├── plan/k1-kanji-implementation-plan.md  K トラックの実装計画（K-0〜K-8）
 │   ├── plan/s2-fast-kanji-m5-plan.md        **S2（T1〜T5 / 64 B 行 / M5 への漢字搭載）+ §10 に S-1 の前史**
 │   ├── plan/web-demo-plan.md                **W トラック**（GitHub Pages のデモ。W-0〜W-8 / ゲート 8 本）
+│   ├── superpowers/specs/                 設計 (spec)。実装計画の前段
+│   ├── superpowers/plans/                 実装計画（タスク分解）
 │   └── research/
 │       ├── b0-g2p-footprint.md            B-0 の結論
 │       ├── k1-kanji-katakana-ondevice.md  K-1 の結論（B-0 を測り直した）
 │       ├── s1-m5-cores3-speed.md          S-1（第三者報告 + 1 step の内訳。⚠️ §4 の仮説は半分外れた）
+│       ├── l1-commercial-use-licensing.md L-1（商用利用のための素材の差し替え。⚠️ 調査のみ）
 │       └── sanotts-jp-feasibility.md     初期調査
 ├── scripts/k1/                            K トラックの測定・ビルド（README.md あり）
 │   ├── k0_verify_dict.py                  使う辞書が D-042 の凍結物か（陰性対照 2 種）
@@ -621,6 +686,10 @@ sanoTTS-jp/
     ├── test_losses.py / test_labelpack.py / test_discriminator.py
     ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
     ├── check_lock_vs_pyproject.py         **pyproject の制約 vs uv.lock の固定版**（C-071。**CI で回る**）
+    ├── check_doc_commands.py               **docs が書いたコマンドの実体**（スクリプト / make ターゲット。**CI で回る**）
+    ├── check_attribution.py                **帰属義務の成果物**（G-A1 写しが 3 か所で一致 / G-A2 同梱した全文。C-080 / C-081。**CI で回る**）
+    ├── check_release_table.py              **リリースノートの資産表 vs 実物**（C-087。⚠️ **CI は自己テストのみ**）
+    ├── make_release_body.py                リリースページ用に相対リンクを絶対 URL に直す（⚠️ **CI で回らない**）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
@@ -671,6 +740,10 @@ uv run python src/saanotts_jp/_param_reference.py  # 論文 Table I の再現 + 
 uv run python scripts/check_doc_counters.py      # 索引の M/D/C 番号 + 引用アンカー
 uv run python scripts/check_lock_vs_pyproject.py # pyproject の制約 vs uv.lock（陽性対照 6 / 陰性対照 2）
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
+uv run python scripts/check_doc_commands.py      # docs のコマンドの実体（陽性対照 5 件）
+uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（G-A1 / G-A2）
+uv run python scripts/check_release_table.py --self-test  # 資産表 vs 実物（陽性対照 5 件）。
+                                                 #   ⚠️ 本体は --notes と --dir が要る（リリース時）
 uv run python scripts/check_release_assets.py    # 表の資産がリリースに在るか（要ネットワーク）
 uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
 uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か
@@ -679,7 +752,7 @@ uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍�
 uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt
 make -C csrc all-test                            # golden / stream（held-out 24 文 × 3 レーン）/ fft /
                                                  #   int8 / int8-golden / int8-e2e / arena /
-                                                 #   g2p / pad / line / erf / range
+                                                 #   g2p / pad / line / erf / range / qeos
 make -C csrc prof                                # 段別プロファイラ + --expect-* ゲート（S1 / T1〜T3）
 make -C csrc kb-parity                           # 経路の 3 値判定がホストと一致するか（K-B）
 bash scripts/check_esp32_template.sh             # esp32/ 雛形をホストで検査（**12 節**。§10 = arena の余白 /

@@ -41,6 +41,27 @@ jobs:
       - name: md の相対リンクが実在するか
         run: uv run --no-project --python 3.12 python scripts/check_doc_links.py
 
+      # ⚠️ **リンクの検査はコードフェンスの中を見ない。** 読者が最初に打つのはそこである
+      #    （C-040: リリースの「使い方」が 2 行とも動かなかった）。
+      - name: ドキュメントが書いたコマンドの実体が在るか（陽性対照 5 件）
+        run: |
+          uv run --no-project --python 3.12 python scripts/check_doc_commands.py
+          uv run --no-project --python 3.12 python scripts/check_doc_commands.py --self-test
+
+      # ⚠️ **`check_doc_links.py` は「在るか」しか見ない。** 中身が記載どおりかは見ないし、
+      #    §3.1 の帰属ブロックの**写しが 3 か所で一致しているか**も見ない。
+      #    C-080（web/index.html の写しを置き去り）と C-081（同梱義務を書いたのに
+      #    全文ファイルが無い）がその穴で、**どちらもこのゲートが無い間に起きた**。
+      - name: 帰属義務の成果物（G-A1 写しの一致 / G-A2 同梱した全文。陽性対照 7 件）
+        run: |
+          uv run --no-project --python 3.12 python scripts/check_attribution.py
+          uv run --no-project --python 3.12 python scripts/check_attribution.py --self-test
+
+      # ⚠️ **本体は CI では回せない**（資産が git 管理外の 130 MB 超）。回すのは自己テストだけで、
+      #    「表と実物が合っているか」は**タグを打つ直前に手で**回す（README の手順）。
+      - name: リリースノートの資産表 vs 実物 — **自己テストのみ**（陽性対照 5 件）
+        run: uv run --no-project --python 3.12 python scripts/check_release_table.py --self-test
+
       - name: hook の回帰
         run: uv run --no-project --python 3.12 python .claude/hooks/test_guard_bash.py
 
@@ -53,6 +74,8 @@ jobs:
       - name: blob → .rodata ヘッダの変換（int8 検出・fp32 拒否の陽性対照・SHA 一致）
         run: uv run --no-project --python 3.12 python scripts/test_blob_to_header.py
 
+      - name: 蒸留テキストのライセンス判定（G-L1a・陽性対照つき）
+        run: uv run --no-project --python 3.12 python scripts/test_corpus_license.py
       # ⚠️ **この job を含む 4 job は `--no-project`、`python` job は `uv pip install` の即席 venv、
       #    `golden` は python 無し** = uv.lock も pyproject.toml も**どこでも解決されない**（C-071）。
       #    せめて宣言と固定版が食い違っていないかは見る。
@@ -176,6 +199,11 @@ jobs:
       - name: S9 範囲版カーネル vs [0,T) 版（ランダム形状 bit 一致 + LN の T 非依存。陽性対照つき。重み不要）
         run: make -C csrc range
 
+      # ⚠️ **辞書も pyopenjtalk も要らない。** label_ids_convert() は合成した最小ラベル
+      #    3 本で足りるので、重みも辞書も無い CI で回る（D-062 / M-127）。
+      - name: 疑問 EOS 4 種 + U+301C の正規化（G33。陽性対照つき。重み・辞書不要）
+        run: make -C csrc qeos
+
       - name: オンデバイス G2P（凍結テーブル 2,819 ベクタ）
         run: make -C csrc g2p PYTHON="uv run --no-project --python 3.12 python"
 
@@ -207,6 +235,9 @@ jobs:
 
       - name: ラベルパックの往復とゲート発火
         run: .venv-ci/bin/python scripts/test_labelpack.py
+
+      - name: アクセントの教師ゲートが生徒に依存しないか（C-076・陽性対照つき）
+        run: .venv-ci/bin/python scripts/test_accent_gate.py
 
   # ----------------------------------------------------------- リリースの資産
   # ⚠️ **C-052 の再発防止。** ドキュメントが名前を挙げた資産が実際に在るか。

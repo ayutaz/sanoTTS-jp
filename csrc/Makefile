@@ -161,7 +161,7 @@ g2p_vectors_corpus.bin:
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
 .PHONY: test golden stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus jdict-hard \
-        line range all-test clean
+        line range qeos all-test clean
 # ⚠️ **`golden` は `test` の別名。** README / リリースノート v0.2.0 / .github/workflows/README.md が
 #    `make -C csrc golden` と書いているのに、そのターゲットが**存在しなかった**
 #    （配布済みの手順書にも入っている）。名前としても `golden`（ゴールデンテスト）の方が
@@ -282,6 +282,23 @@ erf_test_linear: erf_test.c $(CORE) $(HDRS)
 erf_test_clamp: erf_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_ERF_TEST_CLAMP=3.9f -o $@ erf_test.c $(CORE) $(LDLIBS)
 
+# G33: 疑問 EOS の 4 種と U+301C の正規化（M-103 §2 / C-089）。
+# ⚠️ **辞書もコーパスも要らない** — label_ids_convert() は合成ラベルで足りるので
+#    all-test と CI で回る。⚠️ 既定の label-ids（n=298）はこの文をサンプルしないので、
+#    **このゲートが無いと回帰を防げない**。
+qeos_test: qeos_test.c label_ids.c label_ids.h token_table.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ qeos_test.c label_ids.c $(LDLIBS)
+
+# 陽性対照: 正規化を外すと U+301C のケースが落ちること
+qeos_test_nonorm: qeos_test.c label_ids.c label_ids.h token_table.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DQEOS_TEST_NO_NORMALIZE=1 \
+	    -o $@ qeos_test.c label_ids.c $(LDLIBS)
+
+qeos: qeos_test qeos_test_nonorm
+	@./qeos_test
+	@echo ""
+	@./qeos_test_nonorm
+
 erf: erf_test erf_test_linear erf_test_clamp
 	./erf_test
 	./erf_test_linear --expect-fail
@@ -322,7 +339,7 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard qeos
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress jdict_test accent_test \

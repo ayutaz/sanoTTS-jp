@@ -1,12 +1,25 @@
 # ダウンロード
 
+> ⚠️ **v4（JSUT を外した重み）は資産 28 本まで用意できているが、まだリリースしていない。**
+> ここに名前を書くと [`../scripts/check_release_assets.py`](../scripts/check_release_assets.py) が
+> **実在を CI で検査して落ちる**ので、**タグを打つときに追加する。**
+> 中身と実測は [`release-notes/v1.0.0.md`](release-notes/v1.0.0.md) と
+> [M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。
+>
+> ⚠️ **下の v0.3.x の `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
+> `saanotts-jp-v3-samples.zip` は帰属が足りていない**（LibriTTS-R / CML-TTS / AISHELL-3 の
+> 記載と Apache-2.0 全文が無い。[C-081](decisions.md#c-081)）。
+> ❌ **差し替えないと決めた**（[D-061](decisions.md#d-061)）。**正しい帰属は v1.0.0 から。**
+
+
 *[← README](../README.md)*
 
 ⚠️ **ここに名前を書いた資産は「実在すること」を CI が検査する**
 （`scripts/check_release_assets.py`。C-052 の再発防止）。**消えたリンクを放置できない。**
 
 **最新の [v0.3.1](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1) に全部入っている。**
-⚠️ **モデルの重みは v0.1.0 以降すべて bit 同一**（再学習していない）。
+⚠️ **モデルの重みは v0.1.0 〜 v0.3.1 のあいだ bit 同一**（再学習していない）。
+⚠️ **次のタグ v1.0.0 でこれは変わる** — 蒸留テキストから JSUT を外して学習し直した **v4** に差し替わる（[D-057](decisions.md#d-057) / [D-059](decisions.md#d-059)）。
 
 | 資産 | どこ | 中身 |
 |---|---|---|

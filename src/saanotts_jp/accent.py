@@ -175,18 +175,37 @@ def auc(pos, neg) -> float:
                  / (pos.size * neg.size))
 
 
-def contrast(a_t, a_s, b_t, b_s, mask) -> dict:
+def contrast(a_t, a_s, b_t, b_s, mask, teacher_mask=None) -> dict:
     """ペア (A, B) のコントラスト。`mask` は群内の全メンバーで F0 が取れたモーラ。
 
     中心化してから差を取るので、**話者の平均ピッチや全体の高さは落ちる**。
+
+    ⚠️ **`teacher_mask` は教師だけで作ったマスク**（C-076）。
+    教師ゲートに使う `gate_teacher_st` をこちらで計算することで、
+    **「どのペアを評価するか」が生徒に依存しなくなる**。
+
+    `mask` が生徒との共通マスクである以上、`norm_teacher_st`（cos と対で使う量）は
+    生徒によって動く。**それは正しい** — cos は対応するモーラ同士でしか測れない。
+    動いてはいけないのは**ゲート**の方だった。
+
+    `teacher_mask=None` のときは従来どおり `gate_teacher_st = norm_teacher_st`。
     """
-    def c(v):
-        v = np.asarray(v, float)[mask]
+    def c(v, m):
+        v = np.asarray(v, float)[m]
         return v - v.mean()
 
-    d_t, d_s = c(a_t) - c(b_t), c(a_s) - c(b_s)
+    d_t, d_s = c(a_t, mask) - c(b_t, mask), c(a_s, mask) - c(b_s, mask)
     n_t, n_s = float(np.linalg.norm(d_t)), float(np.linalg.norm(d_s))
+
+    if teacher_mask is None:
+        gate_t, gate_n = n_t, int(mask.sum())
+    else:
+        g = c(a_t, teacher_mask) - c(b_t, teacher_mask)
+        gate_t, gate_n = float(np.linalg.norm(g)), int(teacher_mask.sum())
+
     return {"n_morae": int(mask.sum()), "norm_teacher_st": n_t, "norm_student_st": n_s,
+            # ⚠️ **ゲート専用**。生徒に依存しないので、モデル間で分母がそろう（C-076）
+            "gate_teacher_st": gate_t, "gate_n_morae": gate_n,
             "cos": float(d_t @ d_s / (n_t * n_s + 1e-12)),
             "delta_teacher": d_t.tolist(), "delta_student": d_s.tolist()}
 

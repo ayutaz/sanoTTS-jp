@@ -128,6 +128,7 @@ make -C csrc g2p PYTHON="uv run --no-project python"    # オンデバイス G2P
 make -C csrc erf                                        # GELU の erf 近似 vs libm（陽性対照つき）
 make -C csrc range                                      # 出力範囲つきカーネルが全域版と bit 一致
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata（fp32 拒否の陽性対照）
+uv run --no-project python scripts/test_corpus_license.py   # 蒸留テキストのライセンス判定（陽性対照つき）
 uv run --no-project python scripts/test_losses.py
 uv run --no-project python scripts/test_labelpack.py
 ```

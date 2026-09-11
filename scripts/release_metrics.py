@@ -87,6 +87,11 @@ def main() -> int:
         "student_v2": "reports/eval_v2/student",
         "student_v3": "reports/eval_v3_full/student",
     }
+    #: v4（CC0/PD のみの蒸留テキスト。D-056）。**在るときだけ足す** —
+    #: 他の人の clone には無いので、無ければ v2/v3 だけで従来どおり動く。
+    #: ⚠️ 教師は `eval_v3_full/teacher` を使い回す（G2 が bit 一致を検査する）。
+    if pathlib.Path("reports/eval_v4_full/student").is_dir():
+        SETS["student_v4"] = "reports/eval_v4_full/student"
     #: ⚠️ **陽性対照。** G1 が空虚でないことを示すためだけに測る。比率には使わない
     CONTROL = {"student_v3_unpadded": "reports/student_wav_v3"}
 
@@ -139,15 +144,23 @@ def main() -> int:
     val = {n: np.array([sc[p] for p in paths[n]], float) for n in allsets}
 
     t = val["teacher"]
+    #: 教師比を出す対象。⚠️ **`teacher` 自身は入れない**（比 1.0 で意味が無い）。
+    #: v4 は在るときだけ（SETS に足したのと同じ条件）。
+    ratio_sets = [n for n in ("student_v2", "student_v3", "student_v4",
+                              "student_v3_unpadded") if n in allsets]
     report["scoreq_synthetic_nr"] = {
         "means": {n: round(float(val[n].mean()), 4) for n in allsets},
-        "teacher_ratio": {n: ratio_ci(val[n], t, a.n_boot) for n in
-                          ("student_v2", "student_v3", "student_v3_unpadded")},
+        "teacher_ratio": {n: ratio_ci(val[n], t, a.n_boot) for n in ratio_sets},
         "paired_v3_minus_v2": paired_diff_ci(val["student_v3"], val["student_v2"],
                                              a.n_boot),
         "padding_effect_on_v3": paired_diff_ci(val["student_v3_unpadded"],
                                                val["student_v3"], a.n_boot),
     }
+    #: ⚠️ **v4 の判定はここ。** 対応ありの差（同じ 24 文）を CI つきで見る。
+    #: 「比が下がった」を点推定で言わないため（C-004 / C-017）。
+    if "student_v4" in allsets:
+        report["scoreq_synthetic_nr"]["paired_v4_minus_v3"] = paired_diff_ci(
+            val["student_v4"], val["student_v3"], a.n_boot)
 
     report["caveats"] = [
         "SCOREQ は日本語で較正されていない（D-013 / D-020）。絶対値を英語モデルと比べない",
@@ -164,7 +177,8 @@ def main() -> int:
           f"（陽性対照は期待どおり FAIL: 先頭無音 "
           f"{g1['student_v3_unpadded']['lead_silence_min']} < {expect}）\n")
     print(f"  {'set':<22}{'SCOREQ':>9}{'教師比':>10}{'CI95':>20}")
-    for n in ("teacher", "student_v2", "student_v3", "student_v3_unpadded"):
+    for n in [x for x in ("teacher", "student_v2", "student_v3", "student_v4",
+                          "student_v3_unpadded") if x in allsets]:
         r = report["scoreq_synthetic_nr"]["teacher_ratio"].get(n)
         rs = f"{r['ratio']:.4f}" if r else "—"
         cs = "[%+.4f,%+.4f]" % tuple(r["ci95"]) if r else "—"
@@ -175,6 +189,13 @@ def main() -> int:
     print(f"\n  v3 − v2（対応あり）      {d['diff']:+.4f} [{d['ci95'][0]:+.4f}, {d['ci95'][1]:+.4f}]")
     print(f"  パディングだけの効果      {p['diff']:+.4f} [{p['ci95'][0]:+.4f}, {p['ci95'][1]:+.4f}]"
           f"  ← これが 0.6613 の正体")
+    v4 = report["scoreq_synthetic_nr"].get("paired_v4_minus_v3")
+    if v4:
+        print(f"  **v4 − v3（対応あり）**   {v4['diff']:+.4f} "
+              f"[{v4['ci95'][0]:+.4f}, {v4['ci95'][1]:+.4f}]"
+              f"  ← JSUT を外した影響（D-056）")
+        print("  ⚠️ CI が 0 を跨いでいれば「差は検出できなかった」。"
+              "**点推定の符号で優劣を言わない**（C-004 / C-017）")
     print(f"\n  → {outdir / 'scoreq.json'}")
     return 0
 
