@@ -139,7 +139,10 @@ AISHELL-3 由来の素材を含む本モデルを再配布する場合は、(A) 
 `LICENSE-APACHE-2.0.txt` を置く）。
 ✅ **その全文はこのリポジトリの [`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt) に在る**
 （原典 `https://www.apache.org/licenses/LICENSE-2.0.txt` / sha256 `cfc7749b96f63bd3…` /
-202 行 11,358 B）。⚠️ **v0.3.0 / v0.3.1 の資産には入っていない**（[`docs/decisions.md`](docs/decisions.md) C-081）。
+202 行 11,358 B）。
+⚠️ **v0.3.0 / v0.3.1 の資産には入っていない**（[`docs/decisions.md`](docs/decisions.md) C-081）。
+❌ **それを差し替えないと決めた**（同 D-061）ので、**v0.3.x を再配布する方は
+このファイルを自分で足してください。**
 §6 の表にある「§4: ライセンス全文の同梱と通知の保持」は
 この追加の一手間を指しており、(A) を写すだけでは discharge されません。
 

@@ -7,8 +7,9 @@
 > [M-119](measurements.md#m-119)〜[M-124](measurements.md#m-124)。
 >
 > ⚠️ **下の v0.3.x の `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
-> `saanotts-jp-v3-samples.zip` は帰属が足りていない**（[C-081](decisions.md#c-081)）。
-> 差し替え用の資産は用意済みで、**アップロードは未実行**。
+> `saanotts-jp-v3-samples.zip` は帰属が足りていない**（LibriTTS-R / CML-TTS / AISHELL-3 の
+> 記載と Apache-2.0 全文が無い。[C-081](decisions.md#c-081)）。
+> ❌ **差し替えないと決めた**（[D-061](decisions.md#d-061)）。**正しい帰属は v1.0.0 から。**
 
 
 *[← README](../README.md)*

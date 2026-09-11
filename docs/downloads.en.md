@@ -10,7 +10,8 @@
 > ⚠️ **The v0.3.x `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
 > `saanotts-jp-v3-samples.zip` below under-attribute three materials**
 > (LibriTTS-R, CML-TTS, AISHELL-3 — see [C-081](decisions.md#c-081)).
-> Corrected assets are staged; **the upload has not been performed.**
+> ❌ **We decided not to replace them** ([D-061](decisions.md#d-061)).
+> **Correct attribution ships from v1.0.0 onward.**
 
 
 *[← README](../README.en.md)*
