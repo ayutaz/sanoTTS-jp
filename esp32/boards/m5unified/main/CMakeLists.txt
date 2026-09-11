@@ -29,8 +29,13 @@ idf_component_register(
          "saan_ui_m5.cpp"
          ${SAAN_MAIN_K}
     INCLUDE_DIRS "." "${SAAN_MAIN}"
+    # ⚠️ `mbedtls` は**測定専用**（残タスク 8 の SHA-256）。
+    #    ⚠️ **`if()` で条件つきにすると届かない** — IDF の早期展開で
+    #    `SAAN_REQ_K` に足しても REQUIRES に反映されなかった（実際に踏んだ）。
+    #    コードは `#if SAAN_DICT_INTEGRITY_PROBE` で囲ってあるので、
+    #    **既定ビルドには 1 行も入らない**（リンクもされない）。
     REQUIRES saanotts_core esp_timer esp_driver_usb_serial_jtag esp_driver_uart
-             ${SAAN_REQ_K}
+             mbedtls ${SAAN_REQ_K}
 )
 
 # ⚠️ **コア component と同じ条件で main 側にも渡す。** main.c の
@@ -68,6 +73,13 @@ if(SAAN_BUFFERED)
 endif()
 if(SAAN_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PROFILE=1)
+endif()
+
+# ⚠️ **測定専用**（残タスク 8 の材料）。既定は 0 で出荷物には入らない。
+# ⚠️ **`esp32/main/CMakeLists.txt` と 2 か所ある** — M5 構成はこの板独自の main を使う。
+#    片方だけ足すと**フラグが黙って無視される**（実際に踏んだ）。
+if(SAAN_DICT_INTEGRITY_PROBE)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_DICT_INTEGRITY_PROBE=1)
 endif()
 
 # --- ESP32（Core2 / Basic）は arena をヒープ（PSRAM）から取る --------------------
