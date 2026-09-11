@@ -3,11 +3,12 @@
 決定の**理由**を残すためのファイル。「なぜそうなっているか」を後から辿れるようにする。
 数値の根拠は [`measurements.md`](measurements.md) を参照。
 
-⚠️ **2026-09-12 に `docs/research/` `docs/plan/` `docs/requirements.md` を消した。**
+⚠️ **2026-09-12 に `docs/research/` `docs/plan/` `docs/requirements.md` `docs/release-notes/` を消した。**
 本文にその名前（`plan/k1-kanji-implementation-plan.md` など）が出てくるのは
 **当時の記録**で、**ファイルは git 履歴にしか無い**（`git log --all -- docs/plan/` で辿れる）。
 **主張そのものは書き換えていない** — 書き換えると当時何を見て決めたかが分からなくなる。
 設計・計画の内容で生きているものは、**このファイルと `measurements.md` に集約してある**。
+**リリースノートは [GitHub Releases](https://github.com/ayutaz/sanoTTS-jp/releases) で公開済み**（6 本すべて本文が在ることを確認した）。
 
 ⚠️ **見出しの直前に `<a id="d-048">` / `<a id="c-055">` を置いてある。** 他の md からは
 `[D-048](decisions.md#d-048)` の短い形で参照できる（GitHub が見出しから作るスラグは
@@ -3768,7 +3769,7 @@ od -A d -t u4 -N 16 /tmp/saanotts-jp-v3-int8.bin
 
 **⚠️ どれも「書いた時点では正しかった」。** v0.3.0 を出したときに**この 5 箇所を更新しなかった**だけ。
 
-⚠️ **リリースノート [`release-notes/v0.3.0.md`](release-notes/v0.3.0.md) は最初から「v0.3.0 は v2」と書いていた**
+⚠️ **リリースノート `release-notes/v0.3.0.md` は最初から「v0.3.0 は v2」と書いていた**
 （:57-58 / :78）。**答えはリポジトリの中にあって、誰も突き合わせなかった。**
 
 ### なぜ気づかなかったか
@@ -6095,7 +6096,7 @@ staged な 2 セットに配り直して `shasum -c` は通した（**27/27** �
 <a id="c-087"></a>
 ## C-087. リリースノートの資産表が**実物と 3 行ずれていた**（サイズと SHA-256）
 
-**2026-09-10。** [`docs/release-notes/v1.0.0.md`](release-notes/v1.0.0.md) は 28 本の
+**2026-09-10。** `docs/release-notes/v1.0.0.md` は 28 本の
 **サイズと SHA-256 の頭 16 桁**を表に載せている。資産を作った直後に書いたので当時は
 正しかったが、その後**資産を 3 本直したのに表を直していなかった**:
 
@@ -6111,7 +6112,7 @@ staged な 2 セットに配り直して `shasum -c` は通した（**27/27** �
 
 ### ✅ 突き合わせるゲートを書いた
 
-[`scripts/check_release_table.py`](../scripts/check_release_table.py):
+`scripts/check_release_table.py`:
 
 ```bash
 uv run --no-project python scripts/check_release_table.py \
@@ -6560,7 +6561,7 @@ M-83 の頃（xRT 4.28〜4.62）は **0.5% 前後で ✅** → 現在（xRT 0.44
 
 **A2 は 1 と 2 の両方を閉じる** — digest が `d->blob_len` バイトに対して一致するなら、
 **長さも内容も正しい**。⚠️ **さらに「辞書の取り違え」も捕まえる** —
-[v0.3.1](release-notes/v0.3.1.md) から**辞書単体を 5 本配っている**ので、
+v0.3.1 から**辞書単体を 5 本配っている**ので、
 4 MB 用を 16 MB 版に焼いても**有効な blob なので黙って起動し、読みが悪くなるだけ**だった。
 
 **採らなかった案**:

@@ -3,11 +3,12 @@
 **このファイルが数値の一次ソース。** 他のドキュメントと食い違ったらここが正。
 全項目に再現コマンドを付ける。推測は書かない — 測っていないものは「未測定」と明記する。
 
-⚠️ **2026-09-12 に `docs/research/` `docs/plan/` `docs/requirements.md` を消した。**
+⚠️ **2026-09-12 に `docs/research/` `docs/plan/` `docs/requirements.md` `docs/release-notes/` を消した。**
 本文にその名前（`plan/k1-kanji-implementation-plan.md` など）が出てくるのは
 **当時の記録**で、**ファイルは git 履歴にしか無い**（`git log --all -- docs/plan/` で辿れる）。
 **主張そのものは書き換えていない** — 書き換えると当時何を見て決めたかが分からなくなる。
 設計・計画の内容で生きているものは、**このファイルと `measurements.md` に集約してある**。
+**リリースノートは [GitHub Releases](https://github.com/ayutaz/sanoTTS-jp/releases) で公開済み**（6 本すべて本文が在ることを確認した）。
 
 ⚠️ **見出しの直前に `<a id="m-NN">` を置いてある。** 他の md からは
 `[M-90](measurements.md#m-90)` の短い形で参照できる。**GitHub が見出しから作る
@@ -12431,7 +12432,7 @@ shasum -a 256 csrc/k1_dict.bin
 
 ## M-132. **v4 の W8A32 の checksum を測った** — `0x9cbe622a4a53af7e` / 27,648 sample（ドキュメントの穴を埋めた）
 
-**2026-09-12。QEMU（`esp32s3`）。** [`docs/release-notes/v1.0.0.md`](release-notes/v1.0.0.md) の
+**2026-09-12。QEMU（`esp32s3`）。** `docs/release-notes/v1.0.0.md` の
 内部節が **「v4 の W8A32 の checksum は測っていない — `esp32/*.md` の W8A32 の行は
 測ってから書くこと（推測で置き換えない）」**と警告していた。
 **v1.0.0 を出して `releases/latest` が v4 に移ったので、その行を直す前に測った。**

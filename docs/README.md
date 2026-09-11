@@ -542,7 +542,6 @@ sanoTTS-jp/
 │   ├── decisions.md                       決定記録 D-001〜D-063（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-089
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-134
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
-│   ├── release-notes/                     各リリースの変更点（**訂正も残す**）。6 本: v0.1.0 / v0.1.1 / v0.2.0 / v0.3.0 / v0.3.1 / v1.0.0
 │   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
 │   │                                     **タグの打ち方と「打った後にやること」もそこに書いてある**
 │       ├── b0-g2p-footprint.md            B-0 の結論
@@ -669,9 +668,6 @@ sanoTTS-jp/
     │                                       `--check` が **CI で回る**
     ├── check_dict_integrity.sh             **G34 辞書の SHA-256 検査**（D-063 / M-134。陽性対照 = 1 ビット反転）。
     │                                       ⚠️ **CI で回らない**（ESP-IDF + QEMU + 辞書 13.7 MB が要る）
-    ├── check_release_table.py              **リリースノートの資産表 vs 実物**（C-087。⚠️ **CI は自己テストのみ**）
-    ├── make_release_body.py                リリースページ用の本文を作る（相対リンク → 絶対 URL +
-    │                                       **内部の手順を外す**）。⚠️ **CI で回る**（陽性対照 5 件 + 実物 6 本）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py
@@ -724,7 +720,6 @@ uv run python scripts/check_lock_vs_pyproject.py # pyproject の制約 vs uv.loc
 uv run python scripts/check_doc_links.py         # md の相対リンクが実在するか
 uv run python scripts/check_doc_commands.py      # docs のコマンドの実体（陽性対照 5 件）
 uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（G-A1 / G-A2）
-uv run python scripts/check_release_table.py --self-test  # 資産表 vs 実物（陽性対照 5 件）。
                                                  #   ⚠️ 本体は --notes と --dir が要る（リリース時）
 uv run python scripts/check_release_assets.py    # 表の資産がリリースに在るか（要ネットワーク）
 uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G1〜G5。陰性対照つき）
