@@ -48,6 +48,20 @@ jobs:
           uv run --no-project --python 3.12 python scripts/check_doc_commands.py
           uv run --no-project --python 3.12 python scripts/check_doc_commands.py --self-test
 
+      # ⚠️ **上の 2 本が構造的に見られない 2 つ**（2026-09-12 に実際に壊れていた）:
+      #    **G-D1** 引用した実機ログの数値が、引いたログに実在するか。
+      #      `README.en.md` は **v3 のログを引きながら v4 の checksum を載せていた** =
+      #      **どの実機も出していない出力**を「生ログから抜粋」と書いていた（C-064 の 5 度目）。
+      #      checksum だけ一括置換して時間を置換しない、が必ずこの形になる。
+      #    **G-D2** 案内文書が名指ししたリポジトリ内のパスが実在するか。
+      #      消したスクリプト 2 本が `CLAUDE.md` のゲート表に残っていた。
+      #      `check_doc_commands.py` は `uv run …` の前置がある形しか拾わないので、
+      #      **表のセルの素の `scripts/x.py` は見えない**。
+      - name: ドキュメントの主張（G-D1 引用ログの数値 / G-D2 名指ししたパス。陽性対照 7 件）
+        run: |
+          uv run --no-project --python 3.12 python scripts/check_doc_claims.py
+          uv run --no-project --python 3.12 python scripts/check_doc_claims.py --self-test
+
       # ⚠️ **`check_doc_links.py` は「在るか」しか見ない。** 中身が記載どおりかは見ないし、
       #    §3.1 の帰属ブロックの**写しが 3 か所で一致しているか**も見ない。
       #    C-080（web/index.html の写しを置き去り）と C-081（同梱義務を書いたのに

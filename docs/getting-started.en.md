@@ -143,7 +143,7 @@ uv run --no-project python scripts/test_labelpack.py
 
 **<https://ayutaz.github.io/sanoTTS-jp/>** hosts the same C99 core compiled to WebAssembly.
 It is published by [`pages.yml`](../.github/workflows/pages.yml) (runs on a push to `main`;
-weights and dictionary are pulled from release **v0.3.0 at a pinned tag and checked against
+weights and dictionary are pulled from release **`v1.0.0` at a pinned tag and checked against
 their SHA-256**).
 
 It needs no install and no setup: type `今日は良い天気ですね。` into the box
@@ -185,7 +185,10 @@ cp LICENSE-MODEL.md /tmp/saan-site/                 # the repo copy is fine
 #   (it is SHA-256 identical to the LICENSE-MODEL.md release asset — checked)
 # ⚠️ The three NOTICE*.txt files do **not** exist in the repo under those names, so pull
 #    them from the release. ⚠️ **Needs network** (pages.yml pulls the same three in CI)
-gh release download v0.3.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
+#    ⚠️ **The tag is `v1.0.0`.** The NOTICE files in `v0.3.0` / `v0.3.1` are **still missing
+#       attributions** (LibriTTS-R / CML-TTS / AISHELL-3 and the full Apache text; D-061
+#       decided not to fix them).
+gh release download v1.0.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
     -p 'NOTICE.txt' -p 'NOTICE-openjtalk.txt' -p 'NOTICE-dictionary.txt'
 
 uv run --no-project python -m http.server -d /tmp/saan-site 8000

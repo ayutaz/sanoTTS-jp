@@ -23,9 +23,9 @@
 **アクセントのミニマルペア**（`reports/d4_accent/`）です。
 
 **2 の手順は [`esp32/TESTING.md`](esp32/TESTING.md)。所要 15〜30 分・DAC は不要です。**
-速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.446**。M-90）が、
+速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.448**。v4 の実機 = M-130）が、
 **測ったのは 1 枚の板だけ**です。別の ESP32-S3（AtomS3 / DevKit / Core2 …）での実測を歓迎します。
-✅ **v0.3.0 の配布イメージは高速化後のコード**なので、焼くだけで測れます。
+✅ **`v1.0.0` の配布イメージは高速化後のコード**なので、焼くだけで測れます。
 native USB だけの板（CoreS3 / AtomS3）は **`-usbjtag` の版**を選んでください。
 ⚠️ **v0.2.0 以前は S1 前のコードで、コンソール入力も UART0** です。
 
@@ -44,7 +44,7 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-089 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-093 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
@@ -158,9 +158,9 @@ Still entirely unlistened: the **12 pairs in `reports/k8_listen/`** (where dicti
 changes a reading) and the **accent minimal pairs** in `reports/d4_accent/`.
 
 Instructions for 2: [`esp32/TESTING.md`](esp32/TESTING.md) — 15–30 minutes, no DAC required.
-The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.446**, M-90), but
-**that is one board**; measurements on any other ESP32-S3 are welcome.
-✅ **The v0.3.0 images carry the reworked code**, so flashing is enough to measure it; pick
+The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.448** on v4
+hardware, M-130), but **that is one board**; measurements on any other ESP32-S3 are welcome.
+✅ **The `v1.0.0` images carry the reworked code**, so flashing is enough to measure it; pick
 the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 ⚠️ Images before v0.3.0 predate the speed rework and read the console on UART0.
 
@@ -169,7 +169,7 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-089 in
+2. **Never delete the correction log.** C-001–C-093 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
 3. **Do not write a gate you cannot break on purpose.** Twenty-two defects hid behind green tests

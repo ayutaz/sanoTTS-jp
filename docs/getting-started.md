@@ -141,7 +141,7 @@ uv run --no-project python scripts/test_labelpack.py
 
 **<https://ayutaz.github.io/sanoTTS-jp/>** — この C99 コアをそのまま WebAssembly にしたデモ。
 配っているのは [`pages.yml`](../.github/workflows/pages.yml)（`main` への push で走り、
-重みと辞書は**リリース v0.3.0 からタグ固定で落として SHA-256 を照合**している）。
+重みと辞書は**リリース `v1.0.0` からタグ固定で落として SHA-256 を照合**している）。
 
 **インストールも設定も要らず**、入力欄に
 `今日は良い天気ですね。` と打つだけで鳴る。**漢字・カタカナ・ひらがな**をそのまま受ける
@@ -173,7 +173,9 @@ cp LICENSE-MODEL.md /tmp/saan-site/                 # リポジトリのもの�
 #   （リリース資産 LICENSE-MODEL.md と SHA-256 が一致する。実測で確認済み）
 # ⚠️ NOTICE*.txt 3 本は**リポジトリにその名前では無い**ので、リリースから落とす。
 #    ⚠️ **ネットワークが要る**（CI の pages.yml も同じ 3 本を落としている）
-gh release download v0.3.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
+#    ⚠️ **タグは `v1.0.0`。** `v0.3.0` / `v0.3.1` の NOTICE は**帰属の記載が欠けたまま**
+#       である（LibriTTS-R / CML-TTS / AISHELL-3 と Apache 全文。D-061 で直さないと決めた）
+gh release download v1.0.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
     -p 'NOTICE.txt' -p 'NOTICE-openjtalk.txt' -p 'NOTICE-dictionary.txt'
 
 uv run --no-project python -m http.server -d /tmp/saan-site 8000
