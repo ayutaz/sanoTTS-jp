@@ -296,11 +296,15 @@ jobs:
   #    （手元も `~/emsdk` の直叩きなので、CI と手元で入れ方が揃う）。
   #    ⚠️ 版が違っても `check_web_gates.sh` は落ちない（警告を出すだけ）。**ログの `emcc --version` を見ること。**
   # ⚠️ **ここで回らないもの**（理由つき）:
-  #    - **G-W6 の「漢字 == かな」と「ids 350 超えの拒否」** … 辞書 `csrc/k1_dict.bin`
-  #      （13,702,320 B）が git にもリリースにも無い。⚠️ **skip とは書かせない** —
-  #      ゲートの出力に「回せなかった」と理由が出る。
-  #      ⚠️ かな経路は 512 B の行上限で最大 343 ids にしか届かないので（実測）、
-  #      **ids 350 の拒否は辞書経路でしか踏めない**。辞書なしでは構造的に測れない
+  #    ⚠️ **かつてここに「G-W6 の辞書依存の検査は回らない — 辞書が git にもリリースにも
+  #       無いから」と書いてあったが、後半は誤りだった**（C-095 / M-136）。辞書は
+  #       v0.3.0 以降すべてのリリースに在り、**同じ commit の `pages.yml` が落としていた**。
+  #       いまは上の step で落としているので **「漢字 == かな」と「長すぎる漢字文は拒否」は回る**
+  #    - **ids 350 の枝**（`SAAN_MAX_IDS`） … 辞書を置いても**まだ覆えていない**。
+  #      D-052 の形態素上限（44）が先に発火するため。⚠️ **ゲートが自分で note を出す** —
+  #      「覆うには 44 形態素以下で 350 ids を超える入力が要る」。
+  #      ⚠️ かな経路は 512 B の行上限で最大 343 ids にしか届かない（実測）ので、
+  #      **かな側からは構造的に踏めない**
   #    - **漢字経路の全段一致**（K-7 の G25 相当） … `kanji_e2e_vectors.bin`（19 MB）が
   #      git にもリリースにも無い
   #    - **G-W2b の多文レーン** … `ids_heldout.bin` がコーパス由来。回るのは golden の 1 文だけ
@@ -322,22 +326,34 @@ jobs:
       - uses: astral-sh/setup-uv@v7
         with: { enable-cache: true }
 
-      - name: 重みと参照出力を落とす（タグ固定。golden job と同じ資産）
+      # ⚠️ **辞書も落とす。** 無いと G-W6 の辞書依存の検査が `if (haveDict)` ごと飛ぶ
+      #    （「漢字 == かな が bit 一致」と「長すぎる漢字文は拒否」= 2 レーンで 4 件）。
+      #    ⚠️ **かつてここに「辞書は git にもリリースにも無い」と書いてあったが誤りだった**
+      #    （[C-095](../../docs/decisions.md#c-095) / [M-136](../../docs/measurements.md#m-136)）。
+      #    `k1-dict-438750.bin` は **v0.3.0 以降すべてのリリースに在り**、v1.0.0 のものは
+      #    手元の csrc/k1_dict.bin と **SHA-256 が bit 一致する**（f162c922…）。
+      #    `pages.yml` は**同じ commit から**同じ資産を落としていた = 在るのに落としていないだけだった。
+      - name: 重みと参照出力と辞書を落とす（タグ固定。golden job と同じ資産 + 辞書）
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release download v1.0.0 -R ${{ github.repository }} \
             --pattern 'saanotts-jp-v4-fp32.bin' --pattern 'golden-v4-fp32.bin' \
             --pattern 'saanotts-jp-v4-int8.bin' --pattern 'golden-v4-int8.bin' \
+            --pattern 'k1-dict-438750.bin' \
             --dir csrc --clobber
           mv csrc/saanotts-jp-v4-fp32.bin csrc/student.bin
           mv csrc/golden-v4-fp32.bin      csrc/golden.bin
           mv csrc/saanotts-jp-v4-int8.bin csrc/student_i8.bin
           mv csrc/golden-v4-int8.bin      csrc/golden_i8.bin
+          mv csrc/k1-dict-438750.bin      csrc/k1_dict.bin
           test "$(wc -c < csrc/student.bin)"    -eq 2249792
           test "$(wc -c < csrc/golden.bin)"     -eq 786912
           test "$(wc -c < csrc/student_i8.bin)" -eq 654032
           test "$(wc -c < csrc/golden_i8.bin)"  -eq 794240
+          # ⚠️ **大きさは中身を見ていない。** それでも「落ちてこなかった」と
+          #    「別の動作点の辞書を掴んだ」は捕まる（4 MB 版は 3,006,656 B）。
+          test "$(wc -c < csrc/k1_dict.bin)"    -eq 13702320
 
       - name: emcc 6.0.9 を入れる（⚠️ latest にしない）
         run: |
