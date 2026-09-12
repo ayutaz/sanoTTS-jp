@@ -27,6 +27,24 @@
 ⚠️ **torch は `--torch-backend cpu` を明示している。** 外すと Linux で
 CUDA 版（数 GB）を引いて `python` job が数分になる。
 
+### ⚠️ リリースを切ったら上げるもの（**タグだけではない**）
+
+[C-091](../../docs/decisions.md#c-091) で**読者向け文書 10 箇所が前の版のまま**になった。
+**版で動くのはタグだけではなく、その版で測り直したすべての数**である。
+
+| 何 | どこ | 機械で捕まるか |
+|---|---|---|
+| 重みを引くタグ | `ci.yml`（`golden` / `web`）/ `pages.yml` の `RELEASE_TAG` | ❌ **誰も見ていない** |
+| golden の寸法アサート | 同上（`wc -c < csrc/golden*.bin` の行） | ❌ 落ちて初めて分かる |
+| 資産名 | `docs/downloads.md` ほか | ✅ `check_release_assets.py`（要トークン） |
+| **実測値**（checksum / xRT / arena / 鳴らし始め / SCOREQ / アクセント） | `README*.md` / `MODEL_CARD.md` / `docs/support-matrix*.md` / `esp32/**/README.md` | ⚠️ **引用ログの数値だけ** `check_doc_claims.py` の G-D1 |
+| **ckpt のパス** | `CLAUDE.md` / `docs/README.md` / skill | ❌ **`runs/` は git 管理外なので原理的に見えない**（C-094） |
+| `pyproject.toml` の `version` | `pyproject.toml` + **`uv.lock` の同名エントリ** | ❌ 誰も見ていない（PyPI 未公開・コードも読まない） |
+| 公開ページの本文 | `web/index.html` | ❌ **`pages.yml` は `main` への push でしか走らない** |
+
+⚠️ **最後の 2 行が今日実際にずれていた。** `pages.yml` のタグだけ `main` に入り、
+**`web/index.html` は「v3 の重みです」と書いたまま v4 を配っていた。**
+
 ### ⚠️ 重みのタグを `v1.0.0` に固定した
 
 `golden` / `web` の `gh release download` はタグ無し（= `latest`）ではなく **`v1.0.0` 固定**（⚠️ **2026-09-12 に `v0.3.0` = v3 から上げた**）。
