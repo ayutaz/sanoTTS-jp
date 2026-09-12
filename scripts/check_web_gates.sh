@@ -909,8 +909,12 @@ if (lanes.W8A32 && lanes.W8A8) {
 }
 
 if (!haveDict) {
-  note('⚠️ **辞書が無いので「漢字 == かな」と「ids 350 超えの拒否」は回せなかった。**');
+  note('⚠️ **辞書が無いので「漢字 == かな」と「長すぎる漢字文は拒否」は回せなかった。**');
   note('   これは skip ではない: csrc/k1_dict.bin（13,702,320 B）を置けば回る。');
+  note('   ⚠️ **リリースに在る。** v0.3.0 以降すべてのリリースの k1-dict-438750.bin が');
+  note('      手元の csrc/k1_dict.bin と SHA-256 で bit 一致する（実測。C-095 / M-136）:');
+  note('        gh release download v1.0.0 --pattern k1-dict-438750.bin --dir csrc');
+  note('        mv csrc/k1-dict-438750.bin csrc/k1_dict.bin');
   note('   ⚠️ かな経路は 512 B の行上限で最大 343 ids にしか届かない（実測）ので、');
   note('      **ids 350 の拒否は辞書経路でしか踏めない**。辞書なしでは構造的に測れない。');
 }

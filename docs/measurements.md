@@ -12761,3 +12761,98 @@ done
 ⚠️ **「破綻していない」と「良い」は違う。** 言えたのは前者だけである。
 
 ---
+
+## M-136. **辞書はリリースに在るのに CI が落としていなかった** — G-W6 の辞書依存 4 検査が一度も走っていない（自己実測 / M4 Max）
+
+**きっかけ**: 無関係な作業（GitHub Sponsors の導線 / [#27](https://github.com/ayutaz/sanoTTS-jp/pull/27)）で
+`scripts/check_web_gates.sh` を回したときに、辞書があると検査が増えることに気づいた。
+`ci.yml` にはこう書いてあった:
+
+> **G-W6 の「漢字 == かな」と「ids 350 超えの拒否」** … 辞書 `csrc/k1_dict.bin`
+> （13,702,320 B）が **git にもリリースにも無い**
+
+### 1. 「リリースにも無い」は誤り（実測）
+
+```bash
+for t in v0.3.0 v0.3.1 v1.0.0; do
+  printf '%-8s ' "$t"
+  GH_TOKEN="$(gh auth token)" gh release view "$t" \
+    --json assets -q '[.assets[] | select(.name=="k1-dict-438750.bin") | .size] | @tsv'
+done
+```
+
+```
+v0.3.0   13702320
+v0.3.1   13702320
+v1.0.0   13702320
+```
+
+**v0.3.0 以降すべてのリリースに在る。** 手元の実体と bit 一致する:
+
+```bash
+GH_TOKEN="$(gh auth token)" gh release download v1.0.0 -R ayutaz/sanoTTS-jp \
+  --pattern 'k1-dict-438750.bin' --dir /tmp --clobber
+shasum -a 256 /tmp/k1-dict-438750.bin csrc/k1_dict.bin
+```
+
+```
+f162c922074d76817298b34d8a8fd35f7d195f38540303485a76c956b5d84877  /tmp/k1-dict-438750.bin
+f162c922074d76817298b34d8a8fd35f7d195f38540303485a76c956b5d84877  csrc/k1_dict.bin
+```
+
+⚠️ **その注記を書いた commit `8b64c15`（2026-09-04 01:50 JST）自身が、`pages.yml` に
+`--pattern 'k1-dict-438750.bin'` を書いている。** v0.3.0 は 2026-09-03 07:53 UTC 公開なので、
+**注記は書かれた瞬間から誤りだった**。→ [C-095](decisions.md#c-095)
+
+### 2. 落としていなかったせいで走っていなかった検査（実測）
+
+CI と同じ構成（v1.0.0 の v4 重み + 同じタグの辞書）を手元で作って回した:
+
+```bash
+GH_TOKEN="$(gh auth token)" gh release download v1.0.0 -R ayutaz/sanoTTS-jp \
+  --pattern 'saanotts-jp-v4-fp32.bin' --pattern 'golden-v4-fp32.bin' \
+  --pattern 'saanotts-jp-v4-int8.bin' --pattern 'golden-v4-int8.bin' \
+  --pattern 'k1-dict-438750.bin' --dir csrc --clobber
+mv csrc/saanotts-jp-v4-fp32.bin csrc/student.bin
+mv csrc/golden-v4-fp32.bin      csrc/golden.bin
+mv csrc/saanotts-jp-v4-int8.bin csrc/student_i8.bin
+mv csrc/golden-v4-int8.bin      csrc/golden_i8.bin
+mv csrc/k1-dict-438750.bin      csrc/k1_dict.bin
+bash scripts/check_web_gates.sh
+```
+
+辞書なしの側は **`csrc/k1_dict.bin` を一時的にどけて同じスクリプトを回した**
+（引き算ではなく実行した値。⚠️ 最初これを引き算で書きかけた）:
+
+```bash
+mv csrc/k1_dict.bin /tmp/ && bash scripts/check_web_gates.sh; mv /tmp/k1_dict.bin csrc/
+```
+
+| | 辞書なし（これまでの CI） | 辞書あり |
+|---|---:|---:|
+| exit | 0 | **0** |
+| NG | 0 | **0** |
+| **OK の件数** | **75** | **79** |
+
+増えた 4 件（2 レーン × 2）:
+
+```
+OK  W8A32: 漢字文 → route=辞書 / 53 ids / 27648 sample / PCM が かな経路と bit 一致
+OK  W8A32: 長すぎる漢字文 は拒否（効いた上限: 形態素 44 / …）
+OK  W8A8:  漢字文 → route=辞書 / 53 ids / 27136 sample / PCM が かな経路と bit 一致
+OK  W8A8:  長すぎる漢字文 は拒否（効いた上限: 形態素 44 / …）
+```
+
+⚠️ **2 レーンで sample 数が違う**（27,648 / 27,136）のは W8A32 と W8A8 で duration predictor の
+出力が違うため。**どちらもその発話の中で「漢字 == かな」が bit 一致**していればよく、
+ゲートはレーンをまたいだ比較をしていない。
+
+### ⚠️ この測定で言えないこと
+
+- **`ids 350` の枝は辞書を置いても覆えていない。** [D-052](decisions.md#d-052) の形態素上限（44）が
+  先に発火する。**ゲートが自分で note を出す**（「覆うには 44 形態素以下で 350 ids を超える入力が要る」）。
+  **この測定はその note を消していない**
+- **中身は見ていない。** CI に足した検査は**大きさだけ**（13,702,320 B）で、
+  SHA-256 は照合していない（手元では照合したが、CI では実行時間を理由に入れていない）。
+  ⚠️ 別の動作点の辞書（4 MB 版 = 3,006,656 B）を掴む形は捕まるが、**同じ大きさの別物は通る**
+- **CI で実際に緑になるかは、この時点では未確認**（PR を出して見る）
