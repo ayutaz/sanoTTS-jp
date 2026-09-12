@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（135 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（136 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -176,6 +176,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-133](#m-133) | v1.0.0 を出し、CI / Pages を v4 に向け直した |
 | [M-134](#m-134) | 辞書の SHA-256 検査を実装した |
 | [M-135](#m-135) | v4 の音を初めて対照つきで聴いた |
+| [M-136](#m-136) | 辞書はリリースに在るのに CI が落としていなかった |
 
 </details>
 
