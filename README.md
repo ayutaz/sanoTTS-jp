@@ -6,6 +6,7 @@
 [![Demo](https://img.shields.io/badge/demo-ブラウザで試す-brightgreen.svg)](https://ayutaz.github.io/sanoTTS-jp/)
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Model license](https://img.shields.io/badge/model-not%20MIT-orange.svg)](LICENSE-MODEL.md)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/ayutaz?label=sponsor&logo=github)](https://github.com/sponsors/ayutaz)
 
 **559 K パラメータの日本語 TTS を、$3 のマイコン（ESP32-S3）で動かす試み。**
 
@@ -13,7 +14,6 @@
 
 インストール不要。**漢字かな交じり文をそのまま打つと喋る。**
 ⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもの（arena も同じ 180,224 B。[D-050](docs/decisions.md#d-050)）。
-⚠️ **初回に辞書 5.5 MB を落とす**（gzip）。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
@@ -74,14 +74,12 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 **877 B のテーブル**で音素に変換する。**論文にも公式実装にも対応物が無い**、
 このリポジトリの中心的な設計判断。
 
-⚠️ **後にこの前提を測り直したら崩れた。** 辞書を TTS 専用の形式にすると
-1 エントリ 130 B → **28 B** になり、16 MB ボードに **438,750 entries** が載る。
-いまは**端末だけで漢字も読める**が、かな中間表現は**両方の経路の共通の中間形式**として
-残っている（同じ文をどちらで書いても PCM が bit 一致する）。
+⚠️ **この前提は後に崩れた。** TTS 専用の辞書形式で 1 エントリ 130 B → **28 B** になり、
+16 MB ボードに **438,750 entries** が載る。**いまは端末だけで漢字も読める**（かな中間表現は
+両経路の共通形式として残り、どちらで書いても PCM が bit 一致する）。
 
-ピッチアクセント（箸／橋／端）と無声化母音（「です」「した」の `i` `u`）も英語版には
-無い問題で、どちらも**集約スコアでは検出できない**ため専用の評価を用意した
-（→ [`MODEL_CARD.md`](MODEL_CARD.md)）。
+ピッチアクセント（箸／橋／端）と無声化母音も英語版に無い問題で、**集約スコアでは
+検出できない**ため専用の評価がある（→ [`MODEL_CARD.md`](MODEL_CARD.md)）。
 
 ## しくみ
 
@@ -158,9 +156,9 @@ NAIST-JDIC は実測 **102 MB** でマイコンに載らない。そこで辞書
 
 **既知の制約と、それをどう測ったかは [`MODEL_CARD.md`](MODEL_CARD.md) §4** にまとめてあります。
 
-⚠️ このリポジトリは **AI エージェント（Claude Code）が大半を書いている。**
-そのための規律（推測を数値として書かない / 訂正履歴を消さない /
-ゲートには陽性対照を付ける）を `CONTRIBUTING.md` と `CLAUDE.md` に明文化してある。
+## 支援
+
+**[GitHub Sponsors](https://github.com/sponsors/ayutaz) から支援できます。**
 
 ## ライセンス
 
