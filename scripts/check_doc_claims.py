@@ -54,7 +54,8 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 
 # --------------------------------------------------------------------- G-D1
 # 実機ログを引いている文書。ブロックの直後に `reports/**.log` へのリンクがある形。
-LOG_DOCS = ["README.md", "README.en.md", "esp32/README.md", "esp32/TESTING.md"]
+LOG_DOCS = ["README.md", "README.en.md", "esp32/README.md", "esp32/TESTING.md",
+            "esp32/boards/m5unified/README.md", "docs/README.md"]
 
 FENCE = re.compile(r"^```")
 LOG_LINK = re.compile(r"\((reports/[\w./-]+\.log)\)")
@@ -150,6 +151,9 @@ PATH_DOCS = [
     "docs/support-matrix.md", "docs/support-matrix.en.md",
     "docs/upstream-sanotts.md",
     "esp32/README.md", "esp32/TESTING.md",
+    # ⚠️ **板ごとの README も入れる。** `m5unified` の「期待値」表が v3 のまま
+    #    印も無く、**焼いた人が「移植が壊れた」と報告する**形になっていた（2026-09-12）。
+    "esp32/boards/m5unified/README.md", "esp32/pie_probe/README.md",
     ".github/workflows/README.md",
 ]
 

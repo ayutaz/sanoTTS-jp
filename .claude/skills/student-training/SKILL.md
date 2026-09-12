@@ -149,7 +149,7 @@ from saanotts_jp.labelpack import PackReader
 | `round` | C の `roundf` は half-away-from-zero、`torch.round` は **half-to-even**。ちょうど .5 で割れる |
 
 ```bash
-uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt
+uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt   # ⚠️ 配布中は v4
 make -C csrc all-test    # golden / stream G1〜G4 / FFT / int8
 make -C csrc run-bench   # レイテンシ（段別の内訳）
 ```
@@ -200,12 +200,12 @@ fp32 の丸め差 7e-07 が乗って、実装バグと区別できない。
 ## 学習を回す
 
 ```bash
-uv run python scripts/train_student.py --run runs/v3 --stage 1 --steps 20000 --accum 8
-uv run python scripts/train_student.py --run runs/v3 --stage 2 --steps 60000 --accum 8
-uv run python scripts/train_student.py --run runs/v3 --stage 3 --steps 80000 --accum 8
-uv run python scripts/train_student.py --run runs/v3 --stage 4 --steps 60000 --accum 8
-uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 24 \
-    --out reports/eval_v3
+uv run python scripts/train_student.py --run runs/v4 --stage 1 --steps 20000 --accum 8
+uv run python scripts/train_student.py --run runs/v4 --stage 2 --steps 60000 --accum 8
+uv run python scripts/train_student.py --run runs/v4 --stage 3 --steps 80000 --accum 8
+uv run python scripts/train_student.py --run runs/v4 --stage 4 --steps 60000 --accum 8
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v4/stage4.pt --n 24 \
+    --out reports/eval_v4
 ```
 
 ⚠️ **`--all` では再現できない**（`--all` は全段を同じ `--steps` で回す）。
@@ -213,6 +213,7 @@ uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 
 
 ⚠️⚠️ **蒸留テキストを変えたら stage1 / stage2 を流用してはいけない。**
 `runs/v3` の stage1 / stage2 は **v2 からのコピー**だった（SHA-256 で bit 一致。M-114 §2）。
+⚠️ **配布中は `runs/v4`**（JSUT を外した蒸留テキスト。D-057 / M-115〜M-117）。**スケジュールは v3 と同一**で、違うのはテキストだけ。手元の `runs/v4/stage4.pt` はリリース資産と **bit 一致**（`be5bf3f586cc6de7…`）。
 テキストが同じなら正しい省略だが、**変えたら duration と acoustic の教師信号が変わる**ので
 **必ず 1 段目から回す**。v4（JSUT を外した 14,513 行）は**4 段とも回した** —
 `runs/v4/log.jsonl` の最大 step が **20,000 / 60,000 / 80,000 / 60,000** で

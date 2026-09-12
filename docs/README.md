@@ -129,7 +129,7 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-063（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-093** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-063（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-094** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-134。全数値に再現コマンド付き | 実測のたび |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 
@@ -548,7 +548,7 @@ sanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
-│   ├── decisions.md                       決定記録 D-001〜D-063（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-093
+│   ├── decisions.md                       決定記録 D-001〜D-063（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-094
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-134
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
@@ -735,7 +735,7 @@ uv run python scripts/test_k1_dict.py            # K-1 辞書エンコーダ（G
 uv run python scripts/k1/k0_verify_dict.py       # 使う辞書が D-042 の凍結物か
 
 # C99 推論コア（Phase D）
-uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt
+uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt   # ⚠️ 配布中は v4
 make -C csrc all-test                            # golden / stream（held-out 24 文 × 3 レーン）/ fft /
                                                  #   int8 / int8-golden / int8-e2e / arena /
                                                  #   g2p / pad / line / erf / range / qeos
@@ -755,14 +755,18 @@ bash scripts/check_dict_integrity.sh             # **G34** 辞書の SHA-256 検
 一から作り直す場合:
 
 ```bash
-uv run python scripts/gen_teacher_labels.py --split train   --out data/pack     # 47 分
+# ⚠️ **v4（配布中）を作る手順。** ライセンス絞り込みは train の既定 ON（D-054）なので、
+#    出力先は **v3 の名前 `data/pack` ではなく `data/pack_cc0`**（M-115）。
+#    ⚠️ `--out data/pack` は **hook が deny する**（本番パックの再生成。D-015）
+uv run python scripts/gen_teacher_labels.py --split train   --out data/pack_cc0
+#   ⚠️ 所要は**実測していない**。M-115 の 141 ms/文 × 14,513 文 = 約 34 分（算術）
 uv run python scripts/gen_teacher_labels.py --split heldout --out data/pack_heldout
-uv run python scripts/train_student.py --run runs/v3 --stage 1 --steps 20000 --accum 8
-uv run python scripts/train_student.py --run runs/v3 --stage 2 --steps 60000 --accum 8
-uv run python scripts/train_student.py --run runs/v3 --stage 3 --steps 80000 --accum 8
-uv run python scripts/train_student.py --run runs/v3 --stage 4 --steps 60000 --accum 8
-uv run --extra eval python scripts/eval_student.py --ckpt runs/v3/stage4.pt --n 24 \
-    --out reports/eval_v3
+uv run python scripts/train_student.py --run runs/v4 --stage 1 --steps 20000 --accum 8
+uv run python scripts/train_student.py --run runs/v4 --stage 2 --steps 60000 --accum 8
+uv run python scripts/train_student.py --run runs/v4 --stage 3 --steps 80000 --accum 8
+uv run python scripts/train_student.py --run runs/v4 --stage 4 --steps 60000 --accum 8
+uv run --extra eval python scripts/eval_student.py --ckpt runs/v4/stage4.pt --n 24 \
+    --out reports/eval_v4
 ```
 
 ⚠️ **Stage 3 は 80,000 step**（D-037）。40,000 は v2 の値で、80k にすると 5 指標すべて
