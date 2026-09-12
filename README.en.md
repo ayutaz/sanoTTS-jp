@@ -6,6 +6,7 @@
 [![Demo](https://img.shields.io/badge/demo-try%20in%20browser-brightgreen.svg)](https://ayutaz.github.io/sanoTTS-jp/)
 [![License: MIT](https://img.shields.io/badge/code-MIT-blue.svg)](LICENSE)
 [![Model license](https://img.shields.io/badge/model-not%20MIT-orange.svg)](LICENSE-MODEL.md)
+[![GitHub Sponsors](https://img.shields.io/github/sponsors/ayutaz?label=sponsor&logo=github)](https://github.com/sponsors/ayutaz)
 
 **A 559 K-parameter Japanese TTS, aimed at a $3 microcontroller (ESP32-S3).**
 
@@ -15,7 +16,6 @@ Nothing to install. **Type Japanese text with kanji and it speaks.**
 ⚠️ It is the **same C99 code that runs on the microcontroller**, compiled to WebAssembly
 (the arena is the same 180,224 B). It is not a replacement for piper-plus's WASM build —
 it is a way to touch the code that runs on hardware ([D-050](docs/decisions.md#d-050)).
-⚠️ **The first load pulls a 5.5 MB dictionary** (gzip).
 Measured in Chrome at **0.008–0.019 ×RT** ([M-95](docs/measurements.md#m-95)).
 It has been listened to on **both lanes** — reported fine, no dropouts
 ([M-96](docs/measurements.md#m-96)). ⚠️ **One listener, no control, not blind.**
@@ -85,14 +85,14 @@ the dictionary but to **cut the problem somewhere else**: the device accepts onl
 "hiragana + accent marks" and converts that with an **877 B table**. **Neither the paper nor
 the official implementation has a counterpart**; this is the central design decision here.
 
-⚠️ **That premise later collapsed when it was re-measured.** A TTS-only dictionary format
-takes an entry from 130 B to **28 B**, so **438,750 entries** fit a 16 MB board. The device
-now reads kanji on its own, but the kana intermediate form remains **the shared intermediate
-of both routes** — the same sentence written either way yields bit-identical PCM.
+⚠️ **That premise later collapsed.** A TTS-only dictionary format takes an entry from
+130 B to **28 B**, so **438,750 entries** fit a 16 MB board. **The device now reads kanji on
+its own** (the kana intermediate form remains the shared form of both routes — either way
+yields bit-identical PCM).
 
-Pitch accent (箸/橋/端) and devoiced vowels (the `i`/`u` in です/した) are also absent from
-the English version, and neither is visible in an aggregate score, so each got a dedicated
-evaluation (see [`MODEL_CARD.md`](MODEL_CARD.md)).
+Pitch accent (箸/橋/端) and devoiced vowels are also absent from the English version, and
+neither shows up in an aggregate score, so each has a dedicated evaluation
+(see [`MODEL_CARD.md`](MODEL_CARD.md)).
 
 ## How it works
 
@@ -172,9 +172,9 @@ sounds**, followed by speed measurements on a different ESP32-S3.
 **The known limitations, and how each was measured, are in
 [`MODEL_CARD.md`](MODEL_CARD.md) §4.**
 
-⚠️ Most of this repository was **written by an AI agent (Claude Code)**. The discipline that
-requires — never write a guess as a number, never delete a correction, never add a gate
-without a positive control — is spelled out in `CONTRIBUTING.md` and `CLAUDE.md`.
+## Sponsoring
+
+**You can support this work through [GitHub Sponsors](https://github.com/sponsors/ayutaz).**
 
 ## License
 

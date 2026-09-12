@@ -1,0 +1,19 @@
+# GitHub Sponsors のリンクをリポジトリの「Sponsor」ボタンに出すための表。
+#
+# ⚠️ **このファイルは既定ブランチ（main）に在るときだけ効く。**
+#    PR ブランチに置いても Sponsor ボタンは出ない。マージして初めて出る。
+#
+# ⚠️ **Settings → Sponsorships のチェックだけでは出ない。** 実測: チェックを入れた状態で
+#    GraphQL の `repository(...) { fundingLinks { platform url } }` は **空配列**だった
+#    （2026-09-12。このファイルを足す前）。リンクの実体はここにしか無い。
+#
+# 確認できていること（`gh api graphql` / 2026-09-12）:
+#   user(login:"ayutaz") hasSponsorsListing = true
+#   sponsorsListing.name = "sponsors-ayutaz" / isPublic = true
+#   → https://github.com/sponsors/ayutaz は実在し、公開されている。
+#
+# 書式: https://docs.github.com/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/displaying-a-sponsor-button-in-your-repository
+# 他のプラットフォーム（ko_fi / buy_me_a_coffee / custom など）を足す場合もこのファイル。
+# ⚠️ custom は最大 4 本まで。
+
+github: [ayutaz]
