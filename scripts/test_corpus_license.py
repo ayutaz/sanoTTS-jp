@@ -155,8 +155,7 @@ def test_heldout_default_not_filtered() -> int:
     が **OFF** でなければならない。
 
     held-out は評価専用で重みに入らないため、ライセンスの論点が発生しない
-    （設計 `docs/superpowers/specs/2026-09-08-cc0-only-distillation-text-design.md`
-    §4.3 / D-056）。ON のままにすると `--split heldout --out data/pack_heldout`
+    （D-056。⚠️ **設計文書は 2026-09-12 に消した**ので、根拠は decisions.md 側）。ON のままにすると `--split heldout --out data/pack_heldout`
     （`CLAUDE.md` / `docs/README.md` / `docs/measurements.md` /
     `deploy/vastai_bootstrap.sh` が指示する形そのもの）が
     2,333 行中 717 行（jsut/*）を黙って落とす。**`train` は既定 ON のまま**

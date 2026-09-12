@@ -2,8 +2,9 @@
 
 > ✅ **v1.0.0 を配っています**（2026-09-11。資産 **28 本** / 140 MB）。
 > 重みは **v4**（蒸留テキストから JSUT を外し、CC0 / パブリックドメインのみで学習し直したもの)。
-> 中身と実測は [`release-notes/v1.0.0.md`](release-notes/v1.0.0.md) と
-> [M-119](measurements.md#m-119)〜[M-131](measurements.md#m-131)。
+> 中身と実測は
+> [リリースノート](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) と
+> [M-119](measurements.md#m-119)〜[M-134](measurements.md#m-134)。
 >
 > ⚠️ **v0.3.0 / v0.3.1 の `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
 > `saanotts-jp-v4-samples.zip` は帰属が足りていません**（LibriTTS-R / CML-TTS / AISHELL-3 の

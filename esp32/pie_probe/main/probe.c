@@ -423,7 +423,7 @@ static const char *region_of(const void *p) {
  * 何を測るか: 実機の MAC は 1.61 cyc/MAC（M-82）で、内訳の候補は
  *   (a) 重みの flash 行フィル（1 step に約 17,000 行）
  *   (b) dot ごとの固定費（zero/srs/float/madd の直列チェーン）
- * が同じ桁と見積もられている（estimate。docs/plan/s2-fast-kanji-m5-plan.md §1）。
+ * が同じ桁と見積もられている（estimate。docs/measurements.md M-80 の内訳）。
  * **同じカーネル・同じバイト列・同じ dot 数**で重みの置き場所だけを変えれば、差が (a) になる。
  *
  * 重みは**本物の blob**（.rodata に埋めた student_i8.bin）の decoder 領域 131,040 B を
@@ -747,7 +747,7 @@ static int part_d(void) {
  *
  * 実機の GELU は 118 cyc/要素（M-82）。原因の候補は (i) erf の表が flash にある
  * (ii) `saan_erf_approx` が要素ごとの関数呼び出し（call8 + FP 定数の再ロード + 戻り値の往復）。
- * 調査（docs/plan/s2-fast-kanji-m5-plan.md §1）は (i) を ≈2%、(ii) を主因と見積もった（estimate）。
+ * 調査（docs/measurements.md M-80）は (i) を ≈2%、(ii) を主因と見積もった（estimate）。
  * 同じ 21,664 要素で 4 条件を回して確かめる:
  *
  *   E1 現行の saan_gelu（csrc/saanotts.c。表 flash / erf は call）

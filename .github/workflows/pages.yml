@@ -1,4 +1,4 @@
-# W-4: ブラウザデモを GitHub Pages に配る（計画 `docs/plan/web-demo-plan.md`）
+# W-4: ブラウザデモを GitHub Pages に配る（決定 `docs/decisions.md` D-050）
 #
 # ✅ **Pages は 2026-09-04 に有効化された**（`build_type: workflow` / Source = GitHub Actions）。
 #    ⚠️ **これはコードでは解決できない手作業だった**（計画 W-8）:

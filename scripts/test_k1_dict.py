@@ -1,6 +1,6 @@
 """K-1 辞書エンコーダのテスト。
 
-計画: docs/plan/k1-kanji-implementation-plan.md K-1
+決定: docs/decisions.md D-042〜D-044 / 実測: docs/measurements.md M-77
 受け入れ条件 G1〜G5（すべて陰性対照つき）。
 
     uv run python scripts/test_k1_dict.py

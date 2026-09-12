@@ -7,16 +7,24 @@ Numbers come from [`measurements.md`](measurements.md) (Japanese; every entry ha
 
 ⚠️ **"✅ hardware" and "⚠️ third-party hardware" are kept apart.** The latter was **not reproduced here**.
 
+⚠️ **The shipping weights are v4** (JSUT removed; **`v1.0.0`, 2026-09-12**), verified on the
+16 MB M5 CoreS3 ([M-124](measurements.md#m-124) / [M-130](measurements.md#m-130): xRT **0.448**,
+**0** underruns, **bit-identical PCM whether the sentence is written in kanji or in kana**).
+⚠️ **Only that one image was flashed with v4**; the 8 MB / 4 MB / 2 MB images were only
+**checked by content** (no boards). ⚠️ **Nobody has heard v4 for even a second.**
+⚠️ **The board rows and the dictionary table below were measured with v3** — the dictionary and
+the C code are identical across v3 and v4, so reading accuracy is unchanged.
+
 ## What works
 
 | | State | Evidence |
 |---|---|---|
 | **Kana intermediate form → audio** | ✅ **on hardware** (M5 CoreS3) | [M-90](measurements.md#m-90) |
 | **Kanji text → audio** (morphological analysis + accent, all on device) | ✅ **on hardware** | [M-90](measurements.md#m-90) |
-| **Real-time budget** (xRT ≤ 0.5) | ✅ **0.446** (one full chunk). ⚠️ **0.54–0.71 over a whole utterance — not met.** Which denominator counts is undecided | [M-90](measurements.md#m-90) / [C-054](decisions.md#c-054) |
+| **Real-time budget** (xRT ≤ 0.5) | ✅ **0.444–0.448** steady-state on v4 hardware — the denominator was **settled** in [D-049](decisions.md#d-049). ⚠️ 0.618–0.793 over a whole utterance, kept only **for reference** (otherwise the verdict would depend on sentence length alone). Time to first sound **≈407–433 ms ≤ 0.8 s** (46–49% margin) | [M-130](measurements.md#m-130) / [C-054](decisions.md#c-054) |
 | **Memory** (fits 512 KB SRAM) | ✅ **157 KB** at runtime | [M-89](measurements.md#m-89) |
 | **Browser** (the same C99 core as wasm) | ✅ bit-identical PCM to the device | [M-95](measurements.md#m-95) |
-| **Pitch accent** | ✅ **37/37 sign agreement** with the teacher | [M-59](measurements.md#m-59) |
+| **Pitch accent** | ⚠️ the shipping **v4 scores 31/37** (v3 scored 37/37). Changing only the seed already costs 3 pairs, so this **cannot be read as damage from dropping JSUT** ([D-057](decisions.md#d-057)) | [M-118](measurements.md#m-118) / [M-117](measurements.md#m-117) |
 | ⚠️ **Controlled listening test (G32)** | ❌ **not done.** It has been heard, but **always one listener, no control, not blinded** | — |
 | ⚠️ **Actual sample-rate error** | ❌ **unmeasured** (the ESP32-S3 has no APLL) | — |
 

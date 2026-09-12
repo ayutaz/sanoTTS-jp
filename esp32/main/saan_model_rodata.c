@@ -2,7 +2,7 @@
  *
  * いつ使うか: **PSRAM を有効にした板**。M5Stack CoreS3 では CONFIG_SPIRAM=y にすると
  * 8 MB の PSRAM が flash の data mmap 用 vaddr を占有し、`esp_partition_mmap` が
- * ESP_ERR_NO_MEM で落ちた（第三者の実機報告。docs/research/s1-m5-cores3-speed.md §0。
+ * ESP_ERR_NO_MEM で落ちた（第三者の実機報告。docs/measurements.md M-79。
  * ⚠️ 私は未再現）。ヘッダに埋めれば app の DROM として起動時にマップされるので踏まない。
  *
  * 代償: app が blob ぶん（654,032 B。v2）大きくなり、**モデルだけの差し替えができない**

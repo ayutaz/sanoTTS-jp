@@ -3,6 +3,13 @@
 決定の**理由**を残すためのファイル。「なぜそうなっているか」を後から辿れるようにする。
 数値の根拠は [`measurements.md`](measurements.md) を参照。
 
+⚠️ **2026-09-12 に `docs/research/` `docs/plan/` `docs/requirements.md` `docs/release-notes/` を消した。**
+本文にその名前（`plan/k1-kanji-implementation-plan.md` など）が出てくるのは
+**当時の記録**で、**ファイルは git 履歴にしか無い**（`git log --all -- docs/plan/` で辿れる）。
+**主張そのものは書き換えていない** — 書き換えると当時何を見て決めたかが分からなくなる。
+設計・計画の内容で生きているものは、**このファイルと `measurements.md` に集約してある**。
+**リリースノートは [GitHub Releases](https://github.com/ayutaz/sanoTTS-jp/releases) で公開済み**（6 本すべて本文が在ることを確認した）。
+
 ⚠️ **見出しの直前に `<a id="d-048">` / `<a id="c-055">` を置いてある。** 他の md からは
 `[D-048](decisions.md#d-048)` の短い形で参照できる（GitHub が見出しから作るスラグは
 見出しの文言が変わると黙って壊れるので使わない）。
@@ -147,7 +154,7 @@
 **2026-09-03 追記（[D-050](#d-050)）**: **この決定は生きている。**
 ブラウザで動くデモ（GitHub Pages）を配ることにしたが、**成果物は今も 567 K の embedded tier**で、
 Web は**触れる入口**でしかない。⚠️ **「ブラウザ向けに作り直す」ことは今も対象外**
-（[requirements.md](requirements.md) §2.2 の非目標のまま）。
+（requirements.md §2.2 の非目標のまま）。
 動いているのは **`csrc/` の C99 コアそのもの**で、arena も ESP32 と同じ 180,224 B。
 経緯と制約は [D-050](#d-050)、実測は [M-94](measurements.md#m-94)。
 
@@ -172,7 +179,7 @@ WER は日本語では分かち書きが問題になる。
 
 - **日付**: 2026-08-26
 - **状態**: **測定完了。ユーザー判断待ちの論点が 3 つ残る**
-- **一次データ**: [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md),
+- **一次データ**: `research/b0-g2p-footprint.md`,
   `reports/b0_{size,coverage,alternatives,flash_budget,feature_fields}.json`
 
 ### 測定結果（すべて実ビルド + held-out 2,325 文）
@@ -308,7 +315,7 @@ D-010 はその**中間点**を作る:
 ## D-011: 入力仕様を確定 — ひらがな + アクセント記号 + 無声化マーク
 
 - **日付**: 2026-08-26（ユーザー決定）
-- **状態**: **確定。要件定義書 [`requirements.md`](requirements.md) に反映済み**
+- **状態**: **確定。要件定義書 `requirements.md` に反映済み**
 
 ### 決定
 
@@ -383,7 +390,7 @@ piper-plus は `[tool.uv.sources]` の **path 依存 (editable)** で参照す�
 向こうで生成するほうが桁違いに安い。教師 ckpt (927 MB) は HF から直接取得できる。
 ラベルが環境非依存で bit 一致することは上記で確認済みなので、この分割は安全。
 
-インスタンス要件は [`requirements.md`](requirements.md) §8.4。
+インスタンス要件は `requirements.md` §8.4。
 
 ### ⚠️ 未検証
 
@@ -865,7 +872,7 @@ deny したまま（ローカル生成そのものは通す、D-026）。
 **未通過の CUDA parity ゲートを含む手順書を残す方が、誤用の危険が大きい。**
 
 残してあるもの: `deploy/vastai_bootstrap.sh` / `deploy/retarget_sources.py` /
-`scripts/b4_device_parity.py`（CUDA parity ゲートの実装）/ [`requirements.md`](requirements.md) §8.4 の要件表。
+`scripts/b4_device_parity.py`（CUDA parity ゲートの実装）/ `requirements.md` §8.4 の要件表。
 **再びリモートで回すなら、まず §8.4 と D-015 を読み、`b4_device_parity.py --device cuda` を先に通すこと。**
 
 ---
@@ -2832,7 +2839,7 @@ ESP32 に載らない SudachiDict 217 MB と nani ONNX の寄与は**合計 0.13
 残りは**外部定数がほぼゼロの 4 関数 126 行**で、
 **語彙 2 段だけ切るとアクセントは 100.00% 一致する**（自己実測、全 2,333 文）。
 
-詳細は [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) §5。
+詳細は `research/k1-kanji-katakana-ondevice.md` §5。
 
 ⚠️ **私自身、この件で 2 回間違えた。** (1) 単一ソースの先頭 400 文で測って
 「天井は 91.25%」と報告した（全数では 81.70%）。(2) 差の主因を「単位が違うから」と
@@ -2850,8 +2857,8 @@ ESP32 に載らない SudachiDict 217 MB と nani ONNX の寄与は**合計 0.13
 > ⚠️ **エントリ数 370,863 は D-044 で置き換わっている。**
 > ボード（N16R8）/ OTA 無し / 辞書予算 13,828,096 B / 辞書リビジョンの SHA-256 は
 > **そのまま有効**。**この節の「370,863」だけが古い。**
-- **一次データ**: [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md) /
-  [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) §1 /
+- **一次データ**: `research/k1-kanji-katakana-ondevice.md` /
+  `plan/k1-kanji-implementation-plan.md` §1 /
   `scripts/k1/k0_{mmu_window,fit_point,dict_inventory}.py`
 
 ### 決定
@@ -3011,7 +3018,7 @@ C-046 は「外挿を避けて実測したが、**測った対象が本番と違
 
 - **日付**: 2026-08-31（ユーザー決定）
 - **状態**: **確定**
-- **関連**: [`plan/k1-kanji-implementation-plan.md`](plan/k1-kanji-implementation-plan.md) / D-042 / C-047
+- **関連**: `plan/k1-kanji-implementation-plan.md` / D-042 / C-047
 
 ### 決定
 
@@ -3408,7 +3415,7 @@ S4 で確保の順番（`qp` を 1 つ足した）が変わって `sx` や `y` �
 ## D-046: 速度改善の出力基準 — **bit 同一か丸め水準かを先に宣言し、W8A8 は fp32 比 SNR の分布で判定する**。blob は **v2**
 
 **2026-09-02。** 第三者の実機報告（M5Stack CoreS3 で W8A8+PIE **1.554× RT**。
-[`research/s1-m5-cores3-speed.md`](research/s1-m5-cores3-speed.md)）を受けて、
+`research/s1-m5-cores3-speed.md`）を受けて、
 積和以外の処理を削る S1〜S5a を入れた（M-80 / M-81、ブランチ `feat/s1-speed-m5`）。
 そのとき**出力をどう守るか**を決めた。
 
@@ -3495,7 +3502,7 @@ USB は `Espressif / USB JTAG_serial debug unit`（ioreg）。**USB-UART ブリ�
 <a id="c-054"></a>
 ## C-054: M-82 §4 の仮説 4 つと「定常 xRT 0.926」の読み — **測ったら半分が違った**
 
-**2026-09-03。** S2 計画（[`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md)）のために
+**2026-09-03。** S2 計画（`plan/s2-fast-kanji-m5-plan.md`）のために
 コードと ELF を 6 視点で読み直し、審査 3 名で検算し、実機で 2 本測った（M-84 / M-85）。
 
 | M-82 に書いたこと | 実際 | 根拠 |
@@ -3637,8 +3644,8 @@ SNR が効いていないと (2) は素通りする。
 
 - **日付**: 2026-09-03
 - **決定**: `csrc/` の C99 コアと `esp32/main/saan_kanji.c` の漢字経路を**書き換えずに** WebAssembly へ持っていき、
-  GitHub Pages で「**漢字かな交じり文を打つと喋る**」最小デモを配る（W トラック。[`plan/web-demo-plan.md`](plan/web-demo-plan.md)）
-- **⚠️ D-049 は使わない**（RTF の分母用に予約してある。[`requirements.md`](requirements.md) §6.2）
+  GitHub Pages で「**漢字かな交じり文を打つと喋る**」最小デモを配る（W トラック。`plan/web-demo-plan.md`）
+- **⚠️ D-049 は使わない**（RTF の分母用に予約してある。`requirements.md` §6.2）
 
 ⚠️ **番号が飛んでいるのは間違いではない。** D-049 は先に予約され、複数のファイルから前方参照されている。
 
@@ -3658,7 +3665,7 @@ SNR が効いていないと (2) は素通りする。
 
 したがって **D-007 の「成果物は 567 K の embedded tier」は変わらない**。
 変わったのは「**ブラウザ向けに作らない**」から「**ESP32 のバイナリ経路を、ブラウザからも触れるようにする**」だけ。
-⚠️ **Web が要件に入ったわけではない**（[`requirements.md`](requirements.md) §2.2 の非目標のまま。§2.2 に追記した）。
+⚠️ **Web が要件に入ったわけではない**（`requirements.md` §2.2 の非目標のまま。§2.2 に追記した）。
 
 ### なぜ今なら成立すると言えるのか
 
@@ -3762,7 +3769,7 @@ od -A d -t u4 -N 16 /tmp/saanotts-jp-v3-int8.bin
 
 **⚠️ どれも「書いた時点では正しかった」。** v0.3.0 を出したときに**この 5 箇所を更新しなかった**だけ。
 
-⚠️ **リリースノート [`release-notes/v0.3.0.md`](release-notes/v0.3.0.md) は最初から「v0.3.0 は v2」と書いていた**
+⚠️ **リリースノート `release-notes/v0.3.0.md` は最初から「v0.3.0 は v2」と書いていた**
 （:57-58 / :78）。**答えはリポジトリの中にあって、誰も突き合わせなかった。**
 
 ### なぜ気づかなかったか
@@ -3809,8 +3816,8 @@ od -A d -t u4 -N 16 /tmp/saanotts-jp-v3-int8.bin
 **直した場所**（3 箇所。⚠️ 元の記述は消さず、この訂正への参照を残した）:
 
 - `CLAUDE.md`（K トラックの現在地の節）
-- [`research/b0-g2p-footprint.md`](research/b0-g2p-footprint.md)
-- [`research/k1-kanji-katakana-ondevice.md`](research/k1-kanji-katakana-ondevice.md)
+- `research/b0-g2p-footprint.md`
+- `research/k1-kanji-katakana-ondevice.md`
 
 ⚠️ **判断は変わらない。** D-044（438,750 entries / int16）は**音素の 0.32%** で決めており、
 文単位の数は根拠に使っていない。⚠️ 一次ソース（M-77 §1 の表と M-78 の「ids が違う 44 文」）は
@@ -3867,7 +3874,7 @@ make -C csrc label_ids_test
 **9 ファイル 18 箇所**が「未決 = D-049 で決める」と名指ししている
 
 ⚠️ **これは当時の数である。** ✅ **D-049 は 2026-09-11 に埋めた**（[D-049](#d-049)）ので、**「未決」と書いてあった箇所は全部書き換えた**（9 ファイル。`MODEL_CARD.md` = 配布物も含む）。
-（[`requirements.md`](requirements.md) §6.2 / [`README.md`](README.md) / CLAUDE.md ほか）。
+（`requirements.md` §6.2 / [`README.md`](README.md) / CLAUDE.md ほか）。
 
 数え方:
 
@@ -3882,8 +3889,8 @@ grep -rn "D-049" --include="*.md" . | grep -v "^./docs/decisions.md" | wc -l
 
 ⚠️ **番号について。** この決定は本来 D-049 として起草を頼まれたが、**D-049 は
 「RTF ≤ 0.5 の分母」のために予約済み**で、**9 ファイル 18 箇所**が
-「未決 = D-049 で決める」と名指ししている（[`requirements.md`](requirements.md) §6.2 /
-[`plan/s2-fast-kanji-m5-plan.md`](plan/s2-fast-kanji-m5-plan.md) §7 #1 の
+「未決 = D-049 で決める」と名指ししている（`requirements.md` §6.2 /
+`plan/s2-fast-kanji-m5-plan.md` §7 #1 の
 「**D-049 は空き番**」/ [`README.md`](README.md) / CLAUDE.md ほか）。
 **そこに別の決定を入れると 18 箇所が黙って別の話を指す**（C-052 の
 「番号がずれる」ではなく「番号が入れ替わる」形）ので、**D-049 は空けたまま D-050 を採った。**
@@ -4705,7 +4712,7 @@ D-053 の罠は「**上限を `<1.0` → `<2.0` に緩めるだけでは lock �
 
 - 決定日: 2026-09-04
 - 状態: **確定**（ユーザー判断）
-- 調査: [`research/l1-commercial-use-licensing.md`](research/l1-commercial-use-licensing.md)
+- 調査: `research/l1-commercial-use-licensing.md`
 - 前提を変えた決定: [D-035](#d-035)（初期リリースは現行素材のまま）/ [D-039](#d-039)（重みは MIT ではない）
 
 ⚠️ **採番の飛びは欠番ではない。** 未マージの 2 ブランチが使用中である:
@@ -4767,7 +4774,7 @@ CML-TTS (CC-BY-4.0) が帰属表示を要求する。これを外すには
 声が確定するまでは **つくよみちゃんのままでよい**。ただし
 **その間は D-054 のゴールに届いていない**ことを明示しておく:
 つくよみちゃんの 4 禁止事項は**利用規約として課すことが義務**であり、
-再配布者に**コピーレフトする**（[L-1](research/l1-commercial-use-licensing.md) §2.2 / §2.3。一次ソースの原文）。
+再配布者に**コピーレフトする**（L-1 §2.2 / §2.3。一次ソースの原文）。
 
 ⚠️ **「名前だけ記載すれば済む」ではない。** クレジット自体は指定文面の掲載でよく、
 **エンドユーザーにクレジットを義務付ける必要はない**（同 §2.4）が、
@@ -4785,7 +4792,7 @@ CML-TTS (CC-BY-4.0) が帰属表示を要求する。これを外すには
 
 - **声の最終決定**（外部の声優 / Common Voice / 現状維持）
 - **[`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.2 を一次ソースに合わせて直すか**（[C-072](#c-072)）
-- つくよみちゃん側が求めている**リリース前の連絡**（[L-1](research/l1-commercial-use-licensing.md) §2.5）を行うか
+- つくよみちゃん側が求めている**リリース前の連絡**（L-1 §2.5）を行うか
 - **音は 1 つも聴いていない。** 候補教師の品質比較は未実施
 
 ---
@@ -4835,7 +4842,7 @@ CML-TTS (CC-BY-4.0) が帰属表示を要求する。これを外すには
 問題は「アダルト用途は一切不可」と読めることで、**商用利用の判断を誤らせうる**点にある。
 
 ⚠️ **法的助言ではない。** 一次ソースの読解であり、「原則的には禁止です」という別の記述の
-含みまでは判断していない（[L-1](research/l1-commercial-use-licensing.md) §2.8）。
+含みまでは判断していない（L-1 §2.8）。
 
 ---
 
@@ -4898,12 +4905,12 @@ piper-plus 側で処理される」**という整理も取れた。理由 3 つ�
 - **base の 6 データセットが本当に全部この教師の上流にいるか** —
   `data-sources.yml` の `used_only_in` の有無から推論した（7 件中 1 件だけが持つ）。
   **piper-plus の学習ログでは確認していない**
-- つくよみちゃん側が求める**リリース前の連絡**（[L-1](research/l1-commercial-use-licensing.md) §2.5）
+- つくよみちゃん側が求める**リリース前の連絡**（L-1 §2.5）
 - ⚠️ **LibriTTS-R / CML-TTS / AISHELL-3 のライセンス・URL・著者表記は未検証。**
   [`../LICENSE-MODEL.md`](../LICENSE-MODEL.md) §3.1 (A) に必須帰属として入れた 3 行は、
   `~/Documents/piper-plus/data-sources.yml` をそのまま転記したもので、
   openslr.org / aishelltech.com / CML-TTS の GitHub リポジトリで**一次ソースを
-  確認していない**（[L-1](research/l1-commercial-use-licensing.md) §7 に追記）。
+  確認していない**（L-1 §7 に追記）。
   「freds0 et al.」は CML-TTS の GitHub ハンドルであり、確認済みの著者名ではない。
   この台帳は [C-029](#c-029) / [C-030](#c-030) / [C-031](#c-031) で 3 回間違っている。
 
@@ -4955,7 +4962,7 @@ grep -c "used_only_in" ~/Documents/piper-plus/data-sources.yml  # 1
 ## C-074: 「CC-BY 4.0 と つくよみちゃんの条件が衝突する」は誤りだった（2026-09-09）
 
 **何を書いたか**: 2026-09-08 に「⚠️ CC BY 4.0 と つくよみちゃんの条件が**理屈上ぶつかる**」と
-報告し、[L-1](research/l1-commercial-use-licensing.md) と [D-054](#d-054) にもその趣旨を書いた。
+報告し、L-1 と [D-054](#d-054) にもその趣旨を書いた。
 根拠にしたのは CC BY 4.0 §2(a)(5)(ii):
 
 > "You may not offer or impose any additional or different terms or conditions on ...
@@ -4994,7 +5001,7 @@ grep -c "used_only_in" ~/Documents/piper-plus/data-sources.yml  # 1
 - 成果物: ラベルパック `data/pack_cc0` / 学習 `runs/v4`（どちらも git 管理外）
 - 実測: [M-113](measurements.md#m-113)
 - 前提: [D-054](#d-054)（商用向けのゴール）/ [D-055](#d-055)（帰属表示）
-- 計画: [`superpowers/plans/2026-09-09-cc0-only-distillation-text.md`](superpowers/plans/2026-09-09-cc0-only-distillation-text.md)
+- 計画: ⚠️ **実装計画（Task 1〜8）は消した**（2026-09-12。全 Task 完走したので）。**判定の一次ソースは [`../src/saanotts_jp/corpus_license.py`](../src/saanotts_jp/corpus_license.py)**
 
 ⚠️ **採番の飛びは欠番ではない。** パターンは [D-054](#d-054) の表と同じ。
 2026-09-09 に `git fetch origin --prune` で再確認した現在のスナップショット:
@@ -5357,7 +5364,7 @@ I (1126) saanotts: ⚠️ 端末の辞書は枝刈りしてあるので、**ホ�
 - 決定日: 2026-09-10
 - 状態: **確定**（ユーザー判断）
 - 改める対象: [D-054](#d-054)（「帰属表示のみ・出力制限なし・継承なし」というゴール）
-- 関連: [D-057](#d-057)（v4 の受け入れ）/ [L-1](research/l1-commercial-use-licensing.md)
+- 関連: [D-057](#d-057)（v4 の受け入れ）/ L-1
 
 ### 何を決めたか
 
@@ -6089,7 +6096,7 @@ staged な 2 セットに配り直して `shasum -c` は通した（**27/27** �
 <a id="c-087"></a>
 ## C-087. リリースノートの資産表が**実物と 3 行ずれていた**（サイズと SHA-256）
 
-**2026-09-10。** [`docs/release-notes/v1.0.0.md`](release-notes/v1.0.0.md) は 28 本の
+**2026-09-10。** `docs/release-notes/v1.0.0.md` は 28 本の
 **サイズと SHA-256 の頭 16 桁**を表に載せている。資産を作った直後に書いたので当時は
 正しかったが、その後**資産を 3 本直したのに表を直していなかった**:
 
@@ -6105,7 +6112,7 @@ staged な 2 セットに配り直して `shasum -c` は通した（**27/27** �
 
 ### ✅ 突き合わせるゲートを書いた
 
-[`scripts/check_release_table.py`](../scripts/check_release_table.py):
+`scripts/check_release_table.py`:
 
 ```bash
 uv run --no-project python scripts/check_release_table.py \
@@ -6184,7 +6191,7 @@ AISHELL-3 は **Apache-2.0 = 許容的**で、**用途制限もコピーレフ�
 
 **3 素材のライセンス・URL・著者表記は一次ソースと突き合わせていない。**
 `~/Documents/piper-plus/data-sources.yml` の転記である
-（[L-1](research/l1-commercial-use-licensing.md) の未確認事項）。
+（L-1 の未確認事項）。
 ⚠️ **この台帳は過去に 3 回間違っている**（[C-029](#c-029) / [C-030](#c-030) / [C-031](#c-031)）。
 **「AISHELL-3 が Apache-2.0 である」ことすら、一次ソースでは確認していない。**
 
@@ -6395,7 +6402,7 @@ grep -rn "アダルト\|素材としての再配布\|ゾーニング" --include=
 <a id="c-089"></a>
 ## C-089. **「測っていない」と書いた指標が、実は測ってあった**（受け入れ条件 5）
 
-**2026-09-11。** [`docs/requirements.md`](requirements.md) の受け入れ条件に v4 の列を足したとき、
+**2026-09-11。** `docs/requirements.md` の受け入れ条件に v4 の列を足したとき、
 
 > | 5 | 摩擦音の平坦度が教師比 ≥ 0.85 | ❌ **v4 では測っていない**（v3 でも v2 の値のまま） |
 
@@ -6451,7 +6458,7 @@ for t in ('v3_full','v4_full'):
 
 - 決定日: 2026-09-11
 - 状態: **確定**（ユーザー判断。しきい値 0.8 s もユーザーが決めた）
-- 予約されていた節: [`docs/requirements.md`](requirements.md) §6.2（2026-09-03 から**欠番のまま**だった）
+- 予約されていた節: `docs/requirements.md` §6.2（2026-09-03 から**欠番のまま**だった）
 - 材料: 同 §6.2 の「D-049 を決めるための整理」/ [M-90](measurements.md#m-90) / [M-83](measurements.md#m-83)
 
 ### 何を決めたか
@@ -6554,7 +6561,7 @@ M-83 の頃（xRT 4.28〜4.62）は **0.5% 前後で ✅** → 現在（xRT 0.44
 
 **A2 は 1 と 2 の両方を閉じる** — digest が `d->blob_len` バイトに対して一致するなら、
 **長さも内容も正しい**。⚠️ **さらに「辞書の取り違え」も捕まえる** —
-[v0.3.1](release-notes/v0.3.1.md) から**辞書単体を 5 本配っている**ので、
+v0.3.1 から**辞書単体を 5 本配っている**ので、
 4 MB 用を 16 MB 版に焼いても**有効な blob なので黙って起動し、読みが悪くなるだけ**だった。
 
 **採らなかった案**:
@@ -6609,3 +6616,261 @@ v1.0.0 の staged 資産は **D-062 込みのソースから建てて実機で�
 **小容量版（4 MB / 8 MB）のコストは測っていない。** flash 読み出し律速なので
 **ほぼ比例するはず**だが、**算術は測定ではない**。
 **入れるときに 1 度は測ること。**
+
+---
+
+## C-090. ⚠️ **引用した「実機の生ログ」が、どの実機も出していない合成物だった**（C-064 の 5 度目）
+
+**2026-09-12。** `README.en.md` はコードブロックを
+
+> *Excerpted from the raw device log `reports/m90_cores3/device_m5_kanji.log`*
+
+と帰属したうえで、**v3 の xRT（0.446）とプリロール（384 ms）に v4 の checksum
+（`0x390bf4b2aef8f2ec`）を混ぜていた。** そのログに v4 の checksum は **0 回**しか出てこない。
+
+`README.md`（日本語）も **v4 のログ（`m130_cores3`）に帰属しながら 2 行が v3 のまま**だった:
+
+| 文書が載せていた | v4 の実ログ | v3 の実ログ |
+|---|---|---|
+| `漢字 G2P … / 25.69 ms` | **25.77 ms** | 25.69 ms ← ここから来ていた |
+| `init 21.56 ms` | **21.60 ms** | 21.56 ms ← 同上 |
+
+**確かめ方**（1 コマンド）:
+
+```bash
+grep -c 0x390bf4b2aef8f2ec reports/m90_cores3/device_m5_kanji.log   # → 0
+```
+
+### なぜ起きたか
+
+**checksum だけを一括置換し、同じブロックの時間を置換しなかった。**
+[C-064](#c-064) と同じ形で、**これが 5 度目**である（ci.yml のコメント / 番号リンクのラベル /
+`2d2b8543` の帰属 / v3 の寸法 に続く）。
+
+⚠️ **「引用」は主張である。** 実機が出していない行を「生ログから抜粋」と書くのは、
+数値の誤りより重い — **読者は再現できたものとして読む。**
+
+### ✅ ゲートにした
+
+`scripts/check_doc_claims.py` の **G-D1**: **引用ブロックの数値がすべて、
+直後に引いたログに実在するか**。CI の `docs` job で回る。陽性対照 **9 件**に加えて、
+**今日の 3 つの壊れ方を実データで戻して落ちること**も確かめた（3/3 + 戻したら緑に戻る）。
+
+⚠️ **見ないもの**: 数値が**同じ行**に在るか（ログのどこかに在ればよい）/ 散文の主張。
+
+### ⚠️ このゲート自身が、初回の CI で落ちた（手元では緑だった）
+
+**G-D2 を「作業ツリーに在るか」で書いたため。** 手元には
+`web/dist/`（`bash web/build.sh` が作る）と `esp32/sdkconfig`（`idf.py` が作る）が
+**残っていた**ので通り、**新規 clone の CI でだけ 7 件落ちた**。
+[C-041](#c-041)（「依存を外したつもりの環境が汚れていた」）と同じ形である。
+
+→ **判定を「追跡されているか」に変えた**（`ls-files` の集合）。これで手元と CI が一致する。
+陽性対照にも「**作業ツリーに在っても追跡外なら落とす**」を足した。
+⚠️ **「手元で緑」は「CI で緑」の証拠にならない** — **作業ツリーは常に汚れている。**
+
+---
+
+## C-091. **配布中が v4 になったのに、読者向け文書が v3 の値とタグを載せ続けていた**（10 箇所）
+
+**2026-09-12。** `v1.0.0`（= v4）を出した後、一次ソース（`measurements.md` / `decisions.md`）は
+正しかったが、**読者が最初に読む文書が v3 のままだった**:
+
+| 場所 | 書いてあった | 実際（v4） |
+|---|---|---|
+| `MODEL_CARD.md` | **「v4 の W8A32 の checksum は測っていない」** | **測ってある** = `0x9cbe622a4a53af7e` / 27,648 sample（[M-132](measurements.md#m-132)） |
+| `MODEL_CARD.md` | v3 が「`v0.3.1`（**現在配布中**）」 | 配布中は **`v1.0.0`** |
+| `MODEL_CARD.md` | 例の checksum が `0xa69a7ebb…`（v3） | **このカードは v1.0.0 に同梱**＝読者の重みは v4 |
+| `docs/support-matrix.md` / `.en.md` | アクセント **✅ 37/37** | **31/37**（[M-118](measurements.md#m-118)）= **既知の劣化が消えて見えていた** |
+| `docs/support-matrix.en.md` | 「whole utterance — **not met**. denominator **undecided**」 | **[D-049](#d-049) で決着**（日本語版だけ更新されていた） |
+| `README.md` / `.en.md` | SCOREQ 比 **0.644** | **0.636**（[D-057](#d-057)） |
+| `CLAUDE.md` / `docs/README.md` | 鳴らし始め **約 479 ms** | **約 407〜433 ms**（M-130。479 は v3） |
+| `.github/workflows/README.md` | 重みは **`v0.3.0` 固定**（4 箇所） | `ci.yml` も `pages.yml` も **`v1.0.0`** |
+| `esp32/TESTING.md` | 「Releases（**v0.3.1**）」「v0.3.0 と **bit 同一**」 | latest は **v1.0.0**、中身は v4 = bit 同一ではない |
+| `docs/getting-started.md` / `.en.md` | NOTICE 3 本を **`v0.3.0` から落とせ** | ⚠️ **[D-061](#d-061) で「帰属の記載が欠けたまま」と決めた版** |
+
+⚠️ **最後の 1 件がいちばん重い** — 読者に**欠陥があると分かっている帰属ファイルを
+再配布させる手順**になっていた。`pages.yml` は既に `v1.0.0` から落としている。
+
+### なぜ起きたか
+
+**リリース作業では `ci.yml` / `pages.yml` / `downloads.md` のように「タグが書いてある場所」を
+追ったが、「v3 の実測値が書いてある場所」は追わなかった。**
+版を上げるときに動くのは**タグだけではなく、その版で測り直したすべての数**である。
+
+⚠️ **一次ソースが正しいことは、読者向け文書が正しい根拠にならない。**
+
+---
+
+## C-092. **残タスク表が 2 か所にあり、どちらも別々に欠けていた**
+
+**2026-09-12。** `CLAUDE.md` と `docs/README.md` が同じ残タスク表を持っていた:
+
+| | 開いている | 決着した | **欠けていた** |
+|---|---|---|---|
+| `CLAUDE.md` | 1, 11 | 14 件 | **項番 14** |
+| `docs/README.md` | **1 のみ** | 10 件 | **項番 11** と **6, 7, 8, 9, 10** |
+
+⚠️ **`docs/README.md` は「項番 11 は CLAUDE.md にしかない」と自分で書いていた** —
+**気づいていて直せていなかった。**
+
+**`docs/README.md` を正典に統合し**（開 2 + 決着 15）、`CLAUDE.md` は
+**開いている 2 件だけ**を残して決着分はリンクにした。
+
+### ⚠️ 危険信号として残す
+
+**「同じ表を 2 か所に持つ」は、片方が古くなるのではなく<b>両方が別々に欠ける</b>。**
+[C-080](#c-080)（帰属ブロックの写しが 3 か所）と同じ形で、あちらは
+`check_attribution.py` の G-A1 で**一字一句の一致**を機械が見るようにして解いた。
+**表は機械照合が難しいので、2 つ目を作らないことで解く。**
+
+---
+
+## C-093. ⚠️ **`.gitignore` に書いたのに、443 MB のビルド生成物が追跡され続けていた**
+
+**2026-09-12。** `esp32/k2hw/` `k4hw/` `k8hw/` の **4,425 ファイル / 443.4 MB** が
+`main` に乗っていた（`.ninja_deps` / `libmbedcrypto.a` / `saanotts_jp.elf` など）。
+
+⚠️ **`.gitignore` の 233〜235 行には正しく書いてあった。**
+だが**同じコミット `55c4329` でファイルが先に staged されていた**ため、
+git は既に追跡しているファイルに `.gitignore` を適用しない。
+
+**確かめ方**:
+
+```bash
+git ls-files esp32/k8hw | wc -l      # → 1475（ignore しているのに追跡されている）
+```
+
+`git rm -r --cached esp32/k2hw esp32/k4hw esp32/k8hw` で index から外した
+（**作業ツリーのファイルは消していない**）。
+
+⚠️ **履歴は縮まない。** オブジェクトは残るので完全な `git clone` の転送量は変わらない。
+✅ **履歴は書き換えないと決めた**（[D-064](#d-064)。2026-09-12）— 完全な clone は 55 MB のままだが、
+**`--depth 1` なら 3.7 MB** で、**fork 2 / star 59 / `v1.0.0` タグ / このファイルが引く commit 3 本**
+を壊す代償に見合わない。
+
+### ⚠️ 危険信号として残す
+
+**「`.gitignore` に書いた」は「追跡されていない」の証拠にならない。**
+⚠️ **ignore を足したときは、必ず `git ls-files <path> | wc -l` で 0 を確かめる。**
+
+---
+
+## C-094. **2 巡目で出た 3 件** — 板の README / ckpt のパス / 再構築の手順
+
+**2026-09-12。** [C-091](#c-091) で読者向け文書を直したが、**1 巡目では見ていなかった層**に
+同じ形が残っていた。**「直した」と言えるのは、走査対象に入れた範囲だけである。**
+
+### 1. ⚠️ 板ごとの README の「期待値」が v3 のまま、印も無かった
+
+`esp32/boards/m5unified/README.md` の
+**「期待値（移植が正しいことの機械的な証拠）」**表が `0xa69a7ebbb5ccb05f` /
+`0xe4b645c30835d42d`（**v3**）だけを載せていた。
+
+**配布中の v4 を焼いた人がこの表と突き合わせると必ず食い違い、
+「移植が壊れている」と報告する。**「実測」表（xRT 0.446 / 鳴らし始め 384 ms /
+arena 157,360 B）も全部 v3 だった。
+
+→ **v3 / v4 を併記**した。v4 の値は**この板・この構成の実ログ**
+`reports/m130_cores3/device_v4_kanji.log` から取った
+（xRT **0.448** / 385 ms / arena **156,688 B** / 漢字 G2P **25.77 ms** / かな G2P **0.101 ms**）。
+⚠️ **v4 の W8A32 は QEMU でしか測っていない**（[M-132](measurements.md#m-132)）ので、そう書いた。
+⚠️ **「起動直後の内部 DRAM free」は v4 では測っていない**（ログにあるのは「漢字 G2P 直後」で
+**測定点が違う**）ので、**書かなかった**。
+
+→ **ゲートの走査対象に板ごとの README を足した**（`check_doc_claims.py` の `PATH_DOCS` / `LOG_DOCS`）。
+
+### 2. ⚠️ ドキュメントが「成果物」と呼ぶ ckpt が v3 で、しかも**手元に存在しない**
+
+`CLAUDE.md` は **「成果物は `runs/v3/stage4.pt`」** と書いていた。実測:
+
+```
+ls runs/v3/   → log.jsonl と summary.json だけ（**`stage4.pt` は無い**）
+ls runs/v4/   → stage1〜4.pt が在る
+```
+
+`runs/v4/stage4.pt` は**リリース `v1.0.0` の `saanotts-jp-v4-stage4.pt` と SHA-256 が bit 一致**
+（`be5bf3f586cc6de7…`。リリースの `SHA256SUMS.txt` と突き合わせて確認）。
+
+⚠️ **`runs/` は git 管理外**なので、**`check_doc_claims.py` の G-D2 でも見えない**
+（除外表に入れてある）。**ゲートで塞げない種類の食い違い**である。
+
+### 3. ⚠️ 「一から作り直す」手順が v3 を作る形で、しかも 2 つ壊れていた
+
+```bash
+uv run python scripts/gen_teacher_labels.py --split train --out data/pack   # ← 2 つ壊れている
+```
+
+1. **hook が deny する**（本番パックの再生成。[D-015](#d-015)）
+2. **ライセンス絞り込みは train の既定 ON になった**（[D-054](#d-054)）ので、今これを打つと
+   **CC0/PD だけの内容が `data/pack` という v3 の名前で出る**
+
+→ v4 の正しい再現（[M-115](measurements.md#m-115)）= `--out data/pack_cc0` + `--run runs/v4` に直した。
+⚠️ **所要時間は実測していない**ので「141 ms/文 × 14,513 文 = 約 34 分（算術）」と書いた。
+
+### ⚠️ 危険信号として残す
+
+**「読者向け文書を直した」と書くときは、走査した一覧を添える。**
+1 巡目は「タグと実測値」を追い、**板ごとの README と ckpt のパスを見ていなかった**。
+[C-016](#c-016) / [C-024](#c-024) の「**『無い』も主張である。探した範囲を書く**」が、
+**「直した」にもそのまま当てはまる。**
+
+---
+
+## D-064: **履歴からビルド生成物は消さない**（`git rm --cached` で止める。[C-093](#c-093) の決着）
+
+**2026-09-12。ユーザー判断。** [C-093](#c-093) で `esp32/k{2,4,8}hw` の
+**4,425 ファイル / 443.4 MB**（展開後）が追跡されていたのを index から外した。
+**履歴からも消すか**が残っていたので、測って決めた。
+
+### 測った（⚠️ 展開後の 443 MB は clone の転送量ではない）
+
+git は同一内容を 1 blob に畳み、zlib + delta で縮める。**判断は圧縮後でする。**
+
+| | 今 | 書き換えた場合 |
+|---|---:|---:|
+| **完全な clone** | **55 MB** | 約 **9 MB** |
+| **浅い clone**（`--depth 1`） | **3.7 MB** | 3.7 MB（**変わらない**） |
+
+pack の **85.5%（46.0 MB / 53.9 MB）**が生成物（`.a` 20.0 / `.obj` 20.0 / `.elf` 2.6 MB）。
+**割合は大きいが、絶対値は 46 MB。**
+
+再現:
+
+```bash
+git count-objects -vH                                   # size-pack
+git clone --depth 1 --branch main https://github.com/ayutaz/sanoTTS-jp.git /tmp/s && du -sh /tmp/s/.git
+git clone            https://github.com/ayutaz/sanoTTS-jp.git /tmp/f && du -sh /tmp/f/.git
+```
+
+### 代償（すべて実測で確認した）
+
+| | |
+|---|---|
+| **fork 2 / star 59** | 公開リポジトリ。fork は**復旧できない形で分岐する** |
+| **`v1.0.0` タグ** | 指す commit（`f427b1e6…`）が生成物コミット `55c4329` より**後**なので、**タグの指す先が変わる** |
+| **このファイルが引く commit 3 本** | `3d3b483` / `2cab5aa` / `55c4329` — **3 つとも実在するコミット**。全部**宙に浮く** |
+| **`main` への force-push** | 取り消せない、外向きの操作 |
+
+### 決めた理由
+
+1. **誰も 46 MB を払っていない。** `--depth 1` は**今日すでに 3.7 MB**。
+   コードだけ欲しい人にはもう解決している。
+2. ⚠️ **このリポジトリの規律に真正面から反する。**
+   [C-064](#c-064) / [C-078](#c-078) / [C-085](#c-085) は**「参照が黙って壊れた」という訂正が 3 件**あり、
+   残タスク表にも「**番号は付け替えない — 他のファイルからの参照が黙って壊れる**」と書いてある。
+   **履歴の書き換えは、その失敗の最大版を公開リポジトリに対してやることである。**
+   しかも壊れる参照の 1 つは、**同じ日に C-093 に書いた `55c4329` そのもの**だった。
+3. **実害はもう消えている。** 443 MB が作業ツリーに展開される問題は `git rm --cached` で解決済み。
+   残っているのは「**過去を取りに行くと 46 MB 余分**」だけ。
+
+### ⚠️ 受け入れた代償
+
+**完全な clone は永久に約 6 倍のまま**（55 MB vs 9 MB）で、**これは改善しない。**
+`git bisect` など全履歴が要る作業をする人は毎回 46 MB 払う。
+
+### ⚠️ この判断が変わる条件
+
+**fork も star も無く、タグも打っていない**リポジトリなら書き換えてよい。
+**2026-09-12 時点でどれも当てはまらない。**
+⚠️ **「pack の 85% が生成物」という事実だけを見て再提案しないこと** — 代償は上の表にある。

@@ -55,8 +55,10 @@ M-82 / M-85 と比べられない**ので、実機は必ず `sdkconfig.cores3` �
 skip は末尾に `⚠️ D 節は blob 無しで skip` と出て、**黙って PASS にはならない**。
 ⚠️ **blob v2 が要る**（`saan_weights_open` を通すので v1 は `SAAN_ERR_VERSION`）。
 リリース v0.2.0 の `saanotts-jp-v3-int8.bin` は **v1** なので、
-`uv run python scripts/export_c_weights.py --ckpt runs/v3/stage4.pt --int8 --out csrc/student_i8.bin
---golden csrc/golden_i8.bin --golden-from-quantized --report csrc/export_i8.json` で作ること。
+`uv run python scripts/export_c_weights.py --ckpt runs/v4/stage4.pt --int8 --out csrc/student_i8.bin
+--golden csrc/golden_i8.bin --golden-from-quantized --report csrc/export_i8.json` で作ること
+（**リリース `v1.0.0` の `saanotts-jp-v4-int8.bin` をそのまま置いてもよい**）。
+⚠️ **どの重みで作ったかで下の期待値が変わる。**
 
 ## 確かめていること
 
@@ -160,4 +162,5 @@ D3 ≈ D2、E1 4.8 cyc/要素）、**幅も 3〜300% 出る**。`-DSAAN_QEMU=1` 
 
 詳細は [`docs/measurements.md`](../../docs/measurements.md) の **M-56**（A）/ **M-57 / M-58**（B）/ **M-81**（C と、S5a のロード併合ループ）/ **M-85**（D / E）。
 ⚠️ S5a 以降のカーネルは `ee.vmulas.s8.accx.ld.ip` + `loopnez` を使う。**QEMU がその意味論を実機と同じに
-実装しているかは実機の checksum で分かる**（期待 `0xa69a7ebbb5ccb05f`）。
+実装しているかは実機の checksum で分かる**（**v4** = 配布中なら `0x390bf4b2aef8f2ec` /
+v3 なら `0xa69a7ebbb5ccb05f`。⚠️ **焼いた重みの方を見ること**）。

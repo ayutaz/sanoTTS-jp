@@ -62,11 +62,12 @@ M5Stack Core2 / Basic はこちら。
 ## A. 焼くだけ（ESP-IDF 不要）
 
 **焼けるイメージは 10 本あります。**
-**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)（v0.3.1）に入っています。**
+**全部 [Releases](https://github.com/ayutaz/sanoTTS-jp/releases/latest)（**`v1.0.0`**）に入っています。**
 
-✅ **配布イメージは S1〜S5b / T1〜T5 込みの現行コア**です（16 MB / 8 MB / かな版は
-**v0.3.0 のものと bit 同一**を SHA-256 で確認済み）。下の「期待値」の
-**新しい値**の側になります。⚠️ **v0.2.0 以前を焼いてある板は入れ替えてください**
+✅ **配布イメージは S1〜S5b / T1〜T5 込みの現行コア**です。下の「期待値」の
+**`v4` の行**が対象になります。
+⚠️ **`v1.0.0` のイメージは重みが v4 なので、`v0.3.x` のイメージとは bit 同一ではありません**
+（コードは同じで、**checksum が変わります**。[M-132](../docs/measurements.md#m-132)）。⚠️ **v0.2.0 以前を焼いてある板は入れ替えてください**
 （`!` の前置が要り、コンソールが UART0 で、int8 blob も現行コアが拒む v1 です）。
 
 ⚠️ **コンソールの口が 2 通りあります。** CoreS3 / AtomS3 のように **USB-シリアル変換を
@@ -322,7 +323,7 @@ idf.py -B build_core2 -p /dev/cu.usbserial* flash monitor
 下の「報告してほしいもの」に加えて、**`-DSAAN_PROFILE=1` で焼き直したときの表**
 （`----- 段別プロファイル -----` から `1 step = ... cyc` まで）を丸ごと。
 1 チャンクの時間がどの段（QUANT / GELU / MAC / TOKEN / DW …）に行っているかが、
-実機でしか取れない数字です（[`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)）。
+実機でしか取れない数字です（経緯は `../docs/measurements.md` M-80〜M-90）。
 ⚠️ **速度の報告は `SAAN_PROFILE=0` のビルドで。** 計測自体にコストがあります。
 
 ---
@@ -624,4 +625,4 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 詳細な設計判断は [`README.md`](README.md)、実測値は
 [`../docs/measurements.md`](../docs/measurements.md) の **M-62 / M-63**（QEMU）と
 **M-83 / M-84 / M-86 / M-88 / M-89 / M-90**（CoreS3 の実機）にあります。
-速度の作り直しの経緯は [`../docs/research/s1-m5-cores3-speed.md`](../docs/research/s1-m5-cores3-speed.md)。
+速度の作り直しの経緯は `../docs/measurements.md` M-80〜M-90。

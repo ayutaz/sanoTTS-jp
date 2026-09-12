@@ -41,7 +41,7 @@ static const char *TAG = "saan_i2s";
  *
  * ⚠️ **これでスループット不足は埋まらない。** 実機（CoreS3 の報告値）は W8A8+PIE でも
  *    1 チャンク（音声 92.88 ms）に 144 ms かかる。DMA を何段積んでも足りない。
- *    直す順序は docs/research/s1-m5-cores3-speed.md §5。 */
+ *    直した順序と実測は docs/measurements.md M-80〜M-90。 */
 #define SAAN_I2S_DMA_DESC  6
 #define SAAN_I2S_DMA_FRAME 512
 

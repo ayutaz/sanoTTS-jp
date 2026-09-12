@@ -12,12 +12,12 @@
 
 | job | 中身 | 依存 | 実測 |
 |---|---|---|---:|
-| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数（`check_doc_counters.py`） / md の相対リンク（`check_doc_links.py`。⚠️ **在るかだけ。中身は見ない**） / **docs が書いたコマンドの実体**（`check_doc_commands.py`。スクリプト 37 種 / make 23 ターゲット。陽性対照 5 件。C-040。2026-09-11 追加） / **帰属義務の成果物**（`check_attribution.py`。**G-A1** 写しが 3 か所で一致 / **G-A2** 同梱した全文が記載どおり。陽性対照 7 件。C-080 / C-081。2026-09-10 追加） / **リリースノートの資産表 vs 実物**（`check_release_table.py`。⚠️ **CI は自己テストだけ** — 本体は資産が git 管理外なのでタグ直前に手で回す。陽性対照 5 件。C-084 / C-086。2026-09-10 追加） / hook の回帰 105 ケース / 本文検出の自己テスト（`test_sanitize_reports.py`） / blob → .rodata ヘッダ変換 / **`rec5` の往復と畳み込み**（`test_rec5.py`。合成エントリなので辞書が要らない。M-108） / **ゲートが CI で回るか、回らないなら理由が書いてあるか**（`check_ci_coverage.py`。陽性対照 2 件） / **蒸留テキストのライセンス判定**（`test_corpus_license.py`。G-L1a。許可 7 / 拒否 9 / **未知 5**。陽性対照つき。D-054） / **pyproject の制約を uv.lock の固定版が満たしているか**（`check_lock_vs_pyproject.py`。陽性対照 6 / 陰性対照 2。C-071。2026-09-10 追加） | **なし**（stdlib のみ） | **9 s**（⚠️ 2026-09-03 の実測。その後 lock / ライセンス / 帰属の 3 本を足したので**未計測**） |
-| **`golden`** | **参照実装との一致**。**fp32**（`make -C csrc test`）と **int8**（`int8-golden` / `int8`）の両方 + `arena`。重みはリリース **`v0.3.0`** の 4 資産を落とす（2.2 + 0.8 + 0.65 + 0.8 MB）。**陽性対照つき**（重みを壊すと fp32 / int8 の両方で落ちる = C-056） | ネットワーク + cc | **未計測**（int8 レーンは 2026-09-03 追加） |
+| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数（`check_doc_counters.py`） / md の相対リンク（`check_doc_links.py`。⚠️ **在るかだけ。中身は見ない**） / **docs が書いたコマンドの実体**（`check_doc_commands.py`。**スクリプト 36 種 / make 24 ターゲット**。陽性対照 5 件。C-040。2026-09-11 追加） / **引用した実機ログの数値と、名指ししたパス**（`check_doc_claims.py`。**G-D1** ログ引用の数値が引用先に実在するか / **G-D2** 名指ししたパスが**追跡されて**いるか（⚠️ `exists()` では手元だけ緑になる）。陽性対照 9 件。C-064 / C-041。2026-09-12 追加） / **帰属義務の成果物**（`check_attribution.py`。**G-A1** 写しが 3 か所で一致 / **G-A2** 同梱した全文が記載どおり。陽性対照 7 件。C-080 / C-081。2026-09-10 追加） / hook の回帰 105 ケース / 本文検出の自己テスト（`test_sanitize_reports.py`） / blob → .rodata ヘッダ変換 / **`rec5` の往復と畳み込み**（`test_rec5.py`。合成エントリなので辞書が要らない。M-108） / **ゲートが CI で回るか、回らないなら理由が書いてあるか**（`check_ci_coverage.py`。陽性対照 2 件） / **蒸留テキストのライセンス判定**（`test_corpus_license.py`。G-L1a。許可 7 / 拒否 9 / **未知 5**。陽性対照つき。D-054） / **pyproject の制約を uv.lock の固定版が満たしているか**（`check_lock_vs_pyproject.py`。陽性対照 6 / 陰性対照 2。C-071。2026-09-10 追加） | **なし**（stdlib のみ） | **9 s**（⚠️ 2026-09-03 の実測。その後 lock / ライセンス / 帰属の 3 本を足したので**未計測**） |
+| **`golden`** | **参照実装との一致**。**fp32**（`make -C csrc test`）と **int8**（`int8-golden` / `int8`）の両方 + `arena`。重みはリリース **`v1.0.0`**（= **v4**）の 4 資産を落とす（2.2 + 0.8 + 0.65 + 0.8 MB）。**陽性対照つき**（重みを壊すと fp32 / int8 の両方で落ちる = C-056） | ネットワーク + cc | **未計測**（int8 レーンは 2026-09-03 追加） |
 | `csrc` | `line` `fft` `pad` `g2p` `erf`（GELU の erf 近似 vs libm）**`range`**（S9 の範囲版カーネル vs `[0,T)` 版。2026-09-03 追加）**`qeos`**（疑問 EOS 4 種 + U+301C の正規化。**陽性対照つき**。D-062 / M-127。2026-09-11 追加）。**どれも重み blob も辞書も要らない** | cc のみ | **163 s**（⚠️ `qeos` を足した後は未計測） |
 | `python` | `test_losses`（26 項目）/ `test_labelpack` / **`test_accent_gate`**（アクセントの教師ゲートが生徒に依存しないか。**陽性対照つき** = 旧実装だと 5.196 st → 0.000 st で反転。C-076） | torch（**CPU ビルド**）+ numpy | **15 s**（⚠️ `test_accent_gate` を足した後は未計測） |
 | `release-assets` | **ドキュメントが名前を挙げた資産がリリースに在るか**（C-052 の再発防止） | ネットワーク | **10 s** |
-| **`web`** | **`bash web/build.sh`** + **wasm ゲート 8 本**（G-W7 / G-W1 / G-W2 / **G-W2b** / G-W3 / G-W4 / G-W5 / **G-W6**。`scripts/check_web_gates.sh`）。emcc を **6.0.9 に固定**して入れ、重みは `golden` と同じ `v0.3.0` の資産 | ネットワーク + emsdk | **未計測**（W トラックで追加） |
+| **`web`** | **`bash web/build.sh`** + **wasm ゲート 8 本**（G-W7 / G-W1 / G-W2 / **G-W2b** / G-W3 / G-W4 / G-W5 / **G-W6**。`scripts/check_web_gates.sh`）。emcc を **6.0.9 に固定**して入れ、重みは `golden` と同じ `v1.0.0` の資産 | ネットワーク + emsdk | **未計測**（W トラックで追加） |
 
 実測は run `33718551954`（2026-09-03、ubuntu-latest、uv のキャッシュあり）。
 ⚠️ **`golden` の int8 レーンと `web` job は、この run より後に足したので時間を測っていない。**
@@ -27,20 +27,41 @@
 ⚠️ **torch は `--torch-backend cpu` を明示している。** 外すと Linux で
 CUDA 版（数 GB）を引いて `python` job が数分になる。
 
-### ⚠️ 重みのタグを `v0.3.0` に固定した
+### ⚠️ リリースを切ったら上げるもの（**タグだけではない**）
 
-`golden` / `web` の `gh release download` はタグ無し（= `latest`）ではなく **`v0.3.0` 固定**。
+[C-091](../../docs/decisions.md#c-091) で**読者向け文書 10 箇所が前の版のまま**になった。
+**版で動くのはタグだけではなく、その版で測り直したすべての数**である。
+
+| 何 | どこ | 機械で捕まるか |
+|---|---|---|
+| 重みを引くタグ | `ci.yml`（`golden` / `web`）/ `pages.yml` の `RELEASE_TAG` | ❌ **誰も見ていない** |
+| golden の寸法アサート | 同上（`wc -c < csrc/golden*.bin` の行） | ❌ 落ちて初めて分かる |
+| 資産名 | `docs/downloads.md` ほか | ✅ `check_release_assets.py`（要トークン） |
+| **実測値**（checksum / xRT / arena / 鳴らし始め / SCOREQ / アクセント） | `README*.md` / `MODEL_CARD.md` / `docs/support-matrix*.md` / `esp32/**/README.md` | ⚠️ **引用ログの数値だけ** `check_doc_claims.py` の G-D1 |
+| **ckpt のパス** | `CLAUDE.md` / `docs/README.md` / skill | ❌ **`runs/` は git 管理外なので原理的に見えない**（C-094） |
+| `pyproject.toml` の `version` | `pyproject.toml` + **`uv.lock` の同名エントリ** | ❌ 誰も見ていない（PyPI 未公開・コードも読まない） |
+| 公開ページの本文 | `web/index.html` | ❌ **`pages.yml` は `main` への push でしか走らない** |
+
+⚠️ **最後の 2 行が今日実際にずれていた。** `pages.yml` のタグだけ `main` に入り、
+**`web/index.html` は「v3 の重みです」と書いたまま v4 を配っていた。**
+
+### ⚠️ 重みのタグを `v1.0.0` に固定した
+
+`golden` / `web` の `gh release download` はタグ無し（= `latest`）ではなく **`v1.0.0` 固定**（⚠️ **2026-09-12 に `v0.3.0` = v3 から上げた**）。
 latest 追従だと **リリースを切った瞬間に、無関係な PR の CI の意味が黙って変わる**。
 
 ⚠️ **代償**: 新しいリリースの重みは CI で 1 度も試されない。
 **リリースを出したら `ci.yml` のタグを上げること。** latest 側は `release-assets` job が見ている。
 
-⚠️ **`pages.yml` も同じタグに固定されている**（`RELEASE_TAG: v0.3.0`。`ci.yml` とは別ファイル）。
+⚠️ **`pages.yml` も同じタグに固定されている**（`RELEASE_TAG: v1.0.0`。`ci.yml` とは別ファイル）。
 **公開中のデモが動かしている重みと、そこに焼き込まれる `NOTICE.txt` はこれで決まる** —
 **上げ忘れると、新しいリリースを出しても公開ページは古い版を配り続ける。**
 
-⚠️ **寸法のアサートも上げること**（`ci.yml:119-122` / `:299-302` / `pages.yml:168-171` の 9 行）。
-v3 の `golden.bin` は 779,584 B だが **v4 は 786,912 B**（int8 は 794,240 B）。
+⚠️ **寸法のアサートも上げること**（`ci.yml` の `golden` job と `web` job、`pages.yml` の
+`wc -c < csrc/golden*.bin` の行。⚠️ **行番号は書かない** — 書いた瞬間に古くなる）。
+v3 の `golden.bin` は 779,584 B だが **v4 は 786,912 B**（int8 は **794,240 B**）。
+✅ **v4 で初めて 2 本の大きさが分かれた** — v3 はどちらも 779,584 B だったので、
+**このアサートは取り違えを 1 度も止められなかった**。
 **消して済ませてはいけない** — あれは「取り違えた資産で緑にしない」ための検査で、
 [C-079](../../docs/decisions.md#c-079) が起きたのと同じ層である。
 
@@ -106,7 +127,7 @@ held-out 24 文を見る `stream` は下記の理由で回らない。
 「リリースの `saanotts-jp-v3-int8.bin` は **v1** で、S4 以降のコアが `SAAN_ERR_VERSION` で拒む。
 v2 を配れば CI に入れられる」と書いていたが、**これは v0.2.0 までの話。**
 **v0.3.0 の int8 資産は blob v2**（654,032 B。SHA-256 の頭は `2d2b8543`）で、
-手元の v2 blob と bit 一致する（`docs/release-notes/v0.3.0.md` も v2 と書いている）。
+手元の v2 blob と bit 一致する（当時のリリースノートも v2 と書いていた。⚠️ **`docs/release-notes/` は 2026-09-12 に消した** — 正典は [GitHub Releases](https://github.com/ayutaz/sanoTTS-jp/releases)）。
 → `int8` / `int8-golden` は **`golden` job で回るようになった**。
 残っていた `int8-e2e` の理由は blob ではなく **`ids_heldout.bin`** の方だった。
 

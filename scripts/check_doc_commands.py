@@ -49,8 +49,7 @@ PLACEHOLDERS = {"scripts/xxx.py", "scripts/yyy.py"}
 # 読者が実際に打つファイルだけを見る（計画や測定の記録は当時のコマンドなので対象外）
 DOCS = ["CLAUDE.md", "docs/README.md", "CONTRIBUTING.md", "MODEL_CARD.md",
         "README.md", "README.en.md", "esp32/README.md", "esp32/TESTING.md",
-        "docs/getting-started.md", "docs/getting-started.en.md",
-        "docs/release-notes/v1.0.0.md"]
+        "docs/getting-started.md", "docs/getting-started.en.md"]
 
 
 def make_targets(makefile: str) -> set[str]:

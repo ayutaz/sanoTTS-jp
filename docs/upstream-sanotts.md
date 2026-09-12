@@ -92,7 +92,7 @@ warmup を含む発話全体では **0.541〜0.712**（M-90、4 文）。上流�
 
 ## ⚠️ 追試すべき 2 点（**E-1 / E-2** として計画に起票済み）
 
-作業内容は [`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10。
+作業内容は `decisions.md` の D-038（β=0）と `measurements.md` の M-60。
 
 ### E-2. decoder の教師初期化 — **一部決着（M-49）**
 
@@ -138,7 +138,7 @@ PDF sha256 `64b0d426b585e05f87867375928755a79d02ffc989374c08f1aa52c37267eab1`）
 **チャネル切り出しで初期化するには `Gγ` を「教師を細くしたコピー」にする必要があり、
 論文 Table I の 331,308 params を捨てることになる。**
 切り分けるべき 3 仮説は
-[`plan/phase0-1-implementation-plan.md`](plan/phase0-1-implementation-plan.md) §10 E-2。
+`measurements.md` M-49（鎖分解）/ `decisions.md` D-033。
 
 ### E-1. DNSMOS — **測った（M-49）**
 

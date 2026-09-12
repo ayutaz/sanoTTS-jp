@@ -1,6 +1,9 @@
 [project]
 name = "saanotts-jp"
-version = "0.1.0"
+# ⚠️ **リリースタグに合わせる**（配っているのは `v1.0.0`）。
+#    このパッケージは **PyPI に無く**、**この値を読むコードも無い** = 表示のための値。
+#    ⚠️ 変えたら `uv.lock` の `[[package]] name = "saanotts-jp"` の version も同じ値にする。
+version = "1.0.0"
 description = "arXiv:2608.21378 sanoTTS の蒸留レシピを日本語に適用し ESP32 で動かす (PoC)"
 requires-python = ">=3.11"
 

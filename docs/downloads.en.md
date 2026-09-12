@@ -2,8 +2,8 @@
 
 > ✅ **v1.0.0 is released** (2026-09-11; **28 assets**, 140 MB). The weights are **v4** —
 > retrained on distillation text with JSUT removed, leaving CC0 / public-domain only. See
-> [`release-notes/v1.0.0.md`](release-notes/v1.0.0.md) and
-> [M-119](measurements.md#m-119)–[M-131](measurements.md#m-131).
+> the [release notes](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) and
+> [M-119](measurements.md#m-119)–[M-134](measurements.md#m-134).
 >
 > ⚠️ **The v0.3.0 / v0.3.1 `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
 > `saanotts-jp-v4-samples.zip` under-attribute three materials**

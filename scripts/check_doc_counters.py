@@ -74,9 +74,6 @@ ANCHORS = [
 #    README と実機手順書で、そこが一番古くなる。
 ANCHOR_TARGETS = TARGETS + [
     "MODEL_CARD.md", "esp32/README.md", "esp32/TESTING.md",
-    "docs/plan/k1-kanji-implementation-plan.md",
-    "docs/plan/phase0-1-implementation-plan.md",
-    "docs/research/k1-kanji-katakana-ondevice.md",
 ]
 
 

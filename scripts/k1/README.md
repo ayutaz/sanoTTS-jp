@@ -1,7 +1,7 @@
 # scripts/k1 — K トラック（端末で漢字・カタカナ）の測定コードと生成器
 
-結論は [`../../docs/research/k1-kanji-katakana-ondevice.md`](../../docs/research/k1-kanji-katakana-ondevice.md)、
-実装計画は [`../../docs/plan/k1-kanji-implementation-plan.md`](../../docs/plan/k1-kanji-implementation-plan.md)。
+決定は `../../docs/decisions.md` D-042〜D-044、
+実測は `../../docs/measurements.md` M-69〜M-90。
 
 **K-0 〜 K-8 まで完了**（QEMU で漢字文から合成まで完走 = M-76 → CoreS3 実機 = M-83 →
 M5 のスピーカーで漢字・カタカナ・ひらがなを発話 = M-90）。

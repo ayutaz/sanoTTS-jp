@@ -10,7 +10,7 @@
 - `DICT_PP`   : piper-plus の build ツリー側（788,923 entries）。**別リビジョン**
 
 ⚠️ このマシンには sys.dic が 4 種類ある。**どれを使ったかを必ず出力に書くこと**
-（docs/research/k1-kanji-katakana-ondevice.md §9-2）。
+（docs/decisions.md D-042 / docs/measurements.md M-77）。
 """
 from __future__ import annotations
 

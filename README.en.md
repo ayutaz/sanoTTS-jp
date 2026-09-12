@@ -33,25 +33,27 @@ run on the device.
 ```
 かな> 今日は良い天気ですね。
 saanotts: 経路: 辞書
-saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.69 ms
-saanotts: init 21.56 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
-saanotts: プリロール 4 チャンク完了（初回 pull 244.66 ms / 鳴らし始めまで 384 ms）
+saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.77 ms
+saanotts: init 21.60 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+saanotts: プリロール 4 チャンク完了（初回 pull 245.76 ms / 鳴らし始めまで 385 ms）
   ...
-saanotts: 定常 xRT = 0.446（満チャンク pull の中央値 / 92.88 ms）
+saanotts: 定常 xRT = 0.448（満チャンク pull の中央値 / 92.88 ms）
 saanotts: アンダーラン 0 / 14 チャンク
 saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
 ```
 
 *Excerpted from the raw device log
-[`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log), with timestamps
-and caveat lines removed; `...` stands for 14 pulls.*
+[`reports/m130_cores3/device_v4_kanji.log`](reports/m130_cores3/device_v4_kanji.log), with timestamps
+and caveat lines removed; `...` stands for 14 pulls.
+⚠️ The **v3** log is [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log)
+— the checksum changes with the weights, so the two logs never agree.*
 
 | | |
 |---|---:|
 | Model | **559 K params**, **654,032 B** as int8 (flash) |
 | Runtime RAM | **157 KB** — 34% of the ESP32-S3's 512 KB SRAM |
-| Speed | **xRT 0.446** for a full-chunk pull (⚠️ 0.54–0.71 over a whole utterance) |
-| Quality | **64%** of the teacher (SCOREQ ratio 0.644). ⚠️ **A predictor's score, not a human ear** |
+| Speed | **xRT 0.448** steady-state, one full-chunk pull (⚠️ **0.618–0.793** over a whole utterance). ⚠️ The requirement is the **steady-state** denominator ([D-049](docs/decisions.md#d-049)) |
+| Quality | **64%** of the teacher (SCOREQ ratio **0.636** for v4; v3 scored 0.644 and **the difference is not detectable**). ⚠️ **A predictor's score, not a human ear** |
 | On-device G2P | **13.7 MB dictionary** with kanji, or an **877 B table** for kana only |
 
 ⚠️ **This is a proof of concept, not a product.**

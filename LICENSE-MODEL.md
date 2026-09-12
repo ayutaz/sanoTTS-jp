@@ -2,6 +2,17 @@
 
 `SPDX-License-Identifier: LicenseRef-sanoTTS-jp-Model-1.0`
 
+**Copyright (c) 2026 ayutaz** — 本ライセンスにおける**許諾者**（licensor）。
+
+⚠️ **この表示が及ぶのは、本モデルの重みのうち許諾者が権利を持つ部分だけ**です。
+**素材の著作権は各権利者に留保されます**（つくよみちゃんコーパス = © 夢前黎 /
+LibriTTS-R / CML-TTS / AISHELL-3 / Open JTalk / NAIST-JDIC。§3.1 と
+[`NOTICE.md`](NOTICE.md) を参照）。
+⚠️ **同梱の [`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt) は改変しません** —
+あれは AISHELL-3 の Apache-2.0 §4(a) を満たすための**ライセンス全文そのもの**で、
+末尾の `Copyright [yyyy] [name of copyright owner]` は
+**APPENDIX（使う人向けの雛形）**であって本配布物の著作権表示ではありません。
+
 *[English below](#english)*
 
 ---
@@ -119,10 +130,10 @@ sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
 
 | 配布する重み | JSUT の行 | 理由 |
 |---|---|---|
-| **v3 系**（`saanotts-jp-v3-*` = **現在配布中のすべて**） | **必須** | 蒸留テキストに JSUT 6,380 行を含む |
-| **v4 系**（未リリース。次のタグ **v1.0.0**） | **不要** | 蒸留テキストが CC0 / PD のみ（[`docs/decisions.md`](docs/decisions.md) D-057 / D-054） |
+| **v4 系**（`saanotts-jp-v4-*` = **`v1.0.0` で配っている現行版**） | **不要** | 蒸留テキストが CC0 / PD のみ（[`docs/decisions.md`](docs/decisions.md) D-057 / D-054） |
+| **v3 系**（`saanotts-jp-v3-*` = `v0.1.0`〜`v0.3.1`。**今もダウンロードできる**） | **必須** | 蒸留テキストに JSUT 6,380 行を含む |
 
-⚠️ **v3 の資産は今もダウンロードできるので、この 2 行は同時に真である。**
+⚠️ **どちらの資産も今ダウンロードできるので、この 2 行は同時に真である。**
 **自分が配る重みがどちらかを確認してから**、その行を含める / 含めないを決めること。
 ⚠️ **JSUT を外しても、(A) の他の項目と §3.2 の用途制限は 1 つも減らない**
 （それらは つくよみちゃんコーパスと教師 base 由来）。
@@ -271,14 +282,14 @@ comm -12 /tmp/a /tmp/b | wc -l` → 92）
 （[`docs/decisions.md`](docs/decisions.md) D-057）。蒸留テキストは **CC0 / パブリックドメインのみ**
 （14,513 行。論文の 14,343 行を上回る）で、**継承付きの素材を 1 行も含まない。**
 
-| | v3（**現在配布中**） | v4（**未リリース**。次のタグ **v1.0.0** で配る = D-059） |
+| | v3（`v0.1.0`〜`v0.3.1`。**今もダウンロードできる**） | v4（**`v1.0.0` で配っている現行版** = D-059） |
 |---|---:|---:|
 | JSUT ver1.1 | 6,380 行 | **0 行** |
 | 継承（share-alike）リスク | ⚠️ **本節のとおり残る** | **無し** |
 | 品質（SCOREQ 教師比） | 0.6444 | 0.6361（**差は検出できず**） |
 
-⚠️ **本節は v3 についてのものである。** v3 の資産は今もダウンロードでき、
-**それを使う限りこのリスクは残る。**
+⚠️ **本節は v3 についてのものである。** ✅ **現行版（v4 / `v1.0.0`）にこのリスクは無い。**
+⚠️ ただし **v3 の資産は今もダウンロードでき、それを使う限りこのリスクは残る。**
 ⚠️ **v4 でも §3.2 の出力用途制限と §3.3 の伝播は 1 つも減らない**
 （つくよみちゃんコーパス由来）。**消えるのは蒸留テキストの継承リスクだけ。**
 
@@ -318,13 +329,25 @@ comm -12 /tmp/a /tmp/b | wc -l` → 92）
 （⚠️ 一度「衝突する」と記録したが誤りだった。[`docs/decisions.md`](docs/decisions.md) C-074）。
 
 詳細と一次ソースは [`NOTICE.md`](NOTICE.md) と
-[`docs/research/l1-commercial-use-licensing.md`](docs/research/l1-commercial-use-licensing.md) にあります。
+`docs/decisions.md` の D-054〜D-058 にあります。
 
 ---
 
 <a name="english"></a>
 
 # English
+
+**Copyright (c) 2026 ayutaz** — the **licensor** under this license.
+
+⚠️ **This notice covers only the parts of the weights in which the licensor holds
+rights.** Copyright in the source materials remains with their respective holders
+(Tsukuyomi-chan Corpus © Rei Yumesaki; LibriTTS-R; CML-TTS; AISHELL-3; Open JTalk;
+NAIST-JDIC — see §3.1 and [`NOTICE.md`](NOTICE.md)).
+⚠️ **The bundled [`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt) is unmodified** —
+it is the verbatim license text required by AISHELL-3's Apache-2.0 §4(a). The
+`Copyright [yyyy] [name of copyright owner]` line near its end belongs to the
+**APPENDIX ("How to apply the Apache License to your work")** and is *not* a
+copyright notice for this distribution.
 
 ## Why this file exists
 
@@ -413,13 +436,14 @@ On 2026-09-10 we trained and accepted **v4**, distilled from **CC0 / public-doma
 only** (14,513 rows — above the paper's 14,343), with **no share-alike material at all**
 (`docs/decisions.md` D-057).
 
-| | v3 (**currently distributed**) | v4 (**unreleased**) |
+| | v3 (`v0.1.0`–`v0.3.1`, **still downloadable**) | v4 (**the current release, `v1.0.0`**) |
 |---|---:|---:|
 | JSUT ver1.1 rows | 6,380 | **0** |
 | Share-alike risk | ⚠️ **as described above** | **none** |
 | SCOREQ teacher ratio | 0.6444 | 0.6361 (**difference not detectable**) |
 
-⚠️ **This section describes v3.** The v3 assets remain downloadable, and the risk stands
+⚠️ **This section describes v3.** ✅ **The current release (v4 / `v1.0.0`) does not carry it.**
+The v3 assets remain downloadable, and the risk stands
 for anyone using them. In block (A) of §3.1, **the JSUT line is required for v3 weights
 and not required for v4 weights** — check which you are shipping.
 ⚠️ **v4 removes nothing from the output-use restrictions or the propagation duty** —
