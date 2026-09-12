@@ -271,7 +271,7 @@ duration 予測器が W8A32 では fp32 活性化で走り、**108 frames vs 106
 
 ✅ **v4 は実機（M5Stack CoreS3）で漢字を喋った**（[`docs/measurements.md`](docs/measurements.md) M-124）。
 満チャンク 1 pull の **xRT 0.448** / アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**。
-⚠️ **ただし音は誰も 1 秒も聴いていない**（G32）。
+⚠️ **聴取は 18/24 文・対照つき・1 名・盲検なしまで**（G32 は未達。[`docs/measurements.md`](docs/measurements.md) M-135）。
 ⚠️ **焼いて確かめたのは M5 CoreS3 の 16 MB 版だけ**で、残る 9 本のイメージは
 **中身を照合しただけ**（4 MB / 2 MB / 8 MB の板が無い）。
 

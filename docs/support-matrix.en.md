@@ -25,7 +25,7 @@ the C code are identical across v3 and v4, so reading accuracy is unchanged.
 | **Memory** (fits 512 KB SRAM) | ✅ **157 KB** at runtime | [M-89](measurements.md#m-89) |
 | **Browser** (the same C99 core as wasm) | ✅ bit-identical PCM to the device | [M-95](measurements.md#m-95) |
 | **Pitch accent** | ⚠️ the shipping **v4 scores 31/37** (v3 scored 37/37). Changing only the seed already costs 3 pairs, so this **cannot be read as damage from dropping JSUT** ([D-057](decisions.md#d-057)) | [M-118](measurements.md#m-118) / [M-117](measurements.md#m-117) |
-| ⚠️ **Controlled listening test (G32)** | ❌ **not done.** It has been heard, but **always one listener, no control, not blinded** | — |
+| ⚠️ **Controlled listening test (G32)** | ⚠️ **partial.** **18 of the 24** held-out sentences were heard with **the teacher as an immediate control** — verdict "no problem" ([M-135](measurements.md#m-135)). ❌ **Not blinded, one listener; accent and pruning-induced misreadings still unheard** | [M-135](measurements.md#m-135) |
 | ⚠️ **Actual sample-rate error** | ❌ **unmeasured** (the ESP32-S3 has no APLL) | — |
 
 ## Boards
