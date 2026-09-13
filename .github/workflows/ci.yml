@@ -417,8 +417,30 @@ jobs:
           path: ~/.arduino15
           key: acli-esp32-3.3.11-${{ runner.os }}
 
-      - name: PlatformIO を入れる
-        run: uv sync --no-install-project --extra arduino
+      - name: arduino-cli を入れる（Arduino IDE の経路を検証するため）
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+            | BINDIR="$HOME/.local/bin" sh
+
+      # ⚠️ **`uv sync` は使えない。** `[tool.uv.sources]` の piper-plus が
+      #    **手元の絶対パス**なので CI では解決できない（`python` job が
+      #    `uv venv` + `uv pip` を使っているのと同じ理由）。
+      #    `uv run --with` なら一時環境に入るので `uv pip` も要らない。
+      #    版の制約は `pyproject.toml` の `arduino` extra（`uv add` で入れた）にある。
+      - name: PlatformIO を使えるようにする
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/usr/bin/env bash\nexec uv run --no-project --with platformio -- pio "$@"\n' \
+            > "$HOME/.local/bin/pio"
+          chmod +x "$HOME/.local/bin/pio"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # ⚠️ **版を必ず出力に残す。** 「6.2.0 のつもりで別の版だった」はログを見ない限り気づけない。
+      - name: 版を出す
+        run: |
+          pio --version
+          arduino-cli version
 
       # ⚠️ **G-AR1 をここにも書く。** ci_arduino_build.sh の中でも回るが、
       #    `scripts/check_ci_coverage.py` は ci.yml の実行行しか見ないので、
@@ -431,7 +453,7 @@ jobs:
 
       # G-AR2（3 構成でビルド）+ G-AR6（PIE の命令数。陰性対照つき）
       - name: G-AR2 / G-AR6
-        run: PIO="$(pwd)/.venv/bin/pio" bash scripts/ci_arduino_build.sh
+        run: PIO=pio bash scripts/ci_arduino_build.sh
 
       # ⚠️ **.zip も実際に組んで、そこから引いてビルドする。** ソースツリーから
       #    symlink で引くのと .zip から引くのは別の経路で、**片方だけ壊れる**
@@ -441,11 +463,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: arduino-cli を入れる（Arduino IDE の経路を検証するため）
-        run: |
-          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
-            | BINDIR="$HOME/.local/bin" sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-
       - name: G-AR3 .zip を組んで、そこから引いてビルドする
-        run: PIO="$(pwd)/.venv/bin/pio" bash scripts/ci_arduino_zip.sh
+        run: PIO=pio bash scripts/ci_arduino_zip.sh
