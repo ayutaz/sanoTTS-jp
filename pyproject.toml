@@ -36,6 +36,9 @@ eval = [
     "onnxruntime>=1.29.0",
     "requests>=2.34.2",
 ]
+arduino = [
+    "platformio>=6.2.0",
+]
 
 [build-system]
 requires = ["setuptools>=80"]
