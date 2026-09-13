@@ -245,3 +245,13 @@ esp32/build_k8r/
 esp32/build_a16/
 csrc/k1_dict_8mb_m5.bin
 esp32/boards/m5unified/build_m58/
+
+# --- Arduino / PlatformIO ライブラリ ------------------------------------------
+#
+# ⚠️ **csrc/ の実体をここに二重化しない。** `esp32/components/saanotts_core/CMakeLists.txt`
+#    が「csrc/ をコピーもシンボリックリンクもしない」を方針にしているのと同じ理由
+#    （同じものが 2 か所にあると、片方だけ直したときにどちらを見ているか分からなくなる）。
+#    生成は `uv run --no-project python scripts/build_arduino_lib.py`、
+#    csrc との一致は同 `--check`（G-AR1・陽性対照 7 件）が証明する。
+arduino/src/core/
+arduino/dist/
