@@ -7,6 +7,9 @@
 - **M5Stack 構成**は [`boards/m5unified/`](boards/m5unified/README.md)（内蔵スピーカー + 画面。**実機の測定はすべてこちら**）
 - **実機を持っている人向けの手順**は [`TESTING.md`](TESTING.md)
 - **PIE の切り分けと実機マイクロベンチ**は [`pie_probe/`](pie_probe/README.md)
+- **Arduino IDE / PlatformIO から使う**なら [`../arduino/`](../arduino/README.md)（D-065 / M-137）。
+  ⚠️ **ESP-IDF 経路（ここ）を置き換えるものではない** — 実機の測定はすべてこちらが基準で、
+  Arduino 版は **PCM が bit 一致することまで**しか確かめていない（実機で鳴らしていない）
 
 ---
 

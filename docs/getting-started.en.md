@@ -2,9 +2,9 @@
 
 *[← README](../README.en.md)*
 
-**Five ways in. A / B / D / E need neither piper-plus nor the teacher model** (measured from a fresh clone).
+**Six ways in. A / B / D / E / F need neither piper-plus nor the teacher model** (measured from a fresh clone).
 
-**Five entry points. A / B / D / E need neither piper-plus nor the teacher model**
+**Six entry points. A / B / D / E / F need neither piper-plus nor the teacher model**
 (measured from a fresh clone).
 
 | | What you want | What you need | Time |
@@ -14,6 +14,7 @@
 | **C** | **Make an ESP32-S3 speak** | A board (DAC optional). **Flashing alone needs no ESP-IDF** | 15–30 min |
 | **D** | **Run the code gates** | Minimal setup only | 5 min |
 | **E** | **Try it in a browser** | A browser. **Nothing to install** | 1 min |
+| **F** | **Call it from your own sketch** | ESP32-S3 + PlatformIO or the Arduino IDE. **No ESP-IDF** | 10 min |
 
 ## Minimal setup (B / D)
 
@@ -194,6 +195,57 @@ gh release download v1.0.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
 uv run --no-project python -m http.server -d /tmp/saan-site 8000
 #   ⚠️ `python3 -m http.server` is blocked by the hook (D-012)
 ```
+
+## F. Call it from your own sketch (Arduino / PlatformIO)
+
+Full instructions: [`arduino/README.md`](../arduino/README.md).
+Decision: [D-065](decisions.md#d-065). Measurements: [M-137](measurements.md#m-137).
+
+**Two .zip files** — code and weights are split because their licenses differ
+(code = MIT, weights = `LicenseRef-sanoTTS-jp-Model-1.0`).
+
+```ini
+[env:m5stack-cores3]
+; The official espressif32 platform will NOT build this: it is stuck on arduino-esp32 2.0.17
+; (ESP-IDF 4.4), which has neither ESP_PARTITION_MMAP_DATA nor driver/i2s_std.h. 3.x is required.
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
+board = m5stack-cores3
+framework = arduino
+board_build.partitions = sanotts_16mb.csv          ; only when you want kanji
+lib_deps =
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-voice-tsukuyomi-v4.zip
+    m5stack/M5Unified
+```
+
+```cpp
+#include <M5Unified.h>
+#include <SanoTTS.h>
+#include <SanoTTSSpeakerM5.h>
+
+SanoTTS tts;  SanoTTSSpeakerM5 spk;
+
+void setup() {
+  M5.begin();
+  tts.setSpeaker(&spk);
+  tts.begin();
+  tts.say("今日は良い天気ですね。");     // a kana intermediate line works too
+}
+void loop() { M5.update(); }
+```
+
+For the Arduino IDE, install the same two .zip files via **Add .ZIP Library** and set
+**Partition Scheme → Huge APP**.
+
+⚠️ The 13.7 MB dictionary is flashed separately (only needed for kanji; without it the
+kana intermediate representation still works).
+⚠️ **Use PlatformIO for kanji** — a sketch-local `partitions.csv` is
+[reported not to work in IDE 2.x](https://github.com/espressif/arduino-esp32/issues/10120).
+
+⚠️ **This library has not been run on real hardware** (no board). What *is* verified is that
+its PCM is **bit-identical to the ESP-IDF build** (under QEMU). Real-time margin
+(xRT, underruns) is **unmeasured** — producing the same PCM and producing it in time are
+different claims.
 
 ## Full setup (kanji→kana conversion / training / label generation)
 

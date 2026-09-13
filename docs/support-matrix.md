@@ -24,6 +24,7 @@
 | **メモリ**（SRAM 512 KB に収まる） | ✅ 実行時 **157 KB** | [M-89](measurements.md#m-89) |
 | **ブラウザ**（同じ C99 コードを wasm に） | ✅ 実機の PCM と bit 一致 | [M-95](measurements.md#m-95) |
 | **アクセント型の再現** | ⚠️ 配布中の **v4 は 31/37**（v3 は 37/37）。**seed を変えるだけで 3 ペア落ちる**指標なので、**JSUT を外した劣化とは読めない**（[D-057](decisions.md#d-057)） | [M-118](measurements.md#m-118) / [M-117](measurements.md#m-117) |
+| **Arduino / PlatformIO ライブラリ**（自分のスケッチから呼ぶ） | ⚠️ **PCM は ESP-IDF ビルドと bit 一致**（QEMU / 2 構成）。**PlatformIO と arduino-cli の両方でビルドできる**。❌ **実機で鳴らしていない** — xRT もアンダーランも**未測定** | [M-137](measurements.md#m-137) / [D-065](decisions.md#d-065) |
 | ⚠️ **対照つきの聴取（G32）** | ⚠️ **一部**。v4 の held-out **18/24 文**を**教師を対照に**聴いて「問題なし」（[M-135](measurements.md#m-135)）。❌ **盲検でない / n=1 / アクセントと枝刈りの誤読は未聴取** | [M-135](measurements.md#m-135) |
 | ⚠️ **実サンプルレートの誤差** | ❌ **未測定**（ESP32-S3 に APLL が無い） | — |
 
@@ -39,6 +40,11 @@
 | M5Stamp-C5 | **ESP32-C5**（RISC-V） | 4 MB | 無し | ❌ **動かない見込み**。**FPU が無く**（`rv32imac`）ソフト浮動小数点が **106 か所**、RAM も **要求 370,980 B > SRAM 393,216 B**（[M-106](measurements.md#m-106) §1）。⚠️ **ビルドは通るが、通ることと動くことは別** |
 | ESP32-P4 | RISC-V | — | — | 未着手。**FPU も PIE（`xesppie`）もある**ので有望（[M-106](measurements.md#m-106)）。⚠️ **PIE の命令セットは Xtensa 版と別物**で書き直しが要る |
 | ARM Cortex-M / RP2040 など | — | — | — | ❌ **移植していない**。⚠️ **C99 コアはクロスコンパイルが通る**（Xtensa / rv32imac / rv32imafc で 5/5）が、**bare-metal の libc と HAL が無い** |
+
+⚠️ **Arduino ライブラリ（[D-065](decisions.md#d-065)）も同じ板の制約に従う。** さらに:
+**PlatformIO では公式の `espressif32` が使えない**（arduino-esp32 2.0.17 / ESP-IDF 4.4 に
+`ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も無い）。**pioarduino（3.x）が要る。**
+非 S3 の板では `SANOTTS_ARENA_HEAP=1` が要る（静的 176 KB が `dram0_0_seg` に入らない）。
 
 ⚠️ **必要な下限**（[M-106](measurements.md#m-106) §1）: **flash 約 1 MB（かな）/ 4 MB（漢字）**・**ハードウェア浮動小数点**・**200 MHz 以上**。RAM は**漢字経路で合計 370,980 B**（静的 289,568 + Open JTalk の一時ヒープ 81,412）。⚠️ **かな経路だけの RAM は測っていない。**
 **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）ので **4 MB が下限**。

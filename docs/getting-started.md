@@ -2,7 +2,7 @@
 
 *[← README](../README.md)*
 
-**入口は 5 つ。A / B / D / E は piper-plus も教師モデルも要らない**（新規 clone で実測）。
+**入口は 6 つ。A / B / D / E / F は piper-plus も教師モデルも要らない**（新規 clone で実測）。
 
 | | やりたいこと | 要るもの | 所要 |
 |---|---|---|---|
@@ -11,6 +11,7 @@
 | **C** | **ESP32-S3 で喋らせる** | ボード（DAC は任意）。**焼くだけなら ESP-IDF は不要** | 15〜30 分 |
 | **D** | **コードのゲートを回す** | 最小セットアップだけ | 5 分 |
 | **E** | **ブラウザで試す** | ブラウザだけ。**インストール不要** | 1 分 |
+| **F** | **自分のスケッチに組み込む** | ESP32-S3 + PlatformIO か Arduino IDE。**ESP-IDF は不要** | 10 分 |
 
 ## 最小セットアップ（B / D）
 
@@ -181,6 +182,55 @@ gh release download v1.0.0 -R ayutaz/sanoTTS-jp -D /tmp/saan-site --clobber \
 uv run --no-project python -m http.server -d /tmp/saan-site 8000
 #   ⚠️ `python3 -m http.server` は hook が止める（D-012）
 ```
+
+## F. 自分のスケッチに組み込む（Arduino / PlatformIO）
+
+詳しい手順は [`arduino/README.md`](../arduino/README.md)。決定は
+[D-065](decisions.md#d-065)、実測は [M-137](measurements.md#m-137)。
+
+**.zip を 2 本**使う。コードと重みでライセンスが違うので分けてある
+（コード = MIT / 重み = `LicenseRef-sanoTTS-jp-Model-1.0`）。
+
+```ini
+[env:m5stack-cores3]
+; ⚠️ **公式の espressif32 では動かない。** arduino-esp32 2.0.17（ESP-IDF 4.4）で止まっており、
+;    ESP_PARTITION_MMAP_DATA も driver/i2s_std.h も無い。3.x が要る。
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
+board = m5stack-cores3
+framework = arduino
+board_build.partitions = sanotts_16mb.csv          ; 漢字を使うときだけ
+lib_deps =
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-voice-tsukuyomi-v4.zip
+    m5stack/M5Unified
+```
+
+```cpp
+#include <M5Unified.h>
+#include <SanoTTS.h>
+#include <SanoTTSSpeakerM5.h>
+
+SanoTTS tts;  SanoTTSSpeakerM5 spk;
+
+void setup() {
+  M5.begin();
+  tts.setSpeaker(&spk);
+  tts.begin();
+  tts.say("今日は良い天気ですね。");     // かな中間表現でもよい（端末が判定する）
+}
+void loop() { M5.update(); }
+```
+
+Arduino IDE は同じ .zip を 2 本「.ZIP 形式のライブラリをインストール」で入れ、
+**Partition Scheme を Huge APP** にする。
+
+⚠️ **辞書 13.7 MB は別に焼く**（漢字を使うときだけ。焼かなくてもかな中間表現は喋れる）。
+⚠️ **漢字は PlatformIO を勧める** — Arduino IDE のスケッチ内 `partitions.csv` は
+[IDE 2.x で効かない報告がある](https://github.com/espressif/arduino-esp32/issues/10120)。
+
+⚠️ **このライブラリは実機で鳴らしていない**（板が無い）。✅ 確かめたのは
+**PCM が ESP-IDF ビルドと bit 一致すること**まで（QEMU）。
+**xRT もアンダーランも未測定**で、⚠️ **同じ PCM が出ることと、間に合って出ることは別**。
 
 ## フルセットアップ（漢字→かな変換 / 学習 / ラベル生成）
 

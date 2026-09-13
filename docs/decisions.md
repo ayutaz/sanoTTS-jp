@@ -7015,3 +7015,47 @@ ESP-IDF 4.4.7 で、`ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も無い�
   ⚠️ スケッチフォルダの `partitions.csv` は[IDE 2.x で効かない報告](https://github.com/espressif/arduino-esp32/issues/10120)があり、
   **漢字は PlatformIO を推奨**としてドキュメントに書いた
 - **Arduino ビルドで漢字を実際に喋らせていない**（コンパイルは通っている）
+
+---
+
+## C-096: **`check_release_assets.py` が第三者のリリース URL を「このプロジェクトの repo」と誤認した**（2026-09-13）
+
+**症状**: `arduino/README.md` と `README.md` に PlatformIO の手順を書いた
+（[D-065](#d-065)）ところ、CI の `release-assets` job が落ちた:
+
+```
+pioarduino/platform-espressif32 / ドキュメントの表から 1 タグ・22 件の資産名を拾った
+NG! ⚠️ GitHub API に届かない（HTTPError: HTTP Error 404: Not Found）
+```
+
+**原因**: `collect()` が **repo をファイル全体の最初の
+`github.com/<owner>/<repo>/releases` から**取っていた。⚠️ **公式の PlatformIO
+プラットフォームでは動かない**ので手順に
+
+```
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
+```
+
+と書く必要があり、これが `README.md` の中で `ayutaz/sanoTTS-jp` より**前に来た**。
+その repo に `v1.0.0` は無いので 404 になり、**「API に届かない」という
+まったく別の原因**として表示された。
+
+**直し方**: **repo は「資産の行」からしか取らない。** 資産名とタグが同じ表の行に在る以上、
+repo も同じ行から取るのが正しい。陽性対照を 1 件足した（第三者の URL を先に置いた合成入力で、
+`ayutaz/sanoTTS-jp` を返すこと）。
+
+### 一般化
+
+⚠️ **「ドキュメントから拾う」ゲートは、ドキュメントが増えると意味が変わる。**
+このゲートは「README に名前を書いた資産は実在すること」を守るために作られたが、
+**README が書く URL がこのプロジェクトのものだけだという前提**が暗黙にあった。
+その前提は**書いた本人しか知らない**ので、破れたときに出るのは
+「repo を取り違えた」ではなく「API に届かない」という**症状だけ**だった。
+
+⚠️ **同じ形が他にもありうる。** `check_doc_links.py` / `check_doc_commands.py` /
+`check_doc_claims.py` はどれもドキュメントを読んで何かを要求する。
+**外部のものを書いた瞬間に前提が破れないか**を、足すときに考えること。
+
+⚠️ **ゲートが落ちたら、まずゲートの主張を読む。** 今回「API に届かない」を
+ネットワークやトークンの問題と読んでいたら、**`--offline-ok` を足して
+黙らせる**という最悪の直し方に行けた。**出力の 1 行目（拾った repo 名）に答えがあった。**

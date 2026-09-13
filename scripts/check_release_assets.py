@@ -53,7 +53,16 @@ ASSET = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*\.(bin|pt|zip|txt|md|json)$")
 
 
 def collect() -> tuple[dict[str, set[str]], str | None]:
-    """({タグ: {資産名}}, owner/repo)"""
+    """({タグ: {資産名}}, owner/repo)
+
+    ⚠️ **repo は「資産の行」からしか取らない。**
+       かつてファイル全体の最初の `github.com/*/releases` を採っていたが、
+       **ドキュメントが第三者のリリース URL を書いた瞬間に repo を取り違えた**
+       （2026-09-13。`arduino/README.md` の手順に必要な
+       `github.com/pioarduino/platform-espressif32/releases/download/...` を拾い、
+       **その repo に v1.0.0 が無いので 404 → 「API に届かない」と出た**）。
+       資産名とタグが同じ行に在る以上、**repo も同じ行から取るのが正しい。**
+    """
     want: dict[str, set[str]] = {}
     repo = None
     for rel in DOCS:
@@ -61,9 +70,6 @@ def collect() -> tuple[dict[str, set[str]], str | None]:
         if not p.exists():
             continue
         text = p.read_text(encoding="utf-8")
-        m = REPO.search(text)
-        if m and repo is None:
-            repo = m.group(1)
         for line in text.splitlines():
             r = ROW.match(line)
             if not r:
@@ -74,6 +80,9 @@ def collect() -> tuple[dict[str, set[str]], str | None]:
             t = TAG.search(rest)
             if t:
                 want.setdefault(t.group(1), set()).add(name)
+                m = REPO.search(rest)
+                if m and repo is None:
+                    repo = m.group(1)
     return want, repo
 
 
@@ -124,6 +133,24 @@ def main() -> int:
     ap.add_argument("--offline-ok", action="store_true",
                     help="ネットワークに出られないときに 0 で抜ける（⚠️ CI では付けない）")
     a = ap.parse_args()
+
+    # ⚠️ **repo 検出の陽性対照。** 第三者のリリース URL が本文に混ざっても、
+    #    表の行から取るので取り違えないこと（2026-09-13 に実際に踏んだ）。
+    _probe = [
+        "platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/x.zip",
+        "| `saanotts-jp-v4-int8.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 重み |",
+    ]
+    _got = None
+    for _line in _probe:
+        _r = ROW.match(_line)
+        if _r and ASSET.match(_r.group(1)) and TAG.search(_r.group(2)):
+            _m = REPO.search(_r.group(2))
+            if _m and _got is None:
+                _got = _m.group(1)
+    if _got != "ayutaz/sanoTTS-jp":
+        print(f"NG! 陽性対照: 第三者の URL が混ざると repo を {_got} と誤認する")
+        return 1
+    print("陽性対照: 第三者のリリース URL が本文に在っても repo を取り違えない")
 
     want, repo = collect()
     if not repo:

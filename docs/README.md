@@ -129,7 +129,7 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-065（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-095** | 決定のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-065（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-096** | 決定のたび |
 | 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-137。全数値に再現コマンド付き | 実測のたび |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 
@@ -296,7 +296,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 
 ---
 
-## 残っているタスク（**2026-09-12 更新。残り 2 件。どちらも人が要る**）
+## 残っているタスク（**2026-09-13 更新。残り 4 件。どれも人が要る**）
 
 > **この表が正典。** ⚠️ **かつて [`../CLAUDE.md`](../CLAUDE.md) にも同じ表があり、
 > どちらも別々に欠けていた**（こちらは項番 11 と 6〜10 が、あちらは項番 14 が無かった）。
@@ -306,6 +306,8 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 | # | 何 | トラック | 種類 | ゲート |
 |---|---|---|---|---|
 | **1** | **対照つきの聴取** — ⚠️ **ざっとした聴取は済んでいる**（M-91 / M-93 = 実機 / M-96 = ブラウザ。どれも**1 名・対照なし・盲検なし**）。✅ **v4 の held-out 18/24 文は対照つきで聴いた**（[M-135](measurements.md#m-135)。「問題なし」）。⚠️ **残るのは** 盲検 / 2 人目 / `reports/d4_accent_v4/`（過剰強調 `magnitude_ratio` 1.193）/ `reports/k8_listen/`（枝刈りの誤読。**素材が手元に無い**） | 両方 | **人が要る**（私は音を聞けない） | **G32** |
+| **18** | **Arduino ライブラリの実機確認** — ✅ **PCM は ESP-IDF ビルドと bit 一致した**（[M-137](measurements.md#m-137) §7。QEMU）が、⚠️ **xRT もアンダーランも鳴らし始めまでの時間も未測定**。⚠️ **同じ PCM が出ることと、間に合って出ることは別**。⚠️ **Arduino ビルドで漢字を実際に喋らせてもいない**（コンパイルは通っている） | **A** | **人が要る**（板が無い） | [`../arduino/README.md`](../arduino/README.md) の「何が確かめてあるか」 |
+| **19** | **Arduino の .zip 2 本をリリース資産に足す** — `uv run --no-project python scripts/build_arduino_lib.py --zip arduino/dist --version <ver> --blob <int8 blob>` で作れる。⚠️ **上げるまで README が書いた `releases/latest/download/...` の URL は動かない** | **A** | **人が要る**（リリースを打つ判断） | `scripts/check_release_assets.py`（⚠️ **資産表に名前を書いてから**。書くと在るかを CI が見る） |
 | **11** | **4 MB / 2 MB の実機の数字**（⚠️ **起動と音は第三者が確認した** = [M-109](measurements.md#m-109)。**PSRAM 無しの ATOMS3 でも鳴った**。⚠️ **checksum も xRT もアンダーランも報告に無い**） | K | **人が要る**（板が無い） | 報告者に checksum / xRT / アンダーランを聞く。⚠️ **8M が入らなかった理由も未確認**（M-109 §3）。⚠️ **私は 1 つも再現していない**。⚠️ **『どうやって打ち込んだか』も未解決** — DevKit 向け小容量版 3 本はビルド手順上 UART0 のはずで、native USB の ATOMS3 には届かないはず |
 
 <details>
@@ -435,10 +437,11 @@ B-0 / D-009 の「G2P は端末に載らない」を測り直したら**4 つの
 **`releases/latest` が v0.2.0 に移った瞬間に README のダウンロード 5 本が壊れた**（C-052）。
 `scripts/check_release_assets.py` が**README の表を読んで**在るかを CI で検査する。
 
-**CI を入れた**（[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)、**6 job**）。
+**CI を入れた**（[`.github/workflows/ci.yml`](../.github/workflows/ci.yml)、**7 job**）。
 ⚠️ **新規 clone だけで通るゲートに限ってある** — 品質・速度・音は 1 つも見ていない。
 範囲と「入れていない理由」は [`.github/workflows/README.md`](../.github/workflows/README.md)。
-⚠️ **「4 job」と書いていたが、数えたら違った**（docs / golden / csrc / python / release-assets / web）。
+⚠️ **「4 job」と書いていたが、数えたら違った**（docs / golden / csrc / python / release-assets / web /
+**arduino**。最後のは 2026-09-13 に足した = [D-065](decisions.md#d-065)）。
 **job は増えるので、この数字は書いた瞬間から古くなる**（C-042 と同じ形）。
 Pages への配置は**別のワークフロー** [`pages.yml`](../.github/workflows/pages.yml)。
 ⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない** ので、`pages.yml` のゲートは誰も監査しない。
@@ -548,7 +551,7 @@ sanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
-│   ├── decisions.md                       決定記録 D-001〜D-065（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-095
+│   ├── decisions.md                       決定記録 D-001〜D-065（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-096
 │   ├── measurements.md                    実測値の一次ソース M-1〜M-137
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
@@ -650,6 +653,16 @@ sanoTTS-jp/
 │   ├── build.sh                           emcc 6.0.9 で 2 レーン（W8A32 / W8A8）を焼く
 │   ├── index.html / main.js               最小 UI。⚠️ **経路判定を JS に書かない**（C 側の `saan_g2p_classify`）
 │   └── dist/                              ⚠️ **生成物。追跡しない**（CI が `web/build.sh` で作り直す）
+├── arduino/                               **A トラック: Arduino / PlatformIO ライブラリ**（D-065 / M-137）
+│   ├── library.properties / library.json  Arduino IDE 用 / PlatformIO 用のマニフェスト
+│   ├── src/sanotts_config.h               ★ **唯一の設定点**。⚠️ Arduino はライブラリに `-D` を渡せない
+│   ├── src/SanoTTS.{h,cpp}                公開 API（PCM が主。`say()` はスピーカーへ流すだけ）
+│   ├── src/SanoTTSSpeaker*.{h,cpp}        M5Unified / 汎用 I2S。`__has_include` で自動的に消える
+│   ├── src/core/                          ⚠️ **生成物。追跡しない**（`scripts/build_arduino_lib.py`）
+│   ├── extras/partitions/                 16 MB / 8 MB の表。⚠️ `extras/` はビルド対象外
+│   ├── examples/                          PcmCallback / HelloKana / HelloKanji
+│   ├── NOTICE.txt                         **帰属ブロックの 4 か所目** + Open JTalk への改変の明記
+│   └── README.md                          入れ方・辞書の焼き方・⚠️ 確かめていないこと
 ├── deploy/                                リモート実行の材料（⚠️ 手順書は削除済み。D-027 の追記）
 │   ├── vastai_bootstrap.sh                setup → parity → labels → train
 │   └── retarget_sources.py                path 依存をインスタンスのパスに向け直す
@@ -672,11 +685,18 @@ sanoTTS-jp/
     ├── test_rec5.py                        **`rec5`（5 B レコード）**の往復と畳み込み（M-108。**CI で回る**）
     ├── check_lock_vs_pyproject.py         **pyproject の制約 vs uv.lock の固定版**（C-071。**CI で回る**）
     ├── check_doc_commands.py               **docs が書いたコマンドの実体**（スクリプト / make ターゲット。**CI で回る**）
-    ├── check_attribution.py                **帰属義務の成果物**（G-A1 写しが 3 か所で一致 / G-A2 同梱した全文。C-080 / C-081。**CI で回る**）
+    ├── check_attribution.py                **帰属義務の成果物**（G-A1 写しが **4 か所**で一致 / G-A2 同梱した全文。C-080 / C-081。**CI で回る**）
     ├── build_measurements_index.py         **measurements.md の索引を見出しから作る**（⚠️ 手で書くと必ず古くなる）。
     │                                       `--check` が **CI で回る**
     ├── check_dict_integrity.sh             **G34 辞書の SHA-256 検査**（D-063 / M-134。陽性対照 = 1 ビット反転）。
     │                                       ⚠️ **CI で回らない**（ESP-IDF + QEMU + 辞書 13.7 MB が要る）
+    ├── build_arduino_lib.py                **A トラック: csrc → Arduino ライブラリ**（G-AR1。陽性対照 7 件）。
+    │                                       `--check` / `--zip`。**CI で回る**
+    ├── ci_arduino_build.sh                 **G-AR2 / G-AR6**（3 構成 + PIE の命令数。陰性対照つき）。**CI で回る**
+    ├── ci_arduino_zip.sh                   **G-AR3 / G-AR7**（.zip から PlatformIO と arduino-cli の両方で引く）。
+    │                                       **CI で回る**
+    ├── check_arduino_qemu.sh               ⭐ **G-AR4: Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するか**。
+    │                                       ⚠️ **CI で回らない**（ESP-IDF + QEMU が要る）
     ├── b4_device_parity.py                CPU/GPU のラベル一致検証（★ 本番前のゲート）
     ├── b4_length_hist.py                  長さ分布と符号化の関係式
     ├── b5_teacher_baseline.py / b5_measure_mos.py / b5_scoreq_baseline.py

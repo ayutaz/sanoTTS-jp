@@ -13,13 +13,16 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | 出荷物 | **資産 28 本 / 140,291,218 B**（重みは **v4** = 蒸留テキストが CC0 / PD のみ） |
 | 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.448** / アンダーラン **0** / 漢字==かな bit 一致 |
 | デモ | https://ayutaz.github.io/sanoTTS-jp/ （**実機と同じ C99 コア**の wasm） |
-| CI | 6 job。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |
+| CI | **7 job**。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |
 
-**⚠️ 残っているのは 2 件で、どちらも人が要る**（私にはできない）:
+**⚠️ 残っているのは 4 件で、どれも人が要る**（私にはできない）:
 
 1. **対照つきの聴取**（G32）— ✅ **2026-09-12 に初めて対照つきで聴いた**（[M-135](docs/measurements.md#m-135)。held-out **18/24 文**を生徒 → 教師の順で。「問題なし」）。⚠️ **盲検でない / n=1 / 摩擦音とアクセントは個別に未確認**なので **G32 は閉じていない。**
    ボードは要らない（`saanotts-jp-v4-samples.zip` を再生するだけ）
 2. **4 MB / 2 MB の実機の数字** — 板が無い（第三者は鳴らしたが checksum / xRT / UR の報告が無い）
+3. **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065) / [M-137](docs/measurements.md#m-137)）— 板が無い。
+   ✅ **PCM は ESP-IDF ビルドと bit 一致**（QEMU）だが、⚠️ **xRT もアンダーランも未測定**
+4. **Arduino の .zip 2 本をリリース資産に足す** — 上げるまで README の `releases/latest/...` が動かない
 
 **新しく書く実装は無い。** このファイルの残りは**直しに入るときの地図**である。
 ⚠️ **下の「⚠️」は全部、実際に踏んだ事故から来ている。** 消さないこと。
@@ -333,6 +336,14 @@ make -C csrc range                                 # **S9（T2）の範囲版カ
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
 bash scripts/check_esp32_template.sh               # esp32/ 雛形をホストで検査（12 節。**§10 = arena ≥ 漢字経路
                                                    #   の作業領域 + 14,464 B。陽性対照つき**）
+# --- A トラック（Arduino / PlatformIO ライブラリ。D-065 / M-137）---------------
+uv run --no-project python scripts/build_arduino_lib.py            # arduino/src/core/ を生成（git 管理外）
+uv run --no-project python scripts/build_arduino_lib.py --check    # G-AR1 csrc の逐語か（陽性対照 7 件）
+bash scripts/ci_arduino_build.sh                   # G-AR2 3 構成 + G-AR6 PIE の命令数（陰性対照つき）
+bash scripts/ci_arduino_zip.sh                     # G-AR3/G-AR7 .zip から PlatformIO と arduino-cli の両方で引く
+bash scripts/check_arduino_qemu.sh                 # ⭐ G-AR4 PCM が ESP-IDF ビルドと bit 一致するか
+                                                   #   ⚠️ **CI では回らない**（ESP-IDF + QEMU が要る）
+
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
                                                    #   g2p / pad / line / erf / **range** / **qeos**）
@@ -619,10 +630,10 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
-| CI | `.github/workflows/ci.yml` | push / PR で **6 job**（docs / golden / csrc / python / release-assets / **web**）。⚠️ **かつて「4 job」と書いてあったが、数えたら違った**（job は増える）。**新規 clone だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
+| CI | `.github/workflows/ci.yml` | push / PR で **7 job**（docs / golden / csrc / python / release-assets / **web** / **arduino**）。⚠️ **かつて「4 job」「6 job」と書いてあったが、数えるたびに違った**（job は増える）。**新規 clone + 公開リリースの資産だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
 | CI | `.github/workflows/pages.yml` | **W トラックの配置**（wasm を焼いて `_site/` を Pages へ）。⚠️ **`scripts/check_ci_coverage.py` は `ci.yml` しか読まない**ので、ここのゲートは誰も監査しない |
 | テスト | `scripts/test_sanitize_reports.py` | **本文検出ゲート自身の回帰**（16 ケース）。⚠️ 「0 箇所」が空虚でないことを陽性対照で保証する（C-028） |
-| テスト | `scripts/check_lock_vs_pyproject.py` | **`pyproject.toml` の制約を `uv.lock` の固定版が満たしているか**（陽性対照 6 / 陰性対照 2。C-071）。⚠️ **CI のどの job も `uv.lock` / `pyproject.toml` を解決しない**（4 job が `--no-project` / `python` job は `uv pip install` の即席 venv / `golden` は python 無し）ので、lock を見るゲートはこれ 1 本だけ。⚠️ **捕まえるのは「制約を厳しくして `uv lock` を忘れた」形だけ** — **制約を緩めただけの変更（`<1.0` → `<2.0`）は不整合にならないので捕まらない**。lock が実際に解決するかは piper-plus の絶対パスが要るので CI では原理的に測れない |
+| テスト | `scripts/check_lock_vs_pyproject.py` | **`pyproject.toml` の制約を `uv.lock` の固定版が満たしているか**（陽性対照 6 / 陰性対照 2。C-071）。⚠️ **CI のどの job も `uv.lock` / `pyproject.toml` を解決しない**（**5 job** が `--no-project` / `python` job は `uv pip install` の即席 venv / `golden` は python 無し。⚠️ **`arduino` job も `uv run --no-project --with` で、`uv sync` は piper-plus の絶対パスのせいで CI では動かない**）ので、lock を見るゲートはこれ 1 本だけ。⚠️ **捕まえるのは「制約を厳しくして `uv lock` を忘れた」形だけ** — **制約を緩めただけの変更（`<1.0` → `<2.0`）は不整合にならないので捕まらない**。lock が実際に解決するかは piper-plus の絶対パスが要るので CI では原理的に測れない |
 | テスト | `scripts/check_doc_commands.py` | **ドキュメントが「打て」と書いたコマンドの実体が在るか**（スクリプト **36 種** / `make -C csrc` の **24 ターゲット**。**陽性対照 5 件**）。⚠️ **`check_doc_links.py` はコードフェンスの中を見ない** — 読者が最初に打つのはそこである（C-040）。⚠️ **在るかだけで、通るかは見ない**。⚠️ **拾えた数が少なすぎたら落とす**（正規表現が当たらないと「0 件」で緑になるため） |
 | テスト | `scripts/check_doc_claims.py` | **ドキュメントの主張のうち機械で照合できる 2 つ**（陽性対照 9 件）。**G-D1** = **引用した実機ログの数値が、引いたログに実在するか**。⚠️ **2026-09-12 に実際に壊れていた** — `README.en.md` が **v3 のログを引きながら v4 の checksum を載せ**、**どの実機も出していない出力**を「生ログから抜粋」と書いていた（[C-064](docs/decisions.md#c-064) の 5 度目。checksum だけ一括置換して時間を置換しない形）。**G-D2** = **案内文書が名指ししたパスが「追跡されて」いるか**（⚠️ **`exists()` で見てはいけない** — 手元の作業ツリーには生成物が残っているので**手元だけ緑**になる。実際に初回 CI がそれで落ちた = C-041 の形）。⚠️ `check_doc_commands.py` は `uv run …` の前置がある形しか拾わないので、**表のセルの素の `scripts/xxx.py` が見えない** —消したスクリプト 2 本がそこに残っていた。⚠️ **見ないもの**: 数値が**同じ行**に在るか / 散文の主張 / **一次ソース 2 本**（追記専用なので対象外）。CI で回る |
 | テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **4 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html` / `arduino/NOTICE.txt`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 9 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
@@ -950,7 +961,7 @@ ids, prosody = text_to_phoneme_ids_and_prosody(
 記号も同じ壊れ方をする: `〜`(U+301C) は疑問 EOS `?~` にならず**黙って消えていた**。
 `kana_g2p.normalize_input()` で U+FF5E に寄せて塞いだ。
 
-## 残っているタスク（2026-09-12 更新。**残り 2 件。どちらも人が要る** — ⚠️ **判断も作業も全部片づいた**）
+## 残っているタスク（2026-09-13 更新。**残り 4 件。どれも人が要る** — ⚠️ **判断も作業も全部片づいた**）
 
 **Phase 0 / A / B / C / D-1〜D-3d、検証タスク B-0 〜 B-12 / D-4 / E-1 / E-2 / E-2b、
 K-0 〜 K-8、速度の S1〜S5b と T1〜T5 は全部決着した。** 設計値は D-016 〜 D-063 として凍結（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母。⚠️ **2026-09-10 に main へマージ済み** — 8 MB ブランチと Dependabot 対応が入り、番号衝突を C-078 で解消した）。
@@ -968,11 +979,13 @@ blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字�
 ⚠️ **本モデルを製品に組み込む側は、その 4 項目を自社の利用規約に書く義務がある**
 （`LICENSE-MODEL.md` §3.2。⚠️ 「商用利用可」だけを見て組み込むと義務を落とす）。
 
-### いま止まっているもの（**2 件**。⚠️ **どちらも人が要る** — 私にはできない）
+### いま止まっているもの（**4 件**。⚠️ **どれも人が要る** — 私にはできない）
 
 | 誰が | # | 何 | 止まっている理由 |
 |---|---|---|---|
 | **人** | **1** | **対照つきの聴取**（G32） | ⚠️ **私は音を聞けない。** ボードは要らない（`saanotts-jp-v4-samples.zip` を再生するだけ）。✅ **held-out 18/24 文は対照つきで聴いた**（[M-135](docs/measurements.md#m-135)。「問題なし」）。⚠️ **残るのは** 盲検 / 2 人目 / `reports/d4_accent_v4/`（アクセントの過剰強調）/ `reports/k8_listen/`（**素材が手元に無い**） |
+| **人** | **18** | **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065)） | ✅ **PCM は ESP-IDF ビルドと bit 一致した**（[M-137](docs/measurements.md#m-137) §7。QEMU / 2 構成）。⚠️ **xRT もアンダーランも鳴らし始めまでの時間も未測定** — **同じ PCM が出ることと、間に合って出ることは別**。⚠️ **Arduino ビルドで漢字を喋らせてもいない** |
+| **人** | **19** | **Arduino の .zip 2 本をリリース資産に足す** | `scripts/build_arduino_lib.py --zip` で作れる。⚠️ **上げるまで `arduino/README.md` の `releases/latest/download/...` は動かない** |
 | **人** | 11 | 4 MB / 2 MB の**実機の数字** | 板が無い。第三者の報告（M-109）に checksum / xRT / UR が無い。⚠️ **私は 1 つも再現していない**。⚠️ **『どうやって打ち込んだか』も未解決**（小容量版 3 本は UART0 のはずで、native USB の ATOMS3 には届かないはず） |
 
 ✅ **12（リリース）/ 16（CI・Pages）/ 17（辞書の SHA-256 検査）は 2026-09-12 に済んだ**
