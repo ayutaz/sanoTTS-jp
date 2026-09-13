@@ -60,27 +60,22 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 **checksum・定常 xRT・アンダーランは今も報告がありません**。私自身も再現していません。
 
 
-## ⏳ まだリリースに無いもの — Arduino / PlatformIO ライブラリ
+## Arduino / PlatformIO ライブラリ（`v1.1.0` で追加）
 
-⚠️ **下の 2 本は `v1.0.0` には入っていません**（[D-065](decisions.md#d-065) は `v1.0.0` の後）。
-**上の表にわざと載せていません** — 載せると `scripts/check_release_assets.py` が
-「在るはずのものが無い」で CI を落とします（それがこのゲートの目的です = [C-052](decisions.md#c-052)）。
+**`lib_deps` に 2 行書くだけ**（[`arduino/README.md`](../arduino/README.md) / [D-065](decisions.md#d-065)）。
 
-| これから足すファイル | 何 | ライセンス |
-|---|---|---|
-| `sanoTTS-jp-arduino.zip` | Arduino / PlatformIO ライブラリ（C99 コア + G2P + 辞書リーダ + Open JTalk + C++ ラッパー） | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | 重み 654,032 B を `aligned(16)` の C 配列にしたもの | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
+| ファイル | どこに | 何 | ライセンス |
+|---|---|---|---|
+| `sanoTTS-jp-arduino.zip` | [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0) | Arduino / PlatformIO ライブラリ（C99 コア + 端末側 G2P + 辞書リーダ + Open JTalk + C++ ラッパー + 例 3 本 + パーティション表）。293,652 B / 91 files | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0) | 重み 654,032 B を `aligned(16)` の C 配列にしたもの。959,620 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
 
-作り方（重み blob が要ります）:
+⚠️ **資産名に版が入っていません。** `releases/latest/download/<名前>` は**完全一致**を要求するためで
+（[C-097](decisions.md#c-097) で実際に踏みました）、版は `library.properties` の中（`version=1.1.0`）です。
+**固定したいときは `releases/download/v1.1.0/sanoTTS-jp-arduino.zip`** — **同じファイルです**
+（SHA-256 が一致することを公開 URL から落として確認済み）。
 
-```bash
-gh release download v1.0.0 -R ayutaz/sanoTTS-jp -p saanotts-jp-v4-int8.bin -D /tmp/w
-uv run --no-project python scripts/build_arduino_lib.py \
-    --zip arduino/dist --version <ver> --blob /tmp/w/saanotts-jp-v4-int8.bin
-```
-
-⚠️ **上げるまで [`arduino/README.md`](../arduino/README.md) が書いた
-`releases/latest/download/...` の URL は動きません**（残タスク 19）。
+⚠️ **`v1.1.0` はモデル・ファームウェア・辞書を 1 バイトも変えていません**（28 本すべて `v1.0.0` と
+SHA-256 が一致）。上の表の `v1.0.0` のリンクは今も有効です。
 
 検証用の [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) は**履歴として残してあります**（中身は v0.3.1 の 8 本と bit 同一）。
 
