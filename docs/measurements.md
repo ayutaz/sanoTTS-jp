@@ -12997,10 +12997,14 @@ bash scripts/ci_arduino_zip.sh
 
 | .zip | 圧縮後 | 展開後 | ファイル数 | ライセンス |
 |---|---:|---:|---:|---|
-| `sanoTTS-jp-arduino-1.1.0.zip` | **288,381 B** | 866,033 B | **90** | MIT |
-| `sanoTTS-jp-voice-tsukuyomi-v4-1.1.0.zip` | **959,620 B** | 3,370,404 B | **7** | LicenseRef-sanoTTS-jp-Model-1.0 |
+| `sanoTTS-jp-arduino.zip` | **293,652 B** | 877,171 B | **91** | MIT |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | **959,620 B** | 3,370,404 B | **7** | LicenseRef-sanoTTS-jp-Model-1.0 |
 
-⚠️ **圧縮後の大きさは版の文字列の長さで変わる**（2 回作れば同じ値。`--version t` では 288,381 ではなく別の値になる）。
+⚠️ **資産名に版を入れていない。** `releases/latest/download/<名前>` は**完全一致**を要求するので、
+版を入れると `latest` の URL が 404 になる（[C-097](decisions.md#c-097) で実際に踏んだ）。
+版は `library.properties` / `library.json` の中（`version=1.1.0`）にあり、**1 つのファイルで
+`latest/download/…` と `download/<tag>/…` の両方が生きる**。
+突き合わせは **G-AR8**（`build_arduino_lib.py --check`。陽性対照 2 件）。
 
 **.zip から引いたビルド**（`m5stack-cores3` + `extras/partitions/sanotts_16mb.csv`）:
 

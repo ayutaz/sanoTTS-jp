@@ -68,8 +68,8 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 
 | これから足すファイル | 何 | ライセンス |
 |---|---|---|
-| `sanoTTS-jp-arduino-<ver>.zip` | Arduino / PlatformIO ライブラリ（C99 コア + G2P + 辞書リーダ + Open JTalk + C++ ラッパー） | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4-<ver>.zip` | 重み 654,032 B を `aligned(16)` の C 配列にしたもの | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
+| `sanoTTS-jp-arduino.zip` | Arduino / PlatformIO ライブラリ（C99 コア + G2P + 辞書リーダ + Open JTalk + C++ ラッパー） | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | 重み 654,032 B を `aligned(16)` の C 配列にしたもの | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
 
 作り方（重み blob が要ります）:
 

@@ -7063,3 +7063,50 @@ repo も同じ行から取るのが正しい。陽性対照を 1 件足した（
 ⚠️ **ゲートが落ちたら、まずゲートの主張を読む。** 今回「API に届かない」を
 ネットワークやトークンの問題と読んでいたら、**`--offline-ok` を足して
 黙らせる**という最悪の直し方に行けた。**出力の 1 行目（拾った repo 名）に答えがあった。**
+
+---
+
+## C-097: **リリース資産の名前に版を入れると `releases/latest/download/…` が 404 になる**（2026-09-13）
+
+**症状（上げる前に気づいた）**: [D-065](#d-065) のドキュメントは
+
+```
+lib_deps = https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+```
+
+と書いていたが、`scripts/build_arduino_lib.py --zip --version 1.1.0` が作るのは
+**`sanoTTS-jp-arduino-1.1.0.zip`** だった。⚠️ **`releases/latest/download/<名前>` は
+資産名の完全一致を要求する**ので、**資産を上げても README の 1 行目が 404 になる**。
+
+**直し方**: **資産名から版を外した**（`sanoTTS-jp-arduino.zip` /
+`sanoTTS-jp-voice-tsukuyomi-v4.zip`）。版は `library.properties` / `library.json` の中
+（`version=1.1.0`）にあり、Arduino IDE と PlatformIO はそちらを見る。
+**1 つのファイルで 2 つの URL が生きる**:
+
+| URL | 何 |
+|---|---|
+| `releases/latest/download/sanoTTS-jp-arduino.zip` | 常に最新 |
+| `releases/download/v1.1.0/sanoTTS-jp-arduino.zip` | **版を固定したい人向け** |
+
+### なぜ既存のゲートで捕まらなかったか
+
+⚠️ **`check_release_assets.py` は「表の行」しか見ない**（`| `名前` | [タグ](…) | … |`）。
+`lib_deps` の行は**コードフェンスの中**なので、**資産名として存在すら認識されていなかった**。
+[C-052](#c-052) の再発防止は「表に書いた名前は実在すること」であって、
+**「本文が書いた URL が解決すること」は誰も見ていなかった。**
+
+**足したゲート — G-AR8**（`build_arduino_lib.py --check`。ネットワーク不要）:
+ドキュメント 5 本の `releases/latest/download/sanoTTS-jp-*` を拾い、
+**生成器が実際に作る名前と突き合わせる**。陽性対照 2 件
+（版つきの名前を書く / URL を全部消す → **どちらも落ちる**）。
+⚠️ 「1 つも書かれていない」も NG にしてある（**空 == 空 で満点を取らせない**）。
+
+### 一般化
+
+⚠️ **「ドキュメントに書いた URL が本当に解決するか」を見るゲートは、まだこれ 1 本だけ。**
+`check_doc_links.py` は**相対リンクしか見ない**（外部 URL は見ない）と自分で書いてある。
+**外部 URL を書いたら、それが解決することを別途確かめること。**
+
+⚠️ **リリース前に気づけたのは偶然ではない** — 「上げれば動くはず」と書かずに、
+**実際の URL と実際のファイル名を並べて `grep` した**から。
+[M-137](measurements.md#m-137) の「⚠️ 測っていないもの」を書くときに同じ目で見ていた。

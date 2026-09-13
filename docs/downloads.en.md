@@ -71,8 +71,8 @@ exactly what that gate is for ([C-052](decisions.md#c-052)).
 
 | File to be added | What | License |
 |---|---|---|
-| `sanoTTS-jp-arduino-<ver>.zip` | Arduino / PlatformIO library (C99 core + G2P + dictionary reader + Open JTalk + C++ wrapper) | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4-<ver>.zip` | The 654,032-byte weights as an `aligned(16)` C array | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
+| `sanoTTS-jp-arduino.zip` | Arduino / PlatformIO library (C99 core + G2P + dictionary reader + Open JTalk + C++ wrapper) | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | The 654,032-byte weights as an `aligned(16)` C array | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
 
 ⚠️ Until they are uploaded, the `releases/latest/download/...` URLs in
 [`arduino/README.md`](../arduino/README.md) do not resolve.

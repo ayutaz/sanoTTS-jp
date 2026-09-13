@@ -59,7 +59,7 @@ lib_deps =
 ```
 
 ⚠️ **版を固定したいなら `latest` ではなくタグを書く**
-（`.../releases/download/v1.1.0/sanoTTS-jp-arduino-1.1.0.zip`）。
+（`.../releases/download/v1.1.0/sanoTTS-jp-arduino.zip`）。**同じファイルが両方の URL で取れる** — 資産名に版を入れていないのは `latest/download/` が**完全一致**を要求するため。
 
 ### Arduino IDE
 

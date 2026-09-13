@@ -60,8 +60,8 @@ QEMU="$(find "$HOME/.espressif/tools/qemu-xtensa" -name 'qemu-system-xtensa' 2>/
 rm -rf "$WORK"; mkdir -p "$WORK"
 uv run --no-project --python 3.12 python "$ROOT/scripts/build_arduino_lib.py" \
     --zip "$WORK/dist" --version qemu --blob "$BLOB" >/dev/null
-CODE_ZIP="$WORK/dist/sanoTTS-jp-arduino-qemu.zip"
-VOICE_ZIP="$WORK/dist/sanoTTS-jp-voice-tsukuyomi-v4-qemu.zip"
+CODE_ZIP="$WORK/dist/sanoTTS-jp-arduino.zip"
+VOICE_ZIP="$WORK/dist/sanoTTS-jp-voice-tsukuyomi-v4.zip"
 
 run_one() {   # $1 = 名前  $2 = 追加 build_flags  $3 = 期待する checksum  $4 = 期待する sample 数
     local name="$1" flags="$2" want="$3" want_n="$4"

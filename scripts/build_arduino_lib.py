@@ -55,6 +55,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import pathlib
+import re
 import shutil
 import subprocess
 import sys
@@ -67,6 +68,22 @@ CSRC = ROOT / "csrc"
 MAIN = ROOT / "esp32" / "main"
 COMP = ROOT / "esp32" / "components" / "saanotts_core"
 ARDUINO = ROOT / "arduino"
+
+# --- リリース資産の名前 ------------------------------------------------------
+#
+# ⚠️ **版を入れない。** `https://github.com/<o>/<r>/releases/latest/download/<NAME>` は
+#    **資産名の完全一致**を要求するので、版が入ると `latest` の URL が 404 になる。
+#    版は `library.properties` / `library.json` の中に入っている（Arduino IDE はそれを見る）。
+#    タグで固定したい人は `releases/download/<tag>/<NAME>` を使えばよい —
+#    **1 つのファイルで両方の URL が生きる。**
+# ⚠️ **ここを変えたらドキュメントの URL も変わる。** `--check` の G-AR8 が
+#    「ドキュメントが書いた `latest/download/` の名前」と突き合わせる。
+ZIP_CODE = "sanoTTS-jp-arduino.zip"
+ZIP_VOICE = "sanoTTS-jp-voice-tsukuyomi-v4.zip"
+
+# G-AR8 が読むファイル（**読者がそのままコピーする行**が在るもの）
+URL_DOCS = ["README.md", "README.en.md", "arduino/README.md",
+            "docs/getting-started.md", "docs/getting-started.en.md"]
 
 # --- guard 式 ----------------------------------------------------------------
 #
@@ -190,6 +207,39 @@ def generate(src_dir: pathlib.Path) -> int:
         dst.write_bytes(_prologue(entry) + body + _epilogue(entry) if entry.wrap else body)
         n += 1
     return n
+
+
+def verify_urls() -> list[str]:
+    """G-AR8 — **ドキュメントが書いた `latest/download/` の名前が、実際に作る名前か。**
+
+    ⚠️ **実際に踏んだ**（2026-09-13）。README は `sanoTTS-jp-arduino.zip` と書き、
+       生成器は `sanoTTS-jp-arduino-1.1.0.zip` を作っていた。**資産を上げても
+       `latest/download/` は 404** になる。⚠️ `check_release_assets.py` は
+       **表の行**しか見ないので、コードフェンスの中のこの URL は見えない。
+    """
+    problems: list[str] = []
+    want = {ZIP_CODE, ZIP_VOICE}
+    seen: set[str] = set()
+    pat = re.compile(r"releases/latest/download/([A-Za-z0-9._-]+)")
+    for rel in URL_DOCS:
+        p = ROOT / rel
+        if not p.exists():
+            continue
+        for name in pat.findall(p.read_text(encoding="utf-8")):
+            if not name.startswith("sanoTTS-jp-arduino") and \
+               not name.startswith("sanoTTS-jp-voice"):
+                continue          # 他の資産（firmware など）はここでは見ない
+            seen.add(name)
+            if name not in want:
+                problems.append(
+                    f"{rel} が `latest/download/{name}` と書いているが、"
+                    f"生成器が作るのは {sorted(want)}。**その URL は 404 になる**")
+    # ⚠️ **「1 つも書かれていない」を OK にしない**（空 == 空 で満点を取らせない）。
+    if not seen:
+        problems.append(
+            "ドキュメントに `releases/latest/download/sanoTTS-jp-*` が 1 つも無い。"
+            "**URL を消したか、このゲートの探し先がずれている**")
+    return problems
 
 
 def verify(src_dir: pathlib.Path) -> list[str]:
@@ -330,7 +380,7 @@ def make_zips(out_dir: pathlib.Path, version: str, blob: pathlib.Path | None) ->
     out_dir.mkdir(parents=True, exist_ok=True)
     generate(ARDUINO / "src")
 
-    code = out_dir / f"sanoTTS-jp-arduino-{version}.zip"
+    code = out_dir / ZIP_CODE
     with zipfile.ZipFile(code, "w", zipfile.ZIP_DEFLATED) as zf:
         n = _zip_dir(zf, "SanoTTS-jp", ARDUINO, skip={"dist"})
         for extra in ("LICENSE", "NOTICE-openjtalk.txt"):
@@ -344,7 +394,7 @@ def make_zips(out_dir: pathlib.Path, version: str, blob: pathlib.Path | None) ->
         print("⚠️ --blob が無いので重みの .zip は作っていない")
         return 0
 
-    voice = out_dir / f"sanoTTS-jp-voice-tsukuyomi-v4-{version}.zip"
+    voice = out_dir / ZIP_VOICE
     with tempfile.TemporaryDirectory() as td:
         stage = pathlib.Path(td) / "SanoTTS-jp-voice-tsukuyomi-v4"
         (stage / "src").mkdir(parents=True)
@@ -437,12 +487,13 @@ def main() -> int:
         return self_test()
 
     if a.check:
-        problems = verify(ARDUINO / "src")
+        problems = verify(ARDUINO / "src") + verify_urls()
         for p in problems:
             print(f"  NG  {p}")
         entries = len(manifest())
         print(f"{'NG!' if problems else 'OK '} G-AR1 生成物 {entries} 件が"
-              f" csrc/ と esp32/ の逐語（前置き + 本文 + 後置き）")
+              f" csrc/ と esp32/ の逐語（前置き + 本文 + 後置き）"
+              f" / G-AR8 ドキュメントの latest/download が {ZIP_CODE} と {ZIP_VOICE} を指す")
         return 1 if problems else 0
 
     if a.zip:

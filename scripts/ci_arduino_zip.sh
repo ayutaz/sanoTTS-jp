@@ -43,8 +43,8 @@ echo "=== .zip を組む ==="
 rm -rf "$WORK"; mkdir -p "$WORK"
 uv run --no-project --python 3.12 python "$ROOT/scripts/build_arduino_lib.py" \
     --zip "$WORK/dist" --version "$VER" --blob "$BLOB"
-CODE_ZIP="$WORK/dist/sanoTTS-jp-arduino-$VER.zip"
-VOICE_ZIP="$WORK/dist/sanoTTS-jp-voice-tsukuyomi-v4-$VER.zip"
+CODE_ZIP="$WORK/dist/sanoTTS-jp-arduino.zip"
+VOICE_ZIP="$WORK/dist/sanoTTS-jp-voice-tsukuyomi-v4.zip"
 
 # ⚠️ **中身も見る。** 大きさだけだと「空の src/ を詰めた .zip」でも通る。
 for want in "SanoTTS-jp/src/SanoTTS.h" "SanoTTS-jp/src/core/saanotts.c" \
