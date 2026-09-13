@@ -1,0 +1,28 @@
+# sanoTTS-jp / Arduino・PlatformIO 用のパーティション表（**16 MB flash** = N16R8）
+#
+# flash: 16MB        ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+# app-min: 1500000       ← 重みを app の .rodata に埋める表（--rodata）
+# dict-blob: csrc/k1_dict.bin
+#
+#   platformio.ini:  board_build.partitions = sanotts_16mb.csv
+#   Arduino IDE   :  この CSV を partitions.csv としてスケッチのフォルダに置く
+#                    ⚠️ **IDE 2.x では効かない報告がある**（espressif/arduino-esp32#10120）。
+#                       漢字を使うなら PlatformIO を勧める。
+#
+# ⚠️ **`model` パーティションは無い。** 重みは重みライブラリのヘッダから app の
+#    `.rodata` に入る（ライブラリの既定 `SANOTTS_MODEL_FROM_PARTITION=0`）。
+#    ⚠️ 1 にするならこの表ではなく `model` 行のある表が要る。
+#
+# ⚠️ **`dict` の offset 0x2D0000 は esp32/partitions_16mb.csv と同じにしてある。**
+#    リリースの `k1-dict-438750.bin`（13,702,320 B）を**そのまま同じアドレスに焼ける**:
+#
+#      esptool --chip esp32s3 -p <port> write_flash 0x2D0000 k1-dict-438750.bin
+#
+# ⚠️ **辞書を焼かなくても起動する。** `saan_dict_open()` が false を返し、
+#    `SanoTTS::kanjiReady()` が false になって**かな中間表現だけで喋れる**（D-063）。
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x2C0000,
+dict,     data, 0x41,    0x2D0000, 0xD30000,

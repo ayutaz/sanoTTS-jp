@@ -1,0 +1,19 @@
+# sanoTTS-jp / Arduino・PlatformIO 用のパーティション表（**8 MB flash**）
+#
+# flash: 8MB         ← ⚠️ **推定しない。** scripts/check_partitions.py がこれを読む
+# app-min: 1438496       ← M-105 で実際にビルドした M5Unified 版の app（CoreS3 構成）
+# dict-blob: csrc/k1_dict_8mb_m5.bin
+#
+# ⚠️ **16 MB 用の辞書は入らない**（13.7 MB > 枠 6.8 MB）。リリースの
+#    `k1-dict-213000-8mb-m5.bin`（6,797,056 B）を使うこと:
+#
+#      esptool --chip esp32s3 -p <port> write_flash 0x180000 k1-dict-213000-8mb-m5.bin
+#
+# ⚠️ **代償は読みの精度**（音素の誤り 0.63% → 1.09%。n=1,495。M-105 §4b）。
+# ⚠️ **辞書とパーティション表は必ずセット。** 16 MB 用を焼くと 6.9 MB 入らない。
+#
+# Name,   Type, SubType, Offset,   Size,     Flags
+nvs,      data, nvs,     0x9000,   0x6000,
+phy_init, data, phy,     0xf000,   0x1000,
+factory,  app,  factory, 0x10000,  0x170000,
+dict,     data, 0x41,    0x180000, 0x680000,
