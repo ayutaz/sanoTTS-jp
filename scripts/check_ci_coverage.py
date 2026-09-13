@@ -97,6 +97,14 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     "scripts/check_dict_blob.py": "辞書 blob 13.7 MB（git 管理外）。⚠️ **構造の検査だけなら CI に載っている** — `make -C csrc jdict-hard` が合成 blob で jdict_open の入力検査を陽性対照つきで叩く（M-100）",
     "scripts/check_dict_integrity.sh": "**ESP-IDF + QEMU + 辞書 13.7 MB** が要る（G34 = D-063 の受け入れ）。CI にはどれも無い。⚠️ **手で走らせるゲートはいずれ走らせなくなる** — 辞書の作り方か `saan_dict.c` の照合を触ったら回すこと（M-134）",
     "scripts/check_esp32_template.sh": "ESP-IDF の xtensa toolchain（約 2 GB）と重み blob",
+    # ⚠️ **G-AR4 は「同じ音が出るか」を見る唯一のゲート。** 他の Arduino ゲート
+    #    （G-AR1/2/3/6/7）は全部「ビルドが通るか」しか言っていない。
+    #    ESP-IDF + QEMU + 重みが要るので CI では回らない。
+    #    ⚠️ **手で走らせるゲートはいずれ走らせなくなる** — sanotts_config.h か
+    #    生成器の前置きを触ったら回すこと。
+    "scripts/check_arduino_qemu.sh":
+        "ESP-IDF + QEMU（xtensa の qemu と esp-idf の export.sh）と重み blob。"
+        "⚠️ **Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するかを見る唯一のゲート**",
     "scripts/check_partitions.py": "重み blob と辞書 blob（大きさを突き合わせる）",
     "scripts/test_discriminator.py": "ラベルパック data/pack_sibdense（git 管理外）",
     "scripts/check_corpus_license.py": "ラベルパック（data/pack_cc0）とコーパス本文（data/splits/*.tsv。どちらも git 管理外）。⚠️ 表だけの検査は scripts/test_corpus_license.py が CI で回している",
@@ -142,7 +150,13 @@ SCRIPT_GLOBS = ("scripts/test_*.py", "scripts/check_*.py", "scripts/check_*.sh",
                 #    `sanitize_reports.py`（本文検出の**本体**）が漏れており、
                 #    CI は自己テスト `test_sanitize_reports.py` だけ回して
                 #    **本体を一度もリポジトリに向けていなかった**（C-075）。
-                "scripts/sanitize_reports.py")
+                "scripts/sanitize_reports.py",
+                # Arduino / PlatformIO ライブラリ。⚠️ `build_*` / `ci_*` は
+                # `test_*` / `check_*` に当たらないので、ここに書かないと
+                # **「CI に無い」ことすら誰も気づかない**（sanitize_reports.py と同じ穴）。
+                "scripts/build_arduino_lib.py",
+                "scripts/ci_arduino_build.sh",
+                "scripts/ci_arduino_zip.sh")
 
 FAILED: list[str] = []
 

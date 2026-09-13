@@ -42,14 +42,22 @@
 #include "sanotts_config.h"
 #include "SanoTTSSpeaker.h"
 
-/* ⚠️ **PlatformIO の LDF にこの依存を見せるために、ここで include する。**
- *    LDF（既定の `chain` モード）はプリプロセッサの条件を評価せず `#include` を
- *    テキストで拾うので、この 3 行があると重みライブラリを依存として拾ってくれる。
- *    無い環境では `__has_include` が false になって何も起きない。 */
-#if defined(__has_include)
-#  if __has_include(<saanotts_jp_voice.h>)
-#    include <saanotts_jp_voice.h>
-#  endif
+/* ⚠️ **これを `__has_include` で条件つきにしてはいけない。実際に踏んだ（2026-09-13）。**
+ *
+ * Arduino IDE / arduino-cli は「コンパイルして、足りないヘッダのエラーを見て、
+ * それを持つライブラリを足す」という順で依存を解決する。条件つきにすると
+ * **エラーが出ないので重みライブラリが最後まで足されず**、`sanotts_config.h` の
+ * `__has_include` も false のままになり、重み無しのスタブが黙ってリンクされる。
+ * **コンパイルは通り、Flash も 379,721 B で普通に見え、実行時に初めて
+ * 「重みライブラリを入れること」と言う** — 入れてあるのに。
+ *
+ * 無条件にしておけば「`saanotts_jp_voice.h` が無い」とコンパイル時に言う。
+ * ⚠️ **そちらの方が正しい** — このライブラリは重みが無ければ音を出せない。
+ *
+ * 重みをパーティションから読む構成（`SANOTTS_MODEL_FROM_PARTITION=1`）と、
+ * コンパイルだけ通せばよい場合（CI のカーネル検査）は `SANOTTS_NO_VOICE_LIB=1`。 */
+#if !SANOTTS_MODEL_FROM_PARTITION && !defined(SANOTTS_NO_VOICE_LIB)
+#  include <saanotts_jp_voice.h>
 #endif
 
 class SanoTTS {

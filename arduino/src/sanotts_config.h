@@ -110,10 +110,21 @@
 #define SANOTTS_MODEL_FROM_PARTITION 0
 #endif
 
-/* 重みライブラリが入っているか。⚠️ **入っていなくてもリンクは通る**
- * （`SanoTTSModelStub.c` が「重みが無い」を返す実装を出す）。`begin()` が false を返す。 */
+/* 重みライブラリが入っているか。
+ *
+ * ⚠️ **`SanoTTS.h` は無条件に `<saanotts_jp_voice.h>` を include する。**
+ *    条件つきにすると Arduino IDE / arduino-cli の依存解決が走らず、
+ *    **入れてあるのに使われない**（SanoTTS.h の長い ⚠️ を読むこと）。
+ *    ここの `__has_include` は「無条件 include が既に通った後」に評価されるので、
+ *    重みライブラリが在れば 1 になる。
+ *
+ * ⚠️ 0 のときは `SanoTTSModelStub.c` が `saan_model_open()` を
+ *    「重みが無い」を返す実装で埋めるので**リンクは通る**（`begin()` が false）。
+ *    これはパーティション構成と CI のカーネル検査（`SANOTTS_NO_VOICE_LIB=1`）のため。 */
 #ifndef SANOTTS_HAVE_VOICE
-#  if defined(__has_include)
+#  if SANOTTS_MODEL_FROM_PARTITION || defined(SANOTTS_NO_VOICE_LIB)
+#    define SANOTTS_HAVE_VOICE 0
+#  elif defined(__has_include)
 #    if __has_include(<saanotts_jp_voice.h>)
 #      define SANOTTS_HAVE_VOICE 1
 #    else

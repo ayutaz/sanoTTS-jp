@@ -15,6 +15,11 @@
 #
 #   bash scripts/ci_arduino_build.sh
 #
+
+# ⚠️ **ここは重みを使わない**（`-DSANOTTS_NO_VOICE_LIB=1`）。重みを本当にリンクできるかは
+#    `scripts/ci_arduino_zip.sh` の G-AR7 が .zip から引いて確かめる。
+#    この 3 構成はカーネルと経路のコンパイルだけを見ている。
+#
 # 要るもの: PlatformIO（`uv sync --extra arduino`）とネットワーク（初回は toolchain を落とす）
 set -euo pipefail
 
@@ -82,11 +87,11 @@ echo
 echo "=== G-AR2 3 構成でビルドできるか ==="
 
 # (1) かな専用（辞書も Open JTalk も入らない最小構成）
-build kana esp32-s3-devkitc-1 '-DSANOTTS_ENABLE_KANJI=0' ''
+build kana esp32-s3-devkitc-1 '-DSANOTTS_NO_VOICE_LIB=1 -DSANOTTS_ENABLE_KANJI=0' ''
 # (2) 漢字 + M5Unified（出荷に一番近い形）
-build kanji-m5 esp32-s3-devkitc-1 '' 'm5stack/M5Unified@^0.2.7'
+build kanji-m5 esp32-s3-devkitc-1 '-DSANOTTS_NO_VOICE_LIB=1' 'm5stack/M5Unified@^0.2.7'
 # (3) 非 S3（⚠️ **PIE が無い板。実時間には間に合わない**が、リンクは通るべき）
-build non-s3 esp32dev '-DSANOTTS_ARENA_HEAP=1' ''
+build non-s3 esp32dev '-DSANOTTS_NO_VOICE_LIB=1 -DSANOTTS_ARENA_HEAP=1' ''
 
 echo
 echo "=== G-AR6 PIE が実際に効いているか（命令数）==="

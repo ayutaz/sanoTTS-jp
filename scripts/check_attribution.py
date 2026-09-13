@@ -2,7 +2,7 @@
 """**帰属義務の成果物**が実体として在るかを検査する（G-A1 / G-A2）。
 
     uv run --no-project python scripts/check_attribution.py
-    uv run --no-project python scripts/check_attribution.py --self-test   # 陽性対照 6 件
+    uv run --no-project python scripts/check_attribution.py --self-test   # 陽性対照 9 件
 
 ## なぜ要るのか — **2 回続けて同じ穴に落ちた**
 
@@ -20,7 +20,7 @@ C-081 の末尾には「⚠️ **ゲートが無い**」と自分で書いてあ
 
 **G-A1 — 写しが正典と一字一句一致するか。**
 正典は `LICENSE-MODEL.md` §3.1 の **(A) ブロック**（最初のコードフェンス）。
-写しは `NOTICE.md` と `web/index.html`。⚠️ **`NOTICE.md` はリリース資産
+写しは `NOTICE.md` と `web/index.html` と `arduino/NOTICE.txt`（**4 か所目**。`lib_deps` で配るのも再配布）。⚠️ **`NOTICE.md` はリリース資産
 `NOTICE.txt` の中身そのもの**で、法的な成果物としては index.html より重い。
 にもかかわらず **C-081 の時点でこの対を見ているゲートは 1 本も無かった**
 （`check_web_gates.sh` の G-W7 は `web/index.html` しか見ない。しかも emcc が
@@ -56,6 +56,12 @@ CANON = ("LICENSE-MODEL.md", re.compile(r"^### 3\.1 "), re.compile(r"^### "))
 # 写し: (ファイル, 抽出の仕方)
 COPY_FENCE = ("NOTICE.md", re.compile(r"^### \(A\) "), re.compile(r"^### "))
 COPY_HTML = "web/index.html"
+# ⚠️ **4 か所目**（2026-09-13）。Arduino / PlatformIO ライブラリの .zip に同梱する。
+#    `lib_deps` で配ることも再配布なので、§3.1 の帰属ブロックが要る。
+#    コードフェンスも <pre> も使えない素のテキストなので、区切り行で挟む。
+COPY_TXT = "arduino/NOTICE.txt"
+TXT_START = re.compile(r"^--- ここから")
+TXT_STOP = re.compile(r"^--- ここまで")
 
 # G-A2 の主張: `[`X`](X)` … sha256 `<prefix>…` … <N> 行/lines <M> B/bytes
 #
@@ -91,6 +97,24 @@ def fence(text: str, start: re.Pattern[str], stop: re.Pattern[str]) -> list[str]
             continue
         if infence:
             out.append(line)
+    return out
+
+
+def delimited(text: str, start: re.Pattern[str], stop: re.Pattern[str]) -> list[str]:
+    """区切り行に挟まれた中身（素のテキスト用。コードフェンスも `<pre>` も使えない）。
+
+    ⚠️ **区切り行そのものは含めない。** 含めると `canon` と行数が合わずに
+       「抽出が壊れている」ではなく「写しが違う」と出て、原因を取り違える。
+    """
+    out: list[str] = []
+    on = False
+    for line in text.splitlines():
+        if not on:
+            on = bool(start.match(line))
+            continue
+        if stop.match(line):
+            break
+        out.append(line)
     return out
 
 
@@ -139,6 +163,7 @@ def check(files: dict[str, str]) -> list[str]:
     name, cstart, cstop = COPY_FENCE
     copies[name] = fence(files[name], cstart, cstop)
     copies[COPY_HTML] = pre_verbatim(files[COPY_HTML])
+    copies[COPY_TXT] = delimited(files[COPY_TXT], TXT_START, TXT_STOP)
 
     for path, got in copies.items():
         if len(got) < FLOOR:
@@ -187,7 +212,7 @@ def check(files: dict[str, str]) -> list[str]:
 
 
 def load() -> dict[str, str]:
-    paths = [CANON[0], COPY_FENCE[0], COPY_HTML]
+    paths = [CANON[0], COPY_FENCE[0], COPY_HTML, COPY_TXT]
     out = {}
     for rel in paths:
         p = ROOT / rel
@@ -220,6 +245,24 @@ def self_test() -> int:
     m = dict(base)
     m[COPY_HTML] = base[COPY_HTML].replace(victim + "\n", "", 1)
     cases.append((f"{COPY_HTML} から本文 1 行を消す", m))
+
+    # 2b. arduino/NOTICE.txt の写しから本文 1 行を消す（**4 か所目**）
+    #
+    # ⚠️ **`victim` 1 行の replace で足りるかを確かめてある。** NOTICE.md で
+    #    同じ書き方をして**陽性対照が通ってしまった**ことがある（同じ語が
+    #    ブロックの外に 5 か所あった）。ここは assert で 1 回しか出ないことを要求する。
+    assert base[COPY_TXT].count(victim + "\n") == 1, \
+        f"arduino/NOTICE.txt の中に {victim!r} が 1 行だけ在ること"
+    m = dict(base)
+    m[COPY_TXT] = base[COPY_TXT].replace(victim + "\n", "", 1)
+    cases.append((f"{COPY_TXT} から本文 1 行を消す", m))
+
+    # 2c. arduino/NOTICE.txt の区切り行を消す（= 抽出が壊れる形）
+    #
+    # ⚠️ **これが無いと「抽出が 0 行 → 空 == 空 で一致」の穴を見ていない。**
+    m = dict(base)
+    m[COPY_TXT] = base[COPY_TXT].replace("--- ここから（一字一句この通り）---\n", "", 1)
+    cases.append((f"{COPY_TXT} の区切り行を消す（抽出が壊れる）", m))
 
     # 3. 写しの 1 文字を変える（行数は変わらない = 件数の検査では捕まらない）
     #
@@ -312,8 +355,8 @@ def main() -> int:
             print(f"  {l}")
         return 1
     cs = claims(files[CANON[0]])
-    print(f"OK  G-A1 帰属ブロック（{len(canon)} 行）が 3 か所で一字一句一致 "
-          f"— {CANON[0]} §3.1 / {COPY_FENCE[0]} / {COPY_HTML}")
+    print(f"OK  G-A1 帰属ブロック（{len(canon)} 行）が 4 か所で一字一句一致 "
+          f"— {CANON[0]} §3.1 / {COPY_FENCE[0]} / {COPY_HTML} / {COPY_TXT}")
     print(f"OK  G-A2 同梱義務の主張 {len(cs)} 件（日英）がすべて実体と一致:")
     for c in cs:
         print(f"      {c['path']}: sha256 {c['sha']}… / {c['lines']} 行 {c['bytes']} B")

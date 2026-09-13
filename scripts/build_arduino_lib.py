@@ -311,13 +311,21 @@ def _zip_dir(zf: zipfile.ZipFile, top: str, base: pathlib.Path,
     return n
 
 
+def _show(p: pathlib.Path) -> str:
+    """表示用のパス。⚠️ リポジトリの外に出すこともある（CI は /tmp）。"""
+    try:
+        return str(p.relative_to(ROOT))
+    except ValueError:
+        return str(p)
+
+
 def make_zips(out_dir: pathlib.Path, version: str, blob: pathlib.Path | None) -> int:
     """リリース資産 2 本。**コード（MIT）と重み（LicenseRef）を分ける。**
 
     ⚠️ **PlatformIO は git のサブディレクトリを指せない**（library.json は直下必須）ので、
        `lib_deps` に書けるのはこの .zip の直 URL だけ。Arduino IDE も同じ .zip を使う。
     """
-    # ⚠️ 相対パスで渡されると下の `relative_to(ROOT)` が落ちる。先に解決しておく。
+    # ⚠️ 相対パスでも、リポジトリの外でも落ちないようにする（CI は /tmp に出す）。
     out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     generate(ARDUINO / "src")
@@ -330,7 +338,7 @@ def make_zips(out_dir: pathlib.Path, version: str, blob: pathlib.Path | None) ->
             if p.exists():
                 zf.write(p, f"SanoTTS-jp/{extra}")
                 n += 1
-    print(f"{code.relative_to(ROOT)}: {code.stat().st_size:,} B / {n} files")
+    print(f"{_show(code)}: {code.stat().st_size:,} B / {n} files")
 
     if blob is None:
         print("⚠️ --blob が無いので重みの .zip は作っていない")
@@ -356,7 +364,7 @@ def make_zips(out_dir: pathlib.Path, version: str, blob: pathlib.Path | None) ->
         shutil.copy2(ARDUINO / "NOTICE.txt", stage / "NOTICE.txt")
         with zipfile.ZipFile(voice, "w", zipfile.ZIP_DEFLATED) as zf:
             n = _zip_dir(zf, "SanoTTS-jp-voice-tsukuyomi-v4", stage)
-    print(f"{voice.relative_to(ROOT)}: {voice.stat().st_size:,} B / {n} files")
+    print(f"{_show(voice)}: {voice.stat().st_size:,} B / {n} files")
     return 0
 
 
