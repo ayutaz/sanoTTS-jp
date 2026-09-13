@@ -779,7 +779,7 @@ git commit -m "ci: arduino job（G-AR1/2/3）と帰属ブロック 4 か所目"
 ⚠️ **漢字は PlatformIO 推奨**（Arduino IDE の `partitions.csv` は IDE 2.x で効かない報告がある）/
 ⚠️ **実機で鳴らしていない**こと。
 
-- [ ] **Step 2: D-064 を `docs/decisions.md` に書く**
+- [ ] **Step 2: D-065 を `docs/decisions.md` に書く**
 
 spec の §2 と §3 を要約する。⚠️ **番号は `check_doc_counters.py` が見る**。
 
@@ -805,7 +805,7 @@ Expected: 全部 OK
 
 ```bash
 git add arduino/README.md arduino/README.en.md README.md README.en.md docs CLAUDE.md
-git commit -m "docs: Arduino / PlatformIO の導線（D-064 / M-137）"
+git commit -m "docs: Arduino / PlatformIO の導線（D-065 / M-137）"
 ```
 
 ---

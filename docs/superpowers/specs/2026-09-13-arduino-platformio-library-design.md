@@ -2,7 +2,7 @@
 
 **日付**: 2026-09-13
 **状態**: 承認済み（実装前）
-**決定記録**: [D-064](../../decisions.md#d-064)（この設計の要約を置く）
+**決定記録**: [D-065](../../decisions.md#d-065)（この設計の要約を置く）
 **測定**: [M-137](../../measurements.md#m-137)（実装後に埋める）
 
 ---
@@ -109,7 +109,7 @@ scripts/build_arduino_lib.py    ★ 新規。生成器 + --check + --zip
 | `scripts/check_ci_coverage.py` | `SCRIPT_GLOBS` に `scripts/build_arduino_lib.py` を足す |
 | `scripts/check_attribution.py` | 帰属ブロックの写しが **3 か所 → 4 か所**（`arduino/NOTICE.txt`）。陽性対照も 1 件増やす |
 | `README.md` / `README.en.md` | 「Arduino / PlatformIO」節を足す |
-| `docs/decisions.md` | **D-064** |
+| `docs/decisions.md` | **D-065** |
 | `docs/measurements.md` | **M-137**（`build_measurements_index.py` で索引を再生成） |
 | `CLAUDE.md` | スコープ節に W トラックと並べて 1 段落 |
 
@@ -306,4 +306,4 @@ CI で回せないのは ESP-IDF + QEMU（約 2 GB）が要るため — `check_
 - [ ] `check_ci_coverage.py` / `check_doc_commands.py` / `check_doc_links.py` /
       `check_doc_counters.py` / `build_measurements_index.py --check` が緑
 - [ ] `arduino/README.md` の手順を**書いた通りに実行して**通ることを確認
-- [ ] D-064 と M-137 を書く
+- [ ] D-065 と M-137 を書く

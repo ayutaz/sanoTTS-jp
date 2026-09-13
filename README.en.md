@@ -66,6 +66,7 @@ and caveat lines removed; `...` stands for 14 pulls.
 | **Synthesize your own text / run it on hardware / run the gates** | **[Getting started](docs/getting-started.en.md)** (five ways in) |
 | **Which boards work; dictionary size vs. accuracy** | **[Status](docs/support-matrix.en.md)** |
 | **Weights, firmware, dictionaries** | **[Downloads](docs/downloads.en.md)** |
+| **Call it from your own sketch** | **[Arduino / PlatformIO library](arduino/README.md)** |
 
 **The shortest path** (if you have a board):
 
@@ -76,6 +77,29 @@ esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 esp32s3-firmware-kanji-16mb.
 
 ⚠️ **8 MB and 4 MB boards work too** (with a smaller dictionary; readings get worse).
 → [Status](docs/support-matrix.en.md)
+
+**To call it from your own sketch** there is an Arduino IDE / PlatformIO library
+([`arduino/`](arduino/README.md)):
+
+```ini
+[env:m5stack-cores3]
+; The official espressif32 platform is stuck on arduino-esp32 2.0.17 and will not build. 3.x is required.
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
+board = m5stack-cores3
+framework = arduino
+lib_deps =
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-voice-tsukuyomi-v4.zip
+    m5stack/M5Unified
+```
+
+```cpp
+tts.setSpeaker(&spk);  tts.begin();  tts.say("今日は良い天気ですね。");
+```
+
+⚠️ **The weights are not MIT** (separate .zip, `LicenseRef-sanoTTS-jp-Model-1.0`).
+⚠️ **The library has not been run on real hardware** — only that its PCM is bit-identical
+to the ESP-IDF build ([M-137](docs/measurements.md#m-137)).
 
 ## Why Japanese needs its own port
 

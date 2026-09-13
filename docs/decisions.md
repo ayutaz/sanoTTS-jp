@@ -6923,3 +6923,95 @@ v0.3.0 の公開は 2026-09-03 07:53 UTC なので、**注記は書かれた瞬�
   `kanji_e2e_vectors.bin`（19 MB）と `ids_heldout.bin` にもあり、**今回と同じ形かもしれない**
 - **理由の真偽を機械が見る仕組みは無い。** `scripts/check_ci_coverage.py` は
   「除外に理由が**書いてあるか**」しか見ない（[C-071](#c-071) と同じ限界）
+
+---
+
+## D-065: **Arduino / PlatformIO ライブラリはリリース .zip 2 本で配る**（コード MIT / 重みは別ライセンス）
+
+**日付**: 2026-09-13
+**きっかけ**: ユーザーの要望。上流 sanoTTS が `arduino/` にライブラリを持っていて
+`lib_deps` 1 行で引けることを教えてもらった（⚠️ **[D-032](#d-032) は維持** — GPL-3.0 の
+ソースは読んでいない。参照したのは README のスクリーンショットと、PlatformIO /
+Arduino の公開仕様だけ）。
+**実測**: [M-137](measurements.md#m-137) / **設計**: [`docs/superpowers/specs/2026-09-13-arduino-platformio-library-design.md`](superpowers/specs/2026-09-13-arduino-platformio-library-design.md)
+
+### 決めたこと
+
+| # | 決定 |
+|---|---|
+| 1 | **Arduino IDE と PlatformIO の両方**を対象にする |
+| 2 | 公開 API は **PCM を返すのが主**。スピーカーは差し込み式（M5Unified / 汎用 I2S を同梱） |
+| 3 | 重みは**既定で `.rodata` 埋め込み**、上級者はパーティション（`SANOTTS_MODEL_FROM_PARTITION=1`） |
+| 4 | ライブラリは**このリポジトリの `arduino/`** に置く |
+| 5 | `src/core/` の実体は**生成物にし、git に置かない** |
+| 6 | 配布は**リリース .zip 2 本**（コード = MIT / 重み = `LicenseRef-sanoTTS-jp-Model-1.0`） |
+
+### なぜ .zip なのか — 選べなかった
+
+⚠️ **PlatformIO は git リポジトリのサブディレクトリを指せない。** `library.json` は
+リポジトリ直下にある必要がある（[pkg install の仕様](https://docs.platformio.org/en/latest/core/userguide/pkg/cmd_install.html) /
+[platformio-core#3887](https://github.com/platformio/platformio-core/issues/3887)）。
+したがって `arduino/` に置いたまま `lib_deps = https://github.com/ayutaz/sanoTTS-jp` とは**書けない**。
+
+一方 **`.zip` / `.tar.gz` の直 URL は公式にサポートされている**ので、
+**リリース .zip が PlatformIO と Arduino IDE の両方で使える唯一の 1 本**になる。
+
+⚠️ **リポジトリ直下を library 化する案は捨てた。** それなら `lib_deps = <GitHub URL>` は
+動くが、**Arduino IDE の `.zip` 形式（`library.properties` + `src/` 固定）と両立しない**うえ、
+`runs/` や `reports/` 込みのリポジトリ全体を clone させることになる。
+
+### なぜ実体を生成するのか
+
+⚠️ **Arduino は `src/` を「すべてのサブフォルダも含めて」再帰的にコンパイルし、
+実体が無いとコンパイルしない**（[library 1.5 spec](https://arduino.github.io/arduino-cli/1.5/library-specification/)）。
+一方 `esp32/components/saanotts_core/CMakeLists.txt` は
+**「csrc/ をコピーもシンボリックリンクもしない」**を明示的な方針にしている。
+
+折衷点が `scripts/build_arduino_lib.py`: **実体は生成物にして git には置かない**
+（`arduino/src/core/` は `.gitignore`）。生成規則を 1 つに絞り、`--check`（G-AR1）が
+**前置きと後置きを剥がして元ファイルと `bytes` で比べる**。陽性対照 7 件。
+
+⚠️ **取り込んだ Open JTalk への前置きは「改変」にあたる。** `k4b_vendor.py --check` は
+`csrc/openjtalk/` を見るので通るが、`arduino/NOTICE.txt` に明記した
+（前置き 5 行 + 後置き 1 行。本文は 1 バイトも変えていない）。
+
+### なぜ設定ヘッダ 1 枚なのか
+
+⚠️ **Arduino のライブラリ仕様には、ライブラリが独自の `-D` やファイル単位の
+コンパイルオプションを渡す手段が無い。** ESP-IDF 版で CMake が渡していた
+`SAAN_INT8_ACT` / `SAAN_PIE` / `CHARSET_UTF_8` / `LABEL_IDS_EXTERNAL_SCRATCH` /
+`SAAN_PORT_HEADER` は、**各翻訳単位の先頭で `arduino/src/sanotts_config.h` を読む**以外に届かない。
+
+⚠️ **`SANOTTS_*`（ユーザーが触る面）と `SAAN_*`（コアの内部フラグ）を分けた。**
+混ぜると「ユーザーが `SAAN_PIE` だけ立てた」形が作れてしまう
+（[D-048](#d-048) が構造で潰した不変条件を、ライブラリでも守る）。
+
+⚠️ **CMake との挙動の違いを 1 つだけ意図的に入れた。** ESP-IDF 版は S3 以外で
+`SAAN_ENABLE_PIE=1` を `FATAL_ERROR` にしているが、ライブラリでは**既定は自動で
+W8A32 に落とす**（板を選ぶのは使う人）。手で `SANOTTS_ENABLE_PIE=1` を立てた場合だけ `#error`。
+
+### ⚠️ ビルドが通ることは何の証拠にもならなかった — 3 つ黙る穴を踏んだ
+
+M-137 の §3 と §6 に実測がある。**どれもビルドは成功する。**
+
+| 穴 | 症状 | 塞ぎ方 |
+|---|---|---|
+| `sdkconfig.h` を読まず `CONFIG_IDF_TARGET_ESP32S3` が見えない | PIE が黙って無効。**音は出るが 2 倍以上遅い** | `sanotts_config.h` で include。**G-AR6** が `ee.` の数を見る |
+| Arduino の既定が `-Os`（ESP-IDF は `-O2`） | PIE 命令 74 → 67 | 生成器の前置きに `#pragma GCC optimize("O2")` |
+| `<saanotts_jp_voice.h>` を条件つき include | **重みを入れてあるのに使われない**。実行時に「入れること」と言う | 無条件 include。**G-AR7** が ELF の `g_saan_model_blob` を直接見る |
+
+### 要求する版
+
+⚠️ **公式の PlatformIO `espressif32` プラットフォームでは動かない**（arduino-esp32 2.0.17 /
+ESP-IDF 4.4.7 で、`ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も無い）。
+**pioarduino**（arduino-esp32 3.x）を指定する。Arduino IDE は Boards Manager の現行版が 3.x。
+
+### ⚠️ 残っているもの
+
+- **実機で鳴らしていない。板が無い。** 言えるのは QEMU の checksum 一致（G-AR4）までで、
+  **xRT もアンダーランも鳴らし始めまでの時間も未測定**。⚠️ **同じ PCM が出ることと、
+  間に合って出ることは別**（残タスク 11 と同じ扱い）
+- **Arduino IDE の GUI は触っていない**（検証は arduino-cli 1.5.1）。
+  ⚠️ スケッチフォルダの `partitions.csv` は[IDE 2.x で効かない報告](https://github.com/espressif/arduino-esp32/issues/10120)があり、
+  **漢字は PlatformIO を推奨**としてドキュメントに書いた
+- **Arduino ビルドで漢字を実際に喋らせていない**（コンパイルは通っている）

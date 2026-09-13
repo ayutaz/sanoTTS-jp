@@ -302,7 +302,7 @@ uv run python scripts/check_doc_counters.py        # 索引の M/D/C 番号 + **
 uv run python scripts/check_doc_links.py           # md の相対リンクが実在するか（C-052）
 uv run python scripts/check_attribution.py --self-test   # **帰属義務の成果物**（G-A1 写しが
                                                    #   3 か所で一致 / G-A2 同梱した全文が記載
-                                                   #   どおり）。陽性対照 7 件。C-080 / C-081
+                                                   #   どおり）。陽性対照 9 件。C-080 / C-081
 uv run python scripts/check_lock_vs_pyproject.py   # pyproject の制約 vs uv.lock の固定版（C-071。
                                                    #   陽性対照 6 / 陰性対照 2。⚠️ **制約を緩めた
                                                    #   だけの変更は捕まらない**）
@@ -625,7 +625,11 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `scripts/check_lock_vs_pyproject.py` | **`pyproject.toml` の制約を `uv.lock` の固定版が満たしているか**（陽性対照 6 / 陰性対照 2。C-071）。⚠️ **CI のどの job も `uv.lock` / `pyproject.toml` を解決しない**（4 job が `--no-project` / `python` job は `uv pip install` の即席 venv / `golden` は python 無し）ので、lock を見るゲートはこれ 1 本だけ。⚠️ **捕まえるのは「制約を厳しくして `uv lock` を忘れた」形だけ** — **制約を緩めただけの変更（`<1.0` → `<2.0`）は不整合にならないので捕まらない**。lock が実際に解決するかは piper-plus の絶対パスが要るので CI では原理的に測れない |
 | テスト | `scripts/check_doc_commands.py` | **ドキュメントが「打て」と書いたコマンドの実体が在るか**（スクリプト **36 種** / `make -C csrc` の **24 ターゲット**。**陽性対照 5 件**）。⚠️ **`check_doc_links.py` はコードフェンスの中を見ない** — 読者が最初に打つのはそこである（C-040）。⚠️ **在るかだけで、通るかは見ない**。⚠️ **拾えた数が少なすぎたら落とす**（正規表現が当たらないと「0 件」で緑になるため） |
 | テスト | `scripts/check_doc_claims.py` | **ドキュメントの主張のうち機械で照合できる 2 つ**（陽性対照 9 件）。**G-D1** = **引用した実機ログの数値が、引いたログに実在するか**。⚠️ **2026-09-12 に実際に壊れていた** — `README.en.md` が **v3 のログを引きながら v4 の checksum を載せ**、**どの実機も出していない出力**を「生ログから抜粋」と書いていた（[C-064](docs/decisions.md#c-064) の 5 度目。checksum だけ一括置換して時間を置換しない形）。**G-D2** = **案内文書が名指ししたパスが「追跡されて」いるか**（⚠️ **`exists()` で見てはいけない** — 手元の作業ツリーには生成物が残っているので**手元だけ緑**になる。実際に初回 CI がそれで落ちた = C-041 の形）。⚠️ `check_doc_commands.py` は `uv run …` の前置がある形しか拾わないので、**表のセルの素の `scripts/xxx.py` が見えない** —消したスクリプト 2 本がそこに残っていた。⚠️ **見ないもの**: 数値が**同じ行**に在るか / 散文の主張 / **一次ソース 2 本**（追記専用なので対象外）。CI で回る |
-| テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **3 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 7 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
+| テスト | `scripts/check_attribution.py` | **帰属義務の成果物**（C-080 / C-081 の再発防止）。**G-A1** = (A) ブロックが **4 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html` / `arduino/NOTICE.txt`）/ **G-A2** = §3.1 が「在る」と書いたライセンス全文が**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数を**本文から読み取って**照合）。陽性対照 9 件。⚠️ **`NOTICE.md` の写しを見るゲートは、2026-09-10 まで 1 本も無かった** — `check_web_gates.sh` の G-W7 は `web/index.html` しか見ず、しかも emcc が要る。⚠️ **リリース資産の中身と `samples.zip` の中は見ない** |
+| テスト | `scripts/build_arduino_lib.py` | **Arduino ライブラリの生成器**（[D-065](docs/decisions.md#d-065)）。`--check` = **G-AR1**: `arduino/src/core/` の各ファイルが「前置き + `csrc`/`esp32` の**逐語** + 後置き」か（**集合も比べる**ので余計なファイルでも落ちる）。陽性対照 7 件。⚠️ **`arduino/src/core/` は git 管理外** — clone しただけでは無い。⚠️ 取り込んだ Open JTalk に前置きを足すのは**改変**なので `arduino/NOTICE.txt` に明記してある |
+| テスト | `bash scripts/ci_arduino_build.sh` | **G-AR2**（かな / 漢字+M5 / 非 S3 の 3 構成がビルドできるか）+ **G-AR6**（`saanotts_int8.c.o` の PIE 命令が **74**。陰性対照は非 S3 で 0）。⚠️ **G-AR6 が要るのは、ビルドが通っても PIE が黙って無効になるから** — `sdkconfig.h` の読み忘れ（`CONFIG_IDF_TARGET_ESP32S3` が見えない）と Arduino 既定の `-Os`（ESP-IDF は `-O2`）で、**音は出るが 2 倍以上遅い**形になる。CI で回る |
+| テスト | `bash scripts/ci_arduino_zip.sh` | **G-AR3 / G-AR7** — リリース .zip から引いて **PlatformIO と arduino-cli の両方**でビルドし、**ELF に `g_saan_model_blob` が 654,032 B / `.rodata` で在るか**を見る。⚠️ **条件つき include だと重みを入れてあるのに使われない**（コンパイルは通り、実行時に「入れること」と言う）。CI で回る |
+| テスト | `bash scripts/check_arduino_qemu.sh` | ⭐ **G-AR4 — Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するか**（QEMU）。**他の Arduino ゲートは全部「ビルドが通るか」しか言っていない。** W8A8+PIE `0x390bf4b2aef8f2ec` / 27,136 sample と W8A32 `0x9cbe622a4a53af7e` / 27,648 sample の**両方**を見る（W8A8 だけだと PIE 無効でも同じ値が出る）。⚠️ **v3 の値（`0xa69a…` / `0xe4b6…`）と混ぜない** — 実際にこれで一度間違えた。⚠️ ESP-IDF + QEMU が要るので **CI では回らない** |
 | テスト | `scripts/test_cve_reach.py` | **Dependabot が名指しした脆弱 API が実経路で呼ばれないか**（nltk 6 + transformers 4 の 10 sink / 陰性対照 `load_from_json` / 陽性対照は `--self-test` の 5 件）。実測は発火 **0 / 10**（[`docs/measurements.md`](docs/measurements.md) M-111 / 決定は D-053）。⚠️ **主張は「呼ばれない」だけで「パッケージが安全」ではない**。⚠️ **CI では回らない** — piper-plus の checkout / `nltk_data` / 教師 snapshot の `config.json` が要り、**最後のものが private**（`scripts/check_ci_coverage.py` の `EXCLUDED_SCRIPTS` に理由つきで登録）。⚠️ **手で走らせるゲートはいずれ走らせなくなる** |
 | hook | `.claude/hooks/guard_bash.py` | Bash 実行前。piper-plus への書き込み / `pip install` / uv 非経由の python / **本番ラベルパックの破棄** / **既存パックへの再生成** / **公式実装 (GPL-3.0) のソース取得** / **staged なコーパス本文を含む `git commit`** / **古い ckpt での成果物の上書き**（M-102）を deny（**105 ケース + commit ガード 6 件**の回帰テスト付き） |
 | 宣言 | `settings.json` の `permissions.deny` | Edit/Write ツールでの piper-plus 改変を禁止 |
@@ -752,6 +756,16 @@ GitHub Pages で「漢字文を打つと喋る」デモを配る（[D-050](docs/
 （piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 180,224 B）。
 実測は M-94（node）/ **M-95（Chrome 152）** / **M-96（聴取）**。**ブラウザで PCM が node と bit 一致**し、短文が **0.008〜0.019 ×RT** で合成でき、**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定**。
 ⚠️ 上流も WASM デモを配っているが、**D-032（GPL ソースを読まない）は維持**する。
+
+⚠️ **2026-09-13、A トラック（Arduino / PlatformIO ライブラリ）を足した（[D-065](docs/decisions.md#d-065)）。**
+`csrc/` と `esp32/main/` を**書き換えずに** `arduino/` のライブラリにして、
+**リリース .zip 2 本**（コード MIT / 重み `LicenseRef-sanoTTS-jp-Model-1.0`）で配る。
+⚠️ **PlatformIO は git のサブディレクトリを指せない**ので、`lib_deps` に書けるのは .zip の直 URL だけ。
+⚠️ **`arduino/src/core/` は生成物で git 管理外**（`scripts/build_arduino_lib.py`。`--check` が csrc の逐語であることを証明する）。
+実測は [M-137](docs/measurements.md#m-137): **PCM は ESP-IDF ビルドと bit 一致**
+（W8A8+PIE `0x390bf4b2aef8f2ec` / W8A32 `0x9cbe622a4a53af7e`。QEMU）。
+⚠️ **実機で鳴らしていない** — xRT もアンダーランも未測定。
+⚠️ **公式の PlatformIO `espressif32` では動かない**（arduino-esp32 2.0.17 / ESP-IDF 4.4）。pioarduino が要る。
 
 したがって:
 - **成果物は 567 K の embedded tier**（論文で SCOREQ 2.54 / ESP32-S3 で 0.22× RT）
