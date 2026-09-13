@@ -38,7 +38,15 @@ extern "C" {
  * n_ids=350 の最小 arena 160,768 B（W8A32）/ W8A8 の高水位 ≈ 158.9 KB。
  * ⚠️ **漢字経路（Viterbi と NJD）はこの同じ arena を借りる。** 別に確保しない。 */
 #define SANOTTS_ARENA_BYTES (176 * 1024)
+
+#if SANOTTS_ARENA_HEAP
+/* ⚠️ **16 バイト境界が要る**（PIE の SOC_SIMD_PREFERRED_DATA_ALIGNMENT）。
+ *    `heap_caps_aligned_alloc` が保証する。取れなければ `begin()` が失敗する。 */
+#include <esp_heap_caps.h>
+static uint8_t* g_arena;
+#else
 static __attribute__((aligned(16))) uint8_t g_arena[SANOTTS_ARENA_BYTES];
+#endif
 
 #if SANOTTS_ENABLE_KANJI
 /* ⚠️ 漢字経路の作業領域が arena に収まらないと、`layout()` が NULL を返して
@@ -64,6 +72,23 @@ static jdict_t g_dict;
 /* --- 起動 ------------------------------------------------------------------ */
 bool SanoTTS::begin() {
     if (m_ready) return true;
+
+#if SANOTTS_ARENA_HEAP
+    if (!g_arena) {
+        /* ⚠️ **PSRAM を先に試す。** 内部 DRAM に 176 KB 取れる板ばかりではない。
+         *    ⚠️ ただし PSRAM の arena は遅い（未測定）ので、速度を測るなら
+         *    SANOTTS_ARENA_HEAP=0（静的）にすること。 */
+        g_arena = (uint8_t*)heap_caps_aligned_alloc(
+            16, SANOTTS_ARENA_BYTES, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT);
+        if (!g_arena)
+            g_arena = (uint8_t*)heap_caps_aligned_alloc(
+                16, SANOTTS_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
+        if (!g_arena) {
+            m_err = "arena 180,224 B を確保できない（PSRAM も内部 DRAM も）";
+            return false;
+        }
+    }
+#endif
 
     if (!saan_model_open(&g_w)) {
         m_err = "重みを開けない。重みライブラリ（SanoTTS-jp-voice-tsukuyomi-v4）を"
