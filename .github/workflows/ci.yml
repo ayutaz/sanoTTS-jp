@@ -68,7 +68,7 @@ jobs:
       #    §3.1 の帰属ブロックの**写しが 3 か所で一致しているか**も見ない。
       #    C-080（web/index.html の写しを置き去り）と C-081（同梱義務を書いたのに
       #    全文ファイルが無い）がその穴で、**どちらもこのゲートが無い間に起きた**。
-      - name: 帰属義務の成果物（G-A1 写しの一致 / G-A2 同梱した全文。陽性対照 7 件）
+      - name: 帰属義務の成果物（G-A1 写しの一致 / G-A2 同梱した全文。陽性対照 9 件）
         run: |
           uv run --no-project --python 3.12 python scripts/check_attribution.py
           uv run --no-project --python 3.12 python scripts/check_attribution.py --self-test
@@ -387,3 +387,81 @@ jobs:
           emcc --version | head -n 1
           node --version
           bash scripts/check_web_gates.sh
+
+  # ------------------------------------------------- Arduino / PlatformIO ライブラリ
+  # ⚠️ **ここが見ているのは「ビルドが通るか」と「PIE が効いているか」だけ。**
+  #    「同じ音が出るか」は G-AR4（scripts/check_arduino_qemu.sh）で、
+  #    ESP-IDF + QEMU + 重みが要るので CI では回らない。
+  arduino:
+    name: arduino（PlatformIO でビルドが通るか・PIE が効いているか）
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      # PlatformIO の toolchain（約 1 GB）は毎回落とすと遅いので残す。
+      # ⚠️ **key に platform の版を入れる。** 入れないと platform を上げたときに
+      #    古い toolchain が当たって「上げたつもりで上がっていない」形になる。
+      - name: PlatformIO のキャッシュ
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio
+          key: pio-55.03.311-${{ runner.os }}
+
+      # arduino-esp32 のコア（約 1 GB）も残す。⚠️ **版を key に入れる。**
+      - name: arduino-cli のキャッシュ
+        uses: actions/cache@v4
+        with:
+          path: ~/.arduino15
+          key: acli-esp32-3.3.11-${{ runner.os }}
+
+      - name: arduino-cli を入れる（Arduino IDE の経路を検証するため）
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL https://raw.githubusercontent.com/arduino/arduino-cli/master/install.sh \
+            | BINDIR="$HOME/.local/bin" sh
+
+      # ⚠️ **`uv sync` は使えない。** `[tool.uv.sources]` の piper-plus が
+      #    **手元の絶対パス**なので CI では解決できない（`python` job が
+      #    `uv venv` + `uv pip` を使っているのと同じ理由）。
+      #    `uv run --with` なら一時環境に入るので `uv pip` も要らない。
+      #    版の制約は `pyproject.toml` の `arduino` extra（`uv add` で入れた）にある。
+      - name: PlatformIO を使えるようにする
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          printf '#!/usr/bin/env bash\nexec uv run --no-project --with platformio -- pio "$@"\n' \
+            > "$HOME/.local/bin/pio"
+          chmod +x "$HOME/.local/bin/pio"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      # ⚠️ **版を必ず出力に残す。** 「6.2.0 のつもりで別の版だった」はログを見ない限り気づけない。
+      - name: 版を出す
+        run: |
+          pio --version
+          arduino-cli version
+
+      # ⚠️ **G-AR1 をここにも書く。** ci_arduino_build.sh の中でも回るが、
+      #    `scripts/check_ci_coverage.py` は ci.yml の実行行しか見ないので、
+      #    ここに名前が無いと「生成器は CI で回っていない」と判定される。
+      - name: G-AR1 生成物が csrc の逐語か（陽性対照 7 件）
+        run: |
+          uv run --no-project --python 3.12 python scripts/build_arduino_lib.py --self-test
+          uv run --no-project --python 3.12 python scripts/build_arduino_lib.py
+          uv run --no-project --python 3.12 python scripts/build_arduino_lib.py --check
+
+      # G-AR2（3 構成でビルド）+ G-AR6（PIE の命令数。陰性対照つき）
+      - name: G-AR2 / G-AR6
+        run: PIO=pio bash scripts/ci_arduino_build.sh
+
+      # ⚠️ **.zip も実際に組んで、そこから引いてビルドする。** ソースツリーから
+      #    symlink で引くのと .zip から引くのは別の経路で、**片方だけ壊れる**
+      #    （中身の取りこぼし / 階層の間違い / 重みライブラリが見つからない）。
+      - name: 重みを落とす（タグ固定）
+        run: gh release download v1.0.0 -R ayutaz/sanoTTS-jp -p saanotts-jp-v4-int8.bin -D /tmp/w
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: G-AR3 .zip を組んで、そこから引いてビルドする
+        run: PIO=pio bash scripts/ci_arduino_zip.sh

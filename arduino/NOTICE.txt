@@ -1,0 +1,85 @@
+sanoTTS-jp — Arduino / PlatformIO ライブラリ / NOTICE
+=====================================================
+
+このファイルは 2 つのことを書いている。
+
+  1. 重み（SanoTTS-jp-voice-* ライブラリ）を配る・組み込むときの**帰属義務**
+  2. このライブラリが**取り込んだ第三者のコードと、それに加えた改変**
+
+
+1. 帰属義務（LicenseRef-sanoTTS-jp-Model-1.0 §3.1）
+---------------------------------------------------
+
+⚠️ **重みを含む製品を配る側は、下のブロックをそのまま表示する義務がある。**
+正典は同梱の `LICENSE-MODEL.md` §3.1。⚠️ **出力の用途制限 4 項目（§3.2）と
+コピーレフトもある。** 「商用利用可」だけを見て組み込むと義務を落とす。
+
+--- ここから（一字一句この通り）---
+This model was distilled from a piper-plus teacher model.
+sanoTTS-jp — https://github.com/ayutaz/sanoTTS-jp
+
+つくよみちゃんコーパス
+  本ソフトウェアの音声合成には、フリー素材キャラクター「つくよみちゃん」
+  （© 夢前黎）が無料公開している音声データを使用しています。
+  https://tyc.rei-yumesaki.net/material/corpus/
+
+教師 base の学習に使用した音声コーパス
+（⚠️ 改変あり: いずれも音声合成モデルの学習に使用しています）:
+  - LibriTTS-R (en) — Koizumi et al., 2023 — CC BY 4.0
+      素材:       https://www.openslr.org/141/
+      ライセンス: https://creativecommons.org/licenses/by/4.0/
+  - CML-TTS (es / fr / pt) — freds0 et al. — CC BY 4.0
+      素材:       https://github.com/freds0/CML-TTS-Dataset
+      ライセンス: https://creativecommons.org/licenses/by/4.0/
+  - AISHELL-3 (zh) — Shi et al., 2020 — Apache-2.0
+      素材:       https://www.aishelltech.com/aishell_3
+      ライセンス: https://www.apache.org/licenses/LICENSE-2.0
+  上記 3 素材は現状のまま (AS IS) 提供され、明示・黙示を問わず保証はありません。
+
+蒸留に使用したテキストコーパス:
+  - JSUT ver1.1 (高道慎之介) — CC-BY-SA-4.0 ほか（subset 別）
+      https://sites.google.com/site/shinnosuketakamichi/publication/jsut
+      ライセンス: https://creativecommons.org/licenses/by-sa/4.0/
+      ⚠️ **v4 以降の重みでは不要**（下記）
+--- ここまで ---
+
+
+2. 取り込んだ第三者のコードと、加えた改変
+------------------------------------------
+
+### Open JTalk（`src/core/openjtalk/`）
+
+出所とライセンスは `src/core/openjtalk/PROVENANCE.md` と `COPYING`（修正 BSD）。
+
+⚠️ **改変している。** `scripts/build_arduino_lib.py` が各 .c の先頭に次を足し、
+末尾に対応する 1 行を足している。**本文は 1 バイトも変えていない。**
+
+  前置き（各 .c）:
+    - 生成物であることを示す 4 行のコメント
+    - #include "../../sanotts_config.h"       ← フラグを届ける唯一の手段
+    - #include "../oj_heap_psram.h"           ← 一時ヒープを PSRAM に向ける
+    - #pragma GCC optimize("O2")              ← Arduino の既定 -Os を打ち消す
+    - #if SANOTTS_ENABLE_KANJI
+  後置き（各 .c）:
+    - #endif
+
+なぜ必要か: Arduino のライブラリ仕様（1.5 format）には**ライブラリが独自の -D や
+ファイル単位のコンパイルオプションを渡す手段が無く**、しかも src/ を**再帰的に**
+コンパイルする。ESP-IDF 版は CMake の `target_compile_definitions` と
+`set_source_files_properties(-include ...)` で同じことをしていて、そちらでは
+本文も前置きも要らない。
+
+⚠️ **「本文が逐語である」ことは毎回機械で確かめている** —
+`scripts/build_arduino_lib.py --check`（G-AR1）が前置きと後置きを剥がして
+`csrc/openjtalk/` の元ファイルと bytes で比べ、陽性対照 7 件を通す。
+.h とルール表、`COPYING`、`PROVENANCE.md` は**前置きも付けずに逐語コピー**している。
+
+### 推論コアほか（`src/core/` の残り）
+
+`csrc/` と `esp32/main/` と `esp32/components/saanotts_core/` から同じ規則で
+生成している（MIT。このリポジトリ自身のコード）。
+
+### 辞書
+
+辞書 blob はこのライブラリに含まれない（13.7 MB のリリース資産）。
+帰属は `NOTICE-dictionary.txt`（リリース資産）を見ること。

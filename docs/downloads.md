@@ -59,5 +59,28 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 ⚠️ **4 MB / 2 MB は第三者の実機で鳴りましたが**（[M-109](measurements.md#m-109)。PSRAM 無しの ATOMS3 でも）、
 **checksum・定常 xRT・アンダーランは今も報告がありません**。私自身も再現していません。
 
+
+## ⏳ まだリリースに無いもの — Arduino / PlatformIO ライブラリ
+
+⚠️ **下の 2 本は `v1.0.0` には入っていません**（[D-065](decisions.md#d-065) は `v1.0.0` の後）。
+**上の表にわざと載せていません** — 載せると `scripts/check_release_assets.py` が
+「在るはずのものが無い」で CI を落とします（それがこのゲートの目的です = [C-052](decisions.md#c-052)）。
+
+| これから足すファイル | 何 | ライセンス |
+|---|---|---|
+| `sanoTTS-jp-arduino.zip` | Arduino / PlatformIO ライブラリ（C99 コア + G2P + 辞書リーダ + Open JTalk + C++ ラッパー） | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | 重み 654,032 B を `aligned(16)` の C 配列にしたもの | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
+
+作り方（重み blob が要ります）:
+
+```bash
+gh release download v1.0.0 -R ayutaz/sanoTTS-jp -p saanotts-jp-v4-int8.bin -D /tmp/w
+uv run --no-project python scripts/build_arduino_lib.py \
+    --zip arduino/dist --version <ver> --blob /tmp/w/saanotts-jp-v4-int8.bin
+```
+
+⚠️ **上げるまで [`arduino/README.md`](../arduino/README.md) が書いた
+`releases/latest/download/...` の URL は動きません**（残タスク 19）。
+
 検証用の [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) は**履歴として残してあります**（中身は v0.3.1 の 8 本と bit 同一）。
 

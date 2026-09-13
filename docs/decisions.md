@@ -5688,6 +5688,10 @@ cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30  (202 行 / 11,
 | **G-A1** | (A) ブロックが **3 か所で一字一句一致**（正典 `LICENSE-MODEL.md` §3.1 / `NOTICE.md` / `web/index.html`） |
 | **G-A2** | §3.1 が「在る」と書いたライセンス全文が、**書いてある姿で在るか**（存在 + sha256 + 行数 + バイト数） |
 
+> ⏩ **上の「3 か所」は 2026-09-10 時点の値。今は 4 か所**
+> （`arduino/NOTICE.txt` が加わった = [D-065](#d-065)。陽性対照も 7 → 9 件）。
+> ⚠️ **この節は書き換えない** — 訂正履歴は当時の姿のまま残す。
+
 **数値をスクリプトに焼いていない** — 本文の
 `✅ …[X](X)… に在る（… sha256 `…` / N 行 M B）` を**読み取って**実ファイルと比べる。
 片方だけ直すと落ちる。
@@ -6923,3 +6927,186 @@ v0.3.0 の公開は 2026-09-03 07:53 UTC なので、**注記は書かれた瞬�
   `kanji_e2e_vectors.bin`（19 MB）と `ids_heldout.bin` にもあり、**今回と同じ形かもしれない**
 - **理由の真偽を機械が見る仕組みは無い。** `scripts/check_ci_coverage.py` は
   「除外に理由が**書いてあるか**」しか見ない（[C-071](#c-071) と同じ限界）
+
+---
+
+## D-065: **Arduino / PlatformIO ライブラリはリリース .zip 2 本で配る**（コード MIT / 重みは別ライセンス）
+
+**日付**: 2026-09-13
+**きっかけ**: ユーザーの要望。上流 sanoTTS が `arduino/` にライブラリを持っていて
+`lib_deps` 1 行で引けることを教えてもらった（⚠️ **[D-032](#d-032) は維持** — GPL-3.0 の
+ソースは読んでいない。参照したのは README のスクリーンショットと、PlatformIO /
+Arduino の公開仕様だけ）。
+**実測**: [M-137](measurements.md#m-137) / **設計**: [`docs/superpowers/specs/2026-09-13-arduino-platformio-library-design.md`](superpowers/specs/2026-09-13-arduino-platformio-library-design.md)
+
+### 決めたこと
+
+| # | 決定 |
+|---|---|
+| 1 | **Arduino IDE と PlatformIO の両方**を対象にする |
+| 2 | 公開 API は **PCM を返すのが主**。スピーカーは差し込み式（M5Unified / 汎用 I2S を同梱） |
+| 3 | 重みは**既定で `.rodata` 埋め込み**、上級者はパーティション（`SANOTTS_MODEL_FROM_PARTITION=1`） |
+| 4 | ライブラリは**このリポジトリの `arduino/`** に置く |
+| 5 | `src/core/` の実体は**生成物にし、git に置かない** |
+| 6 | 配布は**リリース .zip 2 本**（コード = MIT / 重み = `LicenseRef-sanoTTS-jp-Model-1.0`） |
+
+### なぜ .zip なのか — 選べなかった
+
+⚠️ **PlatformIO は git リポジトリのサブディレクトリを指せない。** `library.json` は
+リポジトリ直下にある必要がある（[pkg install の仕様](https://docs.platformio.org/en/latest/core/userguide/pkg/cmd_install.html) /
+[platformio-core#3887](https://github.com/platformio/platformio-core/issues/3887)）。
+したがって `arduino/` に置いたまま `lib_deps = https://github.com/ayutaz/sanoTTS-jp` とは**書けない**。
+
+一方 **`.zip` / `.tar.gz` の直 URL は公式にサポートされている**ので、
+**リリース .zip が PlatformIO と Arduino IDE の両方で使える唯一の 1 本**になる。
+
+⚠️ **リポジトリ直下を library 化する案は捨てた。** それなら `lib_deps = <GitHub URL>` は
+動くが、**Arduino IDE の `.zip` 形式（`library.properties` + `src/` 固定）と両立しない**うえ、
+`runs/` や `reports/` 込みのリポジトリ全体を clone させることになる。
+
+### なぜ実体を生成するのか
+
+⚠️ **Arduino は `src/` を「すべてのサブフォルダも含めて」再帰的にコンパイルし、
+実体が無いとコンパイルしない**（[library 1.5 spec](https://arduino.github.io/arduino-cli/1.5/library-specification/)）。
+一方 `esp32/components/saanotts_core/CMakeLists.txt` は
+**「csrc/ をコピーもシンボリックリンクもしない」**を明示的な方針にしている。
+
+折衷点が `scripts/build_arduino_lib.py`: **実体は生成物にして git には置かない**
+（`arduino/src/core/` は `.gitignore`）。生成規則を 1 つに絞り、`--check`（G-AR1）が
+**前置きと後置きを剥がして元ファイルと `bytes` で比べる**。陽性対照 7 件。
+
+⚠️ **取り込んだ Open JTalk への前置きは「改変」にあたる。** `k4b_vendor.py --check` は
+`csrc/openjtalk/` を見るので通るが、`arduino/NOTICE.txt` に明記した
+（前置き 5 行 + 後置き 1 行。本文は 1 バイトも変えていない）。
+
+### なぜ設定ヘッダ 1 枚なのか
+
+⚠️ **Arduino のライブラリ仕様には、ライブラリが独自の `-D` やファイル単位の
+コンパイルオプションを渡す手段が無い。** ESP-IDF 版で CMake が渡していた
+`SAAN_INT8_ACT` / `SAAN_PIE` / `CHARSET_UTF_8` / `LABEL_IDS_EXTERNAL_SCRATCH` /
+`SAAN_PORT_HEADER` は、**各翻訳単位の先頭で `arduino/src/sanotts_config.h` を読む**以外に届かない。
+
+⚠️ **`SANOTTS_*`（ユーザーが触る面）と `SAAN_*`（コアの内部フラグ）を分けた。**
+混ぜると「ユーザーが `SAAN_PIE` だけ立てた」形が作れてしまう
+（[D-048](#d-048) が構造で潰した不変条件を、ライブラリでも守る）。
+
+⚠️ **CMake との挙動の違いを 1 つだけ意図的に入れた。** ESP-IDF 版は S3 以外で
+`SAAN_ENABLE_PIE=1` を `FATAL_ERROR` にしているが、ライブラリでは**既定は自動で
+W8A32 に落とす**（板を選ぶのは使う人）。手で `SANOTTS_ENABLE_PIE=1` を立てた場合だけ `#error`。
+
+### ⚠️ ビルドが通ることは何の証拠にもならなかった — 3 つ黙る穴を踏んだ
+
+M-137 の §3 と §6 に実測がある。**どれもビルドは成功する。**
+
+| 穴 | 症状 | 塞ぎ方 |
+|---|---|---|
+| `sdkconfig.h` を読まず `CONFIG_IDF_TARGET_ESP32S3` が見えない | PIE が黙って無効。**音は出るが 2 倍以上遅い** | `sanotts_config.h` で include。**G-AR6** が `ee.` の数を見る |
+| Arduino の既定が `-Os`（ESP-IDF は `-O2`） | PIE 命令 74 → 67 | 生成器の前置きに `#pragma GCC optimize("O2")` |
+| `<saanotts_jp_voice.h>` を条件つき include | **重みを入れてあるのに使われない**。実行時に「入れること」と言う | 無条件 include。**G-AR7** が ELF の `g_saan_model_blob` を直接見る |
+
+### 要求する版
+
+⚠️ **公式の PlatformIO `espressif32` プラットフォームでは動かない**（arduino-esp32 2.0.17 /
+ESP-IDF 4.4.7 で、`ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も無い）。
+**pioarduino**（arduino-esp32 3.x）を指定する。Arduino IDE は Boards Manager の現行版が 3.x。
+
+### ⚠️ 残っているもの
+
+- **実機で鳴らしていない。板が無い。** 言えるのは QEMU の checksum 一致（G-AR4）までで、
+  **xRT もアンダーランも鳴らし始めまでの時間も未測定**。⚠️ **同じ PCM が出ることと、
+  間に合って出ることは別**（残タスク 11 と同じ扱い）
+- **Arduino IDE の GUI は触っていない**（検証は arduino-cli 1.5.1）。
+  ⚠️ スケッチフォルダの `partitions.csv` は[IDE 2.x で効かない報告](https://github.com/espressif/arduino-esp32/issues/10120)があり、
+  **漢字は PlatformIO を推奨**としてドキュメントに書いた
+- **Arduino ビルドで漢字を実際に喋らせていない**（コンパイルは通っている）
+
+---
+
+## C-096: **`check_release_assets.py` が第三者のリリース URL を「このプロジェクトの repo」と誤認した**（2026-09-13）
+
+**症状**: `arduino/README.md` と `README.md` に PlatformIO の手順を書いた
+（[D-065](#d-065)）ところ、CI の `release-assets` job が落ちた:
+
+```
+pioarduino/platform-espressif32 / ドキュメントの表から 1 タグ・22 件の資産名を拾った
+NG! ⚠️ GitHub API に届かない（HTTPError: HTTP Error 404: Not Found）
+```
+
+**原因**: `collect()` が **repo をファイル全体の最初の
+`github.com/<owner>/<repo>/releases` から**取っていた。⚠️ **公式の PlatformIO
+プラットフォームでは動かない**ので手順に
+
+```
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
+```
+
+と書く必要があり、これが `README.md` の中で `ayutaz/sanoTTS-jp` より**前に来た**。
+その repo に `v1.0.0` は無いので 404 になり、**「API に届かない」という
+まったく別の原因**として表示された。
+
+**直し方**: **repo は「資産の行」からしか取らない。** 資産名とタグが同じ表の行に在る以上、
+repo も同じ行から取るのが正しい。陽性対照を 1 件足した（第三者の URL を先に置いた合成入力で、
+`ayutaz/sanoTTS-jp` を返すこと）。
+
+### 一般化
+
+⚠️ **「ドキュメントから拾う」ゲートは、ドキュメントが増えると意味が変わる。**
+このゲートは「README に名前を書いた資産は実在すること」を守るために作られたが、
+**README が書く URL がこのプロジェクトのものだけだという前提**が暗黙にあった。
+その前提は**書いた本人しか知らない**ので、破れたときに出るのは
+「repo を取り違えた」ではなく「API に届かない」という**症状だけ**だった。
+
+⚠️ **同じ形が他にもありうる。** `check_doc_links.py` / `check_doc_commands.py` /
+`check_doc_claims.py` はどれもドキュメントを読んで何かを要求する。
+**外部のものを書いた瞬間に前提が破れないか**を、足すときに考えること。
+
+⚠️ **ゲートが落ちたら、まずゲートの主張を読む。** 今回「API に届かない」を
+ネットワークやトークンの問題と読んでいたら、**`--offline-ok` を足して
+黙らせる**という最悪の直し方に行けた。**出力の 1 行目（拾った repo 名）に答えがあった。**
+
+---
+
+## C-097: **リリース資産の名前に版を入れると `releases/latest/download/…` が 404 になる**（2026-09-13）
+
+**症状（上げる前に気づいた）**: [D-065](#d-065) のドキュメントは
+
+```
+lib_deps = https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+```
+
+と書いていたが、`scripts/build_arduino_lib.py --zip --version 1.1.0` が作るのは
+**`sanoTTS-jp-arduino-1.1.0.zip`** だった。⚠️ **`releases/latest/download/<名前>` は
+資産名の完全一致を要求する**ので、**資産を上げても README の 1 行目が 404 になる**。
+
+**直し方**: **資産名から版を外した**（`sanoTTS-jp-arduino.zip` /
+`sanoTTS-jp-voice-tsukuyomi-v4.zip`）。版は `library.properties` / `library.json` の中
+（`version=1.1.0`）にあり、Arduino IDE と PlatformIO はそちらを見る。
+**1 つのファイルで 2 つの URL が生きる**:
+
+| URL | 何 |
+|---|---|
+| `releases/latest/download/sanoTTS-jp-arduino.zip` | 常に最新 |
+| `releases/download/v1.1.0/sanoTTS-jp-arduino.zip` | **版を固定したい人向け** |
+
+### なぜ既存のゲートで捕まらなかったか
+
+⚠️ **`check_release_assets.py` は「表の行」しか見ない**（`| `名前` | [タグ](…) | … |`）。
+`lib_deps` の行は**コードフェンスの中**なので、**資産名として存在すら認識されていなかった**。
+[C-052](#c-052) の再発防止は「表に書いた名前は実在すること」であって、
+**「本文が書いた URL が解決すること」は誰も見ていなかった。**
+
+**足したゲート — G-AR8**（`build_arduino_lib.py --check`。ネットワーク不要）:
+ドキュメント 5 本の `releases/latest/download/sanoTTS-jp-*` を拾い、
+**生成器が実際に作る名前と突き合わせる**。陽性対照 2 件
+（版つきの名前を書く / URL を全部消す → **どちらも落ちる**）。
+⚠️ 「1 つも書かれていない」も NG にしてある（**空 == 空 で満点を取らせない**）。
+
+### 一般化
+
+⚠️ **「ドキュメントに書いた URL が本当に解決するか」を見るゲートは、まだこれ 1 本だけ。**
+`check_doc_links.py` は**相対リンクしか見ない**（外部 URL は見ない）と自分で書いてある。
+**外部 URL を書いたら、それが解決することを別途確かめること。**
+
+⚠️ **リリース前に気づけたのは偶然ではない** — 「上げれば動くはず」と書かずに、
+**実際の URL と実際のファイル名を並べて `grep` した**から。
+[M-137](measurements.md#m-137) の「⚠️ 測っていないもの」を書くときに同じ目で見ていた。

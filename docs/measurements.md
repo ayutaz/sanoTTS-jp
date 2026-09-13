@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（136 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（137 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -177,6 +177,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-134](#m-134) | 辞書の SHA-256 検査を実装した |
 | [M-135](#m-135) | v4 の音を初めて対照つきで聴いた |
 | [M-136](#m-136) | 辞書はリリースに在るのに CI が落としていなかった |
+| [M-137](#m-137) | Arduino / PlatformIO ライブラリ |
 
 </details>
 
@@ -12885,3 +12886,215 @@ gh run view <run-id> --log | grep 'wasm ゲート G-W1' | grep -c '  OK  '
   SHA-256 は照合していない（手元では照合したが、CI では実行時間を理由に入れていない）。
   ⚠️ 別の動作点の辞書（4 MB 版 = 3,006,656 B）を掴む形は捕まるが、**同じ大きさの別物は通る**
 - ~~**CI で実際に緑になるかは未確認**~~ → ✅ **確かめた**（§3）
+
+---
+
+## M-137. **Arduino / PlatformIO ライブラリ** — .zip 2 本で `lib_deps` 1 行になり、PCM は ESP-IDF ビルドと bit 一致した（自己実測 / M4 Max）
+
+**きっかけ**: ユーザーの要望（2026-09-13）。外の人が音を出すのに ESP-IDF v5.5 を入れて
+`idf.py` に 5 つのフラグを渡し、辞書を自分で作る必要がある状態を、`lib_deps` 1 行にする。
+設計は [`docs/superpowers/specs/2026-09-13-arduino-platformio-library-design.md`](superpowers/specs/2026-09-13-arduino-platformio-library-design.md)、
+決定は [D-065](decisions.md#d-065)。
+
+**環境**（⚠️ **公式の `espressif32` では動かない**。§2 を見ること）:
+
+| | |
+|---|---|
+| PlatformIO Core | **6.2.0**（`uv sync --extra arduino`） |
+| platform | **pioarduino 55.03.311** = arduino-esp32 **3.3.11** / ESP-IDF **v5.5.5** |
+| arduino-cli | **1.5.1** + `esp32:esp32` **3.3.11**（Boards Manager 経由） |
+| 重み | リリース `v1.0.0` の `saanotts-jp-v4-int8.bin`（654,032 B / sha256 `a1eb6b0812e2ad2a…`） |
+
+### 1. 生成物は csrc/ の逐語である（G-AR1）
+
+```bash
+uv run --no-project --python 3.12 python scripts/build_arduino_lib.py --self-test
+uv run --no-project --python 3.12 python scripts/build_arduino_lib.py
+uv run --no-project --python 3.12 python scripts/build_arduino_lib.py --check
+```
+
+```
+OK  陽性対照 7 件（落ちるべきものが落ちた: 7/7）
+OK  arduino/src/core/ に 72 件を生成した（⚠️ git 管理外。`--check` で csrc との一致を確かめる）
+OK  G-AR1 生成物 72 件が csrc/ と esp32/ の逐語（前置き + 本文 + 後置き）
+```
+
+⚠️ **`arduino/src/core/` は `.gitignore`。** `csrc/` の実体をリポジトリに二重化していない
+（`esp32/components/saanotts_core/CMakeLists.txt` の方針を守るため）。
+
+### 2. ⚠️ 公式の `espressif32` プラットフォームではビルドが通らない
+
+素の `platform = espressif32` は **arduino-esp32 2.0.17（ESP-IDF 4.4.7）**を引く。
+実際に出たエラー（`pio pkg list` は `framework-arduinoespressif32 @ 4.20017.260907`）:
+
+```
+core/saan_dict.c:147:40: error: 'ESP_PARTITION_MMAP_DATA' undeclared
+core/saan_dict.c:317:5: warning: implicit declaration of function 'esp_partition_munmap'
+```
+
+`ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も **ESP-IDF 5.0 以降**にしか無い。
+→ **pioarduino（arduino-esp32 3.x）が要る。** Arduino IDE は Boards Manager の
+現行版が 3.x なのでそのままでよい。
+
+### 3. ⚠️ PIE が黙って無効になっていた — Arduino には 2 つの穴がある
+
+**どちらもビルドは成功し、音も出て、遅いだけなので気づけない形。**
+
+**(a) `sdkconfig.h` を読んでいなかった。** `CONFIG_IDF_TARGET_ESP32S3` が見えず、
+`SANOTTS_ENABLE_PIE` が 0 に落ちていた（`saanotts_int8.c.o` の `ee.` が **0**）。
+ESP-IDF 版は CMake が `IDF_TARGET` を見ているのでこの穴が無い。
+
+**(b) Arduino の既定は `-Os`、ESP-IDF 版は `-O2`**（`CONFIG_COMPILER_OPTIMIZATION_PERF=y`）。
+
+```bash
+GCC=~/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-gcc
+OD=~/.platformio/packages/toolchain-xtensa-esp32s3/bin/xtensa-esp32s3-elf-objdump
+for opt in -O2 -Os; do
+  $GCC -mlongcalls $opt -std=c99 -w -DSAAN_INT8_ACT=1 -DSAAN_PIE=1 \
+      -c csrc/saanotts_int8.c -o /tmp/i8$opt.o
+  echo "$opt → $($OD -d /tmp/i8$opt.o | grep -c 'ee\.')"
+done
+# 陽性対照: -Os に pragma を足すと -O2 に戻るか
+printf '#pragma GCC optimize("O2")\n' > /tmp/prag.c && cat csrc/saanotts_int8.c >> /tmp/prag.c
+$GCC -mlongcalls -Os -std=c99 -w -I csrc -DSAAN_INT8_ACT=1 -DSAAN_PIE=1 -c /tmp/prag.c -o /tmp/prag.o
+echo "-Os + pragma → $($OD -d /tmp/prag.o | grep -c 'ee\.')"
+```
+
+| ビルド | PIE 命令数 |
+|---|---:|
+| `-O2`（ESP-IDF 版と同じ） | **74** |
+| `-Os`（Arduino の既定） | **67** |
+| `-Os` + `#pragma GCC optimize("O2")` | **74** |
+
+⚠️ **74 / 67 は GCC 8.4.0（PlatformIO）と 14.2.0（ESP-IDF）の両方で同じ値**だった。
+→ 生成器の前置きに `#pragma GCC optimize("O2")` を入れた（**Arduino IDE には
+ライブラリ単位の最適化フラグが無い**ので、これ以外に手段が無い）。
+
+### 4. 3 構成のビルド（G-AR2 / G-AR6）
+
+```bash
+bash scripts/ci_arduino_build.sh
+```
+
+| 構成 | board | RAM | Flash | PIE 命令 |
+|---|---|---:|---:|---:|
+| かな専用（`SANOTTS_ENABLE_KANJI=0`） | esp32-s3-devkitc-1 | 219,384 | 308,505 | **74** |
+| 漢字 + M5Unified | esp32-s3-devkitc-1 | 228,356 | 541,231 | **74** |
+| 非 S3（`SANOTTS_ARENA_HEAP=1`） | esp32dev | 43,684 | 380,532 | **0**（陰性対照） |
+
+⚠️ **どれも重みを含まない**（`-DSANOTTS_NO_VOICE_LIB=1`）。RAM の大半は arena 180,224 B。
+⚠️ **非 S3 は静的 176 KB の arena が `dram0_0_seg` に入らない**ので `SANOTTS_ARENA_HEAP=1` が要る。
+
+### 5. リリース .zip 2 本（G-AR3 / G-AR7）
+
+```bash
+GH_TOKEN="$(gh auth token)" gh release download v1.0.0 -R ayutaz/sanoTTS-jp \
+    -p saanotts-jp-v4-int8.bin -D /tmp/w
+uv run --no-project --python 3.12 python scripts/build_arduino_lib.py \
+    --zip arduino/dist --version 1.1.0 --blob /tmp/w/saanotts-jp-v4-int8.bin
+bash scripts/ci_arduino_zip.sh
+```
+
+| .zip | 圧縮後 | 展開後 | ファイル数 | ライセンス |
+|---|---:|---:|---:|---|
+| `sanoTTS-jp-arduino.zip` | **293,652 B** | 877,171 B | **91** | MIT |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | **959,620 B** | 3,370,404 B | **7** | LicenseRef-sanoTTS-jp-Model-1.0 |
+
+⚠️ **資産名に版を入れていない。** `releases/latest/download/<名前>` は**完全一致**を要求するので、
+版を入れると `latest` の URL が 404 になる（[C-097](decisions.md#c-097) で実際に踏んだ）。
+版は `library.properties` / `library.json` の中（`version=1.1.0`）にあり、**1 つのファイルで
+`latest/download/…` と `download/<tag>/…` の両方が生きる**。
+突き合わせは **G-AR8**（`build_arduino_lib.py --check`。陽性対照 2 件）。
+
+**.zip から引いたビルド**（`m5stack-cores3` + `extras/partitions/sanotts_16mb.csv`）:
+
+| 経路 | RAM | Flash | 重み |
+|---|---:|---:|---|
+| PlatformIO（`lib_deps` に .zip の URL） | 224,216 | **1,067,844** | 654,032 B / `.flash.rodata` `0x3c055840` |
+| **arduino-cli**（Arduino IDE の経路） | 223,392 | **1,034,765** | 654,032 B / `.flash.rodata` |
+
+### 6. ⚠️ 重みが「入れてあるのに使われない」を踏んだ
+
+`SanoTTS.h` が `<saanotts_jp_voice.h>` を `__has_include` で条件つきに include していたとき、
+**arduino-cli は重みライブラリを最後まで足さなかった**（依存解決が「足りないヘッダの
+エラー」を起点に動くので、条件つきだとエラーが出ない）。結果:
+
+- **コンパイルは通る**
+- **Flash も 379,721 B で普通に見える**（正しくは 1,034,765 B）
+- **実行時に初めて「重みライブラリを入れること」と言う** — 入れてあるのに
+
+→ 無条件 include にし、**G-AR7 が ELF の `g_saan_model_blob` を直接見る**
+（シンボルの有無だけでなく **654,032 B であることと `.rodata` に在ること**まで）。
+⚠️ `library.properties` の `depends=` では **include パスに入らない**（実測。`depends` を
+足しても 379,721 B のままだった）。
+
+### 7. ⭐ QEMU で PCM が ESP-IDF ビルドと bit 一致した（G-AR4）
+
+**これが唯一「同じ音が出る」を証明した測定。** §1〜§6 は全部「ビルドが通るか」しか言っていない。
+
+```bash
+bash scripts/check_arduino_qemu.sh
+```
+
+```
+=== G-AR4 Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するか ===
+--- w8a8 (フラグ無し) ---
+  OK  w8a8: checksum 0x390bf4b2aef8f2ec が ESP-IDF の基準と bit 一致
+  OK  w8a8: 27136 sample（基準と同じ）
+--- w8a32 (-DSANOTTS_ENABLE_PIE=0) ---
+  OK  w8a32: checksum 0x9cbe622a4a53af7e が ESP-IDF の基準と bit 一致
+  OK  w8a32: 27648 sample（基準と同じ）
+
+OK  G-AR4 2 構成とも ESP-IDF の基準と bit 一致
+```
+
+入力は `きょ][おわよ][いて][んきです°ね`（`esp32/main/demo_ids.h` の `SAAN_DEMO_INTERMEDIATE`
+と同じ 1 行）。基準は [M-124](#m-124) / [M-130](#m-130) / [M-132](#m-132)。
+
+| 構成 | Arduino ビルド | ESP-IDF の基準 | sample |
+|---|---|---|---:|
+| W8A8 + PIE | `0x390bf4b2aef8f2ec` | **同じ** | 27,136 |
+| W8A32（`SANOTTS_ENABLE_PIE=0`） | `0x9cbe622a4a53af7e` | **同じ** | 27,648 |
+
+⚠️ **2 つとも一致して初めて「フラグが効いている」と言える。** W8A8 だけ見ると、
+PIE が無効でも同じ値が出る（PIE はスカラ実装と bit 一致するため）。
+
+⚠️ **一度これで間違えた。** 最初 `CLAUDE.md` の「PIE カーネル」節にある
+`0xa69a7ebbb5ccb05f` / `0xe4b645c30835d42d` を基準に置いたが、**あれは v3 の値**で、
+一致しているのに「違う」と出た（[M-132](#m-132) が「v3 の値と混ぜないこと」と書いている）。
+
+### 8. パーティション表
+
+```bash
+uv run --no-project --python 3.12 python scripts/check_partitions.py \
+    --file arduino/extras/partitions/sanotts_16mb.csv --rodata
+```
+
+`m5stack-cores3` + `sanotts_16mb.csv` で実ビルドし、`gen_esp32part.py` で検証:
+
+```
+factory,app,factory,0x10000,2816K,
+dict,data,65,0x2d0000,13504K,
+```
+
+`dict` の offset **0x2D0000 は `esp32/partitions_16mb.csv` と同じ**にしてあるので、
+リリースの `k1-dict-438750.bin` を**そのまま同じアドレスに焼ける**。
+app（重み抜き）は 635,103 B、重み込みで 1,067,844 B、枠は 2,883,584 B。
+
+⚠️ **PlatformIO の Flash 使用率の分母が `factory` ではなく flash 全体（16 MB）になる**
+（`factory` という名前を `app0` として認識しないため）。焼くアドレスは正しいが、
+**app が `factory` を溢れても PlatformIO は警告しない**。
+
+### ⚠️ 測っていないもの
+
+- **実機で鳴らしていない。板が無い。** `xRT` も**アンダーラン**も**鳴らし始めまでの時間**も
+  **未測定**（QEMU では測れない）。ESP-IDF 版の 0.448 / 0 / 407〜433 ms が
+  そのまま出る保証は無い — ⚠️ **同じ PCM が出ることと、間に合って出ることは別**
+- **Arduino IDE の GUI そのものは触っていない。** 検証したのは arduino-cli 1.5.1 で、
+  ⚠️ **スケッチフォルダの `partitions.csv` が IDE 2.x で効かない報告**
+  （[espressif/arduino-esp32#10120](https://github.com/espressif/arduino-esp32/issues/10120)）は**未再現**
+- **辞書を焼いた状態のビルドは QEMU でも動かしていない。** §7 はかな経路だけ。
+  漢字経路のコードはコンパイルされている（§4 の 541,231 B に入っている）が、
+  **Arduino ビルドで漢字を実際に喋らせてはいない**
+- **8 MB 表（`sanotts_8mb.csv`）はビルドしていない。** `check_partitions.py` が通っただけ
+- **音は聴いていない**（G32 と同じ）

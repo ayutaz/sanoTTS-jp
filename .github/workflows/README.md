@@ -8,15 +8,16 @@
 「**公開されているものだけで足りるか**」（コーパス・ラベルパック・private ckpt・
 凍結 sys.dic・ESP-IDF は公開されていないので入らない）。
 
-## 入れてある（[`ci.yml`](ci.yml)。**6 job**）
+## 入れてある（[`ci.yml`](ci.yml)。**7 job**）
 
 | job | 中身 | 依存 | 実測 |
 |---|---|---|---:|
-| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数（`check_doc_counters.py`） / md の相対リンク（`check_doc_links.py`。⚠️ **在るかだけ。中身は見ない**） / **docs が書いたコマンドの実体**（`check_doc_commands.py`。**スクリプト 36 種 / make 24 ターゲット**。陽性対照 5 件。C-040。2026-09-11 追加） / **引用した実機ログの数値と、名指ししたパス**（`check_doc_claims.py`。**G-D1** ログ引用の数値が引用先に実在するか / **G-D2** 名指ししたパスが**追跡されて**いるか（⚠️ `exists()` では手元だけ緑になる）。陽性対照 9 件。C-064 / C-041。2026-09-12 追加） / **帰属義務の成果物**（`check_attribution.py`。**G-A1** 写しが 3 か所で一致 / **G-A2** 同梱した全文が記載どおり。陽性対照 7 件。C-080 / C-081。2026-09-10 追加） / hook の回帰 105 ケース / 本文検出の自己テスト（`test_sanitize_reports.py`） / blob → .rodata ヘッダ変換 / **`rec5` の往復と畳み込み**（`test_rec5.py`。合成エントリなので辞書が要らない。M-108） / **ゲートが CI で回るか、回らないなら理由が書いてあるか**（`check_ci_coverage.py`。陽性対照 2 件） / **蒸留テキストのライセンス判定**（`test_corpus_license.py`。G-L1a。許可 7 / 拒否 9 / **未知 5**。陽性対照つき。D-054） / **pyproject の制約を uv.lock の固定版が満たしているか**（`check_lock_vs_pyproject.py`。陽性対照 6 / 陰性対照 2。C-071。2026-09-10 追加） | **なし**（stdlib のみ） | **9 s**（⚠️ 2026-09-03 の実測。その後 lock / ライセンス / 帰属の 3 本を足したので**未計測**） |
+| `docs` | 索引の M/D/C 番号・**引用アンカー**・件数（`check_doc_counters.py`） / md の相対リンク（`check_doc_links.py`。⚠️ **在るかだけ。中身は見ない**） / **docs が書いたコマンドの実体**（`check_doc_commands.py`。**スクリプト 36 種 / make 24 ターゲット**。陽性対照 5 件。C-040。2026-09-11 追加） / **引用した実機ログの数値と、名指ししたパス**（`check_doc_claims.py`。**G-D1** ログ引用の数値が引用先に実在するか / **G-D2** 名指ししたパスが**追跡されて**いるか（⚠️ `exists()` では手元だけ緑になる）。陽性対照 9 件。C-064 / C-041。2026-09-12 追加） / **帰属義務の成果物**（`check_attribution.py`。**G-A1** 写しが 4 か所で一致 / **G-A2** 同梱した全文が記載どおり。陽性対照 9 件。C-080 / C-081。2026-09-10 追加。**4 か所目 `arduino/NOTICE.txt` は 2026-09-13**） / hook の回帰 105 ケース / 本文検出の自己テスト（`test_sanitize_reports.py`） / blob → .rodata ヘッダ変換 / **`rec5` の往復と畳み込み**（`test_rec5.py`。合成エントリなので辞書が要らない。M-108） / **ゲートが CI で回るか、回らないなら理由が書いてあるか**（`check_ci_coverage.py`。陽性対照 2 件） / **蒸留テキストのライセンス判定**（`test_corpus_license.py`。G-L1a。許可 7 / 拒否 9 / **未知 5**。陽性対照つき。D-054） / **pyproject の制約を uv.lock の固定版が満たしているか**（`check_lock_vs_pyproject.py`。陽性対照 6 / 陰性対照 2。C-071。2026-09-10 追加） | **なし**（stdlib のみ） | **9 s**（⚠️ 2026-09-03 の実測。その後 lock / ライセンス / 帰属の 3 本を足したので**未計測**） |
 | **`golden`** | **参照実装との一致**。**fp32**（`make -C csrc test`）と **int8**（`int8-golden` / `int8`）の両方 + `arena`。重みはリリース **`v1.0.0`**（= **v4**）の 4 資産を落とす（2.2 + 0.8 + 0.65 + 0.8 MB）。**陽性対照つき**（重みを壊すと fp32 / int8 の両方で落ちる = C-056） | ネットワーク + cc | **未計測**（int8 レーンは 2026-09-03 追加） |
 | `csrc` | `line` `fft` `pad` `g2p` `erf`（GELU の erf 近似 vs libm）**`range`**（S9 の範囲版カーネル vs `[0,T)` 版。2026-09-03 追加）**`qeos`**（疑問 EOS 4 種 + U+301C の正規化。**陽性対照つき**。D-062 / M-127。2026-09-11 追加）。**どれも重み blob も辞書も要らない** | cc のみ | **163 s**（⚠️ `qeos` を足した後は未計測） |
 | `python` | `test_losses`（26 項目）/ `test_labelpack` / **`test_accent_gate`**（アクセントの教師ゲートが生徒に依存しないか。**陽性対照つき** = 旧実装だと 5.196 st → 0.000 st で反転。C-076） | torch（**CPU ビルド**）+ numpy | **15 s**（⚠️ `test_accent_gate` を足した後は未計測） |
 | `release-assets` | **ドキュメントが名前を挙げた資産がリリースに在るか**（C-052 の再発防止） | ネットワーク | **10 s** |
+| **`arduino`** | **Arduino / PlatformIO ライブラリ**（[D-065](../../docs/decisions.md#d-065) / [M-137](../../docs/measurements.md#m-137)）。**G-AR1** 生成物が `csrc` の逐語か（陽性対照 7 件） / **G-AR2** 3 構成（かな / 漢字+M5 / 非 S3）でビルドできるか / **G-AR6** `saanotts_int8.c.o` の **PIE 命令が 74**（陰性対照は非 S3 で 0）/ **G-AR3・G-AR7** リリース .zip から **PlatformIO と arduino-cli の両方**で引いて、**ELF に重み 654,032 B が `.rodata` で在るか**。⚠️ **どれも「ビルドが通るか」しか言っていない** — 「同じ音が出るか」は G-AR4（下記・CI では回らない） | PlatformIO + arduino-cli + リリースの重み（どちらも**キャッシュする**） | ⚠️ **未計測**（2026-09-13 追加。手元では 3 構成で約 4 分 + toolchain の初回取得） |
 | **`web`** | **`bash web/build.sh`** + **wasm ゲート 8 本**（G-W7 / G-W1 / G-W2 / **G-W2b** / G-W3 / G-W4 / G-W5 / **G-W6**。`scripts/check_web_gates.sh`）。emcc を **6.0.9 に固定**して入れ、重みは `golden` と同じ `v1.0.0` の資産。⚠️ **辞書 `k1-dict-438750.bin`（13.7 MB）も同じタグから落とす**（C-095。無いと G-W6 の辞書依存 4 件が `if (haveDict)` ごと飛ぶ） | ネットワーク + emsdk | **未計測**（W トラックで追加） |
 
 実測は run `33718551954`（2026-09-03、ubuntu-latest、uv のキャッシュあり）。
@@ -94,6 +95,7 @@ Linux + glibc の厳密 `-std=c99` では見えない。**出荷するコア 2 �
 | `make -C csrc jdict` / `accent` / `njd-rules` / `oj-heap` / `kanji-e2e` / `label-ids` / `matrixa` / `charr` / `rec5` | **辞書 13.7 MB と pyopenjtalk が要る**。`all-test` にも入れていないのと同じ理由 |
 | `make -C csrc matrixc` | 上に加えて **scikit-learn（k-means）** も要る（M-106 §10） |
 | `scripts/phase0_verify_teacher.py` | **教師 ckpt が private** |
+| `bash scripts/check_arduino_qemu.sh` | **ESP-IDF + QEMU が要る**。⭐ **Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するかを見る唯一のゲート**（G-AR4）。⚠️ **手で走らせるゲートはいずれ走らせなくなる** — `arduino/src/sanotts_config.h` か生成器の前置きを触ったら回すこと |
 | ESP-IDF ビルド / QEMU | toolchain が重く、**実機の代わりにならない**（QEMU はサイクル精度ではない） |
 
 ⚠️ **「CI が緑」は「正しい」ではない。** ここで見ているのは

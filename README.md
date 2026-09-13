@@ -55,6 +55,7 @@ checksum は重みの版で変わる）*
 | **好きな文を合成する / 実機で喋らせる / ゲートを回す** | **[はじめかた](docs/getting-started.md)**（A〜E の 5 つの入口） |
 | **どの板で動くか・辞書の大きさと精度** | **[対応状況](docs/support-matrix.md)** |
 | **重み・ファーム・辞書を落とす** | **[ダウンロード](docs/downloads.md)** |
+| **自分のスケッチに組み込む** | **[Arduino / PlatformIO ライブラリ](arduino/README.md)** |
 
 **いちばん短い道**（実機を持っているなら）:
 
@@ -65,6 +66,29 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-
 
 ⚠️ **8 MB / 4 MB の板でも動く**（辞書を小さくする。読みの精度は落ちる）。
 → [対応状況](docs/support-matrix.md)
+
+**自分のスケッチから呼ぶなら** — Arduino IDE と PlatformIO のライブラリがある
+（[`arduino/`](arduino/README.md)）:
+
+```ini
+[env:m5stack-cores3]
+; ⚠️ 公式の espressif32 は arduino-esp32 2.0.17 で止まっており動かない。3.x が要る
+platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
+board = m5stack-cores3
+framework = arduino
+lib_deps =
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+    https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-voice-tsukuyomi-v4.zip
+    m5stack/M5Unified
+```
+
+```cpp
+tts.setSpeaker(&spk);  tts.begin();  tts.say("今日は良い天気ですね。");
+```
+
+⚠️ **重みは MIT ではない**（別 .zip / `LicenseRef-sanoTTS-jp-Model-1.0`）。
+⚠️ **ライブラリは実機で鳴らしていない** — PCM が ESP-IDF ビルドと bit 一致することまで
+（[M-137](docs/measurements.md#m-137)）。
 
 ## なぜ日本語版が別に要るのか
 

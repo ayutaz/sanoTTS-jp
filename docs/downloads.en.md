@@ -62,3 +62,17 @@ but **no checksum, steady-state xRT, or underrun count was reported**, and I hav
 
 ⚠️ **There is no 2 MB ESP32-S3 part** (WROOM-1 is N4 / N8 / N16). The 2 MB row only says it *fits*.
 
+## ⏳ Not in a release yet — the Arduino / PlatformIO library
+
+⚠️ **The two files below are not part of `v1.0.0`** ([D-065](decisions.md#d-065) came after it).
+They are **deliberately kept out of the tables above**: listing them would make
+`scripts/check_release_assets.py` fail CI for naming an asset that does not exist — which is
+exactly what that gate is for ([C-052](decisions.md#c-052)).
+
+| File to be added | What | License |
+|---|---|---|
+| `sanoTTS-jp-arduino.zip` | Arduino / PlatformIO library (C99 core + G2P + dictionary reader + Open JTalk + C++ wrapper) | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | The 654,032-byte weights as an `aligned(16)` C array | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
+
+⚠️ Until they are uploaded, the `releases/latest/download/...` URLs in
+[`arduino/README.md`](../arduino/README.md) do not resolve.

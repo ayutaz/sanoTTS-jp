@@ -152,6 +152,9 @@ MIT を名乗ると、下記の伝播する義務を外して配れることに�
 ⚠️ **AISHELL-3 (Apache-2.0) の全文は [`LICENSE-APACHE-2.0.txt`](LICENSE-APACHE-2.0.txt) に置いてある**（同ライセンス §4(a) が全文の同梱を求めるため。C-081）。**再配布するときは一緒に運ぶこと。**
 
 **正典は [`LICENSE-MODEL.md`](LICENSE-MODEL.md) §3.1。** 下記はその写しである
+（⚠️ **写しは 4 か所ある** — このファイル / [`web/index.html`](web/index.html) /
+[`arduino/NOTICE.txt`](arduino/NOTICE.txt)。**一字一句の一致を
+`scripts/check_attribution.py` が CI で検査する**。陽性対照 9 件）
 （食い違ったら `LICENSE-MODEL.md` が正）。
 
 ⚠️ **2026-09-09 に (A) 必須 / (B) 任意 に分けた**（[`docs/decisions.md`](docs/decisions.md) C-073）。
