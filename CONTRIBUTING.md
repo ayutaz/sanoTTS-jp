@@ -88,7 +88,7 @@ hook が止めます。
 uv run python scripts/check_doc_counters.py         # 索引の M/D/C 番号・件数・引用アンカー
 uv run python scripts/check_doc_links.py            # md の相対リンクが実在するか
 uv run python scripts/check_doc_commands.py         # docs が書いたコマンドの実体
-uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（陽性対照 7 件）
+uv run python scripts/check_attribution.py --self-test   # 帰属義務の成果物（陽性対照 9 件・写しは 4 か所）
 uv run python .claude/hooks/test_guard_bash.py      # hook の回帰（105 ケース）
 uv run python scripts/test_sanitize_reports.py      # レポートに本文が混じっていないか
 uv run python scripts/test_blob_to_header.py        # blob → .rodata ヘッダ（fp32 拒否の陽性対照）
@@ -97,6 +97,8 @@ uv run python scripts/check_lock_vs_pyproject.py    # pyproject の制約を uv.
 uv run python scripts/check_lock_vs_pyproject.py --self-test   #   ↑ の陽性対照 6 / 陰性対照 2
 make -C csrc line && make -C csrc fft && make -C csrc erf   # C コアの軽いゲート（erf = GELU の近似）
 make -C csrc range                                  # 出力範囲つきカーネル（S9）が全域版と bit 一致
+uv run python scripts/build_arduino_lib.py --self-test   # Arduino ライブラリの生成器（陽性対照 7 件）
+uv run python scripts/build_arduino_lib.py --check       # G-AR1 生成物が csrc の逐語か
 ```
 
 ⚠️ **`make -C csrc all-test` に入っていないゲートが 2 系統あります。**
