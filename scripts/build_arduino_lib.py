@@ -317,6 +317,8 @@ def make_zips(out_dir: pathlib.Path, version: str, blob: pathlib.Path | None) ->
     ⚠️ **PlatformIO は git のサブディレクトリを指せない**（library.json は直下必須）ので、
        `lib_deps` に書けるのはこの .zip の直 URL だけ。Arduino IDE も同じ .zip を使う。
     """
+    # ⚠️ 相対パスで渡されると下の `relative_to(ROOT)` が落ちる。先に解決しておく。
+    out_dir = out_dir.resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
     generate(ARDUINO / "src")
 
