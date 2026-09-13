@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（137 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（138 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -178,6 +178,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-135](#m-135) | v4 の音を初めて対照つきで聴いた |
 | [M-136](#m-136) | 辞書はリリースに在るのに CI が落としていなかった |
 | [M-137](#m-137) | Arduino / PlatformIO ライブラリ |
+| [M-138](#m-138) | `v1.1.0` を出した |
 
 </details>
 
@@ -13098,3 +13099,102 @@ app（重み抜き）は 635,103 B、重み込みで 1,067,844 B、枠は 2,883,
   **Arduino ビルドで漢字を実際に喋らせてはいない**
 - **8 MB 表（`sanotts_8mb.csv`）はビルドしていない。** `check_partitions.py` が通っただけ
 - **音は聴いていない**（G32 と同じ）
+
+---
+
+## M-138. **`v1.1.0` を出した** — Arduino の .zip 2 本を足し、**公開 URL からそのままビルドできた**（自己実測 / M4 Max）
+
+[D-065](decisions.md#d-065) の残り（[`docs/README.md`](README.md) の残タスク 19）。
+⚠️ **「上げれば動く」で終わらせず、公開された URL から落として突き合わせた** —
+[C-097](decisions.md#c-097) で「上げても 404 になる名前」を書いていたため。
+
+### 1. `v1.0.0` の 28 本を 1 バイトも変えずに引き継いだ
+
+```bash
+gh release download v1.0.0 -R ayutaz/sanoTTS-jp -D /tmp/rel
+cd /tmp/rel && shasum -a 256 -c SHA256SUMS.txt | grep -c ': OK$'
+```
+
+```
+27
+```
+
+⚠️ **27 なのは `SHA256SUMS.txt` が自分自身の行を持たないため**（[D-045](decisions.md#d-045) の 3）。
+28 本目はそのファイル自身。
+
+### 2. .zip を **リリースの blob から**組んだ
+
+```bash
+uv run --no-project python scripts/build_arduino_lib.py \
+    --zip /tmp/rel --version 1.1.0 --blob /tmp/rel/saanotts-jp-v4-int8.bin
+```
+
+| | 値 |
+|---|---|
+| `sanoTTS-jp-arduino.zip` | **293,652 B** / 91 files |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | **959,620 B** / 7 files |
+| 重みの sha256（blob / `saanotts_jp_voice.h` / `saan_model_blob.h`） | **3 つとも `a1eb6b0812e2ad2a…`** |
+
+### 3. `SHA256SUMS.txt` を作り直しても、既存 27 行が 1 つも変わらなかった
+
+```bash
+comm -23 <(LC_ALL=C sort /tmp/SHA_old.txt) <(LC_ALL=C sort SHA256SUMS.txt)   # → 空
+comm -13 <(LC_ALL=C sort /tmp/SHA_old.txt) <(LC_ALL=C sort SHA256SUMS.txt)   # → 新規 2 行だけ
+shasum -a 256 -c SHA256SUMS.txt | grep -c ': OK$'                            # → 29
+```
+
+⚠️ **「変えていない」は宣言ではなく差分で示す。** 27 → 29 行に増えただけで、既存行は無改変。
+
+### 4. ⭐ 公開 URL が**実際に解決し、中身も一致した**
+
+```bash
+curl -sL -o x.zip https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS-jp-arduino.zip
+shasum -a 256 -c want.txt
+curl -sL -o pinned.zip https://github.com/ayutaz/sanoTTS-jp/releases/download/v1.1.0/sanoTTS-jp-arduino.zip
+```
+
+| | 結果 |
+|---|---|
+| `latest/download/sanoTTS-jp-arduino.zip` | **SHA-256 一致** |
+| `latest/download/sanoTTS-jp-voice-tsukuyomi-v4.zip` | **SHA-256 一致** |
+| `download/v1.1.0/…` と `latest/download/…` | **同一ファイル**（`1dc1a663…` が 2 件） |
+
+⚠️ **`curl -I` の HTTP 200 では足りない**（GitHub のリダイレクトで 200 が返る）。
+**落として SHA-256 を突き合わせるまでが検証。**
+
+### 5. ⭐ ドキュメントに書いた `platformio.ini` が、公開 URL からそのままビルドできた
+
+`arduino/README.md` の `platformio.ini` を**一字も変えずに**別ディレクトリで走らせた:
+
+```
+Library Manager: SanoTTS-jp@1.1.0 has been installed!
+Library Manager: SanoTTS-jp-voice-tsukuyomi-v4@1.1.0 has been installed!
+RAM:   [=======   ]  68.4% (used 224216 bytes from 327680 bytes)
+Flash: [=         ]   6.4% (used 1067844 bytes from 16777216 bytes)
+[SUCCESS] Took 15.57 seconds
+```
+
+⚠️ これは [C-040](decisions.md#c-040)（**リリースの「使い方」が 2 行とも動かなかった**）の
+再発防止そのもの。**手元の symlink ではなく、読者が打つ URL で確かめた。**
+
+### 6. ゲート
+
+```bash
+GH_TOKEN="$(gh auth token)" uv run --no-project python scripts/check_release_assets.py
+```
+
+```
+    v1.0.0: 資産 28 本 / 要求 22 本  OK
+    v1.1.0: 資産 30 本 / 要求 2 本  OK
+    latest: 資産 30 本 / 要求 24 本  OK
+```
+
+⚠️ **`latest` が v1.1.0 に移っても 24 本すべてが在る。** 「2 本だけの v1.1.0」を切っていたら、
+README が指す 22 本が `latest` から消えていた（[C-052](decisions.md#c-052) と同じ形）。
+
+### ⚠️ 測っていないもの
+
+- **実機**。⚠️ このリリースで配るライブラリは**一度も板の上で鳴っていない**（残タスク 18）
+- **Arduino IDE の GUI**（検証は arduino-cli 1.5.1）
+- **PlatformIO が `latest` の URL をどうキャッシュするか。** 版を固定したい人が
+  タグ URL を使うべき理由はそこにあるが、**キャッシュの挙動そのものは測っていない**
