@@ -73,7 +73,11 @@ ARDUINO = ROOT / "arduino"
 # ⚠️ **`SANOTTS_*` はユーザーが触る面、`SAAN_*` はコアの内部フラグ。**
 #    混ぜると「ユーザーが SAAN_PIE だけ立てた」形が作れてしまう（CLAUDE.md）。
 G_KANJI = "SANOTTS_ENABLE_KANJI"
-G_RODATA = "!SANOTTS_MODEL_FROM_PARTITION"
+# ⚠️ **重みライブラリが無いときは 1 行もコンパイルしない。** `saan_model_rodata.c` は
+#    `saan_model_blob.h`（重みライブラリ側）を include するので、無い環境では
+#    「そんなヘッダは無い」で落ちる。代わりに `SanoTTSModelStub.c` が
+#    `saan_model_open()` を「重みが無い」を返す実装で埋める。
+G_RODATA = "!SANOTTS_MODEL_FROM_PARTITION && SANOTTS_HAVE_VOICE"
 G_PART = "SANOTTS_MODEL_FROM_PARTITION"
 
 # 取り込んだ Open JTalk の一時ヒープを PSRAM に向ける前置き。
@@ -148,6 +152,13 @@ def _prologue(entry: Entry) -> bytes:
         " * 規則: この前置きと（あれば）末尾の後置きを剥がすと、元ファイルと **bit 一致**する。",
         " *       `build_arduino_lib.py --check` が毎回それを確かめる。 */",
         f'#include "{up}sanotts_config.h"',
+        # ⚠️ **Arduino の既定は -Os で、ESP-IDF 版の -O2 と違う**
+        #    （sdkconfig.defaults の CONFIG_COMPILER_OPTIMIZATION_PERF=y）。
+        #    実測: saanotts_int8.c の PIE 命令が **-O2 で 74 / -Os で 67**（GCC 8.4 と 14.2 の両方）。
+        #    ⚠️ **Arduino IDE にはライブラリ単位の最適化フラグが無い**ので pragma で入れる。
+        #    実測で -Os + この pragma = -O2 と同じ 74 命令になることを確かめてある。
+        #    ⚠️ これが消えると**ビルドは通り音も出るが遅くなる**。G-AR6 が命令数を見る。
+        '#pragma GCC optimize("O2")',
     ]
     if entry.out.startswith("openjtalk/") and entry.out.endswith(".c"):
         # ⚠️ ESP-IDF 版の `-include oj_heap_psram.h` と同じ効果。Arduino では
