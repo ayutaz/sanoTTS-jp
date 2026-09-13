@@ -1,6 +1,8 @@
 # Downloads
 
-> ✅ **v1.0.0 is released** (2026-09-11; **28 assets**, 140 MB). The weights are **v4** —
+> ✅ **v1.1.0 is the current release** (2026-09-13; **30 assets**). It carries the 28 assets of
+> **v1.0.0** (2026-09-11) byte-for-byte and adds the two Arduino / PlatformIO .zip files.
+> The weights are **v4** —
 > retrained on distillation text with JSUT removed, leaving CC0 / public-domain only. See
 > the [release notes](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) and
 > [M-119](measurements.md#m-119)–[M-134](measurements.md#m-134).
@@ -52,7 +54,7 @@ version, the same way v0.3.x shipped `-v3-` assets.
 | `k1-dict-213000-8mb-m5.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The 8 MB / M5Stack dictionary alone |
 | `k1-dict-135000-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The 4 MB dictionary alone |
 | `k1-dict-44000-2mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The 2 MB-budget dictionary alone |
-| `SHA256SUMS.txt` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | SHA-256 of **27 of the 28 assets** (no self-referencing line) |
+| `SHA256SUMS.txt` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | SHA-256 of **27 of the 28 assets** (no self-referencing line). ⚠️ `v1.1.0` ships a **different** one covering 29 of its 30 assets — the file differs per tag |
 
 ⚠️ **Flash the partition table and the dictionary as a set.** A mismatch does **not** stop the
 device — the readings silently degrade. When in doubt use a full flash image (write it at offset 0).

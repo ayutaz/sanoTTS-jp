@@ -17,7 +17,9 @@
 ⚠️ **ここに名前を書いた資産は「実在すること」を CI が検査する**
 （`scripts/check_release_assets.py`。C-052 の再発防止）。**消えたリンクを放置できない。**
 
-**最新の [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) に全部入っている。**
+**最新は [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0)（資産 30 本）で、ここに全部入っている。**
+⚠️ **`v1.1.0` は `v1.0.0` の 28 本を 1 バイトも変えずに引き継いでいる**（SHA-256 で確認 = [M-138](measurements.md#m-138)）。
+足したのは **Arduino / PlatformIO ライブラリの .zip 2 本だけ**（下記）。下の表の `v1.0.0` のリンクも今も有効。
 ⚠️ **タグの `v1.0.0` と資産名の `v4` は別の軸**（`v4` は**モデルの版**で、v0.3.x が `-v3-` を配っていたのと同じ関係）。
 ⚠️ **重みは v1.0.0 で変わった** — v0.1.0 〜 v0.3.1 は `-v3-` で bit 同一だったが、
 v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（[D-057](decisions.md#d-057) / [D-059](decisions.md#d-059)）。
@@ -51,7 +53,7 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 | `k1-dict-213000-8mb-m5.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB / M5Stack 系の辞書単体 |
 | `k1-dict-135000-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 4 MB の辞書単体 |
 | `k1-dict-44000-2mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 2 MB 枠の辞書単体 |
-| `SHA256SUMS.txt` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **28 本のうち 27 本の SHA-256**（自分自身の行は入っていない = D-045 の 3） |
+| `SHA256SUMS.txt` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **28 本のうち 27 本の SHA-256**（自分自身の行は入っていない = D-045 の 3）。⚠️ **`v1.1.0` には 30 本のうち 29 本を載せた別の版が入っている** — タグごとに中身が違う |
 
 ⚠️ **辞書単体を焼くときは表とセットにすること。** 取り違えても**端末は止まらず、読みだけが落ちます**（⚠️ **検査の入れ方は決めましたが、実装は v1.0.0 の後**です = [D-063](decisions.md#d-063)）。
 迷ったら**辞書入りの flash イメージ 1 本**を使ってください（オフセット 0 に焼くだけ）。
