@@ -668,7 +668,7 @@ sanoTTS-jp/
 │   ├── src/SanoTTSSpeaker*.{h,cpp}        M5Unified / 汎用 I2S。`__has_include` で自動的に消える
 │   ├── src/core/                          ⚠️ **生成物。追跡しない**（`scripts/build_arduino_lib.py`）
 │   ├── extras/partitions/                 16 MB / 8 MB の表。⚠️ `extras/` はビルド対象外
-│   ├── examples/                          PcmCallback / HelloKana / HelloKanji
+│   ├── examples/                          PcmCallback / HelloKana / HelloKanji / **M5Stack-Avatar-Talk**（M5Stack-Avatar でリップシンク）
 │   ├── NOTICE.txt                         **帰属ブロックの 4 か所目** + Open JTalk への改変の明記
 │   └── README.md                          入れ方・辞書の焼き方・⚠️ 確かめていないこと
 ├── deploy/                                リモート実行の材料（⚠️ 手順書は削除済み。D-027 の追記）
