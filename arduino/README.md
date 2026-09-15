@@ -95,14 +95,7 @@ tts.say("きょ][おわよ][いて][んきです°ね");   // かな中間表現
 | `HelloKana` | かな中間表現を I2S DAC で喋る | なし（辞書不要） |
 | `HelloKanji` | 漢字かな交じり文を M5.Speaker で喋る | M5Unified / 16 MB の辞書 |
 | `PcmCallback` | PCM をコールバックで受ける（スピーカー無し） | なし |
-| `M5Stack-Avatar-Talk` | **スタックチャンの顔を出し、喋る音量で口を動かす**（タッチで次の文） | M5Unified 0.2.22 / M5GFX 0.2.29 / **`meganetaaan/M5Stack-Avatar@0.10.0`**（Arduino IDE では `M5Stack_Avatar`） / 16 MB の辞書 |
-
-`M5Stack-Avatar-Talk` は [nnn112358/SanoTTS-jp-M5StackCoreS3-platformio](https://github.com/nnn112358/SanoTTS-jp-M5StackCoreS3-platformio)
-（CoreS3 の実機で動かしたもの）を example に持ってきたもの。`SanoTTSSpeakerM5` を継承して
-スピーカーへ流す PCM を横取りし、チャンクごとの RMS を `avatar.setMouthOpenRatio()` に渡す。
-`tts.say()` はブロックするので TTS は別タスク（core 0）で回す。
-⚠️ **xRT / アンダーランは測っていない**（音が出て口が動くところまで）。
-`platformio.ini` の書き方はスケッチ先頭のコメントにある。
+| `M5Stack-Avatar-Talk` | **スタックチャンの顔を出し、喋る音量で口を動かす**（タッチで次の文） | M5Unified 0.2.22 / M5GFX 0.2.29 / **`meganetaaan/M5Stack-Avatar@0.10.0`**（Arduino IDE では `M5Stack_Avatar`）  |
 
 ### PCM を自分で扱う
 
