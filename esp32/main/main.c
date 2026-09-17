@@ -126,15 +126,22 @@ static bool g_dict_ok;
  *    使い、208 KB では 3,776 B 溢れた）。176 KB ならその差は要らないので 1 本にした。
  * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` + T10 で
  *    移す .bss 14,464 B が収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
-/* ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる**（統合先が DRAM を詰めたい場合）。
- *    下限は 2 つあり、**両方**を満たすこと（下の typedef が静的に検査する）:
- *      (a) 漢字経路の作業領域 `SAAN_KANJI_WORKBYTES`（出荷構成で 144,640 B）
- *      (b) 350 ids の合成 `saan_stream_arena_used(350)`（既定 159,056 B /
- *          `-DSAAN_MEM_HEAD_PF=4` なら 134,432 B。M-139 §7）
- *    ⚠️ **(b) は関数なのでコンパイル時に検査できない。** 足りなければ実行時に
- *    init が `SAAN_ERR_ARENA` で止まる（黙って短い列を喋ることはない）。 */
+/* ⚠️ **2026-09-17 に 176 KB → 136 KB にした**（[M-140](../../docs/measurements.md#m-140)）。
+ *    内訳は 3 つで、**どれも PCM を 1 bit も変えない**:
+ *      - MEM-5 粒度 4（`o1539` 49,248 → 24,624 B。コア component の既定）
+ *      - 漢字の素性表を 96 → 44 本（`nf ≤ nt ≤ 44` がコードで保証されている）
+ *      - K-7 のトークン表を 640 → 256 本
+ *    代償は定常 xRT 0.448 → 0.483（要件 ≤ 0.5 の内側）。
+ *
+ * ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる。** 下限は 2 つ:
+ *      (a) 漢字経路の作業領域 `SAAN_KANJI_WORKBYTES`（121,856 B。**下の typedef が静的に検査**）
+ *      (b) 350 ids の合成 `saan_stream_arena_used(350)`（粒度 4 で 134,432 B /
+ *          粒度を戻す（`-DSAAN_MEM_HEAD_PF=0`）なら **159,056 B** = 136 KB では足りない）
+ *    ⚠️ **(b) は関数なのでコンパイル時に検査できない。** 代わりに
+ *    `tts_task` の先頭で `saan_stream_arena_used(SAAN_MAX_IDS)` と突き合わせ、
+ *    **足りなければ起動時に止める**（喋り始めてから失敗させない）。 */
 #ifndef SAAN_ARENA_BYTES
-#define SAAN_ARENA_BYTES (176 * 1024)
+#define SAAN_ARENA_BYTES (136 * 1024)
 #endif
 
 /* ⚠️ **黙って確保に失敗したのを検出する二重防御**（init 後の `a.used` の検査）。
@@ -824,6 +831,25 @@ static void tts_task(void *arg) {
              (int)SAAN_ARENA_BYTES, (void *)g_arena, (int)sizeof g_ids);
 #endif
 
+    /* ⚠️ **arena が最長入力に足りるかを起動時に見る**（M-140）。
+     *    `saan_stream_arena_used()` は関数なのでコンパイル時に検査できず、
+     *    `SAAN_ARENA_BYTES` と `SAAN_MEM_HEAD_PF` を別々に触ると
+     *    **「短い文は喋れるが長い文だけ SAAN_ERR_ARENA」**という気づきにくい形になる。
+     *    ここで落としておけば、組み合わせ間違いは**必ず起動時に**分かる。 */
+    {
+        const size_t need = saan_stream_arena_used(SAAN_MAX_IDS);
+        if (need > (size_t)SAAN_ARENA_BYTES) {
+            ESP_LOGE(TAG, "arena %d B では最長入力（%d ids）に %u B 足りない。"
+                          "-DSAAN_ARENA_BYTES を %u 以上にするか、-DSAAN_MEM_HEAD_PF を下げること",
+                     (int)SAAN_ARENA_BYTES, (int)SAAN_MAX_IDS,
+                     (unsigned)(need - (size_t)SAAN_ARENA_BYTES), (unsigned)need);
+            vTaskDelete(NULL); return;
+        }
+        ESP_LOGI(TAG, "arena は最長入力（%d ids）に足りる: 要 %u B / 確保 %d B（余り %u B）",
+                 (int)SAAN_MAX_IDS, (unsigned)need, (int)SAAN_ARENA_BYTES,
+                 (unsigned)((size_t)SAAN_ARENA_BYTES - need));
+    }
+
     static saan_weights w;
     if (!saan_model_open(&w)) { vTaskDelete(NULL); return; }
 
@@ -867,6 +893,19 @@ static void tts_task(void *arg) {
                  (unsigned)saan_kanji_workbytes(),
                  (unsigned)saan_kanji_vitbytes(SAAN_ARENA_BYTES),
                  (int)SAAN_ARENA_BYTES);
+        /* ⚠️ **静的検査だけに頼らない**（M-140）。`check_esp32_template.sh` §10 は
+         *    **ホストの sizeof** で `SAAN_KANJI_WORKBYTES` を評価するので、
+         *    ターゲット（32 bit ポインタ）より **小さく出る** = 甘い側に外れる
+         *    （スクリプト自身がそう注記している）。ターゲットの実値で見るのはここだけ。
+         *    ⚠️ 落とす理由: 足りないと `saan_kanji_to_ids` が毎回
+         *    `SAAN_KANJI_ERR_TOO_LONG` を返し、**「漢字だけ喋らない」**という
+         *    原因の分かりにくい形になる。 */
+        if (saan_kanji_workbytes() > (size_t)SAAN_ARENA_BYTES) {
+            ESP_LOGE(TAG, "arena %d B では漢字経路の作業領域 %u B に足りない（%u B 不足）",
+                     (int)SAAN_ARENA_BYTES, (unsigned)saan_kanji_workbytes(),
+                     (unsigned)(saan_kanji_workbytes() - (size_t)SAAN_ARENA_BYTES));
+            vTaskDelete(NULL); return;
+        }
     }
     log_heap("辞書 mmap 後");
 #endif

@@ -181,7 +181,7 @@ test: golden_test
 stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
 	./stream_test    student.bin    golden.bin ids_heldout.bin
 	./stream_test    student_i8.bin golden.bin ids_heldout.bin
-	./stream_test_a8 --g1-kb 176 student_i8.bin golden.bin ids_heldout.bin
+	./stream_test_a8 --g1-kb 136 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test

@@ -127,8 +127,8 @@ int main(int argc, char **argv) {
     g_ids_base = base;
 
     int bad = 0;
-    const size_t ARENA = 176u * 1024u;   /* ESP32 の雛形が静的確保する値（esp32/main/main.c の
-                                          * SAAN_ARENA_BYTES。T4 で 208 → 176 KB） */
+    const size_t ARENA = 136u * 1024u;   /* ESP32 の雛形が静的確保する値（esp32/main/main.c の
+                                          * SAAN_ARENA_BYTES。T4 で 208 → 176 KB / M-140 で 136 KB） */
     const int DESIGN_IDS = 350;          /* D-017 の max_spec_length=700 相当 */
 
     printf("sanoTTS-jp arena ストレス（c'-4 の受け入れ条件）\n");

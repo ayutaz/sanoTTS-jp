@@ -97,8 +97,17 @@
 #define SAAN_KANJI_K7_SCRATCH ((size_t)0)
 #endif
 
+/* 素性文字列を並べる本数。⚠️ **`SAAN_KANJI_MAX_TOK`(96) ではなく
+ * `SAAN_KANJI_MAX_INPUT_TOK`(44)。** `saan_kanji_to_ids` は
+ * `nt > SAAN_KANJI_MAX_INPUT_TOK` を**素性を作る前に**弾くので、
+ * `nf ≤ nt ≤ 44` がコードで保証されている（96 本目は 1 度も書かれない）。
+ * 96 × 320 = 30,720 B → 44 × 320 = **14,080 B**（−16,640。M-140）。
+ * ⚠️ **NJD 段の `s_k4` は 96 のまま** — `njd_set_digit` がノードを増やすので、
+ *    そちらは入力の形態素数では縛れない（[M-98](measurements.md#m-98) の注記と同じ理由）。 */
+#define SAAN_KANJI_FEAT_TOK   SAAN_KANJI_MAX_INPUT_TOK
+
 #define SAAN_KANJI_WORKBYTES \
-    (SAAN_KANJI_A16((size_t)SAAN_KANJI_MAX_TOK * SAAN_KANJI_FEAT_MAX) \
+    (SAAN_KANJI_A16((size_t)SAAN_KANJI_FEAT_TOK * SAAN_KANJI_FEAT_MAX) \
      + SAAN_KANJI_A16(sizeof(accent_node_t) * SAAN_KANJI_MAX_TOK) \
      + SAAN_KANJI_A16((size_t)SAAN_KANJI_KEY_MAX) \
      + SAAN_KANJI_A16(sizeof(jdict_token_t) * SAAN_KANJI_MAX_TOK) \

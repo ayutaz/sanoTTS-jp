@@ -86,7 +86,14 @@
  *    （`make -C csrc range` が範囲版と [0,T) 版の bit 一致を陽性対照つきで見ている）。
  * ⚠️ **既定を変えていない。** 速度の代償は M-139 §6 に実機で測った値がある（粒度 4 が折衷点）。 */
 #ifndef SAAN_MEM_HEAD_PF
-#define SAAN_MEM_HEAD_PF 0
+/* ⚠️ **2026-09-17 に既定を 4 にした**（M-140）。`o1539` が 49,248 → 24,624 B に減り、
+ * 実機（CoreS3 / W8A8+PIE）の定常 xRT は 0.448 → 0.483（要件 ≤ 0.5 の内側）。
+ * **PCM は 1 bit も変わらない**（実機 4 文 + ホスト 50 文 + 陽性対照 3 件）。
+ * ⚠️ **既定をここに置くのは、ESP-IDF / wasm / Arduino の 3 経路が全部この 1 行を見るため。**
+ *    CMake 側に既定を置くと wasm と Arduino だけ別の値になり、[C-099](../docs/decisions.md#c-099)
+ *    と同じ「同じフラグが場所で効き方が違う」を作る。
+ * `-DSAAN_MEM_HEAD_PF=0` で元に戻る（その場合は arena を 176 KB に戻すこと）。 */
+#define SAAN_MEM_HEAD_PF 4
 #endif
 /* 1 回の hout 呼び出しで計算する列数。`SAAN_MEM_HEAD_PF` が 0 なら CH（既定）、
  * 1 なら 1 列ずつ、2 以上ならその粒度（**CH を割り切ること**）。
