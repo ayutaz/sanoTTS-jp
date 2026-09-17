@@ -23,7 +23,7 @@
 **アクセントのミニマルペア**（`reports/d4_accent/`）です。
 
 **2 の手順は [`esp32/TESTING.md`](esp32/TESTING.md)。所要 15〜30 分・DAC は不要です。**
-速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.448**。v4 の実機 = M-130）が、
+速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.474**。M-142。⚠️ v1.1.0 は 0.448）が、
 **測ったのは 1 枚の板だけ**です。別の ESP32-S3（AtomS3 / DevKit / Core2 …）での実測を歓迎します。
 ✅ **`v1.0.0` の配布イメージは高速化後のコード**なので、焼くだけで測れます。
 native USB だけの板（CoreS3 / AtomS3）は **`-usbjtag` の版**を選んでください。
@@ -160,7 +160,7 @@ Still entirely unlistened: the **12 pairs in `reports/k8_listen/`** (where dicti
 changes a reading) and the **accent minimal pairs** in `reports/d4_accent/`.
 
 Instructions for 2: [`esp32/TESTING.md`](esp32/TESTING.md) — 15–30 minutes, no DAC required.
-The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.448** on v4
+The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.474**; it was 0.448 on v4
 hardware, M-130), but **that is one board**; measurements on any other ESP32-S3 are welcome.
 ✅ **The `v1.0.0` images carry the reworked code**, so flashing is enough to measure it; pick
 the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).

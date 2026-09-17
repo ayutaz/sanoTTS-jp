@@ -279,7 +279,7 @@ jobs:
         run: uv run --no-project --python 3.12 python scripts/check_release_assets.py
 
   # ------------------------------------------------------------ wasm（W トラック）
-  # ブラウザデモ（`web/`）の受け入れゲート G-W1〜G-W7 を `scripts/check_web_gates.sh` で回す。
+  # ブラウザデモ（`web/`）の受け入れゲート G-W1〜G-W9 を `scripts/check_web_gates.sh` で回す。
   #
   # ⚠️ **訂正（審査 2026-09-04）。** この job は長らく `web/build.sh` を回しておらず、
   #    `pages.yml` は **push to main でしか走らない**ので、**PR では `web/` が 1 行も
@@ -372,7 +372,7 @@ jobs:
           set -u
           bash web/build.sh
 
-      - name: wasm ゲート G-W1〜G-W7（陽性対照つき）
+      - name: wasm ゲート G-W1〜G-W9（陽性対照つき）
         env:
           # `csrc` job の `make g2p` と同じ渡し方。⚠️ Python は stdlib しか使わない
           PYTHON: uv run --no-project --python 3.12 python

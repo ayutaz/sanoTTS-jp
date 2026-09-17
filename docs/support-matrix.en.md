@@ -21,8 +21,8 @@ the C code are identical across v3 and v4, so reading accuracy is unchanged.
 |---|---|---|
 | **Kana intermediate form → audio** | ✅ **on hardware** (M5 CoreS3) | [M-90](measurements.md#m-90) |
 | **Kanji text → audio** (morphological analysis + accent, all on device) | ✅ **on hardware** | [M-90](measurements.md#m-90) |
-| **Real-time budget** (xRT ≤ 0.5) | ✅ **0.444–0.448** steady-state on v4 hardware — the denominator was **settled** in [D-049](decisions.md#d-049). ⚠️ 0.618–0.793 over a whole utterance, kept only **for reference** (otherwise the verdict would depend on sentence length alone). Time to first sound **≈407–433 ms ≤ 0.8 s** (46–49% margin) | [M-130](measurements.md#m-130) / [C-054](decisions.md#c-054) |
-| **Memory** (fits 512 KB SRAM) | ✅ **157 KB** at runtime | [M-89](measurements.md#m-89) |
+| **Real-time budget** (xRT ≤ 0.5) | ✅ **0.471–0.475** steady-state over 7 utterances — the denominator was **settled** in [D-049](decisions.md#d-049). ⚠️ 0.522–0.741 over a whole utterance, kept only **for reference** (otherwise the verdict would depend on sentence length alone). Time to first sound **364–374 ms ≤ 0.8 s** (53–55% margin). ⚠️ Up to **v1.1.0** it was 0.444–0.448 — it is slower by exactly the 28,840 B of RAM that was reclaimed ([M-142](measurements.md#m-142)) | [M-142](measurements.md#m-142) / [C-054](decisions.md#c-054) |
+| **Memory** (fits 512 KB SRAM) | ✅ **151,552 B** static arena, **110,592 B** measured peak; **160,639 B** free at boot (largest block 114,688) | [M-142](measurements.md#m-142) |
 | **Browser** (the same C99 core as wasm) | ✅ bit-identical PCM to the device | [M-95](measurements.md#m-95) |
 | **Pitch accent** | ⚠️ the shipping **v4 scores 31/37** (v3 scored 37/37). Changing only the seed already costs 3 pairs, so this **cannot be read as damage from dropping JSUT** ([D-057](decisions.md#d-057)) | [M-118](measurements.md#m-118) / [M-117](measurements.md#m-117) |
 | **Arduino / PlatformIO library** (call it from your own sketch) | ⚠️ **PCM is bit-identical to the ESP-IDF build** (QEMU, two configurations); builds under both PlatformIO and arduino-cli. ❌ **Never run on real hardware** — xRT and underruns are **unmeasured** | [M-137](measurements.md#m-137) / [D-065](decisions.md#d-065) |
@@ -38,11 +38,11 @@ the C code are identical across v3 and v4, so reading accuracy is unchanged.
 | ESP32-S3 DevKit / StampS3 etc. | ESP32-S3 | 8 MB+ | any | ✅ **flash a released image** (16 MB for kanji, 8 MB for kana) |
 | ATOMS3R | ESP32-S3 | 8 MB | 8 MB Octal | ⚠️ **builds only** (never flashed) |
 | M5Stack Core2 | **plain ESP32** | 16 MB | 8 MB | ⚠️ **builds only.** A **different chip** (Xtensa LX6, **no PIE**, different MMU window) — **never measured** |
-| M5Stamp-C5 | **ESP32-C5** (RISC-V) | 4 MB | none | ❌ **expected not to work.** **No FPU** (`rv32imac`) means 106 soft-float call sites, and RAM needs **370,980 B > 393,216 B of SRAM** ([M-106](measurements.md#m-106) §1). ⚠️ **It compiles — that is not the same as running** |
+| M5Stamp-C5 | **ESP32-C5** (RISC-V) | 4 MB | none | ❌ **expected not to work.** **No FPU** (`rv32imac`) means 106 soft-float call sites, ⚠️ **the RAM objection is gone** — [M-142](measurements.md#m-142) cut the requirement to **342,308 B**, which fits the 393,216 B of SRAM, so only the FPU reason remains ([M-106](measurements.md#m-106) §1). ⚠️ **It compiles — that is not the same as running** |
 | ESP32-P4 | RISC-V | — | — | Not attempted. **Has both an FPU and PIE (`xesppie`)**, so it looks promising. ⚠️ **Its PIE instruction set differs from Xtensa's** — the kernel would be rewritten |
 | ARM Cortex-M / RP2040 etc. | — | — | — | ❌ **not ported.** ⚠️ The C99 core **cross-compiles** (Xtensa / rv32imac / rv32imafc, 5/5) but there is **no bare-metal libc or HAL** |
 
-⚠️ **Floor** ([M-106](measurements.md#m-106) §1): **~1 MB of flash (kana) / 4 MB (kanji)**, **hardware floating point**, **200 MHz+**. RAM for the kanji path totals **370,980 B** (289,568 static + 81,412 for Open JTalk's scratch heap). ⚠️ **The kana-only RAM figure has not been measured.**
+⚠️ **Floor** ([M-106](measurements.md#m-106) §1): **~1 MB of flash (kana) / 4 MB (kanji)**, **hardware floating point**, **200 MHz+**. RAM for the kanji path totals **342,308 B** (260,896 static + 81,412 for Open JTalk's scratch heap). ⚠️ **The 260,896 B is arithmetic** — M-106's 289,568 B minus the 28,672 B the arena shrank; that configuration was not re-measured ([M-142](measurements.md#m-142) is the M5 CoreS3 build). ⚠️ **The kana-only RAM figure has not been measured.**
 ⚠️ **No ESP32-S3 part has 2 MB of flash** (WROOM-1 is N4 / N8 / N16), so **4 MB is the floor**.
 
 ## Dictionary size vs. reading accuracy

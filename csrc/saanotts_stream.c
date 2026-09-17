@@ -92,7 +92,8 @@
  * ⚠️ **既定をここに置くのは、ESP-IDF / wasm / Arduino の 3 経路が全部この 1 行を見るため。**
  *    CMake 側に既定を置くと wasm と Arduino だけ別の値になり、[C-099](../docs/decisions.md#c-099)
  *    と同じ「同じフラグが場所で効き方が違う」を作る。
- * `-DSAAN_MEM_HEAD_PF=0` で元に戻る（その場合は arena を 176 KB に戻すこと）。 */
+ * `-DSAAN_MEM_HEAD_PF=0` で元に戻る（その場合は `-DSAAN_ARENA_BYTES=180224` も要る。
+ * main.c が起動時に `saan_stream_arena_peak` と突き合わせて止める）。 */
 #define SAAN_MEM_HEAD_PF 4
 #endif
 /* 1 回の hout 呼び出しで計算する列数。`SAAN_MEM_HEAD_PF` が 0 なら CH（既定）、

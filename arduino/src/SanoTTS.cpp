@@ -5,8 +5,9 @@
  *
  *   1. 経路は `saan_g2p_classify()` の 3 値で決める。**拒否はそのまま拒否する**
  *      （読めない文字を黙って落とすのがこの入力仕様の一番危ない壊れ方）
- *   2. arena は 176 KB の静的確保。`saan_stream_arena_needed()` の戻り値を使わない
- *      （あれは緩い上限で n_ids=350 に 296 KB を返す）
+ *   2. arena は 148 KB の静的確保。`saan_stream_arena_needed()` の戻り値を使わない
+ *      （あれは緩い上限で n_ids=350 に 250.7 KB を返す）。見るのは
+ *      `saan_stream_arena_peak(350)` = 149,824 B（W8A8。C-100）
  *   3. `saan_stream_init` が OK でも `a.used` を期待値と突き合わせる
  *      （黙った確保失敗の二重防御。外すと pull の中で NULL 書き込み → ログ無しで再起動）
  *   4. `n_ids > 350` は喋らずに拒否する（分布外の音を黙って出さない）
@@ -34,8 +35,11 @@ extern "C" {
 
 /* --- arena ----------------------------------------------------------------
  *
- * 176 KB (180,224 B)。⚠️ **この値の根拠は実測**（`make -C csrc arena` / `stream`）:
- * n_ids=350 の最小 arena 160,768 B（W8A32）/ W8A8 の高水位 ≈ 158.9 KB。
+ * 148 KB (151,552 B)。⚠️ **この値の根拠は実測**（`make -C csrc arena` の 2 レーン）:
+ * n_ids=350 の `saan_stream_arena_peak` は W8A32 **137,216 B** / W8A8 **149,824 B**
+ * で、16 B 刻みで測った「init が通る最小」と完全一致する。⚠️ **`arena_used()`
+ * （114,128 B）を下限だと思わないこと** — duration の一時領域 3×[32][350] を
+ * 含まないので 10,560 B 足りなくなる（C-100 で実際に踏んだ）。
  * ⚠️ **漢字経路（Viterbi と NJD）はこの同じ arena を借りる。** 別に確保しない。 */
 #define SANOTTS_ARENA_BYTES (148 * 1024)   /* ⚠️ 下限は saan_stream_arena_peak(350) = 149,824 B（C-100） */
 
@@ -75,7 +79,7 @@ bool SanoTTS::begin() {
 
 #if SANOTTS_ARENA_HEAP
     if (!g_arena) {
-        /* ⚠️ **PSRAM を先に試す。** 内部 DRAM に 176 KB 取れる板ばかりではない。
+        /* ⚠️ **PSRAM を先に試す。** 内部 DRAM に 148 KB 取れる板ばかりではない。
          *    ⚠️ ただし PSRAM の arena は遅い（未測定）ので、速度を測るなら
          *    SANOTTS_ARENA_HEAP=0（静的）にすること。 */
         g_arena = (uint8_t*)heap_caps_aligned_alloc(
@@ -84,7 +88,7 @@ bool SanoTTS::begin() {
             g_arena = (uint8_t*)heap_caps_aligned_alloc(
                 16, SANOTTS_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (!g_arena) {
-            m_err = "arena 180,224 B を確保できない（PSRAM も内部 DRAM も）";
+            m_err = "arena 151,552 B を確保できない（PSRAM も内部 DRAM も）";
             return false;
         }
     }

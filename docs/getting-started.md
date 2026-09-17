@@ -149,7 +149,7 @@ uv run --no-project python scripts/test_labelpack.py
 （`!` のような印は要らない。経路は C 側の `saan_g2p_classify()` が決める）。
 
 - **ESP32 と同じコードが動く。** `csrc/` の C99 と `esp32/main/saan_kanji.c` を書き換えずに
-  wasm にしただけで、**arena も実機と同じ 180,224 B**（→ [D-050](decisions.md#d-050)）
+  wasm にしただけで、**arena も実機と同じ 151,552 B**（→ [D-050](decisions.md#d-050)）
 - 初回は**辞書 13,702,320 B（gzip -9 で 5,476,122 B）**を落とす。⚠️ 回線が細いと待たされる
 - ⚠️ **ブラウザでは 1 種類も速度を測っていない**（測ったのは node だけ。[M-94](measurements.md#m-94)）
 - 音は **W8A32 / W8A8 の両方を聴いてもらい「問題なかった」/ 途切れ無し**（[M-96](measurements.md#m-96)）。⚠️ **1 名・対照なし・盲検なし**。

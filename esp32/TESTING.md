@@ -590,7 +590,7 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 
 - `model` パーティションの mmap と 16 バイト境界 ✅（実機も）
 - 端末側 G2P が 53 ids を出し、ホストの答えと**完全一致** ✅（実機で 0.102 ms）
-- `saan_stream_init` / arena 180,224 B / 合成 106 frames = 27,136 sample ✅（実機の used 157,360 B）
+- `saan_stream_init` / arena 151,552 B / 合成 106 frames = 27,136 sample ✅（実機の used 110,592 B。M-142）
 - **PIE カーネルがスカラ実装と bit 完全一致**（同一ターゲット・全 27,136 sample） ✅
 - **シリアルからの自由入力** ✅ QEMU の UART0（M-63）と**実機の USB Serial/JTAG**（M-83 以降）
 - **漢字経路**（辞書 13.7 MB の mmap → 形態素解析 → 合成）✅ QEMU（M-76）と**実機**（M-83 / M-86 / M-90）

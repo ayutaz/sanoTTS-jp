@@ -56,7 +56,11 @@
  * ⚠️ **ずれると何が起きるか**: web を大きくすると「176 KB で動く = MCU に載る」の証拠が
  *    黙って崩れる（数字は出るし音も出るので気づけない）。小さくすると `SAAN_KANJI_WORKBYTES`
  *    を割った時点で**下の typedef がコンパイルを止める**（こちら側は静かには壊れない）。 */
-#define SAAN_ARENA_BYTES (176 * 1024)
+/* ⚠️ **`esp32/main/main.c` の `SAAN_ARENA_BYTES` と同じ値にすること。**
+ * README が「wasm も実機と同じ arena」と書いているので、ここが食い違うと
+ * その主張が嘘になる。`check_web_gates.sh` の G-W9 が 2 つを突き合わせる
+ * （それまで誰も見ていなかった = 176 KB どうしで偶然一致していただけ。M-142）。 */
+#define SAAN_ARENA_BYTES (148 * 1024)
 
 /* 受け付ける ids の上限。**arena の限界ではなく学習分布の上限**（`main.c:169` の同名 #define の写し）。
  * ⚠️ **`saan_kanji_to_ids()` は これを強制しない** — 109 文字で 582 ids を OK で返した

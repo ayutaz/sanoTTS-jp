@@ -106,27 +106,31 @@ static bool g_dict_ok;
 
 /* --- arena ---------------------------------------------------------------
  *
- * ⚠️ **`saan_stream_arena_needed()` の戻り値を使わないこと。** あれは緩い上限で、
- *    n_ids=350 に対し **302,816 B (296 KB)** を返す（T4 後のホスト値）。512 KB の SRAM に対して
- *    58% を占め、IDF / FreeRTOS / I2S DMA と合わせて破綻する。
+ * ⚠️⚠️ **確保量を決めるのは `saan_stream_arena_peak(n_ids)`** = max(duration フェーズ,
+ *    streaming フェーズ)。**`saan_stream_arena_used()` ではない**（[C-100](../../docs/decisions.md#c-100)）—
+ *    あれは init 後の値で、`saan_run_duration` が init の途中で取って返す
+ *    3×[32][n_ids]（350 ids で 134,400 B）を含まない。
+ *
+ * ⚠️ **`saan_stream_arena_needed()` も使わないこと。** 緩い上限（duration と streaming を
+ *    和で足す）で、n_ids=350 に対し **256,720 B (250.7 KB)** を返す。実測の 1.87 倍。
  *
  * ⚠️ **高水位（`st.peak_used`）もそのまま確保量にしないこと。** init が通る最小 arena は
  *    ALIGN16 の切り上げと確保順の差で高水位をわずかに上回る。
  *
- * 176 KB (180,224 B) の根拠は実測（`make -C csrc arena` / `make -C csrc stream`、ホスト、T4 後）:
- *   - n_ids=350（D-017 の max_spec_length=700 相当）の最小 arena  160,768 B（W8A32 / fp32）
- *   - W8A8（`-DSAAN_INT8_ACT=1`。conv 1 本ぶんの activation 作業領域が乗る）の 350 ids の
- *     高水位 ≈ 158.9 KB（stream_test_a8 の G1 の表）→ 176 KB で約 17 KB の余裕
- *   - 176 KB 固定で n_ids 350 は init も pull も成功（`make -C csrc arena` §2）
- *   履歴: T2〜T4 の前は 197,632 B に 15,360 B の余裕を足した 208 KB（D-031 / M-46）。
- *   T4（cdel 6 本 → リング 1 本 −8,960 B、re/im/frm を w_e と共用 −8,224 B、impl −128 B）で
- *   a.used が 177,536 → 160,224 B（350 ids、ホスト）になったので下げた。
+ * 148 KB (151,552 B) の根拠は実測（`make -C csrc arena` の 2 レーン。2026-09-17）:
+ *   |                              | W8A32     | W8A8（実機） |
+ *   | saan_stream_arena_used(350)  | 114,128 B | 114,128 B |
+ *   | **saan_stream_arena_peak(350)** | **137,216 B** | **149,824 B** |
+ *   | init も pull も通る最小（1 KB 刻み） | 137,216 B | 150,528 B |
+ *   → 148 KB で **1,728 B の余裕**。`arena_peak` は 16 B 刻みの実測と完全一致する。
+ *   履歴: 208 KB（D-031 / M-46）→ 176 KB（T2 / T4。M-89）→ **148 KB**（MEM-5 / MEM-6 /
+ *   漢字の配列を実寸に。M-140 / M-142）。⚠️ **M-140 の 136 KB は 350 ids で落ちる**（C-100）。
  *
  * ⚠️ 以前は漢字対応ビルドだけ 204 KB に落としていた（PSRAM 有効で IDF が DRAM を数 KB 余分に
- *    使い、208 KB では 3,776 B 溢れた）。176 KB ならその差は要らないので 1 本にした。
- * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` + T10 で
- *    移す .bss 14,464 B が収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
-/* ⚠️ **2026-09-17 に 176 KB → 120 KB にした**（[M-140](../../docs/measurements.md#m-140) / [M-142](../../docs/measurements.md#m-142)）。
+ *    使い、208 KB では 3,776 B 溢れた）。**その分岐は消えている。**
+ * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` が
+ *    収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
+/* ⚠️ **2026-09-17 に 176 KB → 148 KB にした**（[M-140](../../docs/measurements.md#m-140) / [M-142](../../docs/measurements.md#m-142)）。
  *    内訳は 4 つで、**どれも PCM を 1 bit も変えない**:
  *      - MEM-5 粒度 4（`o1539` 49,248 → 24,624 B）
  *      - MEM-6 パイプ段はハローだけ持つ（47,456 → 25,984 B。M-142）
