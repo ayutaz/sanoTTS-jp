@@ -85,8 +85,24 @@ endif()
 # --- ESP32（Core2 / Basic）は arena をヒープ（PSRAM）から取る --------------------
 # ⚠️ dram0_0_seg が S3 より小さく、静的 208 KB が **65,368 B 溢れる**（Core2 で実測。
 #    M5Unified + M5GFX 込み）。PSRAM の arena は遅い（未測定）。この板は「喋る」確認まで。
+#
+# ⚠️ **S3 でも `-DSAAN_ARENA_HEAP=1` で明示的に選べる。**
+#    以前はこの分岐が `IDF_TARGET=esp32` だけを見ていたので、S3 で渡しても
+#    **黙って無視された**（`esp32/main/CMakeLists.txt` の側は honor していたので、
+#    板によって同じフラグの効き方が違う = いちばん気づけない壊れ方）。
+#    内部 DRAM を 180,224 B 空けたい統合先（他のアプリと同居する板）向け。
+# --- arena の大きさを外から詰める（-DSAAN_ARENA_BYTES=<B>）---------------------
+# ⚠️ 下限は main.c のコメントを読むこと。足りないと実行時に SAAN_ERR_ARENA。
+if(SAAN_ARENA_BYTES)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_ARENA_BYTES=${SAAN_ARENA_BYTES})
+    message(STATUS "sanoTTS: arena を ${SAAN_ARENA_BYTES} B に上書き")
+endif()
+
 idf_build_get_property(_saan_target IDF_TARGET)
-if(_saan_target STREQUAL "esp32")
+if(SAAN_ARENA_HEAP)
+    target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_ARENA_HEAP=1)
+    message(STATUS "sanoTTS: -DSAAN_ARENA_HEAP=1 → arena はヒープ（PSRAM 優先）")
+elseif(_saan_target STREQUAL "esp32")
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_ARENA_HEAP=1)
     message(STATUS "sanoTTS: IDF_TARGET=esp32 → arena はヒープ（PSRAM 優先）。速度の測定には使わない")
 endif()

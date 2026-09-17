@@ -126,7 +126,16 @@ static bool g_dict_ok;
  *    使い、208 KB では 3,776 B 溢れた）。176 KB ならその差は要らないので 1 本にした。
  * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` + T10 で
  *    移す .bss 14,464 B が収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
+/* ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる**（統合先が DRAM を詰めたい場合）。
+ *    下限は 2 つあり、**両方**を満たすこと（下の typedef が静的に検査する）:
+ *      (a) 漢字経路の作業領域 `SAAN_KANJI_WORKBYTES`（出荷構成で 144,640 B）
+ *      (b) 350 ids の合成 `saan_stream_arena_used(350)`（既定 159,056 B /
+ *          `-DSAAN_MEM_HEAD_PF=4` なら 134,432 B。M-139 §7）
+ *    ⚠️ **(b) は関数なのでコンパイル時に検査できない。** 足りなければ実行時に
+ *    init が `SAAN_ERR_ARENA` で止まる（黙って短い列を喋ることはない）。 */
+#ifndef SAAN_ARENA_BYTES
 #define SAAN_ARENA_BYTES (176 * 1024)
+#endif
 
 /* ⚠️ **黙って確保に失敗したのを検出する二重防御**（init 後の `a.used` の検査）。
  *
