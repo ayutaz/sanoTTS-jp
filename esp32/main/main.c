@@ -574,6 +574,16 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
     /* ⚠️ **合成の前に見る。** ここで見ないと Open JTalk の一時ヒープのピークが
      *    arena の使用と混ざる。PSRAM 無しの板ではこれが内部 DRAM に来る（Lane D）。 */
     log_heap("漢字 G2P 直後");
+    {   /* 高水位（M-141）。⚠️ **見た入力での最大**で、上限の代わりではない。
+         * `s_k4` は accent_node_t 524 B × SAAN_KANJI_MAX_TOK(96) = 50,304 B = 漢字側の最大項。 */
+        const saan_kanji_hwm_t *h = saan_kanji_hwm();
+        ESP_LOGI(TAG, "高水位 %d 発話: 形態素 %d / 素性 %d / **NJD ノード %d/%d** / ラベル %d/%d"
+                      " / 最長 pos %d ctype %d cform %d orig %d pron %d read %d（枠 %d/%d）",
+                 h->n_utt, h->nt, h->nf, h->nk, (int)SAAN_KANJI_MAX_TOK,
+                 h->nl, (int)SAAN_KANJI_MAX_LABEL,
+                 h->pos, h->ctype, h->cform, h->orig, h->pron, h->read,
+                 (int)ACCENT_STR_MAX, (int)ACCENT_PRON_MAX);
+    }
     if (n_ids > SAAN_MAX_IDS) {
         ESP_LOGE(TAG, "ids が %d 個で上限 %d を超えた。**喋らない**（短く区切ること）",
                  (int)n_ids, (int)SAAN_MAX_IDS);

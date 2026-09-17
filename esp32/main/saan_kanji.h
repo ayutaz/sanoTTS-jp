@@ -115,6 +115,29 @@
      + SAAN_KANJI_A16(SAAN_KANJI_K7_SCRATCH) \
      + SAAN_KANJI_VITERBI_N)
 
+/* --- 高水位（M-141 の材料）------------------------------------------------
+ *
+ * `s_k4`（`accent_node_t` 524 B × 96 = **50,304 B**）は漢字経路の最大項だが、
+ * **実際にいくつ使われるかを誰も測っていなかった**。寸法を決めているのは
+ *   - ノード数 `SAAN_KANJI_MAX_TOK` 96（`njd_set_digit` がノードを増やすので
+ *     入力の形態素数では縛れない = [M-98](measurements.md#m-98)）
+ *   - 文字列幅 `ACCENT_STR_MAX` 64 / `ACCENT_PRON_MAX` 128
+ * の 2 つで、**どちらも根拠が「余裕を見た値」**である。
+ *
+ * ⚠️ **これは測定用であって上限の代わりにはならない。** 見た入力での最大に
+ *    すぎないので、寸法を下げる判断には「何文見たか」を必ず添えること。 */
+typedef struct {
+    int n_utt;          /* 見た発話数 */
+    int nt;             /* 形態素（Viterbi の出力） */
+    int nf;             /* 素性（≤ nt ≤ SAAN_KANJI_MAX_INPUT_TOK） */
+    int nk;             /* **NJD ノード**（s_k4 の本数） */
+    int nl;             /* ラベル（s_lab の本数） */
+    int pos, ctype, cform, orig, pron, read;   /* 各フィールドの最長（バイト・NUL 除く） */
+} saan_kanji_hwm_t;
+
+/* 累積の高水位。起動から今までの最大。NULL は返さない。 */
+const saan_kanji_hwm_t *saan_kanji_hwm(void);
+
 typedef enum {
     SAAN_KANJI_OK = 0,
     SAAN_KANJI_ERR_KEY      = -1,  /* 鍵に符号化できない */

@@ -86,6 +86,27 @@ size_t saan_kanji_vitbytes(size_t arena_n) {
     return (arena_n > pre) ? (arena_n - pre) : 0u;
 }
 
+static saan_kanji_hwm_t s_hwm;
+const saan_kanji_hwm_t *saan_kanji_hwm(void) { return &s_hwm; }
+
+/* 高水位を更新する（測定用。M-141）。⚠️ **1 発話 1 回だけ呼ぶ。** */
+static void hwm_update(int nt, int nf, int nk, int nl) {
+    if (nt > s_hwm.nt) s_hwm.nt = nt;
+    if (nf > s_hwm.nf) s_hwm.nf = nf;
+    if (nk > s_hwm.nk) s_hwm.nk = nk;
+    if (nl > s_hwm.nl) s_hwm.nl = nl;
+    for (int i = 0; i < nk; ++i) {
+        int v;
+        v = (int)strlen(s_k4[i].pos);   if (v > s_hwm.pos)   s_hwm.pos   = v;
+        v = (int)strlen(s_k4[i].ctype); if (v > s_hwm.ctype) s_hwm.ctype = v;
+        v = (int)strlen(s_k4[i].cform); if (v > s_hwm.cform) s_hwm.cform = v;
+        v = (int)strlen(s_k4[i].orig);  if (v > s_hwm.orig)  s_hwm.orig  = v;
+        v = (int)strlen(s_k4[i].pron);  if (v > s_hwm.pron)  s_hwm.pron  = v;
+        v = (int)strlen(s_k4[i].read);  if (v > s_hwm.read)  s_hwm.read  = v;
+    }
+    ++s_hwm.n_utt;
+}
+
 int saan_kanji_init(void) { return 1; }   /* 確保はしない。arena を借りる */
 
 /* arena の先頭に固定長の配列を並べ、残りを Viterbi に回す。
@@ -218,6 +239,8 @@ saan_kanji_status saan_kanji_to_ids(const jdict_t *d,
     char **ls = JPCommon_get_label_feature(&jp);
     if (nl > KJ_MAX_LABEL) nl = KJ_MAX_LABEL;
     for (int i = 0; i < nl; i++) s_lab[i] = ls[i];
+
+    hwm_update(nt, nf, nk, nl);   /* 測定用。s_k4 が生きているうちに */
 
     label_ids_status ks = label_ids_convert(s_lab, nl, text, ids, ids_cap, n_ids);
 
