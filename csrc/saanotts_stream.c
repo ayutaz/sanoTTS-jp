@@ -73,6 +73,29 @@
  *    ゼロパディングを実データの代わりに読むので stream G2（多文）が落ちる
  *    （2026-09-03 に実際に落ちるのを見て戻した。TOK_HALO も 9 になるので簿記は崩れず、
  *    崩れるのは値だけ = 受容野の仮定そのものを検査している）。 */
+/* --- MEM-5: decoder の出口を 1 フレームずつにする（`-DSAAN_MEM_HEAD_PF=1`）------
+ *
+ * 既定（0）は hout（1×1 conv、48 → 1539ch）を CH フレームまとめて計算し、
+ * `o1539 [1539][CH]` に置く = **49,248 B で arena の 31.4%**（M-139 §4）。
+ * 1 にすると出力範囲版 `saan_conv1d_wr` で列 m だけを計算し、`o1539 [1539][1]`
+ * = 6,160 B になる（**−43,088 B**）。
+ *
+ * ⚠️ **bit 一致の根拠**: 1×1 conv の出力要素 (c, m) は入力列 m だけから決まり、
+ *    積和は cin=48 の順で回る。W8A8 の量子化も per-frame。どちらも T に依らない
+ *    ので、範囲 [m, m+1) で呼んでも [0, CH) で呼んでも同じ値になる
+ *    （`make -C csrc range` が範囲版と [0,T) 版の bit 一致を陽性対照つきで見ている）。
+ * ⚠️ **既定を変えていない。** 速度の代償は M-139 §6 に実機で測った値がある（粒度 4 が折衷点）。 */
+#ifndef SAAN_MEM_HEAD_PF
+#define SAAN_MEM_HEAD_PF 0
+#endif
+/* 1 回の hout 呼び出しで計算する列数。`SAAN_MEM_HEAD_PF` が 0 なら CH（既定）、
+ * 1 なら 1 列ずつ、2 以上ならその粒度（**CH を割り切ること**）。
+ * ⚠️ **粒度を下げるほど重みを読み直す回数が増える** — S5b の weight-stationary
+ *    カーネルは重み 1 行を T 列に使い回すので、T を半分にすると flash からの
+ *    重み転送が 2 倍になる。arena と速度の折衷点は実機で測った（M-139 §6。**粒度 4 が折衷点** — 24,624 B 減って xRT 0.483）。 */
+#define HEAD_COLS (SAAN_MEM_HEAD_PF ? SAAN_MEM_HEAD_PF : CH)
+typedef char saan_head_group_divides_chunk[(CH % HEAD_COLS == 0) ? 1 : -1];
+
 #define TOK_PAD  4
 #define TOK_HALO (3 * TOK_PAD)   /* パイプ全体の遅延 = 受容野 ±12 */
 #define TOK_K    CH              /* 1 回に進めるトークン数。⚠️ pipe_push が CH 単位なので CH に固定 */
@@ -281,7 +304,7 @@ size_t saan_stream_arena_used(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(float) * (size_t)E * CH);            /* w_e（re / im / frm もこの中。T4） */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_R * CH);   /* w_r */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)DEC_W * CH);        /* w_g */
-    s += SAAN_ALIGN16(sizeof(float) * 1539 * CH);                 /* o1539 */
+    s += SAAN_ALIGN16(sizeof(float) * 1539 * HEAD_COLS);          /* o1539（MEM-5 で [1539][1]） */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);/* hr */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)(SAAN_NFFT + 2 * SAAN_HOP)) * 2;   /* ola / olw */
     s += SAAN_ALIGN16(sizeof(float) * SAAN_NFFT);                 /* win */
@@ -512,15 +535,18 @@ static saan_status dec_step(saan_stream *st, int i, const float *h_in,
  * ⚠️ **窓の二乗和で割るのは、そのサンプルに寄与する全フレームが出そろってから。**
  * hop 256 / n_fft 1024 なので 4 フレーム分待つ必要がある。
  */
+/* `stride` は mag / cosv / sinv の行ストライド（列数）。CH フレームまとめて
+ * 計算する既定では CH、1 フレームずつの `SAAN_MEM_HEAD_PF` では 1。
+ * ⚠️ **`CH` を直に書かないこと** — 書くと per-frame 版が黙って隣の bin を読む。 */
 static void istft_push(struct saan_stream_impl *im, const float *mag,
-                       const float *cosv, const float *sinv, int t,
+                       const float *cosv, const float *sinv, int t, int stride,
                        int32_t abs_frame) {
     const int N = SAAN_NFFT;
     SAAN_PROF_BEGIN(SAAN_PROF_ISTFT);
     for (int k = 0; k < NB; ++k) {
-        const float m = mag[(size_t)k * CH + t];
-        im->re[k] = m * cosv[(size_t)k * CH + t];
-        im->im[k] = m * sinv[(size_t)k * CH + t];
+        const float m = mag[(size_t)k * stride + t];
+        im->re[k] = m * cosv[(size_t)k * stride + t];
+        im->im[k] = m * sinv[(size_t)k * stride + t];
     }
     /* 逆実 FFT。一括版と**同じ関数**を使う（2 回書かない）。
      * `-DSAAN_USE_NAIVE_DFT` で naive に戻せる（検証基準として残してある） */
@@ -640,7 +666,7 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
     im->w_e     = (float *)saan_alloc(a, sizeof(float) * (size_t)E * CH);
     im->w_r     = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_R * CH);
     im->w_g     = (float *)saan_alloc(a, sizeof(float) * (size_t)DEC_W * CH);
-    im->o1539   = (float *)saan_alloc(a, sizeof(float) * 1539 * CH);
+    im->o1539   = (float *)saan_alloc(a, sizeof(float) * 1539 * HEAD_COLS);
     im->hr      = (float *)saan_alloc(a, sizeof(float) * (size_t)SAAN_DEC_HEAD * CH);
     im->ola_len = SAAN_NFFT + 2 * SAAN_HOP;   /* out_pos が N/2 先行する分 */
     im->ola     = (float *)saan_alloc(a, sizeof(float) * (size_t)im->ola_len);
@@ -867,21 +893,34 @@ static saan_status step_chunk_body(saan_stream *st, float *pcm) {
     SAAN_TRY(saan_conv1d_w(im->hr, h, hdw, hdb, DEC_W, SAAN_DEC_HEAD, 1, CH, st->a));
     saan_gelu(im->hr, (size_t)SAAN_DEC_HEAD * CH);
 
-    /* ⚠️ **hout は CH フレームまとめて計算する。** 1 フレームずつにすると
-     * `o1539` が 49 KB → 6 KB に減るが、`saan_conv1d` の T=1 呼び出しが
-     * 効率を落として**全体が 35% 遅くなる**（実測 0.023 → 0.031 × RT）。
-     * ESP32 では速度が律速（移植可能 C で 0.93 × RT）なので**速度を取る**。
-     * メモリは他の作業領域を正確に詰めて G1 を満たす。 */
-    SAAN_TRY(saan_conv1d_w(im->o1539, im->hr, how, hob, SAAN_DEC_HEAD, 1539, 1, CH, st->a));
+    /* ⚠️ **既定では hout を CH フレームまとめて計算する。** 1 フレームずつにすると
+     * `o1539` が 49,248 B → 6,160 B に減る（`-DSAAN_MEM_HEAD_PF=1`）。
+     * ⚠️ **ここに「全体が 35% 遅くなる（0.023 → 0.031 × RT）」と書いてあったが、
+     *    それは fp32 時代の**ホスト**の値だった**（[C-055](../docs/decisions.md#c-055):
+     *    ホストの時間は実機の内訳を予測しない）。**実機（CoreS3 / W8A8+PIE）で
+     *    測り直した値は M-139 §6 にある（粒度 4 で xRT 0.483 / 粒度 1 で 0.700）。** */
     SAAN_PROF_END(SAAN_PROF_HEAD);
 
+    /* HEAD_COLS 列ずつ hout を計算して iSTFT に流す。**既定は HEAD_COLS == CH = 1 群**で、
+     * そのとき `saan_conv1d_wr(..., 0, CH, ...)` は `saan_conv1d_w(..., CH, ...)` の
+     * 定義そのもの（saanotts_internal.h）なので、既定の経路は 1 命令も変わらない。 */
     const float *mag = im->o1539;
-    const float *cosv = im->o1539 + (size_t)513 * CH;
-    const float *sinv = im->o1539 + (size_t)1026 * CH;
-    for (int m = 0; m < CH; ++m) {
+    const float *cosv = im->o1539 + (size_t)513 * HEAD_COLS;
+    const float *sinv = im->o1539 + (size_t)1026 * HEAD_COLS;
+    for (int g0 = 0; g0 < CH; g0 += HEAD_COLS) {
+    /* 群のフレームが全部「発話の外」なら hout を計算しない。出力は捨てられるので
+     * 値は変わらない（下の m のループが同じ条件で continue する）。
+     * ⚠️ HEAD_COLS == CH（既定）では 1 群しか無いので、効くのはプリロール中の
+     *    t < 0 の step だけ。粒度を下げると効く群が増える。 */
+    if (t + g0 + HEAD_COLS - 1 < 0 || t + g0 >= st->n_frames) continue;
+    SAAN_PROF_BEGIN(SAAN_PROF_HEAD);
+    SAAN_TRY(saan_conv1d_wr(im->o1539, im->hr, how, hob, SAAN_DEC_HEAD, 1539, 1,
+                            CH, g0, g0 + HEAD_COLS, st->a));
+    SAAN_PROF_END(SAAN_PROF_HEAD);
+    for (int m = g0; m < g0 + HEAD_COLS; ++m) {
         const int32_t tt = t + m;          /* decoder 最終段の出力の絶対時刻 */
         if (tt < 0 || tt >= st->n_frames) continue;   /* 発話に存在しない */
-        istft_push(im, mag, cosv, sinv, m, tt);
+        istft_push(im, mag, cosv, sinv, m - g0, HEAD_COLS, tt);
         while (istft_ready(im, st->n_frames)) {
             if (im->skip_hops > 0) {          /* 一括版が捨てる先頭 N/2 に相当 */
                 istft_pop(im, im->obuf + (size_t)im->ofill * SAAN_HOP);
@@ -895,6 +934,7 @@ static saan_status step_chunk_body(saan_stream *st, float *pcm) {
             ++im->ofill;
         }
     }
+    }   /* HEAD_COLS 群 */
     (void)pcm;
     return SAAN_OK;
 }

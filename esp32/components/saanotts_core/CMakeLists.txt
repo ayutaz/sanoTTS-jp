@@ -134,6 +134,22 @@ if(SAAN_PROFILE)
     message(STATUS "sanoTTS: 段別プロファイラ **有効**（速度の報告には使わない）")
 endif()
 
+# --- MEM-5: decoder の出口を 1 フレームずつにする（arena −43,088 B）-------------
+#
+#     idf.py -DSAAN_MEM_HEAD_PF=1 build
+#
+# ⚠️ **PUBLIC で定義する。** `saan_stream_arena_used()` の値が変わるので、
+#    雛形（main.c）の二重防御がコアと同じ値を見る必要がある。
+#    PRIVATE にすると main 側だけ旧い値を期待して「a.used が足りない」で止まる。
+# 速度の代償は実機で測ってある（M-139 §6。粒度 4 が折衷点）。
+# ⚠️ **値をそのまま渡すこと。** `=1` と書き潰すと `-DSAAN_MEM_HEAD_PF=2` が
+#    黙って 1 として効き、**arena も速度も 1 列版のまま**になる（実際に踏んだ。
+#    起動ログの `arena used` が粒度で変わらないので気づけた）。
+if(SAAN_MEM_HEAD_PF)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC SAAN_MEM_HEAD_PF=${SAAN_MEM_HEAD_PF})
+    message(STATUS "sanoTTS: MEM-5 有効 — hout を ${SAAN_MEM_HEAD_PF} 列ずつ")
+endif()
+
 # --- PIE（ESP32-S3 の整数 SIMD）-------------------------------------------
 #
 # ⚠️ **現在このファームは PIE を使っていない。** 有効にするには次の 2 つを
