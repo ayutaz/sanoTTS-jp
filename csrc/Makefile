@@ -107,6 +107,11 @@ arena_stress: arena_stress.c $(CORE) $(HDRS)
 	#    `arena_stress.c` が自前で `_POSIX_C_SOURCE` を立てるようにした。
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ arena_stress.c $(CORE) $(LDLIBS)
 
+# ⚠️ **W8A8 レーン**（実機と同じ構成）。C-100 の再発防止: init のピークは W8A8 の
+#    act scratch が n_ids に比例して乗るので W8A32 より 12,608 B 大きい（350 ids）。
+arena_stress_a8: arena_stress.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o $@ arena_stress.c $(CORE) $(LDLIBS)
+
 bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)
 
@@ -181,7 +186,7 @@ test: golden_test
 stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
 	./stream_test    student.bin    golden.bin ids_heldout.bin
 	./stream_test    student_i8.bin golden.bin ids_heldout.bin
-	./stream_test_a8 --g1-kb 136 student_i8.bin golden.bin ids_heldout.bin
+	./stream_test_a8 --g1-kb 148 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test
@@ -201,8 +206,14 @@ int8-e2e: int8_e2e_test student_i8.bin ids_heldout.bin
 # T2: §5 で「init 後の a.used == saan_stream_arena_used(n_ids)」を複数の n_ids で検査する。
 # 雛形（esp32/main/main.c）はこの関数で init 後の a.used を検査するので、確保を変えて関数を
 # 直し忘れると実機は 1 発話も喋らない（T2 で a.used が −16,512 B 動き、旧定数 192,960 では拒否された）
-arena: arena_stress
+arena: arena_stress arena_stress_a8
 	./arena_stress student.bin golden.bin
+	@echo ""
+	@echo "== W8A8 レーン（実機と同じ構成）=="
+	@echo "⚠️ **W8A32 だけでは足りない**（C-100）。W8A8 は act scratch が n_ids に比例して"
+	@echo "   乗るので、init のピークが 137,216 -> 149,824 B に増える。136 KB は W8A32 では"
+	@echo "   通るが W8A8 では 350 ids で落ちる = **このレーンが無かったから見逃した**。"
+	./arena_stress_a8 student_i8.bin golden_i8.bin
 
 range: range_test
 	./range_test

@@ -110,8 +110,33 @@ typedef char saan_head_group_divides_chunk[(CH % HEAD_COLS == 0) ? 1 : -1];
 
 /* --- パイプ段 ------------------------------------------------------------- */
 
+/* --- MEM-6: パイプ段は**ハローだけ**持つ（`-DSAAN_MEM_PIPE_HALO=1`）-----------
+ *
+ * 各段の窓は `[C][W]`（W = 2·pad + CH）だが、**step をまたいで生き残るのは末尾の
+ * `W − CH = 2·pad` 列だけ**である（`pipe_push` は左へ CH シフトして末尾に CH 列
+ * 足すので、次の step の窓の先頭 2·pad 列 = 今の窓の末尾 2·pad 列）。
+ * 中央の CH 列は「その step の作業用」なので、**全段で 1 本の窓を共用できる**。
+ *
+ *   既定(0): ac 15,360 + dinp 1,600 + dblk 21,280 + tok 9,216 = **47,456 B**
+ *   1      : ハロー 21,728 + 共用窓 4,256 = **25,984 B**（**−21,472**）
+ *
+ * ⚠️ **共用が成り立つ根拠**（`step_chunk_body` の順序）: どの段も
+ *    「窓を組む → カーネル → 残差で窓を読む → 終わり」で閉じており、
+ *    **窓を次の段まで持ち越す段が 1 つも無い**（段どうしの受け渡しは
+ *    `w_full` / `w_e` / `h_out` などの別バッファ）。
+ * ⚠️ 代償は step ごとの memcpy（ハローの出し入れ）。実測は M-142。
+ * ⚠️ `in` と `out` が同じ領域でもよい性質は保たれる（窓に写した後 `in` を読まない）。 */
+#ifndef SAAN_MEM_PIPE_HALO
+/* ⚠️ **既定 1**（M-142）。arena −21,472 B で、実機の定常 xRT は 0.483 → **0.474**
+ * （**遅くなるどころか速くなった**。作業窓が 47,456 → 4,256 B になって D-cache に
+ * 収まるのが効いているように見えるが、**その機構は未検証**）。
+ * PCM は bit 一致（実機 3 文 + ホスト 50 文 + 陽性対照 3 種）。
+ * `-DSAAN_MEM_PIPE_HALO=0` で元に戻る（arena も 139264 以上に戻すこと）。 */
+#define SAAN_MEM_PIPE_HALO 1
+#endif
+
 typedef struct {
-    float *buf;   /* [C][W]。W = 2*pad + CH */
+    float *buf;   /* 0: [C][W] の窓そのもの / 1: [C][W − CH] のハロー */
     int C, pad, W;
 } pipe_t;
 
@@ -132,16 +157,27 @@ typedef struct {
     const float *p1b, *p2b, *cdb, *cub, *gm;
 } saan_decblk_w;
 
+/* 1 段が確保する float 数（MEM-6 で窓 → ハローに変わる）。
+ * ⚠️ **`saan_stream_arena_used` と 1:1**。片方だけ変えると `make -C csrc arena` §5 が落ちる。 */
+/* 共用窓の float 数 = 段ごとの C×W の最大（ac 48x16 / dinp 40x10 / dblk 76x14 / tok 48x16）。
+ * ⚠️ **段を足したらここも足す。** 足りないと隣のバッファを黙って壊す。 */
+#define PIPE_WND_N ((size_t)DEC_W * (2 * 3 + CH) > (size_t)AC_W * (2 * TOK_PAD + CH) \
+                    ? (size_t)DEC_W * (2 * 3 + CH) : (size_t)AC_W * (2 * TOK_PAD + CH))
+
+#define PIPE_N(C, pad) ((size_t)(C) * (size_t)(SAAN_MEM_PIPE_HALO ? (2 * (pad)) : (2 * (pad) + CH)))
+
 static int pipe_init(pipe_t *p, saan_arena *a, int C, int pad) {
     p->C = C; p->pad = pad; p->W = 2 * pad + CH;
-    p->buf = (float *)saan_alloc(a, sizeof(float) * (size_t)C * p->W);
+    p->buf = (float *)saan_alloc(a, sizeof(float) * PIPE_N(C, pad));
     if (!p->buf) return 0;
-    memset(p->buf, 0, sizeof(float) * (size_t)C * p->W);   /* 先頭はゼロパディング */
+    memset(p->buf, 0, sizeof(float) * PIPE_N(C, pad));   /* 先頭はゼロパディング */
     return 1;
 }
 
 /* CH フレームを末尾に押し込む（左へ CH シフト）。`src` は [C][CH]。
- * NULL なら**ゼロ**を押し込む = 発話末尾の右パディング（一括版と同じ挙動） */
+ * NULL なら**ゼロ**を押し込む = 発話末尾の右パディング（一括版と同じ挙動）
+ * ⚠️ MEM-6（ハロー方式）では使わない（pipe_open が同じ内容を共用窓に組む）。 */
+#if !SAAN_MEM_PIPE_HALO
 static void pipe_push(pipe_t *p, const float *src) {
     SAAN_PROF_BEGIN(SAAN_PROF_PIPE);
     for (int c = 0; c < p->C; ++c) {
@@ -153,8 +189,42 @@ static void pipe_push(pipe_t *p, const float *src) {
     }
     SAAN_PROF_END(SAAN_PROF_PIPE);
 }
+#endif
 
 /* （旧 pipe_center は T4 で消えた: 中央を取り出していたのは cdel だけで、cring_center が代わる） */
+
+/* --- MEM-6 の窓の出し入れ -----------------------------------------------------
+ *
+ * `PIPE_OPEN` が返すのは「`pipe_push` 後の窓と**同じ内容・同じ stride `p->W`**」の
+ * ポインタで、既定（0）では `p->buf` そのもの。1 ではハロー + `src` を共用窓に組む。
+ * `PIPE_CLOSE` は次の step に残る `[CH, W)` を保存する（既定では何もしない）。 */
+#if SAAN_MEM_PIPE_HALO
+static float *pipe_open(float *wnd, pipe_t *p, const float *src) {
+    SAAN_PROF_BEGIN(SAAN_PROF_PIPE);
+    const int H = p->W - CH;          /* = 2*pad。持ち越す列数 */
+    for (int c = 0; c < p->C; ++c) {
+        float *row = wnd + (size_t)c * p->W;
+        memcpy(row, p->buf + (size_t)c * H, sizeof(float) * (size_t)H);
+        if (src) memcpy(row + H, src + (size_t)c * CH, sizeof(float) * CH);
+        else     memset(row + H, 0, sizeof(float) * CH);   /* 発話末尾の右パディング */
+    }
+    SAAN_PROF_END(SAAN_PROF_PIPE);
+    return wnd;
+}
+static void pipe_close(pipe_t *p, const float *wnd) {
+    SAAN_PROF_BEGIN(SAAN_PROF_PIPE);
+    const int H = p->W - CH;
+    for (int c = 0; c < p->C; ++c)
+        memcpy(p->buf + (size_t)c * H, wnd + (size_t)c * p->W + CH,
+               sizeof(float) * (size_t)H);
+    SAAN_PROF_END(SAAN_PROF_PIPE);
+}
+#define PIPE_OPEN(im, p, src)  pipe_open((im)->pwnd, (p), (src))
+#define PIPE_CLOSE(p, w)       pipe_close((p), (w))
+#else
+#define PIPE_OPEN(im, p, src)  ((void)(im), pipe_push((p), (src)), (p)->buf)
+#define PIPE_CLOSE(p, w)       ((void)(p), (void)(w))
+#endif
 
 /* --- c のリング（T4 = MEM-1）------------------------------------------------
  *
@@ -189,6 +259,9 @@ struct saan_stream_impl {
      * ⚠️ この幅は **T2（S9）で cdown / cup を中央 CH だけにした後**の下限。窓全部（W=14）に掛けて
      *    いた頃は段 4 の窓の左端 t − 16 − 3 まで要り、27 フレームだった。 */
     float *cring;        /* [CD][CRING_W] */
+#if SAAN_MEM_PIPE_HALO
+    float *pwnd;         /* MEM-6: 全段で共用する作業窓。stride は段ごとの p->W */
+#endif
     int32_t cring_t0;    /* cring の列 0 の絶対フレーム番号（cring_push が更新） */
 
     /* S9 で作業領域は「要る列だけ」の圧縮形になった（arena −11 KB。CH=8）。
@@ -300,9 +373,12 @@ size_t saan_stream_arena_used(int32_t n_ids) {
     s += SAAN_ALIGN16(sizeof(int32_t) * (size_t)n_ids);          /* d_hat */
     /* --- 発話長に依存しない分（G3 の対象） --- */
     s += SAAN_ALIGN16(sizeof(struct saan_stream_impl));          /* ⚠️ ポインタ幅で変わる */
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * (2 * 4 + CH)) * 5;   /* ac */
-    s += SAAN_ALIGN16(sizeof(float) * CD * (2 * 1 + CH));         /* dinp */
-    s += SAAN_ALIGN16(sizeof(float) * DEC_W * (2 * 3 + CH)) * 5;  /* dblk */
+    s += SAAN_ALIGN16(sizeof(float) * PIPE_N(AC_W, 4)) * 5;       /* ac（MEM-6 でハロー） */
+    s += SAAN_ALIGN16(sizeof(float) * PIPE_N(CD, 1));             /* dinp */
+    s += SAAN_ALIGN16(sizeof(float) * PIPE_N(DEC_W, 3)) * 5;      /* dblk */
+#if SAAN_MEM_PIPE_HALO
+    s += SAAN_ALIGN16(sizeof(float) * PIPE_WND_N);                /* 共用窓（MEM-6） */
+#endif
     s += SAAN_ALIGN16(sizeof(float) * CD * CRING_W);              /* cring（T4。旧 cdel 6 本 12,800 B） */
     /* S9: 作業領域は圧縮形 */
     s += SAAN_ALIGN16(sizeof(float) * full_n);                    /* w_full */
@@ -319,9 +395,30 @@ size_t saan_stream_arena_used(int32_t n_ids) {
     /* obuf: 2·CH − (SAAN_LATENCY mod CH) hop（= CH+4。saanotts_stream.h の導出） */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_OBUF_HOPS * SAAN_HOP);
     /* S6（T3）: token パイプ 3 段 + リング（旧 tok_buf / tok_w1 / tok_w2 / tok_out 17,664 B → 12,288 B） */
-    s += SAAN_ALIGN16(sizeof(float) * AC_W * (2 * TOK_PAD + TOK_K)) * 3;   /* tok[0..2] */
+    s += SAAN_ALIGN16(sizeof(float) * PIPE_N(AC_W, TOK_PAD)) * 3;  /* tok[0..2] */
     s += SAAN_ALIGN16(sizeof(float) * (size_t)TOK_G * AC_W * TOK_K);       /* tok_ring */
     return s;
+}
+
+/* init の途中も含めた**本当のピーク**（C-100）。
+ *
+ * ⚠️ **`saan_stream_arena_used()` は init が終わった後の値**で、init の途中で
+ *    `saan_run_duration` が取って返す 3 本の [SAAN_DUR_W][n_ids] を含まない。
+ *    350 ids ではそれが **134,400 B** で、**streaming のバッファより大きい**。
+ *    `arena_used` を下限だと思って arena を詰めると **長い文だけ init が失敗する**
+ *    （実際に踏んだ: 120 KB にしたら `make -C csrc arena` が「300 ids は通るが
+ *    350 ids で落ちる」と報告した）。
+ * ⚠️ `saan_stream_arena_needed()` は和で足す**緩い上限**なので、詰めるには使えない。
+ *    こちらは 2 フェーズの **max** = 実際に要る量。 */
+size_t saan_stream_arena_peak(int32_t n_ids) {
+    /* フェーズ 1: log_d + d_hat + duration の h / t1 / t2 */
+    size_t dur = SAAN_ALIGN16(sizeof(float) * (size_t)n_ids)
+               + SAAN_ALIGN16(sizeof(int32_t) * (size_t)n_ids)
+               + SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DUR_W * (size_t)n_ids) * 3
+               + saan_act_scratch_needed(SAAN_DUR_W, n_ids);
+    /* フェーズ 2: streaming のバッファ（duration の分は a->used を巻き戻して返す） */
+    const size_t used = saan_stream_arena_used(n_ids);
+    return dur > used ? dur : used;
 }
 
 size_t saan_stream_arena_needed(int32_t n_ids) {
@@ -416,14 +513,14 @@ static saan_status acblk_step(saan_stream *st, pipe_t *p, const saan_acblk_w *k,
     const saan_wref c1w = k->c1w, c2w = k->c2w;   /* init で解決済み（S1） */
     const float *c1b = k->c1b, *c2b = k->c2b, *ng = k->ng, *nb = k->nb;
 
-    pipe_push(p, in);
+    float *pb = PIPE_OPEN(im, p, in);
     const int W = p->W;
     /* buf の先頭が対応する絶対時刻。中央の先頭 t_out から pad 引いた位置 */
     const int32_t t_buf = t_out - p->pad;
     const int c1_lo = p->pad - 2, c1_hi = p->pad + CH + 2;   /* c1 の要る列 [2, W−2) */
     const int T1 = c1_hi - c1_lo;                            /* = W − 4 */
 
-    SAAN_TRY(saan_conv1d_wr(im->w_full, p->buf, c1w, c1b, AC_W, AC_W, 5, W,
+    SAAN_TRY(saan_conv1d_wr(im->w_full, pb, c1w, c1b, AC_W, AC_W, 5, W,
                             c1_lo, c1_hi, st->a));
     saan_relu(im->w_full, (size_t)AC_W * T1);
     /* ⚠️ **c1 の出力にもゼロクリアが要る。** 一括版では c1 の配列は [0,T) しかなく、
@@ -438,7 +535,8 @@ static saan_status acblk_step(saan_stream *st, pipe_t *p, const saan_acblk_w *k,
     saan_layernorm_c(out, ng, nb, AC_W, CH);
     for (int c = 0; c < AC_W; ++c)
         for (int m = 0; m < CH; ++m)
-            out[(size_t)c * CH + m] += p->buf[(size_t)c * W + p->pad + m];
+            out[(size_t)c * CH + m] += pb[(size_t)c * W + p->pad + m];
+    PIPE_CLOSE(p, pb);
     zero_outside(out, AC_W, t_out, n_valid);
     return SAAN_OK;
 }
@@ -463,13 +561,14 @@ static saan_status dec_inp_step_body(saan_stream *st, const float *c_in,
     const saan_wref iw = im->iw;   /* init で解決済み（S1） */
     const float *ib = im->ib;
 
-    pipe_push(p, c_in);           /* inp の入力は c そのもの（C=CD） */
+    float *pb = PIPE_OPEN(im, p, c_in);   /* inp の入力は c そのもの（C=CD） */
     /* S9: 中央 [pad, pad+CH) だけを `h_out` [DEC_W][CH] に直接書く。入力は p->buf なので
      * 呼び出し側が `h_out` に `w_full` を渡してきても重ならない
      * （以前は w_g に [DEC_W][W] で出してから中央を memcpy していた。w_g が
      * [DEC_W][CH] に縮んだのでそこには入らない） */
-    SAAN_TRY(saan_conv1d_wr(h_out, p->buf, iw, ib, CD, DEC_W, 3, p->W,
+    SAAN_TRY(saan_conv1d_wr(h_out, pb, iw, ib, CD, DEC_W, 3, p->W,
                             p->pad, p->pad + CH, st->a));
+    PIPE_CLOSE(p, pb);
     zero_outside(h_out, DEC_W, t_out, st->n_frames);
     return SAAN_OK;
 }
@@ -502,7 +601,7 @@ static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
     const float *p1b = k->p1b, *p2b = k->p2b, *cdb = k->cdb, *cub = k->cub, *gm = k->gm;
     float *c_out = im->w_c;   /* この段の c [CD][CH]（リングから取り出す。T4） */
 
-    pipe_push(p, h_in);
+    float *pb = PIPE_OPEN(im, p, h_in);
     const int W = p->W;
     /* 条件付けは 1x1 なので pad 不要。**c の中央 CH だけ**に掛ける（値は窓全部に掛けた
      * ときの中央列と同じ = per-frame）。c はこの段の出力時刻 t_out の位置をリングから読む */
@@ -512,7 +611,7 @@ static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
     SAAN_TRY(saan_conv1d_w(im->w_g, im->w_r, cuw, cub, SAAN_DEC_R, DEC_W, 1, CH, st->a));
 
     /* dw: 入力は窓全部（p->buf [DEC_W][W]）、出力は中央だけ圧縮して w_full [DEC_W][CH] */
-    SAAN_TRY(saan_dwconv1d_wr(im->w_full, p->buf, dw, DEC_W, 7, W,
+    SAAN_TRY(saan_dwconv1d_wr(im->w_full, pb, dw, DEC_W, 7, W,
                               p->pad, p->pad + CH, st->a));
     for (size_t k = 0; k < (size_t)DEC_W * CH; ++k) im->w_full[k] += im->w_g[k];
     SAAN_TRY(saan_conv1d_w(im->w_e, im->w_full, p1w, p1b, DEC_W, E, 1, CH, st->a));
@@ -521,8 +620,9 @@ static saan_status dec_step_body(saan_stream *st, int i, const float *h_in,
     for (int c = 0; c < DEC_W; ++c)
         for (int m = 0; m < CH; ++m)
             h_out[(size_t)c * CH + m] =
-                p->buf[(size_t)c * W + p->pad + m] + gm[0] * h_out[(size_t)c * CH + m];
+                pb[(size_t)c * W + p->pad + m] + gm[0] * h_out[(size_t)c * CH + m];
 
+    PIPE_CLOSE(p, pb);
     zero_outside(h_out, DEC_W, t_out, st->n_frames);
     return SAAN_OK;
 }
@@ -666,6 +766,11 @@ static saan_status stream_init_body(saan_stream *st, const saan_weights *w,
     const size_t full_n = (size_t)AC_W * (W_AC - 4) > (size_t)DEC_W * CH
                         ? (size_t)AC_W * (W_AC - 4) : (size_t)DEC_W * CH;
     const int maxC = DEC_W > AC_W ? DEC_W : AC_W;
+#if SAAN_MEM_PIPE_HALO
+    /* MEM-6: 共用窓は「段ごとの C×W の最大」。**PIPE_WND_N と 1:1** */
+    im->pwnd    = (float *)saan_alloc(a, sizeof(float) * PIPE_WND_N);
+    if (!im->pwnd) return SAAN_ERR_ARENA;
+#endif
     im->w_full  = (float *)saan_alloc(a, sizeof(float) * full_n);
     im->w_c     = (float *)saan_alloc(a, sizeof(float) * (size_t)CD * CH);
     im->w_ch    = (float *)saan_alloc(a, sizeof(float) * (size_t)maxC * CH);

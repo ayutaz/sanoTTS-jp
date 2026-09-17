@@ -126,22 +126,29 @@ static bool g_dict_ok;
  *    使い、208 KB では 3,776 B 溢れた）。176 KB ならその差は要らないので 1 本にした。
  * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` + T10 で
  *    移す .bss 14,464 B が収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
-/* ⚠️ **2026-09-17 に 176 KB → 136 KB にした**（[M-140](../../docs/measurements.md#m-140)）。
- *    内訳は 3 つで、**どれも PCM を 1 bit も変えない**:
- *      - MEM-5 粒度 4（`o1539` 49,248 → 24,624 B。コア component の既定）
+/* ⚠️ **2026-09-17 に 176 KB → 120 KB にした**（[M-140](../../docs/measurements.md#m-140) / [M-142](../../docs/measurements.md#m-142)）。
+ *    内訳は 4 つで、**どれも PCM を 1 bit も変えない**:
+ *      - MEM-5 粒度 4（`o1539` 49,248 → 24,624 B）
+ *      - MEM-6 パイプ段はハローだけ持つ（47,456 → 25,984 B。M-142）
  *      - 漢字の素性表を 96 → 44 本（`nf ≤ nt ≤ 44` がコードで保証されている）
  *      - K-7 のトークン表を 640 → 256 本
- *    代償は定常 xRT 0.448 → 0.483（要件 ≤ 0.5 の内側）。
+ *    代償は定常 xRT 0.448 → **0.474**（MEM-6 が MEM-5 の分を取り戻した。要件 ≤ 0.5 の内側）。
  *
- * ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる。** 下限は 2 つ:
+ *
+ * ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる。** 下限は 3 つで、**効いているのは (b)**:
  *      (a) 漢字経路の作業領域 `SAAN_KANJI_WORKBYTES`（121,856 B。**下の typedef が静的に検査**）
- *      (b) 350 ids の合成 `saan_stream_arena_used(350)`（粒度 4 で 134,432 B /
- *          粒度を戻す（`-DSAAN_MEM_HEAD_PF=0`）なら **159,056 B** = 136 KB では足りない）
- *    ⚠️ **(b) は関数なのでコンパイル時に検査できない。** 代わりに
- *    `tts_task` の先頭で `saan_stream_arena_used(SAAN_MAX_IDS)` と突き合わせ、
- *    **足りなければ起動時に止める**（喋り始めてから失敗させない）。 */
+ *      (b) **init の途中のピーク** `saan_stream_arena_peak(350)` = **149,824 B（W8A8）** ← これ
+ *      (c) streaming のバッファ `saan_stream_arena_used(350)` = 112,960 B（(b) に含まれる）
+ *
+ * ⚠️⚠️ **(b) を `saan_stream_arena_used()` と間違えないこと**（C-100）。あれは **init 後**の値で、
+ *    `saan_run_duration` が init の途中で取って返す 3×[32][n_ids]（350 ids で 134,400 B）と
+ *    W8A8 の act scratch（12,608 B）を**含まない**。120 KB にしたら
+ *    **300 ids は通るが 350 ids で init が落ちた**（`make -C csrc arena` が捕まえた）。
+ * ⚠️ **関数なのでコンパイル時に検査できない。** `tts_task` の先頭で
+ *    `saan_stream_arena_peak(SAAN_MAX_IDS)` と突き合わせ、**足りなければ起動時に止める**。
+ * ⚠️ **MEM-6 は arena を 1 バイトも減らさない**（(b) が下限だから。M-142）。速度には効く。 */
 #ifndef SAAN_ARENA_BYTES
-#define SAAN_ARENA_BYTES (136 * 1024)
+#define SAAN_ARENA_BYTES (148 * 1024)
 #endif
 
 /* ⚠️ **黙って確保に失敗したのを検出する二重防御**（init 後の `a.used` の検査）。
@@ -847,7 +854,7 @@ static void tts_task(void *arg) {
      *    **「短い文は喋れるが長い文だけ SAAN_ERR_ARENA」**という気づきにくい形になる。
      *    ここで落としておけば、組み合わせ間違いは**必ず起動時に**分かる。 */
     {
-        const size_t need = saan_stream_arena_used(SAAN_MAX_IDS);
+        const size_t need = saan_stream_arena_peak(SAAN_MAX_IDS);   /* ⚠️ used ではない。C-100 */
         if (need > (size_t)SAAN_ARENA_BYTES) {
             ESP_LOGE(TAG, "arena %d B では最長入力（%d ids）に %u B 足りない。"
                           "-DSAAN_ARENA_BYTES を %u 以上にするか、-DSAAN_MEM_HEAD_PF を下げること",

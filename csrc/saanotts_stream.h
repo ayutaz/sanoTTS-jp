@@ -103,4 +103,9 @@ size_t saan_stream_arena_needed(int32_t n_ids);
  *    `make -C csrc arena` の §5（実測 a.used との bit 一致、陽性対照つき）が落ちる。 */
 size_t saan_stream_arena_used(int32_t n_ids);
 
+/* init の途中も含めた**本当のピーク** = max(duration フェーズ, streaming フェーズ)。
+ * ⚠️ **arena を詰めるときに見るのはこちら**（C-100）。`saan_stream_arena_used()` は
+ *    init 後の値で、duration の一時領域 3×[32][n_ids]（350 ids で 134,400 B）を含まない。 */
+size_t saan_stream_arena_peak(int32_t n_ids);
+
 #endif /* SAANOTTS_STREAM_H */

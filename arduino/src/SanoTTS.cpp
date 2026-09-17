@@ -37,7 +37,7 @@ extern "C" {
  * 176 KB (180,224 B)。⚠️ **この値の根拠は実測**（`make -C csrc arena` / `stream`）:
  * n_ids=350 の最小 arena 160,768 B（W8A32）/ W8A8 の高水位 ≈ 158.9 KB。
  * ⚠️ **漢字経路（Viterbi と NJD）はこの同じ arena を借りる。** 別に確保しない。 */
-#define SANOTTS_ARENA_BYTES (136 * 1024)   /* M-140: MEM-5 粒度 4 + 漢字の配列を詰めた分 */
+#define SANOTTS_ARENA_BYTES (148 * 1024)   /* ⚠️ 下限は saan_stream_arena_peak(350) = 149,824 B（C-100） */
 
 #if SANOTTS_ARENA_HEAP
 /* ⚠️ **16 バイト境界が要る**（PIE の SOC_SIMD_PREFERRED_DATA_ALIGNMENT）。

@@ -7114,14 +7114,14 @@ lib_deps = https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS
 ---
 
 <a id="d-066"></a>
-## D-066: **既定の RAM を 41,168 B 減らす**（MEM-5 粒度 4 + 漢字の配列を実寸に + arena 136 KB）
+## D-066: **既定の RAM を 28,840 B 減らす**（MEM-5 粒度 4 + MEM-6 + 漢字の配列を実寸に + arena 148 KB）
 
 **日付**: 2026-09-17
 **きっかけ**: コミュニティで「メモリ使用量がきつい」「辞書を差し替えても RAM は減らない」
 という話が出た（stackchan-idf への組み込み）。**辞書が RAM を食っていないことは実測で確認した**
 （13.7 MB を mmap して内部 DRAM は **852 B** しか動かない）。
 食っているのは **`g_arena` 180,224 B = DRAM シンボルの 84.6%** だった。
-**実測**: [M-139](measurements.md#m-139)（どこで使っているか）/ [M-140](measurements.md#m-140)（減らした結果）
+**実測**: [M-139](measurements.md#m-139)（どこで使っているか）/ [M-140](measurements.md#m-140)（⚠️ arena の下限を読み間違えた）/ [M-141](measurements.md#m-141)（どこまで下げられるか）/ **[M-142](measurements.md#m-142)（正しい構成と数字）**
 
 ⚠️ **この決定は一度書き直している。** 最初の版は「**手段を 2 つ用意し、既定は変えない**」
 （xRT の余裕を既定側に置く）だった。**ユーザーが「RAM が課題なので削減したいのがこちらの要望」
@@ -7132,10 +7132,11 @@ lib_deps = https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS
 
 | # | 決定 |
 |---|---|
-| 1 | **既定の `SAAN_ARENA_BYTES` を 180,224 → 139,264 B（136 KB）にする** |
+| 1 | **既定の `SAAN_ARENA_BYTES` を 180,224 → 151,552 B（148 KB）にする**（⚠️ 136 KB と書いていたのは誤り = [C-100](#c-100)） |
 | 2 | **MEM-5 の既定粒度を 4 にする**（`csrc/saanotts_stream.c` の `#ifndef` 1 行） |
 | 3 | 漢字の素性表を 96 → **44 本**（`nf ≤ 44` がコードで保証されている分） |
 | 4 | K-7 のトークン表を 640 → **256 本**（[M-79](measurements.md#m-79) の測定範囲内） |
+| 4b | **MEM-6: パイプ段はハローだけ持つ**（47,456 → 25,984 B）。⚠️ **arena は減らないが xRT が 0.483 → 0.474 に改善**（[M-142](measurements.md#m-142)） |
 | 5 | **`-DSAAN_ARENA_BYTES` / `-DSAAN_MEM_HEAD_PF` で元に戻せる**ようにする |
 | 6 | **arena が足りるかを起動時に検査して落とす**（組み合わせ間違いを実行時まで持ち越さない） |
 | 7 | **`-DSAAN_ARENA_HEAP=1` を S3 でも効かせる**（[C-099](#c-099)） |
@@ -7156,10 +7157,13 @@ lib_deps = https://github.com/ayutaz/sanoTTS-jp/releases/latest/download/sanoTTS
 この 1 行を見るため。⚠️ **CMake 側に置くと wasm と Arduino だけ別の値になる**
 （[C-099](#c-099) とまったく同じ形）。
 
-### ⚠️ ここが新しい下限
+### ⚠️ ここが新しい下限 — **duration の一時領域**
 
-**合成側 134,432 B（350 ids）。** 漢字経路は 121,856 B まで下がったのでもう壁ではない。
-さらに減らす案と、それぞれの状態は [M-140](measurements.md#m-140) §6。
+**`saan_stream_arena_peak(350)` = 149,824 B（W8A8）。** うち **89.7% が
+`saan_run_duration` の h / t1 / t2**（3×[32][350] = 134,400 B）である（[C-100](#c-100)）。
+**合成の streaming バッファ（112,960 B）も漢字経路（121,856 B）ももう壁ではない。**
+さらに減らすには **duration をチャンク化**する（受容野 ±12 トークン = token パイプと同じ手口。
+K=64 で −100,608 B → arena ≈ 122,880 B）。⚠️ **未実装**（[M-142](measurements.md#m-142) §6）。
 **粒度 2 / 1 は採らない** — xRT が 0.553 / 0.700 で要件を割る。
 
 ### PSRAM という別の選択肢（要件を割る）
@@ -7241,3 +7245,64 @@ endif()
 `-DSAAN_MEM_HEAD_PF=2` が黙って 1 として効いた。
 **気づけたのは起動ログの `arena used` が粒度で変わらなかったから** —
 **フラグの効果が数字でログに出ていなければ、これも見逃していた。**
+
+---
+
+<a id="c-100"></a>
+## C-100: **arena の下限を `saan_stream_arena_used()` だと思っていた。本当は init の途中のピーク**（2026-09-17）
+
+[M-140](measurements.md#m-140) で `SAAN_ARENA_BYTES` を 180,224 → **139,264 B（136 KB）** にした。
+根拠は「350 ids の合成に要るのは `saan_stream_arena_used(350)` = 134,432 B」。
+**その関数は init が終わった後の `a->used`** で、**init の途中のピークではない。**
+
+`stream_init_body` はこう動く:
+
+```c
+st->log_d = saan_alloc(...);  st->d_hat = saan_alloc(...);
+const size_t mark = a->used;
+saan_run_duration(w, a, ids, n_ids, st->log_d);   /* h / t1 / t2 を 3 本取る */
+a->used = mark;                                    /* ← 返すので used に残らない */
+... streaming のバッファを確保 ...
+```
+
+`saan_run_duration` の `h` / `t1` / `t2` は各 `[SAAN_DUR_W(32)][n_ids]`。**350 ids で 134,400 B**。
+W8A8 では duration の conv にも act scratch が n_ids に比例して乗る（**+12,608 B**）。
+
+| 350 ids | W8A32 | **W8A8（実機）** |
+|---|---:|---:|
+| init のピーク | 137,216 B | **149,824 B** |
+| `arena_used`（init 後） | 114,128 B | 114,128 B |
+
+**つまり 136 KB は 350 ids に 10,560 B 足りない。**
+
+### なぜ気づかなかったか（3 つ重なった）
+
+1. **実機で 224 ids までしか流していなかった。** 交差点は約 270 ids で、
+   それ以下では streaming のバッファが下限なので**症状が出ない**。
+2. **起動時チェックを同じ間違った関数で書いた。** `saan_stream_arena_used(SAAN_MAX_IDS)` と
+   比べて「足りる」と**自信を持って表示していた**（余り 4,832 B と出していたが、実際は 10,560 B 不足）。
+   ⚠️ **チェックを足したことで、かえって安心してしまった。**
+3. ⚠️ **`make -C csrc arena` は W8A32 でしか回っていなかった。** W8A32 のピークは
+   137,216 B で 139,264 B に収まるので**素通りした**。W8A8 レーン（実機と同じ構成）が**無かった**。
+
+⚠️ **誤りの向きが危ない側だった** — `used` は真の下限を**過小**に出す（[C-061](#c-061) と同じ形）。
+**「安全側に倒してある」と思ったら、式で向きを確かめること。**
+
+### 直したこと
+
+| # | 何 |
+|---|---|
+| 1 | **`saan_stream_arena_peak(n_ids)` を足した** = max(duration フェーズ, streaming フェーズ)。**16 B 刻みで実測した「init が通る最小」と両レーンで完全一致** |
+| 2 | 起動時チェックを `arena_peak` に変えた（`tts_task` の先頭で落とす） |
+| 3 | `SAAN_ARENA_BYTES` を **151,552 B（148 KB）** に。下限 149,824 B + 余り 1,728 B |
+| 4 | **`make -C csrc arena` に W8A8 レーン（`arena_stress_a8`）を足した。** これが無かったのが見逃した直接の原因 |
+| 5 | `main.c` のコメントに下限 3 つを「効いているのはどれか」つきで書いた |
+
+⚠️ **`saan_stream_arena_needed()` は使えない** — あれは duration と streaming を**和で**足す
+緩い上限（350 ids で 256,720 B）で、詰めるには過大。**max を取るのが `arena_peak`。**
+
+### 残る訂正
+
+[M-140](measurements.md#m-140) の「**−41,168 B**」は無効。**正しくは [M-142](measurements.md#m-142) の −28,840 B。**
+⚠️ **M-140 の §1（何をどれだけ削ったか）と §3（PCM の bit 一致）は有効** — 無効なのは
+**arena をどこまで下げられるかの部分だけ**である。
