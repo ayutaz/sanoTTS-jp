@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（138 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（139 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -179,6 +179,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-136](#m-136) | 辞書はリリースに在るのに CI が落としていなかった |
 | [M-137](#m-137) | Arduino / PlatformIO ライブラリ |
 | [M-138](#m-138) | `v1.1.0` を出した |
+| [M-139](#m-139) | RAM はどこで使われているか / どこまで減らせるか |
 
 </details>
 
@@ -13198,3 +13199,362 @@ README が指す 22 本が `latest` から消えていた（[C-052](decisions.md
 - **Arduino IDE の GUI**（検証は arduino-cli 1.5.1）
 - **PlatformIO が `latest` の URL をどうキャッシュするか。** 版を固定したい人が
   タグ URL を使うべき理由はそこにあるが、**キャッシュの挙動そのものは測っていない**
+
+---
+
+<a id="m-139"></a>
+## M-139. **RAM はどこで使われているか / どこまで減らせるか** — 内部 DRAM の **84.6% は `g_arena` の 1 本**。**要件を満たしたまま 32,768 B**（MEM-5 粒度 4 + arena 144 KB）、**要件を割るなら 179,440 B**（arena を PSRAM へ）。**どの構成も PCM は bit 一致**（自己実測 / M5 CoreS3）
+
+**2026-09-17。ユーザーの CoreS3（[D-047](decisions.md#d-047)）。** コミュニティで
+「メモリ使用量がきつい」「辞書を差し替えると flash に余裕ができるが **RAM は減らない**」という
+話が出たので、**どこで RAM を使っているか**を静的・動的の両方から測り、
+**減らせる余地を実機で 1 つ検証した**。
+
+出荷物（`v1.1.0` = v4 資産）をそのまま使う。焼いたのは **M5 CoreS3 / 漢字 16 MB 構成**。
+
+```bash
+# 資産（出荷物。SHA-256 を照合した）
+GH_TOKEN="$(gh auth token)" gh release download v1.1.0 --repo ayutaz/sanoTTS-jp \
+    -p 'saanotts-jp-v4-int8.bin' -p 'k1-dict-438750.bin' -D /tmp/ram
+shasum -a 256 /tmp/ram/*.bin
+#   a1eb6b0812e2ad2a… saanotts-jp-v4-int8.bin   ← M-119 の v4 と一致
+#   f162c922074d7681… k1-dict-438750.bin        ← D-044 の凍結辞書と一致
+
+export PATH="/opt/homebrew/opt/python@3.13/libexec/bin:$PATH"; . ~/esp/esp-idf/export.sh
+cd esp32/boards/m5unified
+idf.py -B /tmp/ram/build_m5k -DSDKCONFIG=/tmp/ram/build_m5k/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" -DSAAN_KANJI=1 \
+    -DSAAN_MODEL_BLOB=/tmp/ram/saanotts-jp-v4-int8.bin \
+    -DSAAN_DICT_BLOB=/tmp/ram/k1-dict-438750.bin build
+idf.py -B /tmp/ram/build_m5k -p /dev/cu.usbmodem2101 -b 921600 flash
+```
+
+生ログ `reports/m139_ram/`。
+
+### 1. 静的（リンク時）— `idf.py size`
+
+| 区分 | 使用 | 割合 | 残り | 全体 |
+|---|---:|---:|---:|---:|
+| **DIRAM** | **260,855 B** | **76.33%** | 80,905 B | 341,760 B |
+| 　`.bss` | 201,144 B | 58.86% | | |
+| 　`.text`（IRAM） | 43,695 B | 12.79% | | |
+| 　`.data` | 14,988 B | 4.39% | | |
+| 　`.vectors` | 1,028 B | 0.30% | | |
+| Flash `.rodata` | 1,006,048 B | | | |
+| Flash `.text` | 382,572 B | | | |
+
+### 2. **DRAM に載っているシンボルの内訳**（`nm` でアドレスが DRAM 域のものだけ）
+
+```bash
+xtensa-esp32s3-elf-nm --print-size --size-sort --radix=d -C /tmp/ram/build_m5k/saanotts_m5.elf \
+  | awk '$1>=1069547520 && $1<1071644672 {t+=$2; if($2>=1000) print $2"\t"$4} END {print "合計:", t}'
+```
+
+| シンボル | B | DRAM 合計に対して | 何 |
+|---|---:|---:|---|
+| **`g_arena`** | **180,224** | **84.6%** | 合成用 arena（`SAAN_ARENA_BYTES` = 176 KB） |
+| `g_chunk` | 8,192 | 3.8% | 1 pull 分の float PCM（`SAAN_CHUNK × SAAN_HOP`） |
+| `g_ids` | 4,108 | 1.9% | 音素 ID（`SAAN_MAX_IDS` 350） |
+| `port_IntStack` | 3,072 | 1.4% | FreeRTOS（うちの物ではない） |
+| `M5` | 2,092 | 1.0% | M5Unified |
+| 1 KB 未満が多数 | 15,282 | 7.2% | |
+| **DRAM シンボル合計** | **212,970** | | |
+
+⚠️ **重みと画面フォントは RAM を 1 バイトも使わない**（flash の `.rodata`）:
+`g_saan_model_blob` **654,032 B** / `lgfx_font_japan_gothic_20` 217,424 B。
+
+### 3. 動的（実機の起動ログ）
+
+```
+I (1039) heap_init: At 3FCC7B48 len 00021BC8 (134 KiB): RAM     ← 138,184 B
+I (1039) heap_init: At 3FCE9710 len 00005724 (21 KiB): RAM      ←  22,308 B
+I (1044) saanotts: 起動直後: 内部 DRAM free 131799 B / 最大ブロック 86016 B / **低水位 131799 B**
+I (1519) saanotts: 辞書 mmap 後: 内部 DRAM free 130947 B / 最大ブロック 86016 B
+I (1988) saanotts: arena used 156688 B / peak 156688 B / 確保 180224 B
+I (3534) saanotts: 1 発話後: 内部 DRAM free 128667 B / 最大ブロック 86016 B / **低水位 127015 B**
+I (20327) saanotts: 漢字 G2P 直後: 内部 DRAM free 126843 B / 最大ブロック 86016 B
+```
+
+| 地点 | 内部 DRAM free | 最大ブロック |
+|---|---:|---:|
+| heap_init が渡す内部 RAM | 160,492 B（+ RTCRAM 7 KiB） | — |
+| 起動直後（tts_task の先頭） | 131,799 B | 86,016 B |
+| 辞書 13.7 MB を mmap した後 | 130,947 B | 86,016 B |
+| 1 発話後 | 128,667 B（低水位 127,015） | 86,016 B |
+| 漢字 G2P 直後 | 126,843 B | 86,016 B |
+
+⚠️ **辞書の大きさは RAM にほぼ無関係。** 13,702,320 B を貼っても
+**起動直後 → 辞書 mmap 後の差は 852 B**（`esp_mmu_map` の簿記ぶん）。
+**コミュニティの「辞書を差し替えても RAM は減らない」は正しい。**
+⚠️ **漢字 G2P も内部 DRAM を動かさない**（126,843 → 126,843 B）。
+Open JTalk の一時ヒープ（最大 **81,412 B**）が PSRAM に落ちているため
+（`oj_heap_psram.h`。⚠️ **PSRAM が無い板では内部 DRAM から来る** = [M-98](#m-98)）。
+
+### 4. **arena 156,688 B の中身**（⚠️ これが本題）
+
+再現（`saanotts_stream.c` をそのまま取り込むので定数も `struct` の寸法も本番と同一。
+**各項の和が `saan_stream_arena_used()` と bit 一致することを自分で検算する**）:
+
+```bash
+cat > /tmp/ram/arena_breakdown.c <<'EOF'
+#include "saanotts_stream.c"
+#include <stdio.h>
+#include <stdlib.h>
+/* … 各確保を row() で出し、最後に saan_stream_arena_used(n_ids) と突き合わせる … */
+EOF
+cc -std=c99 -O1 -I csrc -o /tmp/ram/bd /tmp/ram/arena_breakdown.c \
+   csrc/saanotts.c csrc/saanotts_int8.c csrc/fft.c -lm && /tmp/ram/bd 53
+```
+
+| 確保 | 形 | B | arena に対して |
+|---|---|---:|---:|
+| **`o1539`** | [1539][8] f32 | **49,248** | **31.4%** |
+| `dblk[0..4]` | 5 × [76][14] f32 | 21,280 | 13.6% |
+| `ac[0..4]` | 5 × [48][16] f32 | 15,360 | 9.8% |
+| `ola`, `olw` | 2 × [1024+512] f32 | 12,288 | 7.8% |
+| `obuf` | [12 hop][256] f32 | 12,288 | 7.8% |
+| `w_e`（`re`/`im`/`frm` と共用） | [304][8] f32 | 9,728 | 6.2% |
+| `tok[0..2]` | 3 × [48][16] f32 | 9,216 | 5.9% |
+| `win` | [1024] f32 | 4,096 | 2.6% |
+| `cring` | [40][24] f32 | 3,840 | 2.5% |
+| `tok_ring` | [2][48][8] f32 | 3,072 | 2.0% |
+| `w_ch`, `w_ch2` | 2 × [76][8] f32 | 4,864 | 3.1% |
+| `w_full` / `w_g` | [608] / [76][8] f32 | 2,432 × 2 | 3.1% |
+| `dinp` | [40][10] f32 | 1,600 | 1.0% |
+| `hr` | [48][8] f32 | 1,536 | 1.0% |
+| `impl` | `struct saan_stream_impl` | 1,296 | 0.8% |
+| `w_c` / `w_r` | [40][8] / [12][8] f32 | 1,280 / 384 | 1.1% |
+| `log_d` + `d_hat`（**発話長に比例**） | [n_ids] f32 + [n_ids] i32 | 448（53 ids） | 0.3% |
+| **合計** | | **156,688** | |
+
+**検算**: ホストで測った和は **157,856 B**。差 **1,168 B** は
+`sizeof(struct saan_stream_impl)` のポインタ幅だけ（ホスト 64 bit で **2,464 B** /
+Xtensa 32 bit で **1,296 B**。`xtensa-esp32s3-elf-nm` で実測）。
+`157,856 − 2,464 + 1,296 = 156,688` = **実機のログと 1 バイト一致**。
+
+⚠️ **RAM は発話の長さでほとんど増えない**（**8 B/id** だけ）。実機 3 点で式と完全一致:
+
+| ids | 実機の `arena used` | 式 |
+|---:|---:|---|
+| 53 | 156,688 B | 156,688 |
+| 224 | 158,032 B | 156,688 − 448 + 2·align16(896) = 158,032 |
+| 247 | 158,224 B | 156,688 − 448 + 2·align16(988) = 158,224 |
+| 350（`SAAN_MAX_IDS`） | **未測定** | **159,056** |
+
+### 5. ⭐ **arena を PSRAM に移す**（`-DSAAN_ARENA_HEAP=1`）
+
+⚠️ **まず `esp32/boards/m5unified/main/CMakeLists.txt` の分岐が S3 で効いていなかった。**
+`if(_saan_target STREQUAL "esp32")` の中にしか
+`target_compile_definitions(... SAAN_ARENA_HEAP=1)` が無く、S3 で `-D` を渡しても
+**黙って無視された**（`esp32/main/CMakeLists.txt` の側は honor していたので、
+**板によって同じフラグの効き方が違う**という、いちばん気づけない壊れ方）。
+`if(SAAN_ARENA_HEAP)` を先に見るように直した。
+
+```bash
+idf.py -B /tmp/ram/build_m5k_psram -DSDKCONFIG=/tmp/ram/build_m5k_psram/sdkconfig \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" \
+    -DSAAN_KANJI=1 -DSAAN_ARENA_HEAP=1 \
+    -DSAAN_MODEL_BLOB=/tmp/ram/saanotts-jp-v4-int8.bin \
+    -DSAAN_DICT_BLOB=/tmp/ram/k1-dict-438750.bin build
+#   -- sanoTTS: -DSAAN_ARENA_HEAP=1 → arena はヒープ（PSRAM 優先）
+idf.py -B /tmp/ram/build_m5k_psram -p /dev/cu.usbmodem2101 -b 921600 app-flash
+```
+
+| | 既定（`.bss` に静的） | **`-DSAAN_ARENA_HEAP=1`（PSRAM）** | 差 |
+|---|---:|---:|---:|
+| DIRAM（リンク時） | 260,855 B（76.33%） | **80,623 B（23.59%）** | **−180,232** |
+| 　`.bss` | 201,144 B | **20,912 B** | −180,232 |
+| **起動直後の内部 DRAM free** | 131,799 B | **311,239 B** | **+179,440** |
+| **最大ブロック** | 86,016 B | **262,144 B** | **+176,128** |
+| 1 発話後の低水位 | 127,015 B | 306,455 B | +179,440 |
+| **定常 xRT** | **0.448 / 0.449 / 0.449** | **0.693 / 0.693 / 0.693 / 0.697 / 0.701 / 0.704 / 0.706** | **+54.7%**（中央値比） |
+| 鳴らし始めまで | 385 ms | **522〜527 ms** | +142 |
+| アンダーラン | 0 / 55 チャンク（3 発話） | **0 / 252 チャンク（8 発話）** | 変わらず |
+| PCM の checksum | `0x390bf4b2aef8f2ec` / `0xd6f6fd9d4750719e` | **同一（bit 一致）** | — |
+
+✅ **内部 DRAM が 179,440 B 戻り、波形は 1 bit も変わらず、途切れない**（252 チャンク）。
+✅ **鳴らし始め 527 ms は [D-049](decisions.md#d-049) の「≤ 0.8 s」を満たす**（余裕 34%）。
+⚠️ **ただし「定常 xRT ≤ 0.5」は満たさない**（0.693）。**実時間（xRT 1.0）に対する余裕が 55% → 31%** に減る。
+**他のアプリと同居して PSRAM を取り合う板では、この 31% が足りるかは測っていない。**
+⚠️ **PSRAM の設定はすでに最善**（Quad 80 MHz / D-cache 64 KB / 行 64 B）。
+`sdkconfig.cores3` を変えて縮む余地は無い。
+
+**sanoTTS-jp が PSRAM から取る量**（ログに出た確保の和。ヒープの実測ではない）:
+arena 180,224 + リング 3 × 4,096 + 発話バッファ 16,384 + Open JTalk ≤ 81,412
+= **最大 290,404 B**（8 MB のうち 3.5%）。
+
+### 6. ⭐ **MEM-5: hout の粒度を下げる** — **`o1539` を 8 列から 4 列にすると 24,624 B 減って xRT は 0.483（要件内）**
+
+⚠️ **`saanotts_stream.c` のコメントに「1 フレームずつにすると全体が 35% 遅くなる
+（0.023 → 0.031 × RT）」と書いてあったが、あれは fp32 時代の**ホスト**の値**で、
+[C-055](decisions.md#c-055)（ホストの時間は実機の内訳を予測しない）そのものだった。
+**実機（CoreS3 / W8A8+PIE）で測り直し、さらに「1 列ずつ」と「8 列まとめて」の
+中間の粒度も測った。**
+
+`-DSAAN_MEM_HEAD_PF=<列数>` で hout（1×1 conv、48 → 1539ch）の呼び出し粒度を選ぶ。
+出力範囲版 `saan_conv1d_wr`（S9 / T2）を列範囲 `[g0, g0+G)` で呼ぶだけなので、
+**カーネルも積和順序も per-frame の量子化も変わらない**。
+
+```bash
+cd esp32/boards/m5unified
+for G in 1 2 4; do
+  idf.py -B /tmp/ram/bg$G -DSDKCONFIG=/tmp/ram/bg$G/sdkconfig \
+      -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" -DSAAN_KANJI=1 \
+      -DSAAN_MEM_HEAD_PF=$G -DSAAN_MODEL_BLOB=… -DSAAN_DICT_BLOB=… build
+  idf.py -B /tmp/ram/bg$G -p /dev/cu.usbmodem2101 -b 921600 app-flash
+done
+```
+
+**実機（53 ids / `吾輩は猫である。名前はまだ無い。` の 2 文。生ログ `reports/m139_ram/dev_bg*.log`）**:
+
+| `SAAN_MEM_HEAD_PF` | `o1539` | **arena used**（53 ids） | 差 | **定常 xRT** | 鳴らし始め | アンダーラン | PCM |
+|---:|---:|---:|---:|---:|---:|---:|---|
+| **8（既定）** | 49,248 B | **156,688 B** | — | **0.448** | 365 ms | 0 / 14 | 基準 |
+| **4** | 24,624 B | **132,064 B** | **−24,624** | **0.483** ✅ 要件内 | 377 ms | 0 / 14 | **bit 一致** |
+| 2 | 12,312 B | 119,760 B | −36,928 | 0.553 | 407 ms | 0 / 14 | **bit 一致** |
+| 1 | 6,160 B | 113,600 B | −43,088 | **0.700** | 468 ms | 0 / 14 | **bit 一致** |
+
+**ホストでも 4 粒度すべてで PCM が bit 一致する**（W8A32 / W8A8 の両レーン。
+`reports/m139_ram/pcm_probe.c`）:
+
+```
+（既定 = CH）  W8A32  sample 27648  FNV-1a 0x446e8dc1838abbb9  arena used 157856
+HEAD_PF=1     W8A32  sample 27648  FNV-1a 0x446e8dc1838abbb9  arena used 114768
+HEAD_PF=2     W8A32  sample 27648  FNV-1a 0x446e8dc1838abbb9  arena used 120928
+HEAD_PF=4     W8A32  sample 27648  FNV-1a 0x446e8dc1838abbb9  arena used 133232
+（既定 = CH）  W8A8   sample 27136  FNV-1a 0x2e70bbb7f5de3747
+HEAD_PF=1/2/4 W8A8   sample 27136  FNV-1a 0x2e70bbb7f5de3747
+```
+
+⚠️ **`make -C csrc stream`（held-out 24 文 × 3 レーン）はこの作業ツリーでは回せない**
+（`data/splits/` の第三者コーパスが `.gitignore` にあり `ids_heldout.bin` を作れない）。
+代わりに **長さを振った 50 本**（ids 6〜348、7 刻み）を流して、文ごとの PCM checksum と
+`n_frames` を畳んだ総合ハッシュを比べた（`reports/m139_ram/sweep_probe.c`）:
+
+```
+（既定 = CH）  W8A32  文 50 本の総合 FNV-1a 0xf0a3904845f16bdf  失敗 0
+HEAD_PF=1     W8A32  同一
+HEAD_PF=2     W8A32  同一
+HEAD_PF=4     W8A32  同一
+（既定 = CH）  W8A8   文 50 本の総合 FNV-1a 0x8a141626a6df156d  失敗 0
+HEAD_PF=1/2/4 W8A8   同一
+```
+
+**陽性対照 3 件**（この検査が「何も見ていない 0 件」でないことの担保）:
+
+| # | わざと壊した所 | 総合ハッシュ（W8A32） | 判定 |
+|---|---|---|---|
+| A | `istft_push` の stride を `HEAD_COLS` → `CH` | `0xdf0306a31659e9ab` | ✅ **検出** |
+| C | 群の飛ばし条件を `>= n_frames` → `>= n_frames − 1`（最後の群を落とす） | `0x0b8028d32a216369` | ✅ **検出** |
+| B | 飛ばし条件を `t+g0+HEAD_COLS−1 < 0` → `t+g0 < 0` | `0xf0a3904845f16bdf`（変わらず） | ⚠️ **検出せず** |
+
+⚠️ **B が変わらないのは「群が時刻 0 を跨ぐ」場合が起きないから**（step の `t` が CH の倍数
+なので、HEAD_COLS が CH を割り切る限り群は 0 を跨がない）。**対照が落ちないことにも理由が要る** —
+ここでは「その壊し方は到達不能」であって「検査が空虚」ではない。⚠️ ただし
+**到達不能であることを別に証明してはいない**（50 本で差が出なかった、というだけ）。
+
+⚠️ **1 列ずつは実機で +56%**（0.448 → 0.700）で、**旧コメントの +35% より悪い**。
+理由は S5b（weight-stationary の PIE カーネル）が重み 1 行を T 列に使い回すこと —
+**T を 1/8 にすると hout の重み 73,872 B/frame を 8 回読み直す**。
+**粒度を半分ずつ下げると代償が加速する**（8→4 で +7.8% / 4→2 で +14.5% / 2→1 で +26.6%）。
+
+✅ **`SAAN_MEM_HEAD_PF=4` が折衷点。** 24,624 B（arena の 15.7%）を
+**xRT 0.448 → 0.483 で買える**（[D-049](decisions.md#d-049) の「定常 xRT ≤ 0.5」を満たしたまま）。
+
+### 7. ⭐ **arena 本体を 176 → 144 KB に詰める**（`-DSAAN_ARENA_BYTES=147456`）
+
+`SAAN_ARENA_BYTES` を `-D` で上書きできるようにした（以前は `main.c` の裸の `#define`）。
+**下限は 2 つあり、`SAAN_MEM_HEAD_PF=4` にすると入れ替わる**:
+
+| 制約 | 既定 | `SAAN_MEM_HEAD_PF=4` |
+|---|---:|---:|
+| (a) 漢字経路の作業領域 `SAAN_KANJI_WORKBYTES` | 144,640 B | 144,640 B ← **こちらが効く** |
+| (b) 350 ids の合成 `saan_stream_arena_used(350)` | **159,056 B** ← こちらが効く | 134,432 B |
+| 取れる最小 | 159,056 | **144,640** |
+
+**`SAAN_MEM_HEAD_PF=4` + `SAAN_ARENA_BYTES=147456`（144 KB）を実機で通した**
+（生ログ `reports/m139_ram/dev_combined.log`）:
+
+| | 出荷（既定） | **MEM-5(4) + 144 KB** | 差 |
+|---|---:|---:|---:|
+| 静的 DIRAM | 260,855 B（76.33%） | **228,087 B（66.74%）** | **−32,768** |
+| 　`.bss` | 201,144 B | **168,376 B** | −32,768 |
+| **起動直後の内部 DRAM free** | 131,799 B | **164,567 B** | **+32,768** |
+| **最大ブロック** | 86,016 B | **118,784 B** | +32,768 |
+| 1 発話後の低水位 | 127,015 B | 159,783 B | +32,768 |
+| arena used / 確保 | 156,688 / 180,224 | 132,064 / **147,456** | |
+| Viterbi に渡る | 84,736 B | **51,968 B**（予算 49,152 以上） | −32,768 |
+| **定常 xRT** | 0.448 | **0.483 / 0.484 / 0.484** | **+7.8%** |
+| 鳴らし始め | 385 ms | **372〜382 ms** | **−3〜13**（§9） |
+| アンダーラン | 0 / 55 | **0 / 79 チャンク** | 変わらず |
+| PCM | 基準 | **3 文とも bit 一致** | — |
+
+✅ **内部 DRAM を 32,768 B 返しても、要件（定常 xRT ≤ 0.5 / アンダーラン 0 /
+鳴らし始め ≤ 0.8 s）を 3 つとも満たし、波形は 1 bit も変わらない。**
+
+⚠️ **ここから先は漢字経路が壁**（144,640 B）。合成側は G=2 なら 122,128 B まで下がるが、
+**arena は 144,640 B より小さくできない**ので意味が無い。
+⚠️ **かな専用ビルド（`SAAN_KANJI` 無し）なら (a) が消える**ので、G=4 で 135,168 B
+（**−45,056 B**）まで行けるはず。⚠️ **未測定**（パーティション表が違うので全体を焼き直す必要がある）。
+
+### 8. 副産物: **鳴らし始めが 20 ms 速くなった**（PCM は bit 一致）
+
+粒度対応のついでに「群のフレームが全部**発話の外**なら hout を計算しない」を入れた
+（プリロール中の `t < 0` の step で効く）。**既定（8 列）でも効く**:
+
+| | 変更前 | 変更後 |
+### 8b. `SAAN_CHUNK` を変えると arena はどう動くか（**ホストで実測 / 速度は未測定**）
+
+`SAAN_CHUNK` を書き換えてビルドし、各項の和が `saan_stream_arena_used()` と一致することを
+検算した（53 ids・ホスト。**実機では `impl` のぶん 1,168 B 小さい**）:
+
+| `SAAN_CHUNK` | `arena used` | 備考 |
+|---:|---:|---|
+| 4 | **111,312** | ⚠️ `re`/`im`/`frm` を `w_e` から**別確保に外した版**（+8,224 B 込み） |
+| 6 | 140,688 | 同上 |
+| **8（現行）** | **157,856** | `w_e` と共用 |
+| 8（別確保版） | 166,080 | 比較用 |
+| 12 | 221,136 | |
+| 16 | 276,224 | |
+
+⚠️ **`SAAN_CHUNK < 8` は素ではビルドできない**（`typedef char
+saan_t4_istft_fits_in_w_e[(E * CH >= ISTFT_END) ? 1 : -1]` に引っかかる。
+`E·CH = 304·4 = 1,216 < ISTFT_END = 2,056`）。**7 なら通る**（2,128 ≥ 2,056）が試していない。
+⚠️ **CH に対して線形ではない**（8→12 で +15,820 B/CH、12→16 で +13,772 B/CH）。
+`w_full = max(AC_W·(W_AC−4), DEC_W·CH)` が分岐を跨ぐため。**外挿しないこと。**
+⚠️ **k=5 / k=7 conv の窓は 1 出力フレームあたり 2.0 → 3.0 列に増える**（窓幅からの算術）。
+**速度は実機で測っていない。** §6 の MEM-5 粒度 4 が要件内で 24,624 B を返したので、
+**先に試す理由が無くなった。**
+
+### 9. まとめ — **減らせる。3 つの選択肢を実機で測った**
+
+| 構成 | 内部 DRAM が返る量 | 定常 xRT | PCM | 要件（≤0.5 / UR 0 / ≤0.8 s） |
+|---|---:|---:|---|---|
+| 出荷（既定） | — | 0.448 | 基準 | ✅ |
+| **`-DSAAN_MEM_HEAD_PF=4 -DSAAN_ARENA_BYTES=147456`** | **32,768 B** | **0.483** | **bit 一致** | ✅ **3 つとも** |
+| `-DSAAN_MEM_HEAD_PF=1 -DSAAN_ARENA_BYTES=147456`（※） | 32,768 B | 0.700 | bit 一致 | ❌ xRT |
+| **`-DSAAN_ARENA_HEAP=1`**（arena を PSRAM へ） | **179,440 B** | **0.693** | **bit 一致** | ❌ xRT（UR は 0 / 252 チャンク） |
+
+※ 粒度 1 にしても **arena は漢字経路の 144,640 B で頭打ち**なので、DRAM の削減量は 4 と同じ。**粒度 1 を選ぶ理由は無い。**
+
+**PSRAM がある板では `SAAN_ARENA_HEAP=1` が圧倒的に有利** — 同じくらいの速度代償
+（+54.7% 対 +55.8%）で **5.5 倍の DRAM** が返る。
+**MEM-5 が意味を持つのは (a) 要件内で少し返したいとき（粒度 4）**と
+**(b) PSRAM が無い板**（`SAAN_ARENA_HEAP` が効かない）である。
+
+### 10. ⚠️ 測っていないもの
+
+- **音は聴いていない。** PCM は 3 構成とも bit 一致なので波形は同じだが、**途切れの有無を耳で**確認していない
+- **PSRAM の無い板**（AtomS3 など）。`-DSAAN_ARENA_HEAP=1` は内部 DRAM に落ちるだけで**何も減らない**。
+  **MEM-5 の粒度 4 は効くはずだが未測定**（板が無い）
+- **他のアプリと同居させたときの xRT。** 測ったのは sanoTTS-jp だけが走っている状態。
+  ⚠️ **PSRAM 版はここがいちばん危ない** — 統合先が PSRAM を使うと arena と取り合う
+- **かな専用ビルド**（`SAAN_KANJI` 無し）の下限。算術では G=4 で 135,168 B（**−45,056 B**）だが、
+  **パーティション表が違うので焼き直しが要る**。未測定
+- **`SAAN_BUFFERED=1`（貯めてから鳴らす）との組み合わせ。** これなら xRT < 1.0 でさえあれば
+  途切れないが、**待ち時間が音声長 × xRT になる**
+- **`win`（Hann 窓 1,024 = 4,096 B）を flash の `.rodata` へ**は**やめた**。
+  ⚠️ 今は起動時に**ターゲット自身の `cosf`** で作っている。ホストで焼いた表を置くと
+  **1 ulp 違って PCM が変わりうる**（確かめていないが、確かめずに入れる変更ではない）
+- **`SAAN_CHUNK` を下げる案**（§8b の表）は**速度も bit 一致も未測定のまま**。
+  MEM-5 の粒度 4 で 24,624 B が要件内で取れたので、**先に試す理由が無くなった**
