@@ -236,11 +236,19 @@ static uint8_t *g_arena;   /* tts_task の先頭で確保。16 B 境界は heap_
 static __attribute__((aligned(16))) uint8_t g_arena[SAAN_ARENA_BYTES];
 #endif
 
-/* ⚠️ **スタックに置かない。** 8,192 B ある。
- * `saan_irfft_1024` は自動変数 zr[512]+zi[512] (float) だけで **4,096 B** 使う
- * （arm64 clang -O2 の実フレームは 4,224 B。otool -tv で実測。
- * ⚠️ Xtensa では別の値になる）。IDF の小さい既定スタックでは足りない。 */
-static float g_chunk[SAAN_CHUNK * SAAN_HOP];
+/* ⚠️ **`g_chunk` は消えた**（MEM-8。[M-145](../../docs/measurements.md#m-145)）。
+ *
+ * かつてここに `static float g_chunk[SAAN_CHUNK * SAAN_HOP]`（**8,192 B**）が在った。
+ * あれは `saan_stream_pull` が `obuf` から `memcpy` してくる先にしか使っておらず、
+ * **`step_chunk` は引数を受け取るだけで一度も触っていなかった**（`(void)pcm;`）。
+ * いまは `saan_stream_pull_ptr` が `obuf` の中を指して返すので、**この 8,192 B は要らない**。
+ *
+ * ⚠️ **返ったポインタは次に pull を呼ぶまでだけ有効。** ここの消費者は 2 つとも
+ *    即座に int16 へ変換してコピーするので問題ない
+ *    （`saan_audio_preroll_push` / `saan_audio_write_f32`）。
+ *    **保持するコードを足すならコピー版 `saan_stream_pull` に戻すこと。**
+ * ⚠️ スタックにも置かない（8,192 B は IDF の既定スタックに入らない）。
+ *    arena の中なので、そもそもスタックは使わない。 */
 
 /* --- 端末側 G2P ----------------------------------------------------------
  *
@@ -251,7 +259,16 @@ static float g_chunk[SAAN_CHUNK * SAAN_HOP];
  * ⚠️ **`saan_g2p_capacity()` と同じ式を使う。** 上限は `2 * バイト数 + 3`。
  *    足りないと SAAN_G2P_ERR_OVERFLOW で**きれいに失敗する**（黙って切り詰めない）。
  * ⚠️ **デモ文ではなく入力バッファの最大長から決める。** 対話入力の方が長い。 */
-#define SAAN_G2P_IDS_CAP (2 * SAAN_CONSOLE_LINE_MAX + 3)
+/* ⚠️ **`SAAN_MAX_IDS + 1` で足りる**（MEM-8。[M-145](../../docs/measurements.md#m-145)）。
+ *
+ * かつて `2 * SAAN_CONSOLE_LINE_MAX + 3` = 1,027 本（**4,108 B**）取っていた。
+ * これは `saan_g2p_capacity()` の式（入力バイト数から出る上限）だが、
+ * **`SAAN_MAX_IDS`（350）を超える列はどうせ拒否する**ので、351 本で足りる。
+ * ⚠️ **失敗の種類は変わる** — 350 ids を超える入力は
+ *   旧: `saan_g2p` が全部書いてから「%d ids は上限 %d を超える」
+ *   新: `saan_g2p` が `SAAN_G2P_ERR_OVERFLOW` を返す（「列が長すぎる」）
+ * **どちらもきれいに拒否する**（黙って切り詰めない）。 */
+#define SAAN_G2P_IDS_CAP (SAAN_MAX_IDS + 1)
 static int32_t g_ids[SAAN_G2P_IDS_CAP];
 
 /* C99 には _Static_assert が無いので配列サイズで潰す（IDF は gnu17 だが csrc に合わせる） */
@@ -427,16 +444,19 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     static uint32_t pull_us[SAAN_MAX_PULL_LOG];
     static uint8_t  pull_n[SAAN_MAX_PULL_LOG];
 
+    /* MEM-8: `obuf` の中を指す。**確保しない**（次の pull まで有効） */
+    const float *chunk = NULL;
+
     for (int i = 0; i < preroll_chunks && !eos; ++i) {
         int64_t t0 = esp_timer_get_time();
-        s = saan_stream_pull(&st, g_chunk, &n);
+        s = saan_stream_pull_ptr(&st, &chunk, &n);
         int64_t dt = esp_timer_get_time() - t0;
         if (s != SAAN_OK) { ESP_LOGE(TAG, "pull: %s", saan_strerror(s)); ok = false; goto done; }
         if (n <= 0) { eos = true; break; }
         if (chunks == 0) t_first = dt; else t_rest += dt;
         if (chunks < SAAN_MAX_PULL_LOG) { pull_us[chunks] = (uint32_t)dt; pull_n[chunks] = (uint8_t)n; }
         /* ⚠️ `n` は**フレーム数**。サンプル数は n * SAAN_HOP */
-        if (!saan_audio_preroll_push(g_chunk, (size_t)n * SAAN_HOP)) {
+        if (!saan_audio_preroll_push(chunk, (size_t)n * SAAN_HOP)) {
             ESP_LOGE(TAG, "プリロール容量の計算が合っていない。"
                           "SAAN_AUDIO_PREROLL_SAMPLES を見直すこと");
             ok = false; goto done;
@@ -458,7 +478,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     /* --- 定常ループ（ストリーミングのみ。貯める方式では eos 済みで入らない）------ */
     while (!eos) {
         int64_t t0 = esp_timer_get_time();
-        s = saan_stream_pull(&st, g_chunk, &n);
+        s = saan_stream_pull_ptr(&st, &chunk, &n);
         int64_t dt = esp_timer_get_time() - t0;
         if (s != SAAN_OK) { ESP_LOGE(TAG, "pull: %s", saan_strerror(s)); ok = false; break; }
         if (n <= 0) break;
@@ -477,7 +497,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
         if (n < SAAN_CHUNK) ++short_pulls;
         total_frames += n; ++chunks;
 
-        if (!saan_audio_write_f32(g_chunk, (size_t)n * SAAN_HOP)) { ok = false; break; }
+        if (!saan_audio_write_f32(chunk, (size_t)n * SAAN_HOP)) { ok = false; break; }
     }
 
 done:

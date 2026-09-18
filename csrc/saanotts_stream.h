@@ -86,6 +86,21 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
  * `pcm` は少なくとも SAAN_CHUNK * SAAN_HOP サンプルぶん必要 */
 saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out);
 
+/* MEM-8: **コピーせず出力リングの中を指して返す。**
+ *
+ * **なぜ在るか。** 呼び出し側の `float [SAAN_CHUNK * SAAN_HOP]`（**8,192 B**）は
+ * `obuf` からの `memcpy` 先にしか使っていなかった（`step_chunk` は引数を
+ * 受け取るだけで一度も触っていなかった）。ポインタで返せば**その 8,192 B が丸ごと要らない**。
+ * ESP32 の雛形では `.bss` の `g_chunk` がこれで消える（[M-145](../docs/measurements.md#m-145)）。
+ *
+ * ⚠️ **返ったポインタは次に `pull` / `pull_ptr` を呼ぶまでだけ有効**（そこで詰め直す）。
+ *    端末の消費者は 2 つとも即座に int16 へ変換してコピーするので問題ない。
+ *    **保持したい呼び出し側はコピー版を使うこと。**
+ * ⚠️ **`st->emitted` は返した分をまだ含まない**（次の呼び出しの先頭で進む）。
+ *    n=0 が返る最後の呼び出しで退けるので、ループを抜けた後の値は正しい。
+ * ⚠️ **サンプル列はコピー版と bit 一致する**（`make -C csrc pullptr` の G-PP1〜3）。 */
+saan_status saan_stream_pull_ptr(saan_stream *st, const float **pcm, int32_t *n_out);
+
 /* この発話で必要な arena のバイト数（**発話長に依存しない部分**と
  * ids に比例する部分の合計）。G3 の確認に使う */
 size_t saan_stream_arena_needed(int32_t n_ids);

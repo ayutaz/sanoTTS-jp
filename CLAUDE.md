@@ -23,7 +23,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 2. **4 MB / 2 MB の実機の数字** — 板が無い（第三者は鳴らしたが checksum / xRT / UR の報告が無い）
 3. **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065) / [M-137](docs/measurements.md#m-137)）— 板が無い。
    ✅ **PCM は ESP-IDF ビルドと bit 一致**（QEMU）だが、⚠️ **xRT もアンダーランも未測定**
-4. ⭐ **MEM-7 の実機確認**（[M-144](docs/measurements.md#m-144) / [D-067](docs/decisions.md#d-067)）— **arena を かな 116 KB / 漢字 136 KB に下げた**が、**実機で 1 行も測れていない**（作業中に USB から消えた）。
+4. ⭐ **MEM-7 / MEM-8 の実機確認**（[M-144](docs/measurements.md#m-144) / [M-145](docs/measurements.md#m-145)）— **静的 DIRAM を 227,643 → 183,979 B（−19.2%）にした**が、**実機で 1 行も測れていない**（作業中に USB から消えた）。⚠️ **MEM-8 は音が出る経路そのものを変えた**ので重要度が高い。
    ✅ **PCM はホストで変更前と bit 一致**（両レーン × 4 つの長さ）。⚠️ 見るのは xRT / アンダーラン / 鳴らし始め / PCM checksum の 4 つ（詳細は下の残タスク表 #20）
 
 **新しく書く実装は無い**（MEM-7 は書いて手元のゲートまで通した。残るのは実機で測ること）。
@@ -88,7 +88,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
 | 1 step | 18,378,513 cyc | **11,659,500 cyc**（M-89。−36.6%。S5b 前の値） |
 | 鳴らし始めまで | 719 ms | **384 ms**（M-90 = 出荷構成。⚠️ かな構成は M-89 で 432 ms / M-88 で 434 ms） |
 | アンダーラン | 1/14 | **0**（全文。M-87 以降） |
-| arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **かな 118,784 / 漢字 139,264 B**（[M-144](docs/measurements.md#m-144)。⚠️ **実測 used 110,592 B は arena 151,552 B のときの値** = M-142。**M-144 の arena は実機未測定**） |
+| arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **かな 118,784 / 漢字 139,264 B**（[M-145](docs/measurements.md#m-145)。静的 DIRAM は 183,979 B = M-142 比 −43,664 B。⚠️ **実測 used 110,592 B は arena 151,552 B のときの値** = M-142。**M-144 / M-145 は実機未測定**） |
 | 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（M-90。辞書 + 漢字込み。最大ブロック 86,016） |
 
 **PCM の checksum は M-82 から 1 bit も変わっていない**（W8A8+PIE `0xa69a7ebbb5ccb05f` /
@@ -335,6 +335,7 @@ make -C csrc prof                                  # 段別プロファイラ（
                                                    #   --expect-mac-le 4200628 / --expect-token 4**（S1 / T1〜T3）
 make -C csrc erf                                   # GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
 make -C csrc dur                                   # **MEM-7** duration net の窓分割（G-DUR1〜5。陽性対照 3 本）
+make -C csrc pullptr                               # **MEM-8** pull_ptr がコピー版と同じ列を出すか（G-PP1〜3）
 make -C csrc range                                 # **S9（T2）の範囲版カーネル**が [0,T) 版と bit 一致か
                                                    #   （陽性対照つき。all-test に入っている）
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
@@ -350,7 +351,7 @@ bash scripts/check_arduino_qemu.sh                 # ⭐ G-AR4 PCM が ESP-IDF �
 
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / pad / line / erf / **range** / **qeos** / **dur**）
+                                                   #   g2p / pad / line / erf / **range** / **qeos** / **dur** / **pullptr**）
                                                    #   ⚠️ stream は **held-out 24 文 × 3 レーン**を見る
 ```
 
@@ -627,6 +628,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
 | テスト | `make -C csrc dur` | ⭐ **MEM-7 = duration net の窓分割**（[M-144](docs/measurements.md#m-144) / [D-067](docs/decisions.md#d-067)）。**G-DUR1** `K` を 1〜4096 と振って `log_d` が bit 一致（**K ≥ n_ids なら 1 窓 = 一括版と同じ形**）/ **G-DUR2** 陽性対照 3 本が落ちる（ハロー 11 / c1 のゼロクリア無し / 残差後のゼロクリア無し）/ **G-DUR3** 本番が `_ex` の既定引数と一致 / **G-DUR4** `saan_stream_arena_peak(n)` が**実測の `a.peak`** と一致（6 点 × 2 レーン = [C-102](docs/decisions.md#c-102)）/ **G-DUR5** ハローを 13 / 24 に**増やしても変わらない** = 12 が必要十分。⚠️ **PCM の checksum では守れない** — `log_d` は exp → round → clip[1,80] を通るので、窓の取り方を間違えても `d_hat` が変わらない文が多い（ハロー 11 で max\|Δ\| 0.005）。⚠️ **テストの中に一括版の写しを置いてはいけない**（[C-103](docs/decisions.md#c-103)。FMA 契約が翻訳単位で違って 1 ulp ずれ、「窓分割で値が変わった」と読める）。⚠️ **K を 8 / 128 / 1024 でビルドして 2 レーン = 6 回**走らせる。CI で回る |
+| テスト | `make -C csrc pullptr` | ⭐ **MEM-8 = `saan_stream_pull_ptr`**（[M-145](docs/measurements.md#m-145) / [D-068](docs/decisions.md#d-068)）。出力チャンクの写し先 **8,192 B**（`g_chunk`）を消すために、`obuf` の中を指して返す形を足した。詰め直しを**次の呼び出しまで遅らせる**ので、間違えると**同じフレームを 2 回出す / 1 回飛ばす** — ⚠️ **どちらも「音は出る」形**。**G-PP1** 全サンプル列がコピー版と bit 一致（n_ids 6 点 × 2 レーン）/ **G-PP2** `emitted` と pull 回数も一致 / **G-PP3 陽性対照** 「返ったポインタは次の呼び出しまで有効」という警告が**空虚でないこと**（次の呼び出しで中身が動くこと）を確かめる。⚠️ **保持する呼び出し側はコピー版を使う**（wasm とホストのゲートはそちら）。CI で回る |
 | テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
 | テスト | `make -C csrc matrixc` | **`matrixc`（行・列クラスタ + 代表行列）**の C リーダが生 int16 と**全 1,896,129 要素**で一致するか（M-106 §10）。⚠️ **陽性対照が 2 本要る** — 代表行列（`lo`）を壊す G-C4 だけでは**写像（`rmap`）を読み違えていても通る**。⚠️ 辞書と scikit-learn が要るので `all-test` の外 |
 | テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
@@ -989,7 +991,7 @@ blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字�
 
 | 誰が | # | 何 | 止まっている理由 |
 |---|---|---|---|
-| **実機** | **20** | ⭐ **MEM-7 の実機確認**（[M-144](docs/measurements.md#m-144) / [D-067](docs/decisions.md#d-067)） | **arena を かな 116 KB / 漢字 136 KB に下げたが、実機で 1 行も測れていない**（作業中に USB から消えた）。✅ **PCM はホストで変更前と bit 一致**（両レーン × 4 つの長さ）。⚠️ **見るのは 4 つ**: (1) PCM checksum が `0x760cad1c8429dd5e` と一致するか（M-142 の `reports/m142_ram/dev_readme.log` の値）/ (2) 定常 xRT（要件 ≤ 0.5。前は 0.474）/ (3) アンダーラン 0 / (4) 鳴らし始めまでの時間（要件 ≤ 0.8 s。前は 364〜374 ms）。**「結果」ブロックの「arena 高水位（発話後）」も見る**（[C-102](docs/decisions.md#c-102)）。⚠️ **漢字構成は辞書 blob（`csrc/k1_dict.bin`）が要る** — 再生成は第三者コーパスを要求するので、**焼いてある板から `esptool.py read_flash` で読み戻すか、コーパスを取得する** |
+| **実機** | **20** | ⭐ **MEM-7 / MEM-8 の実機確認**（[M-144](docs/measurements.md#m-144) / [M-145](docs/measurements.md#m-145) / [D-067](docs/decisions.md#d-067) / [D-068](docs/decisions.md#d-068)） | **arena を かな 116 KB / 漢字 136 KB に下げたが、実機で 1 行も測れていない**（作業中に USB から消えた）。✅ **PCM はホストで変更前と bit 一致**（両レーン × 4 つの長さ）。⚠️ **見るのは 4 つ**: (1) PCM checksum が `0x760cad1c8429dd5e` と一致するか（M-142 の `reports/m142_ram/dev_readme.log` の値）/ (2) 定常 xRT（要件 ≤ 0.5。前は 0.474）/ (3) アンダーラン 0 / (4) 鳴らし始めまでの時間（要件 ≤ 0.8 s。前は 364〜374 ms）。**「結果」ブロックの「arena 高水位（発話後）」も見る**（[C-102](docs/decisions.md#c-102)）。⚠️ **漢字構成は辞書 blob（`csrc/k1_dict.bin`）が要る** — 再生成は第三者コーパスを要求するので、**焼いてある板から `esptool.py read_flash` で読み戻すか、コーパスを取得する** |
 | **人** | **1** | **対照つきの聴取**（G32） | ⚠️ **私は音を聞けない。** ボードは要らない（`saanotts-jp-v4-samples.zip` を再生するだけ）。✅ **held-out 18/24 文は対照つきで聴いた**（[M-135](docs/measurements.md#m-135)。「問題なし」）。⚠️ **残るのは** 盲検 / 2 人目 / `reports/d4_accent_v4/`（アクセントの過剰強調）/ `reports/k8_listen/`（**素材が手元に無い**） |
 | **人** | **18** | **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065)） | ✅ **PCM は ESP-IDF ビルドと bit 一致した**（[M-137](docs/measurements.md#m-137) §7。QEMU / 2 構成）。⚠️ **xRT もアンダーランも鳴らし始めまでの時間も未測定** — **同じ PCM が出ることと、間に合って出ることは別**。⚠️ **Arduino ビルドで漢字を喋らせてもいない** |
 | **人** | 11 | 4 MB / 2 MB の**実機の数字** | 板が無い。第三者の報告（M-109）に checksum / xRT / UR が無い。⚠️ **私は 1 つも再現していない**。⚠️ **『どうやって打ち込んだか』も未解決**（小容量版 3 本は UART0 のはずで、native USB の ATOMS3 には届かないはず） |

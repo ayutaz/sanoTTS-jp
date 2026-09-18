@@ -296,6 +296,10 @@ struct saan_stream_impl {
     float *obuf;         /* [SAAN_OBUF_HOPS * HOP] 出力の詰め替え。
                           * 深さは 2·CH − (SAAN_LATENCY mod CH) = CH+4（saanotts_stream.h） */
     int32_t ofill;
+    /* `saan_stream_pull_ptr` が前回返した hop 数（**まだ obuf から退けていない**）。
+     * ポインタで返す版は呼び出し側が読み終わるまで obuf を動かせないので、
+     * **次の呼び出しの先頭で退ける**（obuf_retire）。コピー版は即座に退く。 */
+    int32_t opend;
     /* S6（T3）: token block のパイプ 3 段（pad=TOK_PAD、幅 2·TOK_PAD + TOK_K）と出力リング
      * tok_ring [TOK_G][AC_W][TOK_K]。tok_pushed は押し込んだ群の数（出そろい末尾は
      * tok_pushed·TOK_K − TOK_HALO）。段の作業領域は w_full / w_ch2 を借りる（tok_pipe_advance_body） */
@@ -968,7 +972,7 @@ static saan_status make_hf(saan_stream *st, int32_t f0, float *out) {
 }
 
 /* パイプラインを CH フレーム進める。出力は `pcm`（CH * HOP サンプル） */
-static saan_status step_chunk_body(saan_stream *st, float *pcm) {
+static saan_status step_chunk_body(saan_stream *st) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     const saan_wref ow = im->ow, hdw = im->hdw, how = im->how;   /* init で解決済み（S1） */
     const float *hdb = im->hdb, *hob = im->hob;
@@ -1071,20 +1075,43 @@ static saan_status step_chunk_body(saan_stream *st, float *pcm) {
         }
     }
     }   /* HEAD_COLS 群 */
-    (void)pcm;
     return SAAN_OK;
 }
 
-static saan_status step_chunk(saan_stream *st, float *pcm) {
+static saan_status step_chunk(saan_stream *st) {
     SAAN_PROF_BEGIN(SAAN_PROF_STEP);
-    const saan_status s = step_chunk_body(st, pcm);
+    const saan_status s = step_chunk_body(st);
     SAAN_PROF_END(SAAN_PROF_STEP);
     return s;
 }
 
-saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
+/* 前回 `saan_stream_pull_ptr` が返した分を obuf から退ける（MEM-8）。
+ * ⚠️ **コピー版と同じ場所で同じことをする。** 2 回書かない。 */
+static void obuf_retire(saan_stream *st, struct saan_stream_impl *im) {
+    const int32_t n = im->opend;
+    if (n <= 0) return;
+    if (im->ofill > n)
+        memmove(im->obuf, im->obuf + (size_t)n * SAAN_HOP,
+                sizeof(float) * (size_t)(im->ofill - n) * SAAN_HOP);
+    im->ofill -= n;
+    st->emitted += n;
+    im->opend = 0;
+}
+
+/* MEM-8: **obuf の中を指して返す。** 呼び出し側の CH×HOP の float バッファ
+ * （ESP32 の雛形では `g_chunk` = 8,192 B）が丸ごと要らなくなる。
+ *
+ * ⚠️ **返ったポインタは次に `pull` / `pull_ptr` / `free` を呼ぶまでだけ有効。**
+ *    端末側の消費者は 2 つとも即座に int16 へ変換してコピーするので問題ない
+ *    （`saan_audio_write_f32` / `saan_audio_preroll_push`）。**保持する呼び出し側は
+ *    コピー版 `saan_stream_pull` を使うこと。**
+ * ⚠️ **`st->emitted` は「返した分」を含まない** — 次の呼び出しの先頭で進む。
+ *    発話の最後は n=0 が返る呼び出しで退けるので、ループを抜けた後の値は正しい。 */
+saan_status saan_stream_pull_ptr(saan_stream *st, const float **pcm, int32_t *n_out) {
     struct saan_stream_impl *im = (struct saan_stream_impl *)st->impl;
     *n_out = 0;
+    *pcm = NULL;
+    obuf_retire(st, im);                                  /* 前回返した分をここで退ける */
     if (st->emitted >= st->n_frames) return SAAN_OK;      /* 発話の終わり */
 
     /* CH フレームぶん溜まるまでパイプラインを進める。
@@ -1107,7 +1134,7 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
      *    「1 フレーム早く」は検出できず `- 8` も 2 残差を見逃すので、条件を触るなら `- (CH+2)` で
      *    確かめること（`make stream` の多文 G2 は ≡ 3, 4 の文を含む = T2a）。 */
     while (im->ofill < CH && st->emitted + im->ofill < st->n_frames) {
-        saan_status s = step_chunk(st, pcm);
+        saan_status s = step_chunk(st);
         if (s != SAAN_OK) return s;
         /* ⚠️ `used` ではなく `peak` を見る。W8A8 の activation 作業領域は
          * conv の中で確保して**すぐ返す**ので、`used` では捕まらない */
@@ -1124,12 +1151,22 @@ saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
 
     int32_t n = im->ofill < CH ? im->ofill : CH;
     if (st->emitted + n > st->n_frames) n = st->n_frames - st->emitted;
-    memcpy(pcm, im->obuf, sizeof(float) * (size_t)n * SAAN_HOP);
-    if (im->ofill > n)
-        memmove(im->obuf, im->obuf + (size_t)n * SAAN_HOP,
-                sizeof(float) * (size_t)(im->ofill - n) * SAAN_HOP);
-    im->ofill -= n;
-    st->emitted += n;
+    *pcm = im->obuf;
     *n_out = n;
+    im->opend = n;          /* 退けるのは次の呼び出し（呼び出し側が読み終わってから） */
+    return SAAN_OK;
+}
+
+/* コピー版。**中身は pull_ptr に 1 本化してある**（同じ計算の 2 つ目の実装を持たない
+ * = [C-103](../docs/decisions.md#c-103)）。保持したい呼び出し側・ホストのゲート・
+ * wasm・Arduino はこちらを使う。 */
+saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out) {
+    const float *p = NULL;
+    SAAN_TRY(saan_stream_pull_ptr(st, &p, n_out));
+    if (*n_out > 0) {
+        memcpy(pcm, p, sizeof(float) * (size_t)*n_out * SAAN_HOP);
+        /* コピー版は「読み終わった」ので即座に退ける（ポインタを外に出さない） */
+        obuf_retire(st, (struct saan_stream_impl *)st->impl);
+    }
     return SAAN_OK;
 }

@@ -1,6 +1,12 @@
-/* 現状の arena ピークの内訳（2 フェーズ）。saanotts_stream.c を取り込むので
- * 定数・struct サイズは本番と同一。検算: 各フェーズの和が
- * saan_stream_arena_peak(n) の両辺と bit 一致すること。 */
+/* arena ピークの内訳（2 フェーズ）。saanotts_stream.c を取り込むので
+ * 定数・struct サイズは本番と同一。
+ *
+ * ⚠️⚠️ **2026-09-18 以降この「検算」は落ちる**（[M-145](../../docs/measurements.md#m-145)）。
+ *    duration フェーズの式を**自分の中に写して持っている**ので、MEM-7 で窓分割になった
+ *    `saan_stream_arena_peak` と一致しなくなった（写しを持つとこうなる =
+ *    [C-103](../../docs/decisions.md#c-103) と同じ形）。**MEM-7 の前の commit（79dd7f2）に
+ *    対してだけ意味がある。** いまの値は `reports/m145_mem8/arena_vals.c`
+ *    （ライブラリの関数を呼ぶだけ）で見る。 */
 #include "saanotts_stream.c"
 #include <stdio.h>
 #include <stdlib.h>

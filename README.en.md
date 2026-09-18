@@ -53,7 +53,7 @@ The checksum changes with the weights, so logs from different versions never agr
 | | |
 |---|---:|
 | Model | **559 K params**, **654,032 B** as int8 (flash) |
-| Runtime RAM | **118,784 B** (kana) / **139,264 B** (kanji) reserved statically for the arena — **22.7% / 26.6%** of the ESP32-S3's 512 KB SRAM ([M-144](docs/measurements.md#m-144)). ⚠️ The measured per-utterance peak of **110,592 B** was taken with a 151,552 B arena ([M-142](docs/measurements.md#m-142)); **the M-144 arena has not been measured on hardware** |
+| Runtime RAM | **183,979 B of static DIRAM** (measured from the M5 CoreS3 kana build — **35%** of the 512 KB SRAM, **53.8%** of the 341,760 B DIRAM pool), of which the arena is **118,784 B** (kana) / **139,264 B** (kanji) ([M-145](docs/measurements.md#m-145)). ⚠️ The measured per-utterance peak of **110,592 B** was taken with a 151,552 B arena ([M-142](docs/measurements.md#m-142)); **the M-144/M-145 configuration has not been measured on hardware** |
 | Speed | **xRT 0.474** steady-state, one full-chunk pull (0.471–0.475 over 7 utterances; ⚠️ **0.522–0.741** over a whole utterance). ⚠️ The requirement is the **steady-state** denominator ([D-049](docs/decisions.md#d-049)) |
 | Quality | **64%** of the teacher (SCOREQ ratio **0.636** for v4; v3 scored 0.644 and **the difference is not detectable**). ⚠️ **A predictor's score, not a human ear** |
 | On-device G2P | **13.7 MB dictionary** with kanji, or an **877 B table** for kana only |

@@ -111,6 +111,8 @@ __pycache__/
 /csrc/dur_test_a8_k8
 /csrc/dur_test_a8_k128
 /csrc/dur_test_a8_k1024
+/csrc/pullptr_test
+/csrc/pullptr_test_a8
 
 # レーン比較の生成物（`make -C csrc lanes` で再生成できる）。
 # ⚠️ wav は *.wav で既に除外されるが、**ディレクトリごと**明示しておく。

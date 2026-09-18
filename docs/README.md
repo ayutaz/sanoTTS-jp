@@ -129,8 +129,8 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-067（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-104** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-144。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-068（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-104** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-145。全数値に再現コマンド付き | 実測のたび |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -315,7 +315,7 @@ GELU の `erff`・毎 step 102 回のテンソル検索・重みのコピー 489
 |---|---|---|---|---|
 | **1** | **対照つきの聴取** — ⚠️ **ざっとした聴取は済んでいる**（M-91 / M-93 = 実機 / M-96 = ブラウザ。どれも**1 名・対照なし・盲検なし**）。✅ **v4 の held-out 18/24 文は対照つきで聴いた**（[M-135](measurements.md#m-135)。「問題なし」）。⚠️ **残るのは** 盲検 / 2 人目 / `reports/d4_accent_v4/`（過剰強調 `magnitude_ratio` 1.193）/ `reports/k8_listen/`（枝刈りの誤読。**素材が手元に無い**） | 両方 | **人が要る**（私は音を聞けない） | **G32** |
 | **18** | **Arduino ライブラリの実機確認** — ✅ **PCM は ESP-IDF ビルドと bit 一致した**（[M-137](measurements.md#m-137) §7。QEMU）が、⚠️ **xRT もアンダーランも鳴らし始めまでの時間も未測定**。⚠️ **同じ PCM が出ることと、間に合って出ることは別**。⚠️ **Arduino ビルドで漢字を実際に喋らせてもいない**（コンパイルは通っている） | **A** | **人が要る**（板が無い） | [`../arduino/README.md`](../arduino/README.md) の「何が確かめてあるか」 |
-| **20** | ⭐ **MEM-7 の実機確認** — **arena を かな 116 KB（118,784 B）/ 漢字 136 KB（139,264 B）に下げた**（[M-144](measurements.md#m-144) / [D-067](decisions.md#d-067)）が、⚠️ **実機で 1 行も測れていない**（作業中に USB から消えた。**焼いてもいない**）。✅ **PCM / `log_d` / `d_hat` はホストで変更前と bit 一致**（W8A32 / W8A8 × 53 / 100 / 224 / 350 ids）。⚠️ **見るのは 4 つ**: (1) PCM checksum が `0x760cad1c8429dd5e`（[`reports/m142_ram/dev_readme.log`](../reports/m142_ram/dev_readme.log) の値）と一致するか / (2) 定常 xRT（要件 ≤ 0.5。M-142 は 0.474）/ (3) アンダーラン 0 / (4) 鳴らし始めまでの時間（要件 ≤ 0.8 s。M-142 は 364〜374 ms）。**「結果」ブロックの「arena 高水位（発話後）」も見る**（[C-102](decisions.md#c-102)）。⚠️ **漢字構成は辞書 blob が要る** — `csrc/k1_dict.bin` の再生成は第三者コーパス（`data/splits/corpus_train.tsv`）を要求するので、**焼いてある板から `esptool.py read_flash` で読み戻すか、コーパスを取得する** | 両方 | ⭐ **実機が USB に見えれば私にできる** | `make -C csrc dur` / `arena`（手元は通っている）+ 実機の 4 項目 |
+| **20** | ⭐ **MEM-7 / MEM-8 の実機確認** — **静的 DIRAM を 227,643 → 183,979 B（−43,664 / −19.2%）にした**（[M-144](measurements.md#m-144) / [M-145](measurements.md#m-145) / [D-067](decisions.md#d-067) / [D-068](decisions.md#d-068)）が、⚠️ **実機で 1 行も測れていない**（作業中に USB から消えた。**焼いてもいない**）。⚠️⚠️ **MEM-8 は音が出る経路そのものを変えた**（`saan_stream_pull_ptr` が出力リングの中を指して返す）ので、MEM-7 より実機確認の重要度が高い。✅ **PCM / `log_d` / `d_hat` はホストで変更前と bit 一致**（W8A32 / W8A8 × 53 / 100 / 224 / 350 ids）、**列もコピー版と bit 一致**（`make -C csrc pullptr`）。⚠️ **見るのは 4 つ**: (1) PCM checksum が `0x760cad1c8429dd5e`（[`reports/m142_ram/dev_readme.log`](../reports/m142_ram/dev_readme.log) の値）と一致するか / (2) 定常 xRT（要件 ≤ 0.5。M-142 は 0.474）/ (3) アンダーラン 0 / (4) 鳴らし始めまでの時間（要件 ≤ 0.8 s。M-142 は 364〜374 ms）。**「結果」ブロックの「arena 高水位（発話後）」も見る**（[C-102](decisions.md#c-102)）。⚠️ **漢字構成は辞書 blob が要る** — `csrc/k1_dict.bin` の再生成は第三者コーパス（`data/splits/corpus_train.tsv`）を要求するので、**焼いてある板から `esptool.py read_flash` で読み戻すか、コーパスを取得する** | 両方 | ⭐ **実機が USB に見えれば私にできる** | `make -C csrc dur` / `pullptr` / `arena`（手元は通っている）+ 実機の 4 項目 |
 | **11** | **4 MB / 2 MB の実機の数字**（⚠️ **起動と音は第三者が確認した** = [M-109](measurements.md#m-109)。**PSRAM 無しの ATOMS3 でも鳴った**。⚠️ **checksum も xRT もアンダーランも報告に無い**） | K | **人が要る**（板が無い） | 報告者に checksum / xRT / アンダーランを聞く。⚠️ **8M が入らなかった理由も未確認**（M-109 §3）。⚠️ **私は 1 つも再現していない**。⚠️ **『どうやって打ち込んだか』も未解決** — DevKit 向け小容量版 3 本はビルド手順上 UART0 のはずで、native USB の ATOMS3 には届かないはず |
 
 <details>
@@ -560,8 +560,8 @@ sanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
-│   ├── decisions.md                       決定記録 D-001〜D-067（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-104
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-144
+│   ├── decisions.md                       決定記録 D-001〜D-068（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-104
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-145
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
 │   │                                     **タグの打ち方と「打った後にやること」もそこに書いてある**

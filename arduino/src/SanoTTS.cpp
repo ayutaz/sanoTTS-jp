@@ -63,8 +63,13 @@ static_assert(SANOTTS_ARENA_BYTES >= SAAN_KANJI_WORKBYTES,
               "SANOTTS_ENABLE_KANJI=0 にすること");
 #endif
 
-/* ⚠️ **スタックに置かない。** `saan_irfft_1024` は自動変数だけで 4 KB 使う。 */
-static float   g_chunk[SAAN_CHUNK * SAAN_HOP];
+/* ⚠️ **スタックに置かない。** `saan_irfft_1024` は自動変数だけで 4 KB 使う。
+ *
+ * ⚠️ **`g_chunk`（float・8,192 B）は消えた**（MEM-8。[M-145](../../docs/measurements.md#m-145)）。
+ *    `saan_stream_pull_ptr` が出力リングの中を指して返すので、写し先が要らない。
+ *    ⚠️ **返ったポインタは次に pull を呼ぶまでだけ有効。** 下の 3 か所はどれも
+ *    **その場で `g_i16` へ変換**してから次に進むので問題ない。
+ *    **保持するコードを足すならコピー版 `saan_stream_pull` に戻すこと。** */
 static int16_t g_i16[SAAN_CHUNK * SAAN_HOP];
 
 /* ids の容量は `saan_g2p_capacity()` と同じ式（2 * バイト数 + 3）。 */
@@ -216,13 +221,14 @@ bool SanoTTS::synthesize(const char* text, size_t nbytes, PcmCallback cb, void* 
 
     for (;;) {
         int32_t n = 0;
-        if (saan_stream_pull(&g_st, g_chunk, &n) != SAAN_OK) {
-            m_err = "saan_stream_pull が失敗した";
+        const float* chunk = NULL;
+        if (saan_stream_pull_ptr(&g_st, &chunk, &n) != SAAN_OK) {
+            m_err = "saan_stream_pull_ptr が失敗した";
             return false;
         }
         if (n <= 0) break;
         const size_t ns = (size_t)n * SAAN_HOP;
-        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(g_chunk[i]);
+        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
         if (cb) cb(g_i16, ns, user);
     }
     return true;
@@ -254,12 +260,13 @@ bool SanoTTS::say(const char* text, size_t nbytes) {
     size_t filled = 0;
     while (!eos && filled + (size_t)SAAN_CHUNK * SAAN_HOP <= preroll) {
         int32_t n = 0;
-        if (saan_stream_pull(&g_st, g_chunk, &n) != SAAN_OK) {
-            m_err = "saan_stream_pull が失敗した"; m_spk->stop(); return false;
+        const float* chunk = NULL;
+        if (saan_stream_pull_ptr(&g_st, &chunk, &n) != SAAN_OK) {
+            m_err = "saan_stream_pull_ptr が失敗した"; m_spk->stop(); return false;
         }
         if (n <= 0) { eos = true; break; }
         const size_t ns = (size_t)n * SAAN_HOP;
-        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(g_chunk[i]);
+        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
         if (!m_spk->prerollPush(g_i16, ns)) {
             m_err = "プリロールの容量が足りない（prerollSamples() を見直すこと）";
             m_spk->stop(); return false;
@@ -272,12 +279,13 @@ bool SanoTTS::say(const char* text, size_t nbytes) {
     /* --- 定常 ------------------------------------------------------------- */
     while (!eos) {
         int32_t n = 0;
-        if (saan_stream_pull(&g_st, g_chunk, &n) != SAAN_OK) {
-            m_err = "saan_stream_pull が失敗した"; break;
+        const float* chunk = NULL;
+        if (saan_stream_pull_ptr(&g_st, &chunk, &n) != SAAN_OK) {
+            m_err = "saan_stream_pull_ptr が失敗した"; break;
         }
         if (n <= 0) break;
         const size_t ns = (size_t)n * SAAN_HOP;
-        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(g_chunk[i]);
+        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
         if (!m_spk->write(g_i16, ns)) { m_err = "スピーカーの write() が失敗した"; break; }
     }
 

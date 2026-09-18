@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（144 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（145 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -185,6 +185,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-142](#m-142) | MEM-6 |
 | [M-143](#m-143) | もっと RAM を減らせるか |
 | [M-144](#m-144) | MEM-7 を入れた |
+| [M-145](#m-145) | MEM-8 |
 
 </details>
 
@@ -14364,3 +14365,132 @@ PSRAM に落ちる、が **測っていない推測**）。
   `--expect-mac-le 4200628` などは **step あたり**の期待値で、duration は init の中で
   走るので数に入らない。**`prof` が通ったことは MEM-7 の時間代償について何も言っていない**
   （逆に、通ったのは MEM-7 が streaming の経路を 1 行も触っていない証拠にはなる）
+
+---
+
+## M-145. **MEM-8 — `g_chunk` 8,192 B は「一度も使われていない引数」の裏に隠れていた**。`g_ids` の過剰分 2,704 B と合わせて **−10,896 B**。静的 DIRAM は M-142 比 **−43,664 B（−19.2%）**。⚠️ **実機では測れていない**（自己実測 / ホスト + M5 ビルド）
+
+**問い**: [M-144](#m-144) で arena を下限まで詰めた。**arena の外にまだ余地はあるか。**
+
+### 1. 見つけ方 — **`(void)pcm;`**
+
+`saan_stream_pull(st, pcm, &n)` は `pcm` を `step_chunk(st, pcm)` に渡す。
+その先を追うと `step_chunk_body` の末尾に
+
+```c
+    (void)pcm;
+```
+
+があった。**一度も触っていない引数**である（S9 / T2 の書き換えで使われなくなり、
+引数だけ残っていた）。つまり `pcm` の用途は**最後の 1 行だけ**:
+
+```c
+    memcpy(pcm, im->obuf, sizeof(float) * (size_t)n * SAAN_HOP);
+```
+
+**`obuf` からの写し先にしか使っていない。** ならばポインタで返せば、
+呼び出し側の `float [SAAN_CHUNK * SAAN_HOP]` = **8,192 B が丸ごと要らない。**
+
+### 2. 消費側がポインタを保持しないことを確認した
+
+⚠️ **ポインタを返す形は「呼び出し側がすぐ読む」ことに依存する。** 実装を 2 つとも読んだ:
+
+| 消費者 | 実装 | 保持するか |
+|---|---|---|
+| `saan_audio_write_f32`（M5） | `for (i) dst[i] = saan_f32_to_i16(pcm[i]);` → `spk_play(dst, …)` | **しない**（int16 へ即変換） |
+| `saan_audio_preroll_push`（M5） | `s_preroll[fill+i] = saan_f32_to_i16(pcm[i]);` | **しない** |
+| 同 2 つ（DevKit / `saan_i2s.c`） | 同じ形（`s_i16[i] = …` / `s_preroll[…] = …`） | **しない** |
+
+```bash
+grep -n "saan_audio_write_f32\|saan_audio_preroll_push" -A 16 \
+    esp32/boards/m5unified/main/saan_audio_m5.cpp esp32/main/saan_i2s.c
+```
+
+### 3. 入れたもの
+
+| | |
+|---|---|
+| `csrc/saanotts_stream.{c,h}` | **`saan_stream_pull_ptr()`** を足し、**`saan_stream_pull` はその上の薄いラッパ**にした（同じ計算の 2 つ目の実装を持たない = [C-103](decisions.md#c-103)）。詰め直し（memmove）は**次の呼び出しの先頭**で行う（`obuf_retire`）。`impl` に `opend` を 1 本追加。使われていない `pcm` 引数を `step_chunk` から外した |
+| `esp32/main/main.c` | `g_chunk`（8,192 B）を**削除**。`SAAN_G2P_IDS_CAP` を `2·512+3` = 1,027 本から **`SAAN_MAX_IDS + 1` = 351 本**に（4,108 → 1,404 B） |
+| `csrc/pullptr_test.c` | **新規ゲート** `make -C csrc pullptr`（G-PP1〜3） |
+
+### 4. 実測 — 静的 DIRAM（M5 CoreS3 向け・かな構成）
+
+```bash
+cd esp32/boards/m5unified && idf.py -B <build> \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" build size
+```
+
+| | M-142 | M-144 | **M-145** | M-142 比 |
+|---|---:|---:|---:|---:|
+| **DIRAM** | 227,643（66.61%） | 194,875（57.02%） | **183,979（53.83%）** | **−43,664（−19.2%）** |
+| `.bss` | 171,240 | 138,472 | **127,576** | −43,664 |
+| **空き** | 114,117 | 146,885 | **157,781** | **+43,664（+38.3%）** |
+
+内訳の差は **8,192（`g_chunk`）+ 2,704（`g_ids`）= 10,896 B ちょうど**。
+
+### 5. PCM は変わっていない
+
+`git show 79dd7f2:csrc/{saanotts.c,saanotts_stream.c,saanotts.h}`（MEM-7 / MEM-8 の前）を
+取り出して同じ棒で走らせ、**両レーン × 4 つの長さで PCM / `log_d` / `d_hat` が bit 一致**
+（`reports/m145_mem8/pcm_before_after.log`）。
+
+`make -C csrc pullptr` は **`pull_ptr` の全サンプル列が `pull` の列と bit 一致**することを
+n_ids 6 点 × 2 レーンで見る。⚠️ **陽性対照 G-PP3**: 「返ったポインタは次の呼び出しまで有効」
+という警告が**空虚でないこと**（= 次の呼び出しで実際に中身が動くこと）も確かめる。
+
+### 6. `arena_peak` の値（`opend` の 4 B ぶん動いた）
+
+| | ホスト | **ターゲット（32 bit）** |
+|---|---:|---:|
+| `sizeof(struct saan_stream_impl)` | 2,464（align16 後・不変） | **1,300**（M-144 は 1,296。`opend` の +4）→ align16 **1,312** |
+| `saan_stream_arena_used(350)` | 114,128 | **112,976**（+16） |
+| **`saan_stream_arena_peak(350)`（W8A8）** | **116,592** | **115,440**（+16） |
+
+arena は **かな 118,784 B / 漢字 139,264 B のまま**（余り 3,344 / 23,824）。
+
+### 7. ⭐ `o1539` は**構造的に最小**だと分かった（新しい結論）
+
+`o1539` は streaming 側の最大項（24,624 B = 21.6%）なので、**粒度以外の削り方**を探した。
+
+**案**: 出力チャンネルをビロックに分けて `[3B][HEAD_COLS]` だけ持つ（B ビン分）。
+1×1 conv なので出力チャンネルの部分計算は**ループ境界の変更だけ**で、
+per-frame 量子化にも影響しない（bit 一致）。B=128 なら 6,144 B = **−18,480 B**。
+
+❌ **成立しない。** `istft_push` は 1 列（1 フレーム）につき `re[k]` / `im[k]` を
+**全 513 ビン**書いてから irfft を呼ぶ。ビンを外側のループにすると
+**`re`/`im` を HEAD_COLS 列ぶん同時に持つ**ことになり
+（2 × 513 × 4 = 16,416 B。いまは `w_e` 9,728 B の中に 1 列ぶん 4,128 B）、
+**削った 18,480 B のうち 12,288 B が戻ってくる**。しかも `w_e` を広げる必要が出る。
+
+**列ごとに重みを使い回す（= 速い）ことと、1539 チャンネルを HEAD_COLS 列ぶん持つことは同じこと**なので、
+`o1539` は `HEAD_COLS` に対して最小である。**レバーは `HEAD_COLS` だけで、それは速度と交換**
+（粒度 1 は実機で +56% = [C-098](decisions.md#c-098)）。
+
+### 8. これで arena は現アルゴリズムの床に着いた
+
+| 残っている項目 | B | なぜ削れないか |
+|---|---:|---|
+| `o1539` | 24,624 | **§7 で構造的最小と判明。** `HEAD_COLS` は速度と交換 |
+| `obuf` | 12,288 | `SAAN_OBUF_HOPS` = `CH`+4。`CH` は静的検査で 8 未満にできない |
+| `ola` + `olw` | 12,288 | `olw` は加算順依存の累積和（[D-067](decisions.md#d-067) で測って格下げ） |
+| `w_e` | 9,728 | `E`×`CH`。iSTFT の `re`/`im`/`frm` と共用済み（MEM-2） |
+| `dblk`×5 / `ac`×5 / `tok`×3 / `pwnd` | 25,664 | **MEM-6 でハローだけになっている** |
+| `win` | 4,096 | flash 化は**実機で生成した値が要る**（ホストの `cosf` と 1 ulp 違う = M-143 §4） |
+| act scratch | 2,464 | conv 1 本ぶん。W8A32 では 0 |
+| その他 | ~24,000 | 段ごとの実寸（S9 で圧縮済み） |
+
+**うちの静的 RAM は 121,852 B / DIRAM 183,979 B の 66%。残りの 34%（62,127 B）は ESP-IDF**
+（IRAM のコード 43,327 / `.data` 12,048 / `.bss` ~7,000 / `.vectors` 1,028）で、
+**sdkconfig で削れるが I2S と表示の ISR を flash に落とすことになり、
+13.7 MB の辞書 mmap がキャッシュミスする区間でアンダーランを増やしうる**（未測定）。
+
+### 9. ⚠️ 測っていないもの
+
+- ⚠️⚠️ **実機で 1 行も測っていない**（[M-144](#m-144) と同じ。USB から消えたまま）。
+  **`pull_ptr` は実機で 1 度も走っていない。** ⚠️ **音の出る経路を変えた**ので、
+  M-144 より実機確認の重要度は高い（残タスク #20）
+- ⚠️ **漢字構成のファームはビルドしていない**（辞書 blob が無い）。構文検査のみ
+- ⚠️ **wasm / Arduino は `saan_stream_pull`（コピー版）を使い続ける**ので RAM は減らない。
+  手元でビルドしていない（CI 側）
+- **`g_ids` を 351 本にしたことで長文の失敗メッセージが変わる**が、**実機で出させていない**
