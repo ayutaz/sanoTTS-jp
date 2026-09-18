@@ -59,7 +59,8 @@ lib_deps =
 ```
 
 ⚠️ **版を固定したいなら `latest` ではなくタグを書く**
-（`.../releases/download/v1.1.0/sanoTTS-jp-arduino.zip`）。**同じファイルが両方の URL で取れる** — 資産名に版を入れていないのは `latest/download/` が**完全一致**を要求するため。
+（`.../releases/download/v1.2.0/sanoTTS-jp-arduino.zip`）。資産名に版を入れていないのは `latest/download/` が**完全一致**を要求するため。
+⚠️⚠️ **`v1.1.0` の .zip は別のファイル**（RAM を詰める前 / example が 1 本少ない）。**古いタグを指したままにしないこと。**
 
 ### Arduino IDE
 
@@ -197,7 +198,7 @@ RAM の大半は合成用の arena 139,264 B（`.bss` に静的確保。⚠️ *
 ⚠️ **確かめていないこと**:
 
 - **実時間に間に合うか**（`xRT` / アンダーラン / 鳴らし始めまでの時間）。
-  ESP-IDF 版は同じ CoreS3 で **xRT 0.474 / アンダーラン 0 / 364〜374 ms** だが、
+  ESP-IDF 版は同じ CoreS3 で **xRT 0.473（53 ids）/ アンダーラン 0 / 369 ms**（[M-147](../docs/measurements.md#m-147)）だが、
   **同じ PCM が出ることと、間に合って出ることは別**
 - **Arduino IDE の GUI**（検証は arduino-cli 1.5.1）
 - **Arduino ビルドで漢字を実際に喋らせること**（コンパイルは通っている）

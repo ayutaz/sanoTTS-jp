@@ -23,7 +23,7 @@
 **アクセントのミニマルペア**（`reports/d4_accent/`）です。
 
 **2 の手順は [`esp32/TESTING.md`](esp32/TESTING.md)。所要 15〜30 分・DAC は不要です。**
-速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.473**。[M-147](docs/measurements.md#m-147) = MEM-7 / MEM-8 の後の実機実測。⚠️ v1.1.0 は 0.476）が、
+速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.473**。[M-147](docs/measurements.md#m-147) = MEM-7 / MEM-8 の後の実機実測。⚠️ `v1.1.0` の出荷ファームは **0.448** = [M-130](docs/measurements.md#m-130)。**差は MEM-5 / MEM-6 の arena 削減**によるもので、MEM-7 / MEM-8 自体は 0.476 → 0.473 と**速くしている**）が、
 ⚠️ **満たすのは 203 ids までで、253 ids あたりから中央値が 0.5 を超えます**（[M-147](docs/measurements.md#m-147) / [M-148](docs/measurements.md#m-148)。平均は越えず、アンダーランは全長で 0）。
 **測ったのは 1 枚の板だけ**です。別の ESP32-S3（AtomS3 / DevKit / Core2 …）での実測を歓迎します。
 ✅ **`v1.0.0` の配布イメージは高速化後のコード**なので、焼くだけで測れます。
@@ -45,7 +45,7 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-109 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-110 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
@@ -163,8 +163,12 @@ Still entirely unlistened: the **12 pairs in `reports/k8_listen/`** (where dicti
 changes a reading) and the **accent minimal pairs** in `reports/d4_accent/`.
 
 Instructions for 2: [`esp32/TESTING.md`](esp32/TESTING.md) — 15–30 minutes, no DAC required.
-The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.474**; it was 0.448 on v4
-hardware, M-130), but **that is one board**; measurements on any other ESP32-S3 are welcome.
+The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.473** at 53 ids,
+[M-147](docs/measurements.md#m-147); the `v1.1.0` image ran at 0.448, [M-130](docs/measurements.md#m-130) — the difference comes from the arena cuts of MEM-5 / MEM-6, while MEM-7 / MEM-8 **sped it back up**, 0.476 → 0.473), but **that is one board**; measurements on any
+other ESP32-S3 are welcome.
+⚠️ **It only holds up to 203 ids** — at 253 ids the median reaches 0.522
+([M-147](docs/measurements.md#m-147) / [M-148](docs/measurements.md#m-148); the mean never crosses 0.499
+and there are zero underruns at every length).
 ✅ **The `v1.0.0` images carry the reworked code**, so flashing is enough to measure it; pick
 the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 ⚠️ Images before v0.3.0 predate the speed rework and read the console on UART0.
@@ -174,7 +178,7 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-109 in
+2. **Never delete the correction log.** C-001–C-110 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
 3. **Do not write a gate you cannot break on purpose.** Twenty-two defects hid behind green tests

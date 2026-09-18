@@ -8,12 +8,14 @@ Numbers come from [`measurements.md`](measurements.md) (Japanese; every entry ha
 ⚠️ **"✅ hardware" and "⚠️ third-party hardware" are kept apart.** The latter was **not reproduced here**.
 
 ⚠️ **The shipping weights are v4** (JSUT removed; **`v1.0.0`, 2026-09-12**), verified on the
-16 MB M5 CoreS3 ([M-124](measurements.md#m-124) / [M-130](measurements.md#m-130): xRT **0.448**,
+16 MB M5 CoreS3 ([M-124](measurements.md#m-124) / [M-130](measurements.md#m-130) /
+[M-147](measurements.md#m-147): xRT **0.473** at 53 ids,
 **0** underruns, **bit-identical PCM whether the sentence is written in kanji or in kana**).
 ⚠️ **Only that one image was flashed with v4**; the 8 MB / 4 MB / 2 MB images were only
 **checked by content** (no boards). ⚠️ **Nobody has heard v4 for even a second.**
-⚠️ **The current release is `v1.2.0`** (2026-09-19; [M-149](measurements.md#m-149)) — 20,480 B less
-static DIRAM, **bit-identical audio**, and the weights and dictionary unchanged since `v1.0.0`.
+⚠️ **The current release is `v1.2.0`** (2026-09-19; [M-149](measurements.md#m-149)) — **49,320 B less
+static DIRAM than `v1.1.0`** (260,855 → 211,535 B), **bit-identical audio**, and the weights and
+dictionary unchanged since `v1.0.0`.
 ⚠️ **The board rows and the dictionary table below were measured with v3** — the dictionary and
 the C code are identical across v3 and v4, so reading accuracy is unchanged.
 
@@ -24,7 +26,7 @@ the C code are identical across v3 and v4, so reading accuracy is unchanged.
 | **Kana intermediate form → audio** | ✅ **on hardware** (M5 CoreS3) | [M-90](measurements.md#m-90) |
 | **Kanji text → audio** (morphological analysis + accent, all on device) | ✅ **on hardware** | [M-90](measurements.md#m-90) |
 | **Real-time budget** (xRT ≤ 0.5) | ⚠️ **It depends on sentence length** — [M-147](measurements.md#m-147) is the first hardware run past 224 ids. **53–203 ids meet it (0.473–0.498)**, but the median reaches **0.522 at 253 ids and 0.523 at 303 ids**. ⚠️ **v1.1.0 behaves the same** (0.526 at 303 ids), so this is **not** a MEM-7/MEM-8 regression. ⚠️ The **mean stays at 0.487–0.499 and never crosses 0.5**, and there are **zero underruns at every length**: full-chunk pulls are **bimodal at 43.8 ms / 48.6 ms**, and the share of the slow mode rises with length (33%→53%), so **only the median jumps** once it passes 50% (per-chunk work grows just 2.5%). Time to first sound **369 ms ≤ 0.8 s** | [M-147](measurements.md#m-147) / [D-049](decisions.md#d-049) / [C-054](decisions.md#c-054) |
-| **Memory** (fits 512 KB SRAM) | ✅ **211,535 B static DIRAM**, measured **on hardware** (kanji build) — 61.9% of the pool, **181,119 B** free at boot, largest block **131,072 B**. The per-utterance peak runs **113,072–115,056 B** and matches `arena_peak(n)` **exactly at all six lengths**. ⚠️ v1.1.0 was 232,015 B | [M-147](measurements.md#m-147) |
+| **Memory** (fits 512 KB SRAM) | ✅ **211,535 B static DIRAM**, measured **on hardware** (kanji build) — 61.9% of the pool, **181,119 B** free at boot, largest block **131,072 B**. The per-utterance peak runs **113,072–115,056 B** and matches `arena_peak(n)` **exactly at all six lengths**. ⚠️ **`v1.1.0` was 260,855 B** (**−49,320 / −18.9%**; MEM-7 / MEM-8 account for 20,480, MEM-5 / MEM-6 for 28,840 = [M-142](measurements.md#m-142)) | [M-147](measurements.md#m-147) |
 | **Browser** (the same C99 core as wasm) | ✅ bit-identical PCM to the device | [M-95](measurements.md#m-95) |
 | **Pitch accent** | ⚠️ the shipping **v4 scores 31/37** (v3 scored 37/37). Changing only the seed already costs 3 pairs, so this **cannot be read as damage from dropping JSUT** ([D-057](decisions.md#d-057)) | [M-118](measurements.md#m-118) / [M-117](measurements.md#m-117) |
 | **Arduino / PlatformIO library** (call it from your own sketch) | ⚠️ **PCM is bit-identical to the ESP-IDF build** (QEMU, two configurations); builds under both PlatformIO and arduino-cli. ❌ **Never run on real hardware** — xRT and underruns are **unmeasured** | [M-137](measurements.md#m-137) / [D-065](decisions.md#d-065) |

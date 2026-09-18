@@ -1,6 +1,6 @@
 {
   "name": "SanoTTS-jp",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Japanese neural TTS that runs in real time on an ESP32-S3 (567K params, 22.05 kHz, on-device G2P).",
   "keywords": ["tts", "japanese", "speech", "esp32", "esp32-s3", "m5stack"],
   "repository": { "type": "git", "url": "https://github.com/ayutaz/sanoTTS-jp.git" },

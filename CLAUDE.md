@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | | |
 |---|---|
 | 出荷物 | **資産 30 本**（`v1.2.0`。⚠️ **firmware 10 本 + Arduino zip 2 本 + `MODEL_CARD.md` + `LICENSE-MODEL.md` の 14 本を差し替え**、残る 15 本は `v1.1.0` と SHA-256 が一致）。重みは **v4** = 蒸留テキストが CC0 / PD のみ |
-| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.473**（53 ids）/ アンダーラン **0** / 漢字==かな bit 一致。**静的 DIRAM 211,535 B**（v1.1.0 の 232,015 から −20,480）= [M-147](docs/measurements.md#m-147)。⚠️⚠️ **250 ids あたりで xRT の中央値が要件 0.5 を超える（変更前からそう。平均は越えない・アンダーラン 0）** |
+| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.473**（53 ids）/ アンダーラン **0** / 漢字==かな bit 一致。**静的 DIRAM 211,535 B**（**`v1.1.0` の 260,855 から −49,320 = −18.9%**。⚠️ うち MEM-7 / MEM-8 は −20,480 で、残り −28,840 は MEM-5 / MEM-6 = [M-142](docs/measurements.md#m-142)）= [M-147](docs/measurements.md#m-147)。⚠️⚠️ **250 ids あたりで xRT の中央値が要件 0.5 を超える（変更前からそう。平均は越えない・アンダーラン 0）** |
 | デモ | https://ayutaz.github.io/sanoTTS-jp/ （**実機と同じ C99 コア**の wasm） |
 | CI | **7 job**。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |
 
@@ -621,7 +621,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `bash scripts/check_dict_integrity.sh` | **G34 = 辞書の SHA-256 検査**（[D-063](docs/decisions.md#d-063) / [M-134](docs/measurements.md#m-134)）。ビルドして QEMU で 2 回起動する: A) 正しい辞書 → 一致して漢字経路が生きる / **B) flash の dict 領域を 1 ビット反転 → 不一致を検出し、漢字経路だけ無効にしてかな専用で続く**（起動は止まらない）。⚠️ **真ん中を壊すこと** — 先頭だと `jdict_open` のマジック検査に先に引っかかり、**SHA-256 を試験していない**。⚠️ **ビルドログを見てはいけない** — `message(STATUS)` は再構成時しか出ないので**増分ビルドで必ず落ちる**（実際に踏んだ）。見るのは `compile_commands.json`。⚠️ ESP-IDF + QEMU + 辞書が要るので **CI では回らない** |
 | テスト | `scripts/check_dict_blob.py` | blob の自己整合と manifest の照合（**陽性対照 5 種を内蔵**） |
 | テスト | `scripts/check_partitions.py --file <csv>` | パーティション表（8 MB / 16 MB の両方）|
-| テスト | `scripts/build_measurements_index.py --check` | **`measurements.md` の索引（134 件）が見出しと一致するか**。⚠️ **索引は手で書かない** — 節は測るたびに増えるので、手書きは**必ず古くなる**（[C-042](docs/decisions.md#c-042) と同じ形）。**生成物なので検査できる。** CI で回る |
+| テスト | `scripts/build_measurements_index.py --check` | **`measurements.md` の索引（149 件）が見出しと一致するか**。⚠️ **索引は手で書かない** — 節は測るたびに増えるので、手書きは**必ず古くなる**（[C-042](docs/decisions.md#c-042) と同じ形）。**生成物なので検査できる。** CI で回る |
 | テスト | `scripts/check_doc_counters.py` | **索引の M/D/C 番号 + 引用アンカー**。⚠️ 番号は書いた瞬間から古くなる（C-042）。⚠️ **番号が「ずれる」と「入れ替わる」は別の壊れ方**で、後者は主張と番号の対応を見ないと捕まらない（C-052） |
 | テスト | `scripts/check_doc_links.py` | **md の相対リンクが実在するか** + **番号リンクのラベルとアンカーが一致するか**（`[C-085](#c-083)` を捕まえる。**陽性対照 2 本**）。⚠️ **番号の一括置換でラベルだけ動く形は、2026-09-10 までどのゲートにも掛からなかった**（C-064 の 3 度目で 4 件出た = C-085）。⚠️ **外部 URL は見ない**。⚠️ **アンカーが実在するかは見ない**（食い違いだけ）。⚠️ **同一ファイル内の `#anchor` の実在も見ない**（C-057 の壊れたリンクはこれで見逃されていた）。⚠️ **リンクになっていない素の引用**（`C-082 の入口`）は見えない。⚠️ **リンク先が git 管理外**でも、手元にファイルが在れば通る（新規 clone の CI でだけ落ちる） |
 | テスト | `scripts/test_corpus_license.py` | **蒸留テキストのライセンス判定**（G-L1a。D-054）。許可 7 / 拒否 9 / **未知 5**。⚠️ **完全一致で判定する**（`cv/` の前方一致だと europarl 由来が自動で通る = C-029）。⚠️ **表しか見ない** — 判定が実際に呼ばれたかは G-L1b が見る |
@@ -1000,7 +1000,8 @@ blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字�
 | **人** | **18** | **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065)） | ✅ **PCM は ESP-IDF ビルドと bit 一致した**（[M-137](docs/measurements.md#m-137) §7。QEMU / 2 構成）。⚠️ **xRT もアンダーランも鳴らし始めまでの時間も未測定** — **同じ PCM が出ることと、間に合って出ることは別**。⚠️ **Arduino ビルドで漢字を喋らせてもいない** |
 | **人** | 11 | 4 MB / 2 MB の**実機の数字** | 板が無い。第三者の報告（M-109）に checksum / xRT / UR が無い。⚠️ **私は 1 つも再現していない**。⚠️ **『どうやって打ち込んだか』も未解決**（小容量版 3 本は UART0 のはずで、native USB の ATOMS3 には届かないはず） |
 
-⚠️ **20 は私にもできる**（実機が USB に戻れば）。1 / 18 / 11 は人か板が要る。
+⚠️ **21 の (b)「要件の統計を中央値→平均に改めるか」は人の判断**（[M-148](docs/measurements.md#m-148) で**打つ手が無いことまで測ってある**）。1 / 18 / 11 は人か板が要る。
+✅ **20（MEM-7 / MEM-8 の実機確認）は 2026-09-18 に済んだ**（[M-147](docs/measurements.md#m-147)）。
 
 ✅ **12（リリース）/ 16（CI・Pages）/ 17（辞書の SHA-256 検査）は 2026-09-12 に済んだ**
 （[M-133](docs/measurements.md#m-133) / [M-134](docs/measurements.md#m-134)）。

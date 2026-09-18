@@ -2,7 +2,7 @@
 
 > ✅ **v1.2.0 is the current release** (2026-09-19; **30 assets**). It replaces 14 of them —
 > the 10 firmware images, both Arduino .zip files, `MODEL_CARD.md` and `LICENSE-MODEL.md` —
-> with a build whose static DIRAM is **20,480 B smaller**, measured on hardware
+> with a build whose static DIRAM is **49,320 B smaller than `v1.1.0`** (260,855 → 211,535 B, −18.9%), measured on hardware
 > ([M-149](measurements.md#m-149)). **The audio, the weights and the dictionary did not change by
 > a single byte**, and the remaining 15 assets still carry the SHA-256 they had in **v1.0.0**.
 > The weights are **v4** —
@@ -73,14 +73,15 @@ Two lines in `lib_deps` ([`arduino/README.md`](../arduino/README.md) / [D-065](d
 
 | File | Where | What | License |
 |---|---|---|---|
-| `sanoTTS-jp-arduino.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | The Arduino / PlatformIO library (C99 core, on-device G2P, dictionary reader, Open JTalk, C++ wrapper, 3 examples, partition tables). 307,950 B / 92 files | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | The 654,032-byte weights as an `aligned(16)` C array. 959,943 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
+| `sanoTTS-jp-arduino.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | The Arduino / PlatformIO library (C99 core, on-device G2P, dictionary reader, Open JTalk, C++ wrapper, 3 examples, partition tables). 308,005 B / 92 files | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | The 654,032-byte weights as an `aligned(16)` C array. 960,142 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
 
 ⚠️ **The asset names carry no version.** `releases/latest/download/<name>` requires an exact
 match ([C-097](decisions.md#c-097) — we actually hit this); the version lives inside
-`library.properties` (`version=1.1.0`). To pin, use
-`releases/download/v1.1.0/sanoTTS-jp-arduino.zip` — **it is the same file** (verified by
-downloading from the public URL and comparing SHA-256).
+`library.properties` (`version=1.2.0`). To pin, use
+`releases/download/v1.2.0/sanoTTS-jp-arduino.zip`.
+⚠️⚠️ **The `v1.1.0` .zip is a different file** — `v1.2.0` carries the reclaimed RAM and one extra
+example ([M-149](measurements.md#m-149)). **Pinning `v1.1.0` gets you the old one.**
 
-⚠️ **`v1.1.0` changes no model, firmware or dictionary byte** — all 28 assets have the same
-SHA-256 as in `v1.0.0`, and the `v1.0.0` links above still work.
+⚠️ **`v1.2.0` changes no model or dictionary byte**, but the 10 firmware images and both .zip files
+**were replaced** ([M-149](measurements.md#m-149)). The `v1.0.0` links above still work.
