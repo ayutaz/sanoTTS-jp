@@ -26,22 +26,25 @@ M5Stack CoreS3（スタックチャン）にファームを 1 本焼くと、シ
 ```
 かな> 今日は良い天気ですね。
 saanotts: 経路: 辞書
-saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.82 ms
-saanotts: init 21.50 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.80 ms
+saanotts: init 25.29 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+saanotts: プリロール 4 チャンク完了（初回 pull 222.78 ms / 鳴らし始めまで 369 ms）
 saanotts: 定常 xRT = 0.474（満チャンク pull の中央値 / 92.88 ms）
 saanotts: アンダーラン 0 / 14 チャンク
 saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
 ```
 
-*（実機の生ログ [`reports/m142_ram/dev_readme.log`](reports/m142_ram/dev_readme.log) から抜粋。
-⚠️ **v1.1.0 までの速度は [`reports/m130_cores3/device_v4_kanji.log`](reports/m130_cores3/device_v4_kanji.log)**（xRT 0.448）—
-RAM を詰めた分だけ遅くなっている（[M-142](docs/measurements.md#m-142)）。checksum は重みの版で変わる）*
+*（実機の生ログ [`reports/m147_device/dev_kanji.log`](reports/m147_device/dev_kanji.log) から抜粋。時刻と注意書きの行は落としてある。
+⚠️ **このビルドは出荷版より `.bss` が 2,704 B 小さい**（[C-108](docs/decisions.md#c-108) で戻した分。**PCM も速度も同じ**）。
+**出荷版の同じ文**は [`reports/m147_device/dev_restore_verify.log`](reports/m147_device/dev_restore_verify.log) で
+**定常 xRT 0.473 / 起動直後の内部 DRAM free 181119 B / 最大ブロック 131072 B / 同じ checksum**。
+⚠️ **`v1.1.0` の出荷ファームは 0.448**（[M-130](docs/measurements.md#m-130)。arena 180,224 B）— **遅くなったのは MEM-5 / MEM-6 の arena 削減**（[M-140](docs/measurements.md#m-140) / [M-142](docs/measurements.md#m-142)）のためで、**MEM-7 / MEM-8 はむしろ 0.476 → 0.473 と速くしている**。checksum は重みの版で変わる）*
 
 | | |
 |---|---:|
 | モデル | **559 K params** / int8 で **654,032 B**（flash） |
-| 実行時 RAM | **静的 DIRAM 211,535 B**（M5 CoreS3・**漢字構成の実機実測**。DIRAM プール 341,760 B の **61.9%**。⚠️ v1.1.0 は 232,015 B = **−20,480**）。起動直後の空き **181,119 B** / 最大ブロック **131,072 B**。1 発話の実測ピークは **113,072 B**（53 ids）〜**115,056 B**（303 ids）で、**`saan_stream_arena_peak(n)` の予測と 6 点すべて完全一致**（[M-147](docs/measurements.md#m-147)） |
-| 速度 | **xRT 0.474**（満チャンク 1 pull の定常値・7 発話で 0.471〜0.475。⚠️ 発話全体では **0.522〜0.741**）。⚠️ **要件の分母は定常**（[D-049](docs/decisions.md#d-049)） |
+| 実行時 RAM | **静的 DIRAM 211,535 B**（M5 CoreS3・**漢字構成の実機実測**。DIRAM プール 341,760 B の **61.9%**。⚠️ **`v1.1.0` は 260,855 B = −49,320（−18.9%）**。うち MEM-7 / MEM-8 が −20,480、MEM-5 / MEM-6 が −28,840 = [M-142](docs/measurements.md#m-142)）。起動直後の空き **181,119 B** / 最大ブロック **131,072 B**。1 発話の実測ピークは **113,072 B**（53 ids）〜**115,056 B**（303 ids）で、**`saan_stream_arena_peak(n)` の予測と 6 点すべて完全一致**（[M-147](docs/measurements.md#m-147)） |
+| 速度 | **xRT 0.473**（53 ids・満チャンク 1 pull の定常値。[M-147](docs/measurements.md#m-147)）。⚠️⚠️ **満たすのは 203 ids までで、253 ids から中央値 0.522 / 303 ids で 0.523**（`v1.1.0` も同じ。**平均は 0.499 を越えず、アンダーランは全長で 0**）。⚠️ **要件の分母は定常**（[D-049](docs/decisions.md#d-049)） |
 | 品質 | 教師の **64%**（SCOREQ 比 **0.636** = v4。v3 は 0.644 で**差は検出できない**）。⚠️ **予測器のスコアで、人の耳ではない** |
 | 端末の G2P | 漢字あり **13.7 MB 辞書** / かなだけなら **877 B のテーブル** |
 

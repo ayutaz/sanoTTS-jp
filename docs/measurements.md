@@ -15016,3 +15016,55 @@ cmp /tmp/dl2/MODEL_CARD.md MODEL_CARD.md     # → 差分なし
 `esp32/TESTING.md` / `esp32/boards/m5unified/README.md` / `docs/support-matrix.md` が
 **「MEM-7 / MEM-8 は実機未測定」と書いたまま**だった（[M-147](#m-147) で測ってある）。
 **リリース PR は資産の表しか直していなかった。**
+
+### 9. ⚠️ **公開翌日に数字の帰属を直した**（[C-110](decisions.md#c-110)）
+
+リリースノートと読者向け 7 ファイルで **`232,015 B` を「`v1.1.0` の静的 DIRAM」**と書いていたが、
+それは **MEM-7 直前の開発ビルド `79dd7f2`** の値だった。**`v1.1.0` は 260,855 B**（[M-142](#m-142) §4）。
+
+| | `v1.1.0`（出荷） | `79dd7f2`（MEM-7 直前・**未リリース**） | **`v1.2.0`（出荷）** |
+|---|---:|---:|---:|
+| `SAAN_ARENA_BYTES` | 180,224 | 151,552 | **139,264** |
+| 静的 DIRAM | **260,855** | 232,015 | **211,535** |
+| 起動直後の内部 DRAM free | **131,799** | 160,639 | **181,119** |
+| 最大ブロック | **86,016** | 114,688 | **131,072** |
+| 定常 xRT（53 ids） | **0.448** | 0.476 | **0.473** |
+
+**`v1.1.0` → `v1.2.0` は −49,320 B（−18.9%）**で、書いていた **−20,480 B は MEM-7 / MEM-8 の分だけ**
+だった（残り −28,840 は MEM-5 / MEM-6）。⚠️ **過小に言っていた**ので実害は小さいが、数字としては誤り。
+xRT も同じ形で取り違えていた（「`v1.1.0` は 0.476」→ 正しくは **0.448**）。
+
+⚠️ **`check_doc_claims.py` の G-D1 では捕まらない** — `232,015` も `0.476` も**実ログに在る**ので、
+**帰属先が違っても緑になる**。
+
+### 10. ⚠️ **資産をもう一度差し替えた**（最終。合計 4 本）
+
+§9 の帰属の訂正を `MODEL_CARD.md` に入れ、あわせて **Arduino ライブラリの版が `1.1.0` のままだった**のを直した。
+
+⚠️ **`v1.2.0` の .zip が中で `version=1.1.0` と名乗っていた** — `scripts/build_arduino_lib.py` の
+`--version` は**重みの .zip にしか効かない**（`_VOICE_PROPS` / `_VOICE_JSON` だけを書き換える）。
+**コード側の `arduino/library.properties` / `library.json` はリポジトリの追跡ファイル**なので、
+**手で上げないと版が据え置かれる。** ⚠️ **どのゲートも見ていない**（G-AR1 は `src/core/` の逐語性、
+G-AR3/G-AR7 は「ビルドが通るか」しか見ない）。
+
+⚠️ **重みの .zip も差し替えになった** — `MODEL_CARD.md` を**同梱している**ため
+（`unzip -l` で分かる。⚠️ **「重みだけの .zip」ではない**）。
+
+```bash
+uv run --no-project python scripts/build_arduino_lib.py --zip dist --version 1.2.0 --blob saanotts-jp-v4-int8.bin
+gh release upload v1.2.0 MODEL_CARD.md sanoTTS-jp-arduino.zip sanoTTS-jp-voice-tsukuyomi-v4.zip SHA256SUMS.txt --clobber
+gh release download v1.2.0 -D /tmp/dl3 && cd /tmp/dl3 && shasum -a 256 -c SHA256SUMS.txt   # → 29 OK
+```
+
+| 資産 | 前 | **最終** |
+|---|---|---|
+| `MODEL_CARD.md` | `f0b6bc17…` | **`ae1526ea…`** |
+| `sanoTTS-jp-arduino.zip` | 307,950 B / `66b43ce6…` | **308,005 B / `22bf7fcf…`**（`library.properties` / `library.json` / `README.md`） |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | 959,943 B / `fda6013b…` | **960,142 B / `8fcbd6e4…`**（同梱の `MODEL_CARD.md`） |
+| `SHA256SUMS.txt` | — | 3 行が変わった |
+
+⚠️ **§4 の表の 307,950 B / 959,943 B はこの差し替えで古くなった**（正は 308,005 / 960,142）。
+落とし直して **29 OK / 0 NG**、30 本すべて上げたものと bit 一致、`MODEL_CARD.md` はリポジトリと bit 一致。
+
+⚠️ **1 回のリリースで資産を 2 度差し替えた。** どちらも**公開してから人が読み直して**見つけたもので、
+**ゲートは 1 件も捕まえていない。**

@@ -1,10 +1,13 @@
 # ダウンロード
 
-> ✅ **v1.0.0 を配っています**（2026-09-11。資産 **28 本** / 140 MB）。
+> ✅ **v1.2.0 を配っています**（2026-09-19。資産 **30 本**）。
+> `v1.1.0` から **firmware 10 本 + Arduino zip 2 本 + `MODEL_CARD.md` + `LICENSE-MODEL.md` の 14 本**を
+> 差し替えました（**静的 DIRAM が実機で `v1.1.0` の 260,855 B → 211,535 B = −49,320 B（−18.9%）**。
+> ⚠️ **音・重み・辞書は 1 バイトも変わっていません**）。
 > 重みは **v4**（蒸留テキストから JSUT を外し、CC0 / パブリックドメインのみで学習し直したもの)。
 > 中身と実測は
-> [リリースノート](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) と
-> [M-119](measurements.md#m-119)〜[M-134](measurements.md#m-134)。
+> [リリースノート](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) と
+> [M-119](measurements.md#m-119)〜[M-134](measurements.md#m-134) / [M-147](measurements.md#m-147) / [M-149](measurements.md#m-149)。
 >
 > ⚠️ **v0.3.0 / v0.3.1 の `NOTICE.txt` / `LICENSE-MODEL.md` / `MODEL_CARD.md` /
 > `saanotts-jp-v4-samples.zip` は帰属が足りていません**（LibriTTS-R / CML-TTS / AISHELL-3 の
@@ -19,7 +22,7 @@
 
 **最新は [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0)（資産 30 本）で、ここに全部入っている。**
 ⚠️ **`v1.2.0` は firmware 10 本 + Arduino zip 2 本 + `MODEL_CARD.md` + `LICENSE-MODEL.md` の 14 本を差し替えた**
-（RAM を 20,480 B 減らした版。**音・重み・辞書は 1 バイトも変わっていない** = [M-149](measurements.md#m-149)）。
+（静的 DIRAM を `v1.1.0` から **−49,320 B** 減らした版。**音・重み・辞書は 1 バイトも変わっていない** = [M-149](measurements.md#m-149)）。
 **残る 15 本は `v1.0.0` から SHA-256 が変わっていない**（重み・辞書・golden・サンプル・NOTICE 類）。
 下の表の `v1.0.0` のリンクも今も有効。
 ⚠️ **タグの `v1.0.0` と資産名の `v4` は別の軸**（`v4` は**モデルの版**で、v0.3.x が `-v3-` を配っていたのと同じ関係）。
@@ -55,7 +58,7 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 | `k1-dict-213000-8mb-m5.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB / M5Stack 系の辞書単体 |
 | `k1-dict-135000-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 4 MB の辞書単体 |
 | `k1-dict-44000-2mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 2 MB 枠の辞書単体 |
-| `SHA256SUMS.txt` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **28 本のうち 27 本の SHA-256**（自分自身の行は入っていない = D-045 の 3）。⚠️ **`v1.1.0` には 30 本のうち 29 本を載せた別の版が入っている** — タグごとに中身が違う |
+| `SHA256SUMS.txt` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **28 本のうち 27 本の SHA-256**（自分自身の行は入っていない = D-045 の 3）。⚠️ **`v1.1.0` と `v1.2.0` にはそれぞれ 30 本のうち 29 本を載せた別の版が入っている** — タグごとに中身が違う |
 
 ⚠️ **辞書単体を焼くときは表とセットにすること。** 取り違えても**端末は止まらず、読みだけが落ちます**（⚠️ **検査の入れ方は決めましたが、実装は v1.0.0 の後**です = [D-063](decisions.md#d-063)）。
 迷ったら**辞書入りの flash イメージ 1 本**を使ってください（オフセット 0 に焼くだけ）。
@@ -70,16 +73,17 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 
 | ファイル | どこに | 何 | ライセンス |
 |---|---|---|---|
-| `sanoTTS-jp-arduino.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | Arduino / PlatformIO ライブラリ（C99 コア + 端末側 G2P + 辞書リーダ + Open JTalk + C++ ラッパー + 例 3 本 + パーティション表）。307,950 B / 92 files | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 重み 654,032 B を `aligned(16)` の C 配列にしたもの。959,943 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
+| `sanoTTS-jp-arduino.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | Arduino / PlatformIO ライブラリ（C99 コア + 端末側 G2P + 辞書リーダ + Open JTalk + C++ ラッパー + 例 3 本 + パーティション表）。308,005 B / 92 files | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 重み 654,032 B を `aligned(16)` の C 配列にしたもの。960,142 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
 
 ⚠️ **資産名に版が入っていません。** `releases/latest/download/<名前>` は**完全一致**を要求するためで
-（[C-097](decisions.md#c-097) で実際に踏みました）、版は `library.properties` の中（`version=1.1.0`）です。
-**固定したいときは `releases/download/v1.1.0/sanoTTS-jp-arduino.zip`** — **同じファイルです**
-（SHA-256 が一致することを公開 URL から落として確認済み）。
+（[C-097](decisions.md#c-097) で実際に踏みました）、版は `library.properties` の中（`version=1.2.0`）です。
+**固定したいときは `releases/download/v1.2.0/sanoTTS-jp-arduino.zip`**。
+⚠️⚠️ **`v1.1.0` の .zip は別のファイルです** — `v1.2.0` で RAM を詰めた分が入っており、
+[M-149](measurements.md#m-149) の example も 1 本増えています。**`v1.1.0` を指したままだと古い方が落ちてきます。**
 
-⚠️ **`v1.1.0` はモデル・ファームウェア・辞書を 1 バイトも変えていません**（28 本すべて `v1.0.0` と
-SHA-256 が一致）。上の表の `v1.0.0` のリンクは今も有効です。
+⚠️ **`v1.2.0` はモデル（重み）と辞書を 1 バイトも変えていません**が、**firmware 10 本と .zip 2 本は
+差し替わっています**（[M-149](measurements.md#m-149)）。上の表の `v1.0.0` のリンクは今も有効です。
 
 検証用の [v0.3.1-rc1-smallflash](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v0.3.1-rc1-smallflash) は**履歴として残してあります**（中身は v0.3.1 の 8 本と bit 同一）。
 
