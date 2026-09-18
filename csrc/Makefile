@@ -112,7 +112,19 @@ arena_stress: arena_stress.c $(CORE) $(HDRS)
 arena_stress_a8: arena_stress.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o $@ arena_stress.c $(CORE) $(LDLIBS)
 
-bench: bench.c $(CORE) $(HDRS)
+# --- MEM-7 のゲート（duration net の窓分割が log_d で bit 一致するか）--------
+# ⚠️ **K を振って 3 回走らせる。** `SAAN_DUR_K` はコンパイル時の値なので、
+#    「K を変えても同じ」を 1 本のバイナリでは示せない。
+#    K=8（窓 32 列・最小メモリ）/ K=128（既定）/ K=1024（1 窓 = 一括版に近い形）。
+# ⚠️ **W8A8 レーンで走らせる**（活性化の量子化が per-frame であることに依存しているので、
+#    そこが壊れたら W8A32 では出ない）。両レーン回す。
+dur_test_k%: dur_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_DUR_K=$* -o $@ dur_test.c $(CORE) $(LDLIBS)
+
+dur_test_a8_k%: dur_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -DSAAN_DUR_K=$* -o $@ dur_test.c $(CORE) $(LDLIBS)
+
+ bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)
 
 # S9（T2）: 出力範囲版カーネル vs [0,T) 版のランダム形状 bit 一致 + LayerNorm の T 非依存。
@@ -186,7 +198,7 @@ test: golden_test
 stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
 	./stream_test    student.bin    golden.bin ids_heldout.bin
 	./stream_test    student_i8.bin golden.bin ids_heldout.bin
-	./stream_test_a8 --g1-kb 148 student_i8.bin golden.bin ids_heldout.bin
+	./stream_test_a8 --g1-kb 116 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test
@@ -211,7 +223,7 @@ arena: arena_stress arena_stress_a8
 	@echo ""
 	@echo "== W8A8 レーン（実機と同じ構成）=="
 	@echo "⚠️ **W8A32 だけでは足りない**（C-100）。W8A8 は act scratch が n_ids に比例して"
-	@echo "   乗るので、init のピークが 137,216 -> 149,824 B に増える。136 KB は W8A32 では"
+	@echo "   乗る。⚠️ **MEM-7 の前は** init のピークが 137,216 -> 149,824 B に増え、136 KB は W8A32 では"
 	@echo "   通るが W8A8 では 350 ids で落ちる = **このレーンが無かったから見逃した**。"
 	./arena_stress_a8 student_i8.bin golden_i8.bin
 
@@ -350,10 +362,28 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard qeos
+# --- MEM-7 -------------------------------------------------------------------
+.PHONY: dur
+dur: dur_test_k8 dur_test_k128 dur_test_k1024 dur_test_a8_k8 dur_test_a8_k128 dur_test_a8_k1024
+	@echo "== W8A32 レーン =="
+	./dur_test_k8    student.bin golden.bin
+	@echo ""
+	./dur_test_k128  student.bin golden.bin
+	@echo ""
+	./dur_test_k1024 student.bin golden.bin
+	@echo ""
+	@echo "== W8A8 レーン（実機と同じ構成。活性化の量子化が per-frame であることに依存する）=="
+	./dur_test_a8_k8    student_i8.bin golden_i8.bin
+	@echo ""
+	./dur_test_a8_k128  student_i8.bin golden_i8.bin
+	@echo ""
+	./dur_test_a8_k1024 student_i8.bin golden_i8.bin
+
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard qeos dur
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress jdict_test accent_test \
+	      dur_test_k8 dur_test_k128 dur_test_k1024 dur_test_a8_k8 dur_test_a8_k128 dur_test_a8_k1024 \
 	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
 	      jdict_hard_test jdict_hard_test_weak jdict_hard_test_asan jdict_hard_test_asan_weak jdict_asan*.log \
 	      g2p_test line_test route_tool njd_rules_test njd_rules_stderr.log oj_heap_test oj_heap_stderr.log kanji_e2e_test kanji_e2e_stderr.log label_ids_test label_ids_stderr.log \

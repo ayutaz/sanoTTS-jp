@@ -29,12 +29,13 @@ typedef enum {
 /* --- トークン表の置き場（T10(a)）---------------------------------------------
  *
  * 既定（ホストのゲート）は .bss の静的配列。**ESP32 では
- * `-DK7_EXTERNAL_SCRATCH=1`** で呼び出し側が領域を渡す
+ * `-DLABEL_IDS_EXTERNAL_SCRATCH=1`** で呼び出し側が領域を渡す
+ * （⚠️ **`K7_EXTERNAL_SCRATCH` と書いてあったのは誤り。そんなマクロは無い** = [C-104](../docs/decisions.md#c-104)）
  * （esp32/main/saan_kanji.c が合成用 arena から切り出す）。
  * .bss を `LABEL_IDS_SCRATCH_BYTES` = 10,240 B（既定値のとき）減らすため。
  *
  * ⚠️ **上限そのものは変わらない**（コンパイル時定数のまま）。渡すのは置き場だけ。
- * ⚠️ ホスト側のゲートは held-out の長文を通すので `-DK7_MAX_TOKENS=2048` で
+ * ⚠️ ホスト側のゲートは held-out の長文を通すので `-DLABEL_IDS_MAX_TOKENS=2048` で
  *    上書きできる。**その場合は .h と .c を同じ値でコンパイルすること**
  *    （`LABEL_IDS_SCRATCH_BYTES` がずれる）。 */
 #ifndef LABEL_IDS_MAX_TOKENS

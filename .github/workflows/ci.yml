@@ -163,6 +163,12 @@ jobs:
         run: make -C csrc int8
       - name: arena ストレス（黙った確保失敗の検出）
         run: make -C csrc arena
+      # ⚠️ **MEM-7 のゲート**（M-144 / D-067）。duration net の窓分割が log_d で bit 一致するか。
+      #    **PCM の checksum では守れない** — log_d は exp → round → clip[1,80] を通るので
+      #    窓の取り方を間違えても d_hat が変わらない文が多い（ハロー 11 で max|Δ| 0.005）。
+      #    ⚠️ K を 8 / 128 / 1024 でビルドして 2 レーン = 6 回走らせる（K はコンパイル時の値）。
+      - name: MEM-7 duration 窓分割（K 不変 / ハロー必要十分 / 陽性対照 3 本 / arena_peak の照合）
+        run: make -C csrc dur
       # ⚠️ **陽性対照。** 重みを壊した blob でゲートが**落ちる**ことを見る。
       #    これが無いと「通った」が何も測っていないことを意味しうる（C-056 で実際に踏んだ:
       #    NaN が Pearson 1.0 / SNR inf に化けて PASS していた）。

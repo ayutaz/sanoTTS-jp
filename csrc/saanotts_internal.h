@@ -173,6 +173,23 @@ saan_status saan_dwconv1d_wr(float *y, const float *x, saan_wref W,
 /* 一括版とストリーミング版で共有する前段。**2 回書かない**（bit 一致のため） */
 saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
                               const int32_t *ids, int T, float *log_d);
+
+/* ⚠️ **ゲート専用の入口**（`make -C csrc dur`）。MEM-7 の窓の取り方を外から壊せる。
+ * `saan_run_duration` は `(SAAN_DUR_K, SAAN_DUR_HALO, 1, 1)` でこれを呼ぶだけ。
+ *
+ * **なぜ要るか。** 窓分割が正しいことを「テストの中に一括版の写しを置いて比べる」形で
+ * 示そうとすると**できない** — `h[i] += gm[0] * t2[i]` をコンパイラが FMA に契約するかは
+ * 翻訳単位で違い、写しと本番が **1 ulp** ずれる（[C-103](../docs/decisions.md#c-103) で実際に踏んだ）。
+ * **同じ関数を違う引数で呼んで比べる**のが唯一空虚でない形である:
+ *   - `K` を振って同じ値が出るか（K ≥ T なら 1 窓 = 一括版と同じ形）
+ *   - `halo` を 1 減らす / ゼロクリアを外すと**変わる**か（陽性対照）
+ * ⚠️ 一括版そのものとの一致は [M-144](../docs/measurements.md#m-144) が
+ *    **MEM-7 の前後の PCM checksum** で 1 度だけ証明してある（両レーン / 4 つの長さ）。
+ *    一括版のコードはもう存在しないので、以後の不変量は上の 2 つである。
+ * ⚠️ `d_fixed`（一括版）や `stage_mask`（`accent_apply`）と同じ扱い = **測定用の引数**。 */
+saan_status saan_run_duration_ex(const saan_weights *w, saan_arena *a,
+                                 const int32_t *ids, int T, float *log_d,
+                                 int K, int halo, int zero_c1, int zero_h);
 saan_status saan_run_acoustic_tokens(const saan_weights *w, saan_arena *a,
                                      const int32_t *ids, int L, float *ht);
 

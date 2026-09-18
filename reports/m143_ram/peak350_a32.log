@@ -1,0 +1,46 @@
+== ビルド ==
+SAAN_INT8_ACT     = 0
+SAAN_CHUNK(CH)    = 8
+SAAN_MEM_HEAD_PF  = 4 (HEAD_COLS=4)
+SAAN_MEM_PIPE_HALO= 1
+SAAN_DUR_W        = 32
+n_ids             = 350
+
+== フェーズ 1: duration（init の途中。ここが今のピーク） ==
+| 確保 | 形 | B |
+|---|---|---:|
+| `log_d` | [n] f32 |     1408 |
+| `d_hat` | [n] i32 |     1408 |
+| `dur h/t1/t2` | 3 x [32][n] f32 |   134400 |
+| `act scratch` | align16(align16(32)*n)+align16(4n) |        0 |
+| **合計** | | **137216** |
+
+== フェーズ 2: streaming（init 完了後 = arena_used） ==
+| 確保 | 形 | B |
+|---|---|---:|
+| `log_d` | [n] f32 |     1408 |
+| `d_hat` | [n] i32 |     1408 |
+| `impl` | struct |     2464 |
+| `ac[0..4]` | 5 x halo |     7680 |
+| `dinp` | halo |      320 |
+| `dblk[0..4]` | 5 x halo |     9120 |
+| `pwnd` | 共用窓 |     4256 |
+| `cring` | [40][CRING_W] f32 |     3840 |
+| `w_full` | [full_n] f32 |     2432 |
+| `w_c` | [40][CH] |     1280 |
+| `w_ch,w_ch2` | 2 x [76][CH] |     4864 |
+| `w_e` | [304][CH] |     9728 |
+| `w_r` | [12][CH] |      384 |
+| `w_g` | [76][CH] |     2432 |
+| `o1539` | [1539][HEAD_COLS] |    24624 |
+| `hr` | [48][CH] |     1536 |
+| `ola,olw` | 2 x [1024+512] |    12288 |
+| `win` | [1024] f32 |     4096 |
+| `obuf` | [OBUF_HOPS][256] |    12288 |
+| `tok[0..2]` | 3 x halo |     4608 |
+| `tok_ring` | [TOK_G][48][TOK_K] |     3072 |
+| **合計** | | **114128** |
+
+検算: phase1 137216 / phase2 114128 / used 114128 / peak 137216 -> OK
+
+ピークは phase1。phase1 の占有率 = 100.0%

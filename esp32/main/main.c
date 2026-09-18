@@ -117,42 +117,49 @@ static bool g_dict_ok;
  * ⚠️ **高水位（`st.peak_used`）もそのまま確保量にしないこと。** init が通る最小 arena は
  *    ALIGN16 の切り上げと確保順の差で高水位をわずかに上回る。
  *
- * 148 KB (151,552 B) の根拠は実測（`make -C csrc arena` の 2 レーン。2026-09-17）:
- *   |                              | W8A32     | W8A8（実機） |
- *   | saan_stream_arena_used(350)  | 114,128 B | 114,128 B |
- *   | **saan_stream_arena_peak(350)** | **137,216 B** | **149,824 B** |
- *   | init も pull も通る最小（1 KB 刻み） | 137,216 B | 150,528 B |
- *   → 148 KB で **1,728 B の余裕**。`arena_peak` は 16 B 刻みの実測と完全一致する。
- *   履歴: 208 KB（D-031 / M-46）→ 176 KB（T2 / T4。M-89）→ **148 KB**（MEM-5 / MEM-6 /
- *   漢字の配列を実寸に。M-140 / M-142）。⚠️ **M-140 の 136 KB は 350 ids で落ちる**（C-100）。
+ * 根拠は実測（`make -C csrc arena` の 2 レーン。2026-09-18 = MEM-7 後）:
+ *   |                                 | W8A32     | W8A8（実機） |
+ *   | saan_stream_arena_used(350)     | 114,128 B | 114,128 B |
+ *   | **saan_stream_arena_peak(350)** | **114,128 B** | **116,592 B** |
+ *   （どちらもホストの sizeof。ターゲットは struct のポインタ幅で 1,168 B 小さい）
+ *   履歴: 208 KB（D-031 / M-46）→ 176 KB（T2 / T4。M-89）→ 148 KB（MEM-5 / MEM-6 /
+ *   漢字の配列を実寸に。M-140 / M-142）→ **かな 116 KB / 漢字 136 KB**（MEM-7。M-144）。
+ *   ⚠️ **M-140 の 136 KB は 350 ids で落ちた**（C-100）。今の 136 KB は別の根拠（下の (a')）。
  *
  * ⚠️ 以前は漢字対応ビルドだけ 204 KB に落としていた（PSRAM 有効で IDF が DRAM を数 KB 余分に
  *    使い、208 KB では 3,776 B 溢れた）。**その分岐は消えている。**
  * ⚠️ 漢字経路（saan_kanji.c）は G2P の間この arena を借りる。**`SAAN_KANJI_WORKBYTES` が
  *    収まること**を下の typedef で静的に検査する（計画 T4 / T10）。 */
-/* ⚠️ **2026-09-17 に 176 KB → 148 KB にした**（[M-140](../../docs/measurements.md#m-140) / [M-142](../../docs/measurements.md#m-142)）。
- *    内訳は 4 つで、**どれも PCM を 1 bit も変えない**:
- *      - MEM-5 粒度 4（`o1539` 49,248 → 24,624 B）
- *      - MEM-6 パイプ段はハローだけ持つ（47,456 → 25,984 B。M-142）
- *      - 漢字の素性表を 96 → 44 本（`nf ≤ nt ≤ 44` がコードで保証されている）
- *      - K-7 のトークン表を 640 → 256 本
- *    代償は定常 xRT 0.448 → **0.474**（MEM-6 が MEM-5 の分を取り戻した。要件 ≤ 0.5 の内側）。
+/* ⚠️ **2026-09-18 に 148 KB → かな 116 KB / 漢字 136 KB にした**（[M-144](../../docs/measurements.md#m-144)）。
+ *    効いたのは **MEM-7 = duration net の窓分割**で、**PCM は 1 bit も変わらない**
+ *    （両レーンで `log_d` / `d_hat` / PCM checksum が一致。陽性対照 3 本つき = M-143）。
+ *    それまでの履歴（どれも PCM 不変）: MEM-5 粒度 4 / MEM-6 ハローだけ /
+ *    漢字の素性表 96 → 44 本 / K-7 のトークン表 640 → 256 本。
  *
- *
- * ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる。** 下限は 3 つで、**効いているのは (b)**:
- *      (a) 漢字経路の作業領域 `SAAN_KANJI_WORKBYTES`（121,856 B。**下の typedef が静的に検査**）
- *      (b) **init の途中のピーク** `saan_stream_arena_peak(350)` = **149,824 B（W8A8）** ← これ
- *      (c) streaming のバッファ `saan_stream_arena_used(350)` = 112,960 B（(b) に含まれる）
+ * ⚠️ **`-DSAAN_ARENA_BYTES=<B>` で上書きできる。** 下限は 4 つ:
+ *      (a)  漢字経路の作業領域 `SAAN_KANJI_WORKBYTES`（121,856 B。**下の typedef が静的に検査**）
+ *      (a') **漢字経路の Viterbi が `SAAN_KANJI_KEY_MAX` を受けられる量**
+ *           = prefix + 64·(KEY_MAX+1) = **138,304 B** ← **漢字ビルドではこれが効く**（C-101）
+ *      (b)  init の途中のピーク `saan_stream_arena_peak(350)`。MEM-7 で
+ *           **115,424 B（ターゲット / W8A8）まで下がった** ← **かなビルドではこれが効く**
+ *      (c)  streaming のバッファ `saan_stream_arena_used(350)` = 112,960 B（(b) に含まれる）
  *
  * ⚠️⚠️ **(b) を `saan_stream_arena_used()` と間違えないこと**（C-100）。あれは **init 後**の値で、
- *    `saan_run_duration` が init の途中で取って返す 3×[32][n_ids]（350 ids で 134,400 B）と
- *    W8A8 の act scratch（12,608 B）を**含まない**。120 KB にしたら
- *    **300 ids は通るが 350 ids で init が落ちた**（`make -C csrc arena` が捕まえた）。
+ *    conv が上に取る activation 作業領域（W8A8 で 2,464 B）を**含まない**。
+ *    ⚠️ **`arena_peak` 自体もそれを含んでいなかった**（[C-102](../../docs/decisions.md#c-102)）。
+ *    MEM-7 の前は duration の一時領域が大きくて**偶然に安全側**だったので出なかった。
  * ⚠️ **関数なのでコンパイル時に検査できない。** `tts_task` の先頭で
  *    `saan_stream_arena_peak(SAAN_MAX_IDS)` と突き合わせ、**足りなければ起動時に止める**。
- * ⚠️ **MEM-6 は arena を 1 バイトも減らさない**（(b) が下限だから。M-142）。速度には効く。 */
+ * ⚠️ **(a') を下げると「受け付ける入力」が変わる。** 120 KB にすると Viterbi の cap が
+ *    1,568 になり、`key_n` が 784〜1024 の入力が `ERR_ANALYZE`（「経路が張れない」）になる
+ *    = **今は通る入力が通らなくなる**。**辞書 blob が無いと再現できない**ので（枝刈りの
+ *    頻度順位が第三者コーパス由来）、**下げない方を選んだ**。[C-101](../../docs/decisions.md#c-101) */
 #ifndef SAAN_ARENA_BYTES
-#define SAAN_ARENA_BYTES (148 * 1024)
+#  if SAAN_KANJI
+#    define SAAN_ARENA_BYTES (136 * 1024)   /* (a') 138,304 B に対し余り 960 B */
+#  else
+#    define SAAN_ARENA_BYTES (116 * 1024)   /* (b) 115,424 B に対し余り 3,360 B */
+#  endif
 #endif
 
 /* ⚠️ **黙って確保に失敗したのを検出する二重防御**（init 後の `a.used` の検査）。
@@ -184,6 +191,24 @@ static bool g_dict_ok;
 #define SAAN_KANJI_T10_BSS_BYTES 0u
 typedef char saan_arena_holds_kanji_workbytes[
     (SAAN_ARENA_BYTES >= SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES) ? 1 : -1];
+
+/* (a') ⚠️ **`SAAN_KANJI_WORKBYTES` に収まるだけでは足りない**（[C-101](../../docs/decisions.md#c-101)）。
+ *
+ * `jdict.c` の `analyze_impl` は `cap = arena_n / 32`（node 24 B + ends_head/next_at_end 各 4 B）
+ * を取り、**`(key_n + 1) * 2 > cap` なら −1 を返す**。`SAAN_KANJI_VITERBI_N`（48 KB）は
+ * cap 1,536 = `key_n` 767 までで、**`SAAN_KANJI_KEY_MAX`（1024）と整合していない。**
+ * `layout()` が**余りを全部 Viterbi に渡す**ので実際には足りているだけで、
+ * arena を `SAAN_KANJI_WORKBYTES` ぴったりに詰めると**長い入力が「経路が張れない」になる**。
+ *
+ * prefix = `SAAN_KANJI_WORKBYTES` − `SAAN_KANJI_VITERBI_N`（= 72,704 B）なので、
+ * 要る arena は prefix + 64·(KEY_MAX+1) = **138,304 B**（ターゲット）。
+ * ⚠️ **静的検査にはできない。** `SAAN_KANJI_WORKBYTES` は `sizeof(const char *)` を含むので
+ *    ホスト（64 bit）とターゲット（32 bit）で 2,048 B 違い、`check_esp32_template.sh` §10 は
+ *    **ホストで**この式をコンパイルする。**下の `tts_task` の起動時チェックで見る**
+ *    （`saan_kanji_vitbytes()` が実際に Viterbi へ渡る量を返すので、ターゲットの値で判定できる）。 */
+#define SAAN_KANJI_VITERBI_PER_KEY  64u    /* 32 B/node × 2（analyze_impl の必要条件） */
+#define SAAN_KANJI_VITERBI_NEEDED \
+    ((size_t)SAAN_KANJI_VITERBI_PER_KEY * ((size_t)SAAN_KANJI_KEY_MAX + 1u))
 #endif
 
 /* 受け付ける ids の上限。**arena の限界ではなく学習分布の上限を採る。**
@@ -363,7 +388,10 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     ESP_LOGI(TAG, "init %.2f ms / %d ids / %d frames / %d sample / 音声 %.3f s",
              (double)t_init / 1000.0, (int)n_ids, (int)st.n_frames,
              (int)st.n_frames * SAAN_HOP, audio_s);
-    ESP_LOGI(TAG, "arena used %u B / peak %u B / 確保 %u B",
+    /* ⚠️ **この `peak` は init 時点のもの**で、pull を 1 度も通っていないので
+     *    conv が arena の上に取る activation 作業領域を含まない（[C-102](../../docs/decisions.md#c-102)）。
+     *    **下限を知りたいなら「結果」ブロックの「arena 高水位（発話後）」を見ること。** */
+    ESP_LOGI(TAG, "arena used %u B / peak %u B（⚠️ init 時点。pull 前なので act scratch を含まない）/ 確保 %u B",
              (unsigned)a.used, (unsigned)a.peak, (unsigned)SAAN_ARENA_BYTES);
 
     /* --- プリロール ------------------------------------------------------
@@ -495,6 +523,14 @@ done:
         ESP_LOGI(TAG, "----- 結果 -----");
         ESP_LOGI(TAG, "pull %d 回 / %d frames / 音声 %.3f s（端数チャンク %d 回）",
                  chunks, (int)total_frames, total_audio, short_pulls);
+        /* ⚠️ **発話が終わってから高水位を出す。** init の直後に出していた
+         *    `peak` は **pull を 1 度も通っていない**ので、conv が arena の上に取る
+         *    activation 作業領域（W8A8 で 2,464 B）を含まず、**下限を 2,464 B 小さく
+         *    見せていた**（[C-102](../../docs/decisions.md#c-102)）。これが実機でも
+         *    見えなかった理由である。ここが `saan_stream_arena_peak(n_ids)` と一致する。 */
+        ESP_LOGI(TAG, "arena 高水位（発話後）%u B / arena_peak(%d) の予測 %u B / 確保 %d B（余り %u B）",
+                 (unsigned)a.peak, (int)n_ids, (unsigned)saan_stream_arena_peak(n_ids),
+                 (int)SAAN_ARENA_BYTES, (unsigned)((size_t)SAAN_ARENA_BYTES - a.peak));
         ESP_LOGI(TAG, "合成合計 %.2f ms（全 pull の dt の和。定義に依らない量 — T1 前後の比較はこれか "
                       "SAAN_PROFILE=1 の STEP 行で）/ 音声 %.3f s → 合成/音声 %.3f",
                  total_ms, total_audio, total_audio > 0 ? total_ms / 1000.0 / total_audio : 0.0);
@@ -870,6 +906,32 @@ static void tts_task(void *arg) {
                  (int)SAAN_MAX_IDS, (unsigned)need, (int)SAAN_ARENA_BYTES,
                  (unsigned)((size_t)SAAN_ARENA_BYTES - need));
     }
+#if SAAN_KANJI
+    /* (a') ⚠️ **Viterbi が `SAAN_KANJI_KEY_MAX` の鍵を受けられるか**（[C-101](../../docs/decisions.md#c-101)）。
+     *
+     * `SAAN_KANJI_WORKBYTES` に収まるだけでは足りない — `jdict_analyze` は
+     * `(key_n + 1) * 2 > arena_n / 32` なら −1 を返し、`saan_kanji_to_ids` が
+     * `SAAN_KANJI_ERR_ANALYZE`（「経路が張れない」）になる。**長さの問題なのに
+     * 辞書の問題だと言う**ので、ここで落として理由を出す。
+     * ⚠️ **ホストの sizeof では判定できない**（`s_lab` のポインタ幅で 2,048 B 違う）。
+     *    `saan_kanji_vitbytes()` は実際に渡る量を返すので、この判定はターゲットの値で行える。 */
+    {
+        const size_t vit = saan_kanji_vitbytes((size_t)SAAN_ARENA_BYTES);
+        if (vit < SAAN_KANJI_VITERBI_NEEDED) {
+            ESP_LOGE(TAG, "arena %d B では Viterbi に %u B しか渡らない（鍵 %u B を受けるには "
+                          "%u B 要る）。-DSAAN_ARENA_BYTES を %u 以上にすること",
+                     (int)SAAN_ARENA_BYTES, (unsigned)vit, (unsigned)SAAN_KANJI_KEY_MAX,
+                     (unsigned)SAAN_KANJI_VITERBI_NEEDED,
+                     (unsigned)(saan_kanji_workbytes() - SAAN_KANJI_VITERBI_N
+                                + SAAN_KANJI_VITERBI_NEEDED));
+            vTaskDelete(NULL); return;
+        }
+        ESP_LOGI(TAG, "漢字 Viterbi: %u B 渡る / 鍵 %u B に要 %u B（余り %u B・cap %u node）",
+                 (unsigned)vit, (unsigned)SAAN_KANJI_KEY_MAX,
+                 (unsigned)SAAN_KANJI_VITERBI_NEEDED,
+                 (unsigned)(vit - SAAN_KANJI_VITERBI_NEEDED), (unsigned)(vit / 32));
+    }
+#endif
 
     static saan_weights w;
     if (!saan_model_open(&w)) { vTaskDelete(NULL); return; }

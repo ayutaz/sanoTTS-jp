@@ -13,7 +13,7 @@
 ### 🔊 ブラウザで試す → **<https://ayutaz.github.io/sanoTTS-jp/>**
 
 インストール不要。**漢字かな交じり文をそのまま打つと喋る。**
-⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもの（arena も同じ 151,552 B。[D-050](docs/decisions.md#d-050)）。
+⚠️ **マイコンに載っているのと同じ C99 コード**を WebAssembly にしたもの（arena も同じ 139,264 B。[D-050](docs/decisions.md#d-050)）。
 
 [arXiv:2608.21378](https://arxiv.org/abs/2608.21378) "sanoTTS" の蒸留レシピを日本語に適用し、
 [piper-plus](https://github.com/ayutaz/piper-plus)（MB-iSTFT-VITS2）を教師として、
@@ -40,7 +40,7 @@ RAM を詰めた分だけ遅くなっている（[M-142](docs/measurements.md#m-
 | | |
 |---|---:|
 | モデル | **559 K params** / int8 で **654,032 B**（flash） |
-| 実行時 RAM | arena を **151,552 B** 静的確保（ESP32-S3 の SRAM 512 KB の **29%**）。1 発話の実測ピークは **110,592 B**（[M-142](docs/measurements.md#m-142)） |
+| 実行時 RAM | arena を **118,784 B**（かな）/ **139,264 B**（漢字）静的確保 — ESP32-S3 の SRAM 512 KB の **22.7% / 26.6%**（[M-144](docs/measurements.md#m-144)）。⚠️ 1 発話の実測ピーク **110,592 B** は arena 151,552 B のときの値（[M-142](docs/measurements.md#m-142)）で、**M-144 の arena では実機未測定** |
 | 速度 | **xRT 0.474**（満チャンク 1 pull の定常値・7 発話で 0.471〜0.475。⚠️ 発話全体では **0.522〜0.741**）。⚠️ **要件の分母は定常**（[D-049](docs/decisions.md#d-049)） |
 | 品質 | 教師の **64%**（SCOREQ 比 **0.636** = v4。v3 は 0.644 で**差は検出できない**）。⚠️ **予測器のスコアで、人の耳ではない** |
 | 端末の G2P | 漢字あり **13.7 MB 辞書** / かなだけなら **877 B のテーブル** |

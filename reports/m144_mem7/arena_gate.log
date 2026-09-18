@@ -1,0 +1,133 @@
+./arena_stress student.bin golden.bin
+sanoTTS-jp arena ストレス（c'-4 の受け入れ条件）
+  weights : student.bin (2249792 B)
+  base ids: 53 個を巡回させて任意長を作る
+
+== 1. arena を 1 KB 刻みで走査（n_ids=350・設計上限） ==
+  saan_stream_arena_needed(350) = 180688 B (176.5 KB)  ← **緩い上限**
+  実測: init も pull も通る最小 arena = 114688 B (112 KB)
+  needed() / 実測 = 1.58 倍。**needed() をそのまま静的確保しないこと**
+  OK  **init が SAAN_OK を返した後に落ちた** サイズ: 0 / 161 点
+  ⚠️ これが c'-4 の主ゲート。saan_alloc は失敗しても used を進めないので、
+     大きい確保だけ失敗して後続の小さい確保が成功すると init が OK を返す。
+  雛形の既定 118784 B (116 KB) は実測に対し +4096 B
+
+== 2. arena 118784 B 固定で n_ids を振る（**クラッシュ 0** が条件） ==
+     n_ids  結果      
+         1  ok          
+         8  ok          
+        16  ok          
+        32  ok          
+        53  ok          
+        80  ok          
+       120  ok          
+       160  ok          
+       200  ok          
+       250  ok          
+       300  ok          
+       350  ok          
+       400  ok          
+       450  ok          
+       496  ok          
+       520  ok          
+       560  ok          
+       600  ok          
+       700  ok          
+       800  ok          
+       848  ok          
+       900  ok          
+      1000  init-fail   
+  OK  クラッシュ 0 件 / 通った最大 n_ids = 900 / 最初に clean fail した n_ids = 1000
+
+== 4. pull のプロファイル（n_ids=350 / arena 118784 B・このホスト） ==
+  pull 回数 98 / 合計 778 frames = 199168 sample (9.033 s の音声)
+  ⚠️ pull が返すのは **フレーム数**（最大 8）。サンプル数は n*256
+  最終 pull の n = 2 / n < 8 だった回数 = 1
+  満チャンク 1 個 = 2048 sample = 92.88 ms の音声
+  初回 pull 8.77 ms / 2 回目以降 mean 1.69 ms (worst 2.24) → 初回は 5.2 倍
+  定常 pull の xRT = 0.0182（このホスト。ESP32 ではない）
+  算法遅延 = 38 frames = 0.441 s（受容野 36 + iSTFT 2）
+  OK  G7 初回 pull が定常の 5 倍以上（I2S を enable する前にプリロールが要る根拠）
+  arena: st.peak_used 114128 B / a.peak 114128 B / a.used 114128 B / 確保 118784 B
+  OK  st.peak_used == a.peak（duration net の一時確保を巻き戻しても 高水位は変わらない）
+  ⚠️ ただし**高水位は「確保すべき量」ではない**: 114128 B (111.5 KB) しか 使わないのに、
+     init が通る最小 arena は 114688 B。ALIGN16 の切り上げと 確保順の差でずれる。
+== 5. init 後の a.used が saan_stream_arena_used(n_ids) と一致するか（雛形の二重防御の前提） ==
+  OK  n_ids    1 : a.used 111344 B / saan_stream_arena_used 111344 B
+  OK  n_ids    8 : a.used 111376 B / saan_stream_arena_used 111376 B
+  OK  n_ids   53 : a.used 111760 B / saan_stream_arena_used 111760 B
+  OK  n_ids  350 : a.used 114128 B / saan_stream_arena_used 114128 B
+  OK  n_ids  520 : a.used 115472 B / saan_stream_arena_used 115472 B
+  OK  陽性対照: 期待値を ±16 B ずらすと NG になる
+  ⚠️ この値はホストのもの。ターゲットは sizeof(impl) がポインタ幅で変わるので同じ式で自分で計算する
+
+arena ストレス: すべての条件を満たした
+
+== W8A8 レーン（実機と同じ構成）==
+⚠️ **W8A32 だけでは足りない**（C-100）。W8A8 は act scratch が n_ids に比例して
+   乗るので、init のピークが 137,216 -> 149,824 B に増える。136 KB は W8A32 では
+   通るが W8A8 では 350 ids で落ちる = **このレーンが無かったから見逃した**。
+./arena_stress_a8 student_i8.bin golden_i8.bin
+sanoTTS-jp arena ストレス（c'-4 の受け入れ条件）
+  weights : student_i8.bin (654032 B)
+  base ids: 53 個を巡回させて任意長を作る
+
+== 1. arena を 1 KB 刻みで走査（n_ids=350・設計上限） ==
+  saan_stream_arena_needed(350) = 188624 B (184.2 KB)  ← **緩い上限**
+  実測: init も pull も通る最小 arena = 116736 B (114 KB)
+  needed() / 実測 = 1.62 倍。**needed() をそのまま静的確保しないこと**
+  OK  **init が SAAN_OK を返した後に落ちた** サイズ: 0 / 161 点
+  ⚠️ これが c'-4 の主ゲート。saan_alloc は失敗しても used を進めないので、
+     大きい確保だけ失敗して後続の小さい確保が成功すると init が OK を返す。
+  雛形の既定 118784 B (116 KB) は実測に対し +2048 B
+
+== 2. arena 118784 B 固定で n_ids を振る（**クラッシュ 0** が条件） ==
+     n_ids  結果      
+         1  ok          
+         8  ok          
+        16  ok          
+        32  ok          
+        53  ok          
+        80  ok          
+       120  ok          
+       160  ok          
+       200  ok          
+       250  ok          
+       300  ok          
+       350  ok          
+       400  ok          
+       450  ok          
+       496  ok          
+       520  ok          
+       560  ok          
+       600  ok          
+       700  pull-fail   
+       800  pull-fail   
+       848  pull-fail   
+       900  pull-fail   
+      1000  init-fail   
+  OK  クラッシュ 0 件 / 通った最大 n_ids = 600 / 最初に clean fail した n_ids = 700
+
+== 4. pull のプロファイル（n_ids=350 / arena 118784 B・このホスト） ==
+  pull 回数 97 / 合計 770 frames = 197120 sample (8.940 s の音声)
+  ⚠️ pull が返すのは **フレーム数**（最大 8）。サンプル数は n*256
+  最終 pull の n = 2 / n < 8 だった回数 = 1
+  満チャンク 1 個 = 2048 sample = 92.88 ms の音声
+  初回 pull 1.42 ms / 2 回目以降 mean 0.29 ms (worst 0.37) → 初回は 5.0 倍
+  定常 pull の xRT = 0.0031（このホスト。ESP32 ではない）
+  算法遅延 = 38 frames = 0.441 s（受容野 36 + iSTFT 2）
+  OK  G7 初回 pull が定常の 5 倍以上（I2S を enable する前にプリロールが要る根拠）
+  arena: st.peak_used 116592 B / a.peak 116592 B / a.used 114128 B / 確保 118784 B
+  OK  st.peak_used == a.peak（duration net の一時確保を巻き戻しても 高水位は変わらない）
+  ⚠️ ただし**高水位は「確保すべき量」ではない**: 116592 B (113.9 KB) しか 使わないのに、
+     init が通る最小 arena は 116736 B。ALIGN16 の切り上げと 確保順の差でずれる。
+== 5. init 後の a.used が saan_stream_arena_used(n_ids) と一致するか（雛形の二重防御の前提） ==
+  OK  n_ids    1 : a.used 111344 B / saan_stream_arena_used 111344 B
+  OK  n_ids    8 : a.used 111376 B / saan_stream_arena_used 111376 B
+  OK  n_ids   53 : a.used 111760 B / saan_stream_arena_used 111760 B
+  OK  n_ids  350 : a.used 114128 B / saan_stream_arena_used 114128 B
+  OK  n_ids  520 : a.used 115472 B / saan_stream_arena_used 115472 B
+  OK  陽性対照: 期待値を ±16 B ずらすと NG になる
+  ⚠️ この値はホストのもの。ターゲットは sizeof(impl) がポインタ幅で変わるので同じ式で自分で計算する
+
+arena ストレス: すべての条件を満たした

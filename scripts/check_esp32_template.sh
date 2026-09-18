@@ -215,12 +215,18 @@ cat > "$TMP/wb.c" <<'C'
 int main(void) { printf("%zu\n", (size_t)SAAN_KANJI_WORKBYTES); return 0; }
 C
 if [ -n "$ARENA_EXPR" ] && [ -n "$T10_EXPR" ] \
-   && cc -std=gnu17 -DK7_EXTERNAL_SCRATCH=1 -I csrc -I esp32/main -o "$TMP/wb" "$TMP/wb.c" 2>"$TMP/wbw"; then
+   && cc -std=gnu17 -DLABEL_IDS_EXTERNAL_SCRATCH=1 -I csrc -I esp32/main -o "$TMP/wb" "$TMP/wb.c" 2>"$TMP/wbw"; then
     # ⚠️ LABEL_IDS_EXTERNAL_SCRATCH=1 は component の CMakeLists が PUBLIC で定義するのと同じ（K-A / T10(a)）。
-    #    付けないと k7 のトークン表 10,240 B が式から落ちて、境界を甘く見る。
+    #    付けないと k7 のトークン表が式から落ちて、境界を甘く見る。
+    # ⚠️⚠️ **2026-09-18 まで `-DK7_EXTERNAL_SCRATCH=1` を渡していた**（[C-104](../docs/decisions.md#c-104)）。
+    #    そんなマクロは無い（正しくは `LABEL_IDS_EXTERNAL_SCRATCH`）ので**この検査は
+    #    web 構成の値 119,808 B を測っていた** = ESP32 の実体より 4,096〜10,240 B 甘い。
+    #    ⚠️ **`MAX_TOKENS` は csrc の既定 640 のまま**にしてある（component は 256 に落とすので
+    #    130,048 B は**悲観側**）。境界の検査は悲観側で行う。
     # ⚠️ **ホストの sizeof で評価している。** ターゲット（32 bit ポインタ）とは値が違う
     #    （M-142 時点でホスト 119,808 B / 実機 121,856 B。起動ログで実測）。余裕がこの差より大きいことを見る検査。
-#    ⚠️ **向きは甘い側**（ホストが小さく出る）。実機の実値で落とすのは main.c の起動時チェック。
+#    ⚠️ **いまは悲観側**（`LABEL_IDS_MAX_TOKENS` を 640 のままにしているのでホストが 130,048 B と
+#    大きく出る。実機は 121,856 B）。実機の実値で落とすのは main.c の起動時チェック。
     ARENA_B=$(( ARENA_EXPR ))
     WORK_B="$("$TMP/wb")"
     NEED_B=$(( WORK_B + T10_EXPR ))

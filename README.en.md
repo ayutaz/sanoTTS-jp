@@ -14,7 +14,7 @@
 
 Nothing to install. **Type Japanese text with kanji and it speaks.**
 ⚠️ It is the **same C99 code that runs on the microcontroller**, compiled to WebAssembly
-(the arena is the same 151,552 B). It is not a replacement for piper-plus's WASM build —
+(the arena is the same 139,264 B). It is not a replacement for piper-plus's WASM build —
 it is a way to touch the code that runs on hardware ([D-050](docs/decisions.md#d-050)).
 Measured in Chrome at **0.008–0.019 ×RT** ([M-95](docs/measurements.md#m-95)).
 It has been listened to on **both lanes** — reported fine, no dropouts
@@ -53,7 +53,7 @@ The checksum changes with the weights, so logs from different versions never agr
 | | |
 |---|---:|
 | Model | **559 K params**, **654,032 B** as int8 (flash) |
-| Runtime RAM | **151,552 B** reserved statically for the arena — **29%** of the ESP32-S3's 512 KB SRAM. The measured peak for one utterance is **110,592 B** ([M-142](docs/measurements.md#m-142)) |
+| Runtime RAM | **118,784 B** (kana) / **139,264 B** (kanji) reserved statically for the arena — **22.7% / 26.6%** of the ESP32-S3's 512 KB SRAM ([M-144](docs/measurements.md#m-144)). ⚠️ The measured per-utterance peak of **110,592 B** was taken with a 151,552 B arena ([M-142](docs/measurements.md#m-142)); **the M-144 arena has not been measured on hardware** |
 | Speed | **xRT 0.474** steady-state, one full-chunk pull (0.471–0.475 over 7 utterances; ⚠️ **0.522–0.741** over a whole utterance). ⚠️ The requirement is the **steady-state** denominator ([D-049](docs/decisions.md#d-049)) |
 | Quality | **64%** of the teacher (SCOREQ ratio **0.636** for v4; v3 scored 0.644 and **the difference is not detectable**). ⚠️ **A predictor's score, not a human ear** |
 | On-device G2P | **13.7 MB dictionary** with kanji, or an **877 B table** for kana only |

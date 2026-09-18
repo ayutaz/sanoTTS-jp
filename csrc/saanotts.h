@@ -26,6 +26,22 @@
 #define SAAN_NBINS     513      /* NFFT/2 + 1 */
 #define SAAN_CDIM      40       /* c-line */
 #define SAAN_DUR_W     32
+
+/* MEM-7: duration net を窓分割するときの 1 窓で確定させるトークン数と、片側のハロー。
+ *
+ * ⚠️ **ハロー 12 は duration net の受容野そのもの**で、選べる値ではない。
+ *    3 ブロック × (c1 k=5 + c2 k=5) = ブロックあたり ±4、proj は 1×1 で ±0 → ±12。
+ *    `saanotts_stream.c` の `TOK_HALO`（= 3·`TOK_PAD`）と同じ値である。
+ * ⚠️ **1 足りないと「ほぼ合う」** — `log_d` は exp → round → clip[1,80] を通るので、
+ *    ハロー 11 でも多くの文では `d_hat` が変わらず PCM も変わらない
+ *    （[M-143](../docs/measurements.md#m-143) の陽性対照 P1: 350 ids で違う列 20/350 / max|Δ| 0.0133）。
+ *    **判定は PCM の checksum ではなく `log_d` の memcmp で行うこと。**
+ * K は arena と再計算のつり合いで選ぶ。**値を変えても出力は bit 一致する**:
+ *    K=128 で 350 ids のピーク 63,840 B / 再計算 1.21×（`make -C csrc dur` が測る）。 */
+#define SAAN_DUR_HALO  12
+#ifndef SAAN_DUR_K
+#define SAAN_DUR_K     128
+#endif
 #define SAAN_AC_W      48
 #define SAAN_DEC_W     76
 #define SAAN_DEC_E     304

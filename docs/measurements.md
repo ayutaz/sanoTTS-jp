@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（142 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（144 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -183,6 +183,8 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-140](#m-140) | ⚠️ 既定の RAM を減らしたが、arena の下限を読み間違えた |
 | [M-141](#m-141) | これ以上どこまで下げられるか |
 | [M-142](#m-142) | MEM-6 |
+| [M-143](#m-143) | もっと RAM を減らせるか |
+| [M-144](#m-144) | MEM-7 を入れた |
 
 </details>
 
@@ -13903,3 +13905,414 @@ I (1518) saanotts: 漢字経路の作業領域 121856 B（最低限）/ Viterbi 
   `arena_peak()` の一致で押さえてある
 - **§6 は 1 行も書いていない**
 - **wasm / Arduino は手元で回していない**（CI 側）
+
+---
+
+## M-143. **もっと RAM を減らせるか** — **MEM-7（duration 網の窓分割）は `log_d` が bit 一致した**（陽性対照 3/3 が落ちた）。**arena 148 → 120 KB → 112 KB の順に下げられる**。⚠️ **`win` の半分折りは 1 ulp 違いで不可**（自己実測 / ホスト + M5 ビルドのマップ）
+
+**問い**: [M-142](#m-142) で arena 148 KB（151,552 B）まで詰めた。**まだ減らせるか。**
+
+⚠️ **この節は全部ホストとリンカのマップの実測**である。**実機では 1 行も測っていない**
+（実装していないので測れない）。**時間の主張は実機でしか言えない**（[C-055](decisions.md#c-055)）。
+
+### 1. いま何が下限を決めているか（2 フェーズの内訳・350 ids・W8A8）
+
+再現:
+
+```bash
+cc -std=c99 -O1 -Icsrc -DSAAN_INT8_ACT=1 -o /tmp/peak \
+    reports/m143_ram/peak_breakdown.c csrc/saanotts.c csrc/saanotts_int8.c csrc/fft.c
+/tmp/peak 350        # reports/m143_ram/peak350_a8.log
+```
+
+| フェーズ | 中身 | B | 割合 |
+|---|---|---:|---:|
+| **1 duration**（init の途中） | `log_d` 1,408 + `d_hat` 1,408 + **h/t1/t2 3×[32][350] 134,400** + act scratch 12,608 | **149,824** | **100%** ← ピーク |
+| 2 streaming（init 完了後） | `arena_used(350)`。最大項は `o1539` 24,624 / `obuf` 12,288 / `ola,olw` 12,288 / `w_e` 9,728 | 114,128（ホスト）/ **112,960**（ターゲット） | 75.4% |
+
+検算: 各項の和がフェーズ 2 で `saan_stream_arena_used(350)` と bit 一致し、
+max が `saan_stream_arena_peak(350)` と一致する（プローブが自分で表示する）。
+
+**`SAAN_ARENA_BYTES` の下限は 3 つで、順番はこうなっている**:
+
+| | 下限 | B | いま効いているか |
+|---|---|---:|---|
+| (b) | `saan_stream_arena_peak(350)` | **149,824** | ✅ **これ** |
+| (a) | `SAAN_KANJI_WORKBYTES` | 121,856 | (b) の下 |
+| (c) | `saan_stream_arena_used(350)` | 112,960 | (b) に含まれる |
+
+**つまり (b) を崩すと下限は (a) に移り、(a) を崩すと (c) に移る。** 以下はその順に調べた。
+
+### 2. ⭐ MEM-7: duration 網を窓分割する — **`log_d` が bit 一致した**
+
+**主張**: duration net の受容野は **±12 トークン**。根拠は**コード**であって推測ではない —
+`saan_run_duration` は 3 ブロック、各ブロックが `saan_conv1d_w(..., 5, T, a)` を 2 本
+（k=5 → ±2 ずつ = ブロックあたり ±4）、最後の `proj` は 1×1 で ±0。**±4 × 3 = ±12。**
+`TOK_HALO`（= 3·`TOK_PAD` = 12）と同じ値で、**token パイプと同型**。
+
+**窓分割が bit 一致する理由も 3 つともコードで確認した**:
+
+| 何が心配か | 実際 | 確認した場所 |
+|---|---|---|
+| LayerNorm が窓全体を見ていたら分割できない | **列ごと**（時刻 t ごとに C 方向で mean/var） | `saan_layernorm_c` の `for (t) { for (c) col[c] = … }` |
+| W8A8 の活性化スケールが窓全体の amax なら分割で値が変わる | **per-frame**（時刻ごとに amax） | `saan_quantize_act_i8pr` の `for (t) { amax … }` |
+| 発話外の列に bias 由来の非ゼロが残る | 各 conv の後にゼロクリアが要る | `acblk_step` が既に `zero_outside_n` で踏んでいる穴 |
+
+再現:
+
+```bash
+# ⚠️⚠️ **MEM-7 の実装前（commit 79dd7f2）の csrc に対してだけ意味がある。**
+#    このプローブは参照に `saan_run_duration` を使うので、実装後に走らせると
+#    「窓分割 vs 窓分割」を比べて**必ず OK が出る = 空虚**になる（C-028 の形）。
+#    いまの不変量を見るのは `make -C csrc dur`（[M-144](#m-144) §6 の G-DUR1〜5）。
+git worktree add /tmp/pre79 79dd7f2 && cd /tmp/pre79
+cc -std=c99 -O1 -Icsrc -DSAAN_INT8_ACT=1 -o /tmp/mem7 \
+    reports/m143_ram/mem7_probe.c csrc/saanotts.c csrc/saanotts_int8.c csrc/fft.c -lm
+/tmp/mem7 csrc/student_i8.bin csrc/golden_i8.bin   # reports/m143_ram/mem7_a8.log
+```
+
+出力（350 ids。一括版のピーク 147,008 B = `log_d`/`d_hat` を除いた duration の分）:
+
+```
+| K | 窓幅 Tw | 窓の数 | ピーク B | 一括比 | 再計算比 | log_d bit 一致 |
+|---:|---:|---:|---:|---:|---:|---|
+| 8 | 32 | 44 | 13440 | 0.091 | 4.02x | **OK** |
+| 16 | 40 | 22 | 16800 | 0.114 | 2.51x | **OK** |
+| 32 | 56 | 11 | 23520 | 0.160 | 1.75x | **OK** |
+| 64 | 88 | 6 | 36960 | 0.251 | 1.41x | **OK** |
+| 128 | 152 | 3 | 63840 | 0.434 | 1.21x | **OK** |
+```
+
+**陽性対照 3 本は全部落ちた**（= 一致は空虚ではない）:
+
+| 対照 | 何を壊したか | 350 ids での差 |
+|---|---|---|
+| P1 | ハロー 12 → **11**（受容野の主張を 1 だけ間違える） | 違う列 20/350 / max\|Δ\| 0.0133 |
+| P2 | c1 出力の**ゼロクリアを外す** | 違う列 20/350 / max\|Δ\| 0.724 |
+| P3 | 残差後の `h` の**ゼロクリアを外す** | 違う列 16/350 / max\|Δ\| 0.576 |
+
+⚠️ **P1 の差が小さい**（0.013）のが要点 — **ハローを 1 足りなくしても「ほぼ合う」**。
+`log_d` は `exp` → `round` → `clip[1,80]` を通るので、**多くの文では `d_hat` が変わらず
+PCM も変わらない**。つまり**受容野を 1 間違えたバグは、たいていの文では見えない**。
+`memcmp` で `log_d` を見ること（PCM の checksum では取り逃がす）。
+
+**時間の代償**（⚠️ **ホスト。実機は未測定**）:
+
+```bash
+cc -std=c99 -O2 -Icsrc -DSAAN_INT8_ACT=1 -o /tmp/mem7t \
+    reports/m143_ram/mem7_time.c csrc/saanotts.c csrc/saanotts_int8.c csrc/fft.c -lm
+/tmp/mem7t csrc/student_i8.bin csrc/golden_i8.bin   # reports/m143_ram/mem7_time.log
+```
+
+| n_ids | 一括版 ms | K=128 ms | K=32 ms | K=128/一括 | K=32/一括 |
+|---:|---:|---:|---:|---:|---:|
+| 53 | 0.144 | 0.146 | 0.164 | 1.02x | 1.14x |
+| 224 | 0.318 | 0.403 | 0.599 | 1.27x | 1.88x |
+| 350 | 0.502 | 0.615 | 0.994 | 1.22x | 1.98x |
+
+**算術の再計算比 1.21× とホストの 1.22× が一致**した（K=128）。
+**K は大きく取ってよい** — 下限は下の (a)/(c) に移るので、**K=128 でも 63,840 B は
+(c) 112,960 B の下**に収まる。**1.21× で済む。**
+⚠️ duration 段はホストで合成全体の **0.2%**（0.144 ms / 3.3 秒の発話が 73 ms）なので
+**鳴らし始めに乗るのは数 ms の見込み**だが、⚠️ **実機で測るまでは見込みである**。
+
+**効果**: フェーズ 1 が 149,824 → **2,816 + 63,840 = 66,656 B**（K=128・350 ids）。
+下限は **(a) 漢字経路の 121,856 B** に移る → **arena 120 KB（122,880 B）= −28,672 B（−18.9%）**。
+
+### 3. その次の壁 — 漢字経路 121,856 B の内訳
+
+| 項目 | B | 割合 | 寸法を決めているもの |
+|---|---:|---:|---|
+| `s_k4`（`accent_node_t` 524 B × 96） | **50,304** | **41.3%** | `ACCENT_STR_MAX` 64 × 4 + `ACCENT_PRON_MAX` 128 × 2 + int × 3 |
+| **Viterbi 予算** `SAAN_KANJI_VITERBI_N` | **49,152** | **40.3%** | ⚠️ **固定値。測った値ではない** |
+| `s_feat_flat`（44 × 320） | 14,080 | 11.6% | `SAAN_KANJI_FEAT_MAX` 320 |
+| K-7 トークン表（256 × 16） | 4,096 | 3.4% | `LABEL_IDS_MAX_TOKENS` 256 |
+| `s_lab`（512 × ptr） | 2,048 | 1.7% | `SAAN_KANJI_MAX_LABEL` 512 |
+| `s_tok`（12 × 96） | 1,152 | 0.9% | |
+| `s_key` | 1,024 | 0.8% | `SAAN_KANJI_KEY_MAX` 1024 |
+
+#### 3a. `s_k4` の 5 フィールドは **read-only** だった → **ポインタ化で −34,944 B**
+
+[M-141](#m-141) は「`s_k4` 50,304 B は下げられない」と結論した。**ノード数 96 については正しい**
+（`njd_set_digit` が本当にノードを増やす）。⚠️ **だが「文字列の幅」は別の問題だった。**
+
+`s_k4[i]` は `NJDNode_get_*()` の**写し**である（`saan_kanji.c` 216〜221 行の `snprintf` 6 本）。
+そして `accent_apply` が実際に書くのは **`pron` / `acc` / `chain_flag` の 3 つだけ**:
+
+```bash
+grep -nE '(->|\.)(pos|ctype|cform|orig|read|pron)\b' csrc/accent.c
+```
+
+```
+47:        if (strcmp(nd[i].pos, "フィラー") == 0) {        ← 読むだけ
+69:        if (strcmp(nd[i + 1].pron, "ー") != 0) continue;
+70:        if (strcmp(nd[i + 1].read, "ウ") != 0) continue; ← 読むだけ
+84:            strcpy(nd[i + 1].pron, "ウ");                ← **書く**
+159:            if (strcmp(v->ctype, "特殊・マス") == 0)     ← 読むだけ
+160:                … (strcmp(v->cform, "未然形") …          ← 読むだけ
+163:            else if (orig_is_chained(v->orig))          ← 読むだけ
+```
+
+**`pos` / `ctype` / `cform` / `orig` / `read` は 1 か所も書かれていない。**
+`const char *` にすれば NJD のノード列（`accent_apply` の間ずっと生きている）を指すだけで済む:
+
+| | 現状 | ポインタ化（32 bit ターゲット） |
+|---|---:|---:|
+| `sizeof(accent_node_t)` | 524 | 5×4 + 128 + 3×4 = **160** |
+| × 96 | 50,304 | **15,360** |
+| 差 | | **−34,944** |
+
+⚠️ **PSRAM が無い板でも損しない** — 文字列は既に Open JTalk のヒープに在り、
+そのヒープは `SAAN_KANJI_OJ_BUDGET_BYTES` 80 KB として**別に数えてある**。
+⚠️ **`csrc/accent.h` を変えるので `make -C csrc accent`（K-4 の 2,333/2,333）と
+`njd-rules` の呼び出し側、Arduino の逐語コピー、wasm も一緒に動く。**
+⚠️ **未実装。**
+
+#### 3b. ⚠️ **Viterbi 予算 49,152 B は `SAAN_KANJI_KEY_MAX` と整合していない**（[C-101](decisions.md#c-101)）
+
+`jdict.c` の `analyze_impl` は `cap = arena_n / 32`（node 24 B + `ends_head`/`next_at_end` 各 4 B）
+を取り、**`(key_n + 1) * 2 > cap` なら −1 を返す**。
+
+再現:
+
+```bash
+cc -std=c99 -O1 -Icsrc -o /tmp/misc reports/m143_ram/misc_probe.c -lm
+/tmp/misc      # reports/m143_ram/misc.log
+```
+
+```
+VITERBI_N = 49152 -> cap = 1536 node
+必要条件 (key_n+1)*2 <= cap -> 受けられる key_n の上限 = 767
+KEY_MAX = 1024 なので、key_n が 768..1024 の入力は arena が下限ぴったりだと
+  jdict_analyze が -1（= SAAN_KANJI_ERR_ANALYZE「経路が張れない」）を返す
+KEY_MAX を全部受けるのに要る VITERBI_N = 65600 B（+16448）
+```
+
+**いまの出荷構成では踏まない** — arena 151,552 B なので Viterbi に渡るのは
+`151,552 − 72,704 = 78,848 B`（cap 2,464 → key_n ≤ 1,231）。
+⚠️ **踏むのは arena を (a) の 121,856 B ぴったりに下げたとき**で、
+それは**この節がまさに勧めようとしていること**である。
+⚠️ **key_n が 768 を超える入力が実在するかは確かめられていない** —
+`jdict_encode_key` は 1 文字を keytab に在れば 1 B、無ければ 3 B か 4 B に符号化するので、
+上限は keytab の中身で決まり、**手元に辞書が無いので測れない**（`csrc/k1_dict.bin` は生成物）。
+
+**下げる前に必要な手当**: `saan_kanji.c` で `(key_n + 1) * 2 > vit_n / 32` を**明示的に検査**して
+`SAAN_KANJI_ERR_TOO_LONG` を返す（「経路が張れない」は嘘になる）。
+
+**3a を入れると**: 121,856 − 34,944 = **86,912 B** → 下限は **(c) 112,960 B** に移る
+→ **arena 112 KB（114,688 B）= v1.1.0 の 180,224 B から −65,536 B（−36.4%）**。
+
+### 4. さらに先（フェーズ 2 = 112,960 B）の候補と、**測って否定したもの**
+
+| 案 | B | PCM | 状態 |
+|---|---:|---|---|
+| `o1539` の粒度 `SAAN_MEM_HEAD_PF` 4 → 2 | −12,304 | 不変 | ⚠️ **速度代償が未測定**（粒度 1 は実機で +56% = [C-098](decisions.md#c-098)） |
+| `olw` の周期性（窓が固定 / hop 固定なので定常部は周期 256） | −5,888 | 不変にできる | ⚠️ 発話の端の立ち上がりの扱いが要る。未実装 |
+| `g_ids` を `SAAN_MAX_IDS + 1` にする（1,027 → 351 本） | −2,704（**arena 外**） | 不変 | ⚠️ 長文の失敗が「モデルの分布外」から `OVERFLOW` に変わる |
+| ❌ **`win` を対称性で半分に折る** | −2,032 | **変わる** | ❌ **測って否定**（下記） |
+| `win` を**実機で生成した値**で flash の const 表にする | −4,096 | 不変にできる | ⚠️ ホストの `cosf` で焼くと変わる。**実機で吐かせた値が要る**。未実装 |
+| 漢字経路を PSRAM の専用領域に移す（(a) を消す） | (a) が 0 に | 不変 | ⚠️ PSRAM 必須 / G2P の時間代償が未測定 |
+
+#### ❌ `win` の半分折りは**できない** — 511 組のうち **368 組が 1 ulp 違う**
+
+`win[i] = 0.5f - 0.5f*cosf(2πi/1024)` は**周期 Hann** なので数学的には `win[1024−i] == win[i]`。
+半分だけ持てば 4,096 → 2,064 B になる。**だが実測すると一致しない**:
+
+```
+違う組 368 / 511（最大 |Δ| 2.38419e-07 @ i=263 / 0.52146918 vs 0.52146894）
+折れる: **できない** -> 半分に折ると PCM が変わる
+```
+
+`cosf` に渡る引数が `2πi/N` と `2π(N−i)/N` で**別の float 式**なので、
+最後の 1 bit が揃わない。**「対称だから折れる」は数学の話で、float の話ではない。**
+
+### 5. 非 arena の静的 DRAM — **arena は DIRAM の 66.6%**
+
+再現（⚠️ **辞書 blob が無いと漢字ビルドは通らない**ので、かな構成で測った。
+漢字経路の `.bss` は T10(a) で **0** なので静的 DRAM はほぼ同じ — 実測の差は 4,372 B）:
+
+```bash
+cd esp32/boards/m5unified && idf.py -B <build> \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" build size size-components
+# reports/m143_ram/size_kana.log / size_components_kana.log
+```
+
+| 何 | B | DIRAM 比 | 誰のものか |
+|---|---:|---:|---|
+| **`g_arena`** | **151,552** | **66.6%** | うち |
+| DIRAM `.text`（IRAM に置かれたコード） | 43,327 | 19.0% | **ESP-IDF**（`esp_hw_support` 8,556 / `spi_flash` 6,020 / `freertos` 5,442 / `hal` 5,153 / `esp_system` 4,294 / `rmt` 2,807 …） |
+| `.data` | 12,048 | 5.3% | ほぼ ESP-IDF |
+| `g_chunk` | 8,192 | 3.6% | うち（`SAAN_CHUNK`×`SAAN_HOP`。`SAAN_CHUNK` < 8 は静的検査で止まる） |
+| その他 `.bss` | 7,388 | 3.2% | FreeRTOS / M5Unified |
+| `g_ids` | 4,108 | 1.8% | うち |
+| `.vectors` | 1,028 | 0.5% | ESP-IDF |
+| **合計 DIRAM** | **227,643** | 100% | 空き 114,117 / 341,760 |
+
+⚠️ **重み 654,032 B とフォント 217,424 B は flash の `.rodata`** で **RAM は 0**（マップのアドレスが
+`0x3c1…` = flash mapped）。⚠️ **`nm` は両方を `D` と表示する**ので、`nm` だけ見ると
+「.data に 871 KB ある」と読み違える（実際に一度読み違えた）。**セクションはマップで確認する。**
+`SAAN_S_RE` / `SAAN_W_RE` / `kSaanG2pMora` / `kSaanErfV` / M5 の `bmi270_config_file` も
+**全部 flash**（`.rodata.*`）で、RAM の削りどころではない。
+
+**ESP-IDF の IRAM 43,327 B は sdkconfig で削れる**（`CONFIG_FREERTOS_PLACE_FUNCTIONS_INTO_FLASH` /
+`CONFIG_SPI_FLASH_ROM_IMPL` / 各 `*_ISR_IN_IRAM`）。
+⚠️ **未測定で、しかも危ない** — I2S と表示の ISR を flash に落とすと、
+**13.7 MB の辞書 mmap がキャッシュミスを起こす区間でアンダーランを増やしうる**。
+**arena を削るより先に触る理由は無い。**
+
+### 6. まとめ — **順番に意味がある**
+
+| 段 | 何をするか | 下限を決めるもの | arena | v1.1.0 比 |
+|---|---|---|---:|---:|
+| いま | — | (b) duration 149,824 | 151,552（148 KB） | −28,672 |
+| **1** | **MEM-7**（K=128） | (a) 漢字 121,856 | **122,880（120 KB）** | **−57,344** |
+| **2** | **`s_k4` ポインタ化** + [C-101](decisions.md#c-101) の手当 | (c) streaming 112,960 | **114,688（112 KB）** | **−65,536（−36.4%）** |
+| 3 | `o1539` 粒度 2 など | (c) 100,656 | 102,400（100 KB）? | −77,824? |
+
+**1 と 2 はどちらも PCM を 1 bit も変えない**（1 は `log_d` の bit 一致を陽性対照つきで実測。
+2 は書かれないフィールドをポインタにするだけ）。
+
+### 7. ⚠️ 測っていないもの
+
+- **実機で 1 行も測っていない**（MEM-7 も `s_k4` も未実装）。**時間は実機でしか言えない**（C-055）
+- **漢字経路は 1 度も走らせていない** — `csrc/k1_dict.bin`（13.7 MB / 生成物）が手元に無い。
+  したがって **(a) 側の主張はすべて寸法の算術**で、Viterbi の実際のノード数も
+  `key_n` の実際の上限も**測っていない**
+- **段 3 の `o1539` 粒度 2 の速度代償**（粒度 1 の +56% しか知らない）
+- **`olw` の周期性**を実装も検証もしていない
+- **静的 DRAM はかな構成**（漢字構成は 232,015 B = +4,372 B。M-142 の実測）
+
+---
+
+## M-144. **MEM-7 を入れた** — duration net の窓分割で arena の下限が **149,824 → 115,424 B**。**PCM は両レーンで bit 一致**。既定は **かな 116 KB / 漢字 136 KB**。⚠️ **実機では測れていない**（USB から消えた）/ ⚠️ **途中で 2 つの罠を踏んだ**（[C-102](decisions.md#c-102) / [C-103](decisions.md#c-103)）（自己実測 / ホスト + M5 ビルド）
+
+[M-143](#m-143) が測った MEM-7 を実装した。**やったのは 1 つだけ**（精度に触るものは入れていない）。
+
+### 1. 何を変えたか
+
+| ファイル | 変更 |
+|---|---|
+| `csrc/saanotts.h` | `SAAN_DUR_HALO` 12（**受容野そのもの**）/ `SAAN_DUR_K` 128（既定） |
+| `csrc/saanotts.c` | `saan_run_duration` を窓分割に。**本体は `saan_run_duration_ex`** で、窓の取り方を外から壊せる（ゲート用。`accent_apply` の `stage_mask` と同じ扱い） |
+| `csrc/saanotts_stream.c` | `arena_peak` / `arena_needed` を新しい式に。**`stream_act_scratch_max()` を足した**（C-102） |
+| `csrc/dur_test.c` | **新規**。`make -C csrc dur`（G-DUR1〜5） |
+| `esp32/main/main.c` | arena 既定を構成別に。Viterbi の起動時チェック（[C-101](decisions.md#c-101)）。**発話後の高水位ログ**（C-102） |
+| `web/saan_web.c` / `arduino/src/SanoTTS.cpp` | arena を 136 KB に（**漢字側**。web も Arduino も漢字経路を持つ） |
+| `csrc/arena_stress.c` / `csrc/Makefile` | 走査の基準を 116 KB（かな側）に |
+| `scripts/check_web_gates.sh` | G-W9 を **`-DSAAN_KANJI=1` 側**と突き合わせるように |
+
+### 2. ⭐ PCM が変わっていないこと — **変更前のコードと直接比べた**
+
+⚠️ **`make -C csrc test`（golden）では足りない。** あれは**参照実装（Python）との一致**を
+Pearson / SNR で見るので、**C の実装が 1 ulp 動いても通る**。
+`git show HEAD:csrc/saanotts.c` を取り出して**同じ棒で両方を走らせ、checksum を比べた**。
+
+再現:
+
+```bash
+mkdir -p /tmp/base && for f in saanotts.c saanotts_stream.c saanotts.h; do
+    git show <MEM-7 の前の commit>:csrc/$f > /tmp/base/$f; done
+for h in saanotts_internal.h saanotts_int8.h saanotts_stream.h fft.h saan_prof.h erf_table.h; do
+    cp csrc/$h /tmp/base/; done
+for lane in "" "-DSAAN_INT8_ACT=1"; do
+  cc -std=c99 -O2 -Icsrc          $lane -o /tmp/new reports/m143_ram/pcmsum.c \
+     csrc/saanotts.c csrc/saanotts_stream.c csrc/saanotts_int8.c csrc/fft.c -lm
+  cc -std=c99 -O2 -I/tmp/base -Icsrc $lane -o /tmp/old reports/m143_ram/pcmsum.c \
+     /tmp/base/saanotts.c /tmp/base/saanotts_stream.c csrc/saanotts_int8.c csrc/fft.c -lm
+  /tmp/old csrc/student_i8.bin csrc/golden_i8.bin
+  /tmp/new csrc/student_i8.bin csrc/golden_i8.bin
+done
+```
+
+出力（`reports/m144_mem7/pcm_before_after.log`）— **W8A32 / W8A8 の両レーン、4 つの長さで完全一致**:
+
+| n_ids | frames | PCM FNV-1a | `log_d` FNV-1a | `d_hat` 和 |
+|---:|---:|---|---|---:|
+| 53 | 106 | `0x7cd0b6bd88ee995c` | `0x8b1a1bba48fb587d` | 106 |
+| 100 | 208 | `0x6a10ede13e63942b` | `0xd9e7bc846220f624` | 208 |
+| 224 | 500 | `0x1e2b3c7d26883ec4` | `0xc81d4a61e6e446f8` | 500 |
+| 350 | 770 | `0xbdcd111786ce1a78` | `0x3aea788e849b674d` | 770 |
+
+（W8A8 レーン。W8A32 は 108 / 212 / 508 / 783 frames で同じく一致）
+
+### 3. arena の下限がどこまで下がったか
+
+再現: `make -C csrc arena`（両レーン。1 KB 刻みの走査 + n_ids 振り + a.used の照合）
+
+| | W8A32 | W8A8（実機の構成） |
+|---|---:|---:|
+| `saan_stream_arena_used(350)`（ホスト） | 114,128 | 114,128 |
+| **`saan_stream_arena_peak(350)`（ホスト）** | **114,128** | **116,592** |
+| init も pull も通る最小 arena（1 KB 刻み・実測） | **114,688** | **116,736** |
+| MEM-7 の前の `arena_peak(350)` | 137,216 | **149,824** |
+
+**ターゲット（32 bit）の値は `struct saan_stream_impl` のポインタ幅ぶん 1,168 B 小さい**:
+`saan_stream_arena_used(350)` = **112,960** / **`arena_peak(350)` = 115,424 B**。
+
+### 4. 既定値は構成で分かれた
+
+| 構成 | `SAAN_ARENA_BYTES` | 効いている下限 | 余り |
+|---|---:|---|---:|
+| **かな**（`esp32/` の既定 / 4 MB・2 MB の板 / PSRAM 無し） | **118,784（116 KB）** | (b) `arena_peak(350)` = 115,424 | 3,360 |
+| **漢字**（`-DSAAN_KANJI=1`。出荷の M5 ファーム / wasm / Arduino） | **139,264（136 KB）** | **(a') Viterbi が `KEY_MAX` を受ける量 = 138,304** | 960 |
+
+⚠️ **漢字側を 120 KB まで下げなかったのは意図**である。下げると Viterbi の cap が
+2,208 → 1,568 になり、**`key_n` が 784〜1024 の入力が今は通るのに通らなくなる**
+（[C-101](decisions.md#c-101)）。**辞書 blob が無いと再現できない**ので下げなかった。
+実機ログ（M-142）が出した数から: prefix = 151,552 − 78,848 = **72,704 B** /
+(a') = 72,704 + 64·(1024+1) = **138,304 B**。
+
+| | v1.1.0 | M-142 | **M-144** | v1.1.0 比 |
+|---|---:|---:|---:|---:|
+| かな構成の arena | 180,224 | 151,552 | **118,784** | **−61,440（−34.1%）** |
+| 漢字構成の arena | 180,224 | 151,552 | **139,264** | **−40,960（−22.7%）** |
+
+### 5. ファームの静的 DIRAM（**かな構成。M5 CoreS3 向けビルド**）
+
+⚠️ **漢字構成はビルドできない** — `csrc/k1_dict.bin` の再生成が
+`data/splits/corpus_train.tsv`（第三者コーパス・手元に無い）を要求する。
+漢字経路の `.bss` は T10(a) で **0** なので、静的 DIRAM の差は **+4,372 B**（M-142 の実測）。
+
+```bash
+cd esp32/boards/m5unified && idf.py -B <build> \
+    -DSDKCONFIG_DEFAULTS="sdkconfig.defaults;sdkconfig.cores3" build size
+```
+
+| | M-142（arena 148 KB） | **M-144（arena 116 KB）** | 差 |
+|---|---:|---:|---:|
+| **DIRAM** | 227,643（66.61%） | **194,875（57.02%）** | **−32,768（−14.4%）** |
+| `.bss` | 171,240 | **138,472** | −32,768 |
+| `.text`（IRAM のコード） | 43,327 | 43,327 | 0 |
+| `.data` | 12,048 | 12,048 | 0 |
+| **空き** | 114,117 | **146,885** | **+32,768（+28.7%）** |
+
+**差は arena の 32,768 B ちょうど**（`g_arena` は `.bss` なので 1:1）。
+
+### 6. 新しいゲート `make -C csrc dur`
+
+| | 何を見るか |
+|---|---|
+| **G-DUR1** | `K` を 1 / 8 / 13 / 32 / 128 / 4096 と振って `log_d` が全部 bit 一致（**K ≥ n_ids なら 1 窓 = 一括版と同じ形**） |
+| **G-DUR2** | 陽性対照 3 本が**落ちる**: ハロー 11（違う列 20/350 / max\|Δ\| 0.0052）/ c1 のゼロクリア無し（20/350 / 0.726）/ 残差後のゼロクリア無し（16/350 / 0.555） |
+| **G-DUR3** | 本番の `saan_run_duration` が `_ex` の既定引数と bit 一致 |
+| **G-DUR4** | `saan_stream_arena_peak(n)` が**実測の `a.peak`** と一致（6 点 × 2 レーン） |
+| **G-DUR5** | ハローを **13 / 24 に増やしても値が変わらない** = 12 が必要十分 |
+
+⚠️ Makefile は **K を 8 / 128 / 1024 の 3 通りでビルドして 2 レーン = 6 回走らせる**
+（`SAAN_DUR_K` はコンパイル時の値なので 1 本のバイナリでは「K を変えても同じ」を示せない）。
+
+### 7. ⚠️ 測っていないもの
+
+- ⚠️⚠️ **実機で 1 行も測っていない。** このターンの最初は `/dev/cu.usbmodem2101` が
+  在ったが、作業中に **USB から消えた**。したがって **xRT / アンダーラン / 鳴らし始めまでの
+  時間 / 実機の PCM checksum は未測定**。⚠️ **焼いてもいない。**
+  ⚠️ **安全側の設計にはなっている** — `tts_task` の先頭が
+  `saan_stream_arena_peak(SAAN_MAX_IDS)` をターゲットの sizeof で計算して突き合わせ、
+  足りなければ**ログを出して起動を止める**（黙って壊れない）。**が、それは「測った」ではない。**
+- ⚠️ **漢字構成は 1 度もビルドしていない**（辞書 blob が作れない）。
+  したがって (a') も `saan_kanji_vitbytes` の起動時チェックも**コンパイルすら通していない**。
+  ⚠️ `make -C csrc jdict` / `kanji-e2e` / `label-ids` / `njd-rules` / `accent` も回せない
+  （`accent` は held-out コーパスが要る）。**`csrc/accent.h` と `saan_kanji.c` は触っていない。**
+- ⚠️ **wasm と Arduino のビルドは手元で回していない**（emcc / PlatformIO とも CI 側）
+- ⚠️ **音は聴いていない**（PCM が bit 一致なので v1.1.0 と同じ音である、が聴取は別）
+- **`SAAN_DUR_K` の実機での最適値**（ホストの再計算比 1.21× しか知らない）

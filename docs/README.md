@@ -129,8 +129,8 @@ URL が開くのはマージ後。
 | — | [`getting-started.md`](getting-started.md) | **外の人向けの使い方**（A〜E の 5 つの入口）。README から切り出した | 手順が変わったとき |
 | — | [`support-matrix.md`](support-matrix.md) | **どこまで動くか / 板ごとの対応 / 辞書の大きさと精度**。⚠️ 「✅ 実機」と「⚠️ 第三者の実機」を分けてある | 実機の報告が来たとき |
 | — | [`downloads.md`](downloads.md) | **リリース資産の一覧**。⚠️ **ここに名前を書くと `check_release_assets.py` が実在を CI で検査する** | リリースのたび |
-| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-066（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-100** | 決定のたび |
-| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-142。全数値に再現コマンド付き | 実測のたび |
+| 1 | [`decisions.md`](decisions.md) | 意思決定の記録 D-001〜D-067（✅ **D-049 の欠番は 2026-09-11 に埋めた** = RTF の分母）と**訂正履歴 C-001〜C-104** | 決定のたび |
+| 2 | [`measurements.md`](measurements.md) | **実測値の一次ソース** M-1〜M-144。全数値に再現コマンド付き | 実測のたび |
 | 2.5 | [`upstream-sanotts.md`](upstream-sanotts.md) | **公式実装 `Ampixa/sanoTTS` から得た事実**（GPL-3.0）。⚠️ すべて**上流の申告値で未再現**。ソースコードは読まない | 上流を見たとき |
 
 **数値が食い違ったら [`measurements.md`](measurements.md) が正**。
@@ -508,7 +508,7 @@ matrixa / matrixc / charr / rec5 は `all-test` に入れていない**
 | 平坦度プローブ | `n_fft=1024 / guard=0 / power=1` | M-27 |
 | ストリーミング | ステート保持 / CHUNK=8。**196.9 KB で一括版と bit 一致**（当時 fp32） | D-029 / M-42 |
 | アクセント | 記号 `[ ] #` のみ。A1/A2/A3 は**足さない**（v2 35/36 → **v3 37/37**） | **D-030** / M-44 / M-59 |
-| ESP32 の配置 | 重みは flash の `model` パーティション（M5 構成は app の `.rodata`）、arena は **148 KB を静的確保**（208 → 176 → 148。T4 / MEM-5 / MEM-6。実測 used 110,592 B） | **D-031** / M-46 / M-89 / **[M-142](measurements.md#m-142)** |
+| ESP32 の配置 | 重みは flash の `model` パーティション（M5 構成は app の `.rodata`）、arena は **かな 116 KB / 漢字 136 KB を静的確保**（208 → 176 → 148 → 116/136。T4 / MEM-5 / MEM-6 / **MEM-7**）。⚠️ 実測 used 110,592 B は 148 KB のときの値 | **D-031** / M-46 / M-89 / [M-142](measurements.md#m-142) / **[M-144](measurements.md#m-144)** |
 | ESP32-S3 の既定 | **W8A8 + PIE**（フラグ無しで有効）+ **QIO** + **D-cache 64 B 行** | **D-048** / M-84 / M-86 |
 | 逆 FFT | radix-2 自前 / float。naive の 1,435 倍 / SNR 138.7 dB | M-43 |
 | int8 | **W8A8 + PIE**（ESP32-S3 の既定。D-048）。W8A32 は `-DSAAN_ENABLE_PIE=0` | M-43 / M-55 / **D-048** |
@@ -539,7 +539,7 @@ matrixa / matrixc / charr / rec5 は `all-test` に入れていない**
    ⚠️ **発話全体では 0.54〜0.71**（M-88 / M-90）。✅ **要件は定常の分母に決まった**（[D-049](decisions.md#d-049)）。**発話全体は参考値**（合否が文の長さで決まるため）。
    ⚠️ **「PIE の int8 カーネルが必須」は当たった**（同じ板で W8A32 は 0.92〜1.09。M-86）が、
    **M-43 の外挿 0.088× RT は実機の 18 倍外れた**（M-80）
-3. ~~ESP32 に載るか~~ — ✅ **arena 148 KB / 実測 used 110,592 B**、内部 DRAM の空き **160,639 B**（最大ブロック 114,688。[M-142](measurements.md#m-142)）
+3. ~~ESP32 に載るか~~ — ✅ **arena かな 116 KB / 漢字 136 KB**（[M-144](measurements.md#m-144)）。⚠️ **実測 used 110,592 B と内部 DRAM の空き 160,639 B（最大ブロック 114,688）は arena 148 KB のときの値**（[M-142](measurements.md#m-142)）
    （漢字 + 辞書込み。M-89 / M-90）
 4. ~~`β`（式7）~~ — ✅ **β=0 で確定、式7 は不要**（M-60 / D-038）。⚠️ **聴取者 1 名**
 5. ~~アクセント型の再現性~~ — ✅ **v3 は 37/37 で符号一致**（M-59 / D-030、
@@ -559,8 +559,8 @@ sanoTTS-jp/
 ├── CLAUDE.md                              運用ルール（実装前に読む）
 ├── docs/
 │   ├── README.md                          このファイル
-│   ├── decisions.md                       決定記録 D-001〜D-066（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-100
-│   ├── measurements.md                    実測値の一次ソース M-1〜M-142
+│   ├── decisions.md                       決定記録 D-001〜D-067（**D-049 も埋まった**）+ 訂正履歴 C-001〜C-104
+│   ├── measurements.md                    実測値の一次ソース M-1〜M-144
 │   ├── upstream-sanotts.md                公式実装から得た事実（⚠️ 上流申告値・未再現）
 │   │                                     ⚠️ **`v1.0.0.md` はまだリリースしていない**（[D-059](decisions.md#d-059)）。
 │   │                                     **タグの打ち方と「打った後にやること」もそこに書いてある**

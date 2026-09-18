@@ -21,7 +21,7 @@
 | **かな中間表現 → 音声** | ✅ **実機**（M5 CoreS3） | [M-90](measurements.md#m-90) |
 | **漢字かな交じり文 → 音声**（端末内で形態素解析 + アクセント推定） | ✅ **実機** | [M-90](measurements.md#m-90) |
 | **実時間の要件**（xRT ≤ 0.5） | ✅ **0.471〜0.475**（**定常** = [D-049](decisions.md#d-049) で決めた分母。7 発話の実機）。⚠️ 発話全体は 0.522〜0.741 だが**参考値**（合否が文の長さで決まるため）。鳴らし始めまで **364〜374 ms ≤ 0.8 s**（余裕 53〜55%）。⚠️ **v1.1.0 までは 0.444〜0.448** — RAM を 28,840 B 詰めた分だけ遅い（[M-142](measurements.md#m-142)） | [M-142](measurements.md#m-142) / [C-054](decisions.md#c-054) |
-| **メモリ**（SRAM 512 KB に収まる） | ✅ arena 静的 **151,552 B** / 実測ピーク **110,592 B**。起動直後の空き **160,639 B**（最大ブロック 114,688） | [M-142](measurements.md#m-142) |
+| **メモリ**（SRAM 512 KB に収まる） | ✅ arena 静的 **かな 118,784 B / 漢字 139,264 B**（[M-144](measurements.md#m-144)）。⚠️ **実測ピーク 110,592 B と起動直後の空き 160,639 B（最大ブロック 114,688）は arena 151,552 B のときの値**で、M-144 の arena では実機未測定 | [M-142](measurements.md#m-142) / [M-144](measurements.md#m-144) |
 | **ブラウザ**（同じ C99 コードを wasm に） | ✅ 実機の PCM と bit 一致 | [M-95](measurements.md#m-95) |
 | **アクセント型の再現** | ⚠️ 配布中の **v4 は 31/37**（v3 は 37/37）。**seed を変えるだけで 3 ペア落ちる**指標なので、**JSUT を外した劣化とは読めない**（[D-057](decisions.md#d-057)） | [M-118](measurements.md#m-118) / [M-117](measurements.md#m-117) |
 | **Arduino / PlatformIO ライブラリ**（自分のスケッチから呼ぶ） | ⚠️ **PCM は ESP-IDF ビルドと bit 一致**（QEMU / 2 構成）。**PlatformIO と arduino-cli の両方でビルドできる**。❌ **実機で鳴らしていない** — xRT もアンダーランも**未測定** | [M-137](measurements.md#m-137) / [D-065](decisions.md#d-065) |
@@ -44,7 +44,7 @@
 ⚠️ **Arduino ライブラリ（[D-065](decisions.md#d-065)）も同じ板の制約に従う。** さらに:
 **PlatformIO では公式の `espressif32` が使えない**（arduino-esp32 2.0.17 / ESP-IDF 4.4 に
 `ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も無い）。**pioarduino（3.x）が要る。**
-非 S3 の板では `SANOTTS_ARENA_HEAP=1` が要る（静的 148 KB が `dram0_0_seg` に入らない）。
+非 S3 の板では `SANOTTS_ARENA_HEAP=1` が要る（静的 136 KB が `dram0_0_seg` に入らない）。
 
 ⚠️ **必要な下限**（[M-106](measurements.md#m-106) §1）: **flash 約 1 MB（かな）/ 4 MB（漢字）**・**ハードウェア浮動小数点**・**200 MHz 以上**。RAM は**漢字経路で合計 342,308 B**（静的 260,896 + Open JTalk の一時ヒープ 81,412）。⚠️ **静的 260,896 は M-106 の 289,568 から arena の差分 28,672 B を引いた算術**で、その構成で測り直してはいない（[M-142](measurements.md#m-142) は M5 CoreS3 の構成）。⚠️ **かな経路だけの RAM は測っていない。**
 **ESP32-S3 に 2 MB flash の品番は無い**（WROOM-1 は N4 / N8 / N16）ので **4 MB が下限**。

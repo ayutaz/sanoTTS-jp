@@ -85,7 +85,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
 | 1 step | 18,378,513 cyc | **11,659,500 cyc**（M-89。−36.6%。S5b 前の値） |
 | 鳴らし始めまで | 719 ms | **384 ms**（M-90 = 出荷構成。⚠️ かな構成は M-89 で 432 ms / M-88 で 434 ms） |
 | アンダーラン | 1/14 | **0**（全文。M-87 以降） |
-| arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **151,552 / 110,592 B**（[M-142](docs/measurements.md#m-142)。⚠️ v1.1.0 は 180,224 / 156,688） |
+| arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **かな 118,784 / 漢字 139,264 B**（[M-144](docs/measurements.md#m-144)。⚠️ **実測 used 110,592 B は arena 151,552 B のときの値** = M-142。**M-144 の arena は実機未測定**） |
 | 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（M-90。辞書 + 漢字込み。最大ブロック 86,016） |
 
 **PCM の checksum は M-82 から 1 bit も変わっていない**（W8A8+PIE `0xa69a7ebbb5ccb05f` /
@@ -331,6 +331,7 @@ make -C csrc prof                                  # 段別プロファイラ（
                                                    #   --expect-gelu 12544 / --expect-dw 21280 /
                                                    #   --expect-mac-le 4200628 / --expect-token 4**（S1 / T1〜T3）
 make -C csrc erf                                   # GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
+make -C csrc dur                                   # **MEM-7** duration net の窓分割（G-DUR1〜5。陽性対照 3 本）
 make -C csrc range                                 # **S9（T2）の範囲版カーネル**が [0,T) 版と bit 一致か
                                                    #   （陽性対照つき。all-test に入っている）
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
@@ -346,7 +347,7 @@ bash scripts/check_arduino_qemu.sh                 # ⭐ G-AR4 PCM が ESP-IDF �
 
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / pad / line / erf / **range** / **qeos**）
+                                                   #   g2p / pad / line / erf / **range** / **qeos** / **dur**）
                                                    #   ⚠️ stream は **held-out 24 文 × 3 レーン**を見る
 ```
 
@@ -622,6 +623,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc qeos` | **疑問 EOS の 4 種と U+301C の正規化**（G33。D-062 / M-127）。⚠️ **辞書もコーパスも pyopenjtalk も要らない** — `label_ids_convert()` は**合成した最小ラベル 3 本**で足りるので `all-test` と CI で回る。**陽性対照**: `-DQEOS_TEST_NO_NORMALIZE=1` で**正規化を外すと 3 ケースが落ちる**。⚠️ **既定の `label-ids`（n=298）は修正前も緑だった** — 該当 2 文をサンプルしないため |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
+| テスト | `make -C csrc dur` | ⭐ **MEM-7 = duration net の窓分割**（[M-144](docs/measurements.md#m-144) / [D-067](docs/decisions.md#d-067)）。**G-DUR1** `K` を 1〜4096 と振って `log_d` が bit 一致（**K ≥ n_ids なら 1 窓 = 一括版と同じ形**）/ **G-DUR2** 陽性対照 3 本が落ちる（ハロー 11 / c1 のゼロクリア無し / 残差後のゼロクリア無し）/ **G-DUR3** 本番が `_ex` の既定引数と一致 / **G-DUR4** `saan_stream_arena_peak(n)` が**実測の `a.peak`** と一致（6 点 × 2 レーン = [C-102](docs/decisions.md#c-102)）/ **G-DUR5** ハローを 13 / 24 に**増やしても変わらない** = 12 が必要十分。⚠️ **PCM の checksum では守れない** — `log_d` は exp → round → clip[1,80] を通るので、窓の取り方を間違えても `d_hat` が変わらない文が多い（ハロー 11 で max\|Δ\| 0.005）。⚠️ **テストの中に一括版の写しを置いてはいけない**（[C-103](docs/decisions.md#c-103)。FMA 契約が翻訳単位で違って 1 ulp ずれ、「窓分割で値が変わった」と読める）。⚠️ **K を 8 / 128 / 1024 でビルドして 2 レーン = 6 回**走らせる。CI で回る |
 | テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
 | テスト | `make -C csrc matrixc` | **`matrixc`（行・列クラスタ + 代表行列）**の C リーダが生 int16 と**全 1,896,129 要素**で一致するか（M-106 §10）。⚠️ **陽性対照が 2 本要る** — 代表行列（`lo`）を壊す G-C4 だけでは**写像（`rmap`）を読み違えていても通る**。⚠️ 辞書と scikit-learn が要るので `all-test` の外 |
 | テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
@@ -764,7 +766,7 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 `csrc/` の C99 コアと `esp32/main/saan_kanji.c` を**書き換えずに** wasm にして、
 GitHub Pages で「漢字文を打つと喋る」デモを配る（[D-050](docs/decisions.md#d-050)）。
 **成果物は今も ESP32 の 567 K で、Web は触れる入口**でしかない
-（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 151,552 B = `check_web_gates.sh` の G-W9 が突き合わせる）。
+（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 139,264 B = `check_web_gates.sh` の G-W9 が**漢字構成の値と**突き合わせる）。
 実測は M-94（node）/ **M-95（Chrome 152）** / **M-96（聴取）**。**ブラウザで PCM が node と bit 一致**し、短文が **0.008〜0.019 ×RT** で合成でき、**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定**。
 ⚠️ 上流も WASM デモを配っているが、**D-032（GPL ソースを読まない）は維持**する。
 

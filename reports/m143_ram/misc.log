@@ -1,0 +1,17 @@
+== (1) win の対称性 win[i] == win[1024-i] ==
+違う組 368 / 511（最大 |Δ| 2.38419e-07 @ i=263 / 0.52146918 vs 0.52146894）
+折れる: **できない** -> 半分に折ると PCM が変わる
+
+== (2) Viterbi の容量 ==
+sizeof(vnode の実質) = 24 + int32 x 2 = 32 B/node（jdict.c の cap 式）
+VITERBI_N = 49152 -> cap = 1536 node
+必要条件 (key_n+1)*2 <= cap -> 受けられる key_n の上限 = 767
+KEY_MAX = 1024 なので、key_n が 768..1024 の入力は arena が下限ぴったりだと
+  jdict_analyze が -1（= SAAN_KANJI_ERR_ANALYZE「経路が張れない」）を返す
+KEY_MAX を全部受けるのに要る VITERBI_N = 65600 B（+16448）
+
+== (3) accent_node_t ==
+現状 sizeof = 524 B（このホスト）/ 524 B（式 4*64 + 2*128 + 3*4）
+x 96 = 50304 B
+pos/ctype/cform/orig/read を const char* に（accent.c は読むだけ）:
+  32 bit ターゲット: 5*4 + 128 + 3*4 = 160 B -> x96 = 15360 B（-34944）

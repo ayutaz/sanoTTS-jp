@@ -401,44 +401,67 @@ size_t saan_stream_arena_used(int32_t n_ids) {
     return s;
 }
 
-/* init の途中も含めた**本当のピーク**（C-100）。
+/* streaming の間に conv が arena の上に一時的に取る activation 作業領域の**最大**。
+ *
+ * ⚠️ **`saan_stream_arena_used()` はこれを含まない**（conv の中で確保してすぐ返すので
+ *    init 後の `a->used` には出ない）。だが `a->peak` には出る。**下限は used ではなく
+ *    used + これ**である（W8A8 で 2,464 B。W8A32 では 0）。
+ * ⚠️ **MEM-7 の前はこの抜けが見えなかった** — 350 ids では duration の一時領域
+ *    149,824 B が streaming の真のピーク 116,592 B より大きく、`arena_peak` が
+ *    duration 側を返していたので**偶然に安全側**だった（[C-102](../docs/decisions.md#c-102)）。
+ *    53 ids では当時から `a.peak` 114,224 > `arena_peak()` 111,760 とずれていた。
+ * S9 で 1×1 conv は T=CH になったので候補の最大を取る: pw2（cin=E, T=CH）/
+ * token の c1（cin=AC_W, T = 2·TOK_PAD + TOK_K）/ dw（ch=DEC_W, T=W_DEC）/ AC の c1。 */
+static size_t stream_act_scratch_max(void) {
+    size_t m = saan_act_scratch_needed(E, CH), v;
+    v = saan_act_scratch_needed(AC_W, 2 * TOK_PAD + TOK_K); if (v > m) m = v;
+    v = saan_act_scratch_needed(DEC_W, 2 * 3 + CH); if (v > m) m = v;
+    v = saan_act_scratch_needed(AC_W, 2 * 4 + CH);  if (v > m) m = v;
+    return m;
+}
+
+/* init の途中も含めた**本当のピーク**（C-100 / C-102）。
  *
  * ⚠️ **`saan_stream_arena_used()` は init が終わった後の値**で、init の途中で
- *    `saan_run_duration` が取って返す 3 本の [SAAN_DUR_W][n_ids] を含まない。
- *    350 ids ではそれが **134,400 B** で、**streaming のバッファより大きい**。
+ *    `saan_run_duration` が取って返す一時領域を含まない。
  *    `arena_used` を下限だと思って arena を詰めると **長い文だけ init が失敗する**
  *    （実際に踏んだ: 120 KB にしたら `make -C csrc arena` が「300 ids は通るが
  *    350 ids で落ちる」と報告した）。
+ * ⚠️ **MEM-7 の前は 350 ids で 134,400 B あり、streaming のバッファより大きかった**
+ *    （= 下限の 89.7%）。窓分割したので今は `SAAN_DUR_K` で決まる定数に近い
+ *    （K=128 なら最大 63,840 B）。**下限は streaming 側に移った。**
  * ⚠️ `saan_stream_arena_needed()` は和で足す**緩い上限**なので、詰めるには使えない。
- *    こちらは 2 フェーズの **max** = 実際に要る量。 */
+ *    こちらは 2 フェーズの **max** = 実際に要る量。
+ * ⚠️ **`saan_run_duration` の窓の取り方と 1:1。** 片方だけ変えると
+ *    `make -C csrc arena` の §1/§6 が「関数が言う下限で init が落ちる」と報告する。 */
+static size_t dur_window_bytes(int32_t n_ids) {
+    /* 1 窓ぶん（h / t1 / t2 の 3 本 + W8A8 の act scratch）。最後の窓は短いので
+     * **最大になるのは kk = min(n_ids, SAAN_DUR_K) の窓** */
+    const int kk = (n_ids < SAAN_DUR_K) ? (int)n_ids : SAAN_DUR_K;
+    const int Tw = kk + 2 * SAAN_DUR_HALO;
+    return SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DUR_W * (size_t)Tw) * 3
+         + saan_act_scratch_needed(SAAN_DUR_W, Tw);
+}
+
 size_t saan_stream_arena_peak(int32_t n_ids) {
-    /* フェーズ 1: log_d + d_hat + duration の h / t1 / t2 */
+    /* フェーズ 1: log_d + d_hat + duration の 1 窓（MEM-7） */
     size_t dur = SAAN_ALIGN16(sizeof(float) * (size_t)n_ids)
                + SAAN_ALIGN16(sizeof(int32_t) * (size_t)n_ids)
-               + SAAN_ALIGN16(sizeof(float) * (size_t)SAAN_DUR_W * (size_t)n_ids) * 3
-               + saan_act_scratch_needed(SAAN_DUR_W, n_ids);
-    /* フェーズ 2: streaming のバッファ（duration の分は a->used を巻き戻して返す） */
-    const size_t used = saan_stream_arena_used(n_ids);
+               + dur_window_bytes(n_ids);
+    /* フェーズ 2: streaming のバッファ（duration の分は a->used を巻き戻して返す）
+     * ＋ conv が上に取る act 作業領域（C-102。**used だけでは 2,464 B 足りない**） */
+    const size_t used = saan_stream_arena_used(n_ids) + stream_act_scratch_max();
     return dur > used ? dur : used;
 }
 
 size_t saan_stream_arena_needed(int32_t n_ids) {
     /* 確保の一覧は saan_stream_arena_used に 1 つだけ持つ。ここは緩い上限:
-     * duration の一時領域（init の中で確保して返す。3 × DUR_W × n_ids）を**和で**足す */
+     * duration の一時領域（init の中で確保して返す。MEM-7 で 1 窓ぶん）を**和で**足す */
     size_t s = saan_stream_arena_used(n_ids);
-    s += SAAN_ALIGN16(sizeof(float) * SAAN_DUR_W * (size_t)n_ids) * 3;
-    /* W8A8（`-DSAAN_INT8_ACT=1`）のとき conv 1 本ぶんの activation 作業領域。
-     * conv の中で確保してすぐ返すので**同時に 1 本ぶん**。S9 で 1×1 conv は T=CH になった
-     * ので、候補の最大を取る: pw2（cin=E, T=CH）/ token の c1（cin=AC_W, T = 2·TOK_PAD + TOK_K。
-     * S6 で AC の c1 と同じ窓幅になった）/ dw（ch=DEC_W, T=W_DEC）/ AC の c1（cin=AC_W, T=W_AC）。
+    s += dur_window_bytes(n_ids);
+    /* W8A8 のとき conv 1 本ぶんの activation 作業領域（上の helper と 1:1）。
      * W8A32（既定）では 0 が返るので G1/G3 の実測値は変わらない */
-    {
-        size_t m = saan_act_scratch_needed(E, CH), v;
-        v = saan_act_scratch_needed(AC_W, 2 * TOK_PAD + TOK_K); if (v > m) m = v;
-        v = saan_act_scratch_needed(DEC_W, 2 * 3 + CH); if (v > m) m = v;
-        v = saan_act_scratch_needed(AC_W, 2 * 4 + CH);  if (v > m) m = v;
-        s += m;
-    }
+    s += stream_act_scratch_max();
     return s + 8192;
 }
 

@@ -338,51 +338,108 @@ void saan_gelu(float *x, size_t n) {
 
 /* --- Duration Dα --------------------------------------------------------- */
 
-saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
-                                const int32_t *ids, int T, float *log_d) {
+/* 絶対列 [lo, lo+Tw) のうち **発話 [0, n) の外**をゼロにする（MEM-7）。
+ *
+ * ⚠️ **これが無いと合わない。** 一括版は配列を [0, n) しか持たないので、conv が
+ *    その外を参照すると 0 になる。窓分割は発話外の列も**計算してしまう**ので、
+ *    conv の bias 由来の非ゼロがそこに残り、次の段の積和に混ざる。
+ *    ストリーミング側の `acblk_step` が同じ穴を踏んでいる（`zero_outside_n`）。 */
+static void dur_zero_outside(float *x, int Tw, int lo, int n) {
+    for (int j = 0; j < Tw; ++j) {
+        const int t = lo + j;
+        if (t >= 0 && t < n) continue;
+        for (int c = 0; c < SAAN_DUR_W; ++c) x[(size_t)c * Tw + j] = 0.0f;
+    }
+}
+
+/* MEM-7: **窓分割して回す。** 以前は h / t1 / t2 を 3 本 [32][T] で取っていて、
+ * 350 ids で 134,400 B = arena のピークの 89.7% を占めていた（[M-142](../docs/measurements.md#m-142) §6）。
+ *
+ * **出力は一括版と bit 一致する。** 根拠は 3 つとも実装の性質で、
+ * [M-143](../docs/measurements.md#m-143) が陽性対照 3 本つきで実測した:
+ *   - `saan_layernorm_c` は**列ごと**（時刻 t ごとに C 方向で mean/var）
+ *   - W8A8 の活性化量子化は**フレームごと**（`saan_quantize_act_i8pr` の amax が per-t）
+ *   - 発話外のゼロクリア（上の `dur_zero_outside`）で一括版の暗黙のゼロ padding を再現する
+ * ⚠️ **窓の端の zero padding は触らない。** 窓幅 Tw のうち中央 kk 列だけを採り、
+ *    ハローは `SAAN_DUR_HALO` = 受容野なので、中央の列は窓自身の padding を 1 度も見ない。 */
+saan_status saan_run_duration_ex(const saan_weights *w, saan_arena *a,
+                                 const int32_t *ids, int T, float *log_d,
+                                 int K, int halo, int zero_c1, int zero_h) {
     const int W = SAAN_DUR_W;
     const float *emb = saan_tf(w, "duration.emb.weight");   /* 表引きは fp32 */
     const saan_wref pw = saan_w(w, "duration.proj.weight");
     const float *pb = saan_tf(w, "duration.proj.bias");
     if (!emb || !SAAN_W_OK(pw) || !pb) return SAAN_ERR_MISSING;
+    if (T <= 0 || K <= 0) return SAAN_ERR_SHAPE;
 
-    float *h = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
-    float *t1 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
-    if (!h || !t1) return SAAN_ERR_ARENA;
+    for (int s = 0; s < T; s += K) {
+        const int kk = (T - s < K) ? (T - s) : K;   /* この窓で確定させる列数 */
+        const int lo = s - halo;                    /* 窓の先頭の絶対列（負になりうる） */
+        const int Tw = kk + 2 * halo;
+        const size_t mark = a->used;
 
-    /* 埋め込みは [V, W] 行優先。ここは [W, T] に置き換える */
-    for (int t = 0; t < T; ++t) {
-        if (ids[t] < 0 || ids[t] >= SAAN_VOCAB) return SAAN_ERR_RANGE;
-        for (int c = 0; c < W; ++c) h[(size_t)c * T + t] = emb[(size_t)ids[t] * W + c];
+        float *h  = (float *)saan_alloc(a, sizeof(float) * (size_t)W * Tw);
+        float *t1 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * Tw);
+        if (!h || !t1) return SAAN_ERR_ARENA;
+
+        /* 埋め込みは [V, W] 行優先。ここは [W, Tw] に置き換える。発話外はゼロ */
+        for (int j = 0; j < Tw; ++j) {
+            const int t = lo + j;
+            if (t < 0 || t >= T) {
+                for (int c = 0; c < W; ++c) h[(size_t)c * Tw + j] = 0.0f;
+                continue;
+            }
+            if (ids[t] < 0 || ids[t] >= SAAN_VOCAB) return SAAN_ERR_RANGE;
+            for (int c = 0; c < W; ++c) h[(size_t)c * Tw + j] = emb[(size_t)ids[t] * W + c];
+        }
+
+        for (int bi = 0; bi < 3; ++bi) {
+            const saan_wref c1w = saan_w(w, "duration.blocks.%d.c1.weight", bi);
+            const float *c1b = saan_tf(w, "duration.blocks.%d.c1.bias", bi);
+            const saan_wref c2w = saan_w(w, "duration.blocks.%d.c2.weight", bi);
+            const float *c2b = saan_tf(w, "duration.blocks.%d.c2.bias", bi);
+            const float *ng = saan_tf(w, "duration.blocks.%d.norm.weight", bi);
+            const float *nb = saan_tf(w, "duration.blocks.%d.norm.bias", bi);
+            const float *gm = saan_tf(w, "duration.blocks.%d.gamma", bi);
+            if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng || !gm) return SAAN_ERR_MISSING;
+
+            SAAN_TRY(saan_conv1d_w(t1, h, c1w, c1b, W, W, 5, Tw, a));
+            saan_relu(t1, (size_t)W * Tw);
+            if (zero_c1) dur_zero_outside(t1, Tw, lo, T);   /* c1 の出力にも要る（bias 由来） */
+            float *t2 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * Tw);
+            if (!t2) return SAAN_ERR_ARENA;
+            SAAN_TRY(saan_conv1d_w(t2, t1, c2w, c2b, W, W, 5, Tw, a));
+            saan_layernorm_c(t2, ng, nb, W, Tw);
+            /* LayerScale 付き残差: x + γ·f(x) */
+            for (size_t i = 0; i < (size_t)W * Tw; ++i) h[i] += gm[0] * t2[i];
+            /* ⚠️ LN は全ゼロの列に bias を書く（var=0 → 0·inv·g + b = b）ので、
+             *    残差の**後**に消す。ここを外すと発話の先頭 / 末尾が変わる（M-143 の P3） */
+            if (zero_h) dur_zero_outside(h, Tw, lo, T);
+            a->used -= ALIGN16(sizeof(float) * (size_t)W * Tw);   /* t2 を返す */
+        }
+
+        /* proj は nn.Conv1d(32, 1, 1)。**インライン内積で書かない** —
+         * 書くと 52 個の int8 テンソルのうちこれだけが量子化経路に載らない
+         * （D-3c の照合で発覚。c'-1）。積和の順序は cin 昇順で同一なので
+         * fp32 では bit 一致する。出力は圧縮 [1][kk] なので log_d + s にそのまま書ける */
+        SAAN_TRY(saan_conv1d_wr(log_d + s, h, pw, pb, W, 1, 1, Tw, halo, halo + kk, a));
+        a->used = mark;
     }
-
-    for (int bi = 0; bi < 3; ++bi) {
-        const saan_wref c1w = saan_w(w, "duration.blocks.%d.c1.weight", bi);
-        const float *c1b = saan_tf(w, "duration.blocks.%d.c1.bias", bi);
-        const saan_wref c2w = saan_w(w, "duration.blocks.%d.c2.weight", bi);
-        const float *c2b = saan_tf(w, "duration.blocks.%d.c2.bias", bi);
-        const float *ng = saan_tf(w, "duration.blocks.%d.norm.weight", bi);
-        const float *nb = saan_tf(w, "duration.blocks.%d.norm.bias", bi);
-        const float *gm = saan_tf(w, "duration.blocks.%d.gamma", bi);
-        if (!SAAN_W_OK(c1w) || !SAAN_W_OK(c2w) || !ng || !gm) return SAAN_ERR_MISSING;
-
-        SAAN_TRY(saan_conv1d_w(t1, h, c1w, c1b, W, W, 5, T, a));
-        saan_relu(t1, (size_t)W * T);
-        float *t2 = (float *)saan_alloc(a, sizeof(float) * (size_t)W * T);
-        if (!t2) return SAAN_ERR_ARENA;
-        SAAN_TRY(saan_conv1d_w(t2, t1, c2w, c2b, W, W, 5, T, a));
-        saan_layernorm_c(t2, ng, nb, W, T);
-        /* LayerScale 付き残差: x + γ·f(x) */
-        for (size_t i = 0; i < (size_t)W * T; ++i) h[i] += gm[0] * t2[i];
-        a->used -= ALIGN16(sizeof(float) * (size_t)W * T);   /* t2 を返す */
-    }
-
-    /* proj は nn.Conv1d(32, 1, 1)。**インライン内積で書かない** —
-     * 書くと 52 個の int8 テンソルのうちこれだけが量子化経路に載らない
-     * （D-3c の照合で発覚。c'-1）。積和の順序は cin 昇順で同一なので
-     * fp32 では bit 一致する */
-    SAAN_TRY(saan_conv1d_w(log_d, h, pw, pb, W, 1, 1, T, a));
     return SAAN_OK;
+}
+
+/* 本番の入口。**既定値で上を呼ぶだけ。**
+ *
+ * ⚠️ **参照実装を 2 つ持たない**（`saanotts_internal.h` の「2 回書かない」）。
+ *    ゲート（`make -C csrc dur`）は上の `_ex` を**壊した設定で**呼んで陽性対照にする。
+ * ⚠️ **テストの中に一括版の写しを置く形では検証にならない。** 実際に踏んだ:
+ *    `h[i] += gm[0] * t2[i]` を**コンパイラが FMA に契約するかが翻訳単位で違う**ので、
+ *    写しと本番が **1 ulp** ずれ、「窓分割で値が変わった」と読めた（[C-103](../docs/decisions.md#c-103)）。
+ *    比べるのは**同じ関数を違う引数で呼んだ結果**でなければならない。 */
+saan_status saan_run_duration(const saan_weights *w, saan_arena *a,
+                              const int32_t *ids, int T, float *log_d) {
+    return saan_run_duration_ex(w, a, ids, T, log_d,
+                                SAAN_DUR_K, SAAN_DUR_HALO, 1, 1);
 }
 
 /* --- Acoustic Aβ --------------------------------------------------------- */

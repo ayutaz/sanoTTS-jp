@@ -127,8 +127,11 @@ int main(int argc, char **argv) {
     g_ids_base = base;
 
     int bad = 0;
-    const size_t ARENA = 148u * 1024u;   /* ESP32 の雛形が静的確保する値（esp32/main/main.c の
-                                          * SAAN_ARENA_BYTES。T4 で 208 → 176 KB / M-142 で 148 KB） */
+    const size_t ARENA = 116u * 1024u;   /* ESP32 の雛形が**かな構成で**静的確保する値
+                                          * （esp32/main/main.c の SAAN_ARENA_BYTES。T4 で 208 → 176 KB /
+                                          *  M-142 で 148 KB / **MEM-7 で 116 KB** = M-144）。
+                                          * ⚠️ **漢字構成は 136 KB**（Viterbi が KEY_MAX の鍵を受けるため。
+                                          *    C-101）。ここは csrc のコアだけを見るので**かな側**が正しい。 */
     const int DESIGN_IDS = 350;          /* D-017 の max_spec_length=700 相当 */
 
     printf("sanoTTS-jp arena ストレス（c'-4 の受け入れ条件）\n");
@@ -148,7 +151,7 @@ int main(int argc, char **argv) {
     /* ⚠️ **走査の下端は arena より十分下に置く。** 176 KB 時代の名残で 150 から
      * 始めていたので、arena を 148 KB に詰めた後は「最小 = 150 KB」= **走査の
      * 下端そのもの**を報告していた（= 最小を測れていない）。M-142。 */
-    for (size_t kb = 110; kb <= 260; ++kb) {
+    for (size_t kb = 100; kb <= 260; ++kb) {
         run_t r = run_isolated(DESIGN_IDS, kb * 1024u);
         ++tested;
         if (r.crashed) {
@@ -277,7 +280,7 @@ int main(int argc, char **argv) {
         for (int i = 0; i < (int)(sizeof nn / sizeof nn[0]); ++i) {
             int32_t *ids = make_ids(nn[i]);
             /* ⚠️ ここで見るのは「関数 == 実測」であって大きさではない（大きさは §1 / §2）。
-             * 静的 arena（148 KB）では 520 ids の duration 一時領域（384 B/id）が入らないので、
+             * ⚠️ **MEM-7 の前は** 静的 arena（148 KB）で 520 ids の duration 一時領域（384 B/id）が入らず、
              * 緩い上限 saan_stream_arena_needed() の大きさで確保する（T4 で 208 → 176 KB にした際に
              * 520 が init-fail になったため） */
             const size_t cap = saan_stream_arena_needed(nn[i]);
