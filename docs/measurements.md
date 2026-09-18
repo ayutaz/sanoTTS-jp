@@ -14143,7 +14143,7 @@ cd esp32/boards/m5unified && idf.py -B <build> \
 | **`g_arena`** | **151,552** | **66.6%** | うち |
 | DIRAM `.text`（IRAM に置かれたコード） | 43,327 | 19.0% | **ESP-IDF**（`esp_hw_support` 8,556 / `spi_flash` 6,020 / `freertos` 5,442 / `hal` 5,153 / `esp_system` 4,294 / `rmt` 2,807 …） |
 | `.data` | 12,048 | 5.3% | ほぼ ESP-IDF |
-| `g_chunk` | 8,192 | 3.6% | うち（`SAAN_CHUNK`×`SAAN_HOP`。`SAAN_CHUNK` < 8 は静的検査で止まる） |
+| `g_chunk` | 8,192 | 3.6% | うち（`SAAN_CHUNK`×`SAAN_HOP`）。⚠️⚠️ **2 つとも後で覆った**: この 8,192 B は [M-145](#m-145) で**消えた**（`pull_ptr`）。「`SAAN_CHUNK` < 8 は静的検査で止まる」も**理由として間違い** — 止めているのは `w_e` の共用（`saan_t4_istft_fits_in_w_e`）で、下げられないのは**速度のため**（M-145 §8） |
 | その他 `.bss` | 7,388 | 3.2% | FreeRTOS / M5Unified |
 | `g_ids` | 4,108 | 1.8% | うち |
 | `.vectors` | 1,028 | 0.5% | ESP-IDF |
