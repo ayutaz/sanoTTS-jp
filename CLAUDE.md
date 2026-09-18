@@ -12,7 +12,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | | |
 |---|---|
 | 出荷物 | **資産 30 本**（`v1.1.0`。うち 28 本は `v1.0.0` と SHA-256 が一致）。重みは **v4** = 蒸留テキストが CC0 / PD のみ |
-| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.474** / アンダーラン **0** / 漢字==かな bit 一致（[M-142](docs/measurements.md#m-142)）。⚠️ **arena はその後 M-144 で 136 KB に下げたが実機未測定**（PCM はホストで bit 一致） |
+| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.474** / アンダーラン **0** / 漢字==かな bit 一致（[M-142](docs/measurements.md#m-142)）。⚠️ **その後 M-144 / M-145 で静的 DIRAM を 183,979 B（−19.2%）に下げたが実機未測定**（PCM はホストで bit 一致） |
 | デモ | https://ayutaz.github.io/sanoTTS-jp/ （**実機と同じ C99 コア**の wasm） |
 | CI | **7 job**。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |
 
@@ -771,7 +771,7 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 `csrc/` の C99 コアと `esp32/main/saan_kanji.c` を**書き換えずに** wasm にして、
 GitHub Pages で「漢字文を打つと喋る」デモを配る（[D-050](docs/decisions.md#d-050)）。
 **成果物は今も ESP32 の 567 K で、Web は触れる入口**でしかない
-（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 139,264 B = `check_web_gates.sh` の G-W9 が**漢字構成の値と**突き合わせる）。
+（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 139,264 B = `check_web_gates.sh` の **G-W9**（`web/saan_web.c` の `#define`）と **G-W9b**（`web/index.html` の本文）が**漢字構成の値と**突き合わせる。⚠️ **G-W9b が無かった間、ページ本文の 180,224 B が 3 回の変更を生き延びていた** = [C-105](docs/decisions.md#c-105)）。
 実測は M-94（node）/ **M-95（Chrome 152）** / **M-96（聴取）**。**ブラウザで PCM が node と bit 一致**し、短文が **0.008〜0.019 ×RT** で合成でき、**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定**。
 ⚠️ 上流も WASM デモを配っているが、**D-032（GPL ソースを読まない）は維持**する。
 

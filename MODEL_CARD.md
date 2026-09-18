@@ -270,7 +270,7 @@ duration 予測器が W8A32 では fp32 活性化で走り、**108 frames vs 106
 **受け入れたうえで配布する**。⚠️ **組み込む側は §6 の 4 項目を自社の利用規約に書くこと。**
 
 ✅ **v4 は実機（M5Stack CoreS3）で漢字を喋った**（[`docs/measurements.md`](docs/measurements.md) M-124）。
-満チャンク 1 pull の **xRT 0.474**（v1.1.0 までは 0.448。RAM を詰めた分）/ アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**。
+満チャンク 1 pull の **xRT 0.474**（v1.1.0 までは 0.448。RAM を詰めた分）/ アンダーラン **0** / **漢字で書いてもかなで書いても PCM が bit 一致**。⚠️ **この 3 つは arena 151,552 B のときの実測**（[M-142](docs/measurements.md#m-142)）で、**MEM-7 / MEM-8 の後は実機で測っていない**（PCM はホストで bit 一致 = [M-145](docs/measurements.md#m-145)）。
 ⚠️ **聴取は 18/24 文・対照つき・1 名・盲検なしまで**（G32 は未達。[`docs/measurements.md`](docs/measurements.md) M-135）。
 ⚠️ **焼いて確かめたのは M5 CoreS3 の 16 MB 版だけ**で、残る 9 本のイメージは
 **中身を照合しただけ**（4 MB / 2 MB / 8 MB の板が無い）。

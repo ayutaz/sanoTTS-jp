@@ -349,7 +349,7 @@ cd esp32/boards/m5unified && idf.py -B build_m58 -DSDKCONFIG=build_m58/sdkconfig
 |---|---:|---:|
 | 起動直後の内部 DRAM | free 104,112 B | free **132,031 B**（PSRAM を使うぶん多い） |
 | 漢字 G2P（53 ids） | — | **21.58 ms** |
-| **定常 xRT** | **0.445** | **0.474**（⚠️ v1.1.0 は 0.448。RAM を詰めた分） |
+| **定常 xRT** | **0.445** | **0.474**（⚠️ v1.1.0 は 0.448。RAM を詰めた分。⚠️ **MEM-7 / MEM-8 の後は実機未測定** = [M-144](../docs/measurements.md#m-144) / [M-145](../docs/measurements.md#m-145)） |
 | アンダーラン | **0 / 14** | **0 / 22・0 / 19** |
 | checksum（⚠️ **v3 での実測**） | `0xa69a7ebbb5ccb05f` | `0xa69a7ebb…`（⚠️ 先頭 8 桁のみ） |
 | checksum（**v4** = 配布中） | **`0x390bf4b2aef8f2ec`** | 同値（[M-124](../docs/measurements.md#m-124) / [M-130](../docs/measurements.md#m-130) で実機確認） |

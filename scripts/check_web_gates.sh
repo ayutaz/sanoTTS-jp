@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W トラック（ブラウザデモ）の受け入れゲート G-W1 〜 G-W9
+# W トラック（ブラウザデモ）の受け入れゲート G-W1 〜 G-W9b
 #
 #   bash scripts/check_web_gates.sh
 #
@@ -19,6 +19,9 @@
 #   G-W9  **出荷する `web/saan_web.c` の arena が `esp32/main/main.c` と同じ値**
 #         （M-142。README の「wasm も実機と同じ arena」を守る。それまで誰も見ていなかった）
 #                                                          陽性対照: 1 行消すと落ちる
+#   G-W9b **配るページ本文（`web/index.html`）が名乗る arena も同じ値**
+#         （M-145。⚠️ G-W9 が .c しか見ていなかったので、html の 180,224 B が
+#          **3 回の arena 変更を生き延びていた**）
 #   G-W1  wasm(fp32)         が golden.bin    と一致        陽性対照: 重みを壊すと落ちる
 #   G-W2  wasm(int8 / W8A32) が golden_i8.bin と一致        陽性対照: 同上
 #   G-W2b **ブラウザが通るストリーミング経路**が一括版と bit 一致
@@ -206,6 +209,17 @@ if [ -n "$ARENA_EXPR" ] && [ -n "$MAXIDS_EXPR" ]; then
         ok "G-W9 web/saan_web.c の arena $(( WEB_ARENA_EXPR )) B == esp32/main/main.c（-DSAAN_KANJI=1）"
     else
         ng "G-W9 web/saan_web.c の arena $(( WEB_ARENA_EXPR )) B != esp32/main/main.c（-DSAAN_KANJI=1）の $(( KJ_ARENA_EXPR )) B"
+    fi
+    # --- G-W9b: 配るページ本文が名乗る arena も同じ値か（M-145）-------------
+    # ⚠️ **ここが穴だった。** G-W9 は `web/saan_web.c` しか見ていなかったので、
+    #    `web/index.html` の「ESP32 と同じ 180,224 B の arena」が
+    #    **M-140 / M-142 / M-144 の 3 回の変更を生き延びていた**（= 読者が最初に読む文が嘘）。
+    #    数値を 1 か所でも手で書くなら、それを見るゲートが要る（C-091 と同じ形）。
+    HTML_ARENA="$(sed -n "s/.*ESP32 と同じ \([0-9,]*\) B の arena.*/\1/p" web/index.html | tr -d ,)"
+    if [ -n "$HTML_ARENA" ] && [ "$HTML_ARENA" -eq "$(( KJ_ARENA_EXPR ))" ]; then
+        ok "G-W9b web/index.html が名乗る arena $HTML_ARENA B == esp32/main/main.c（-DSAAN_KANJI=1）"
+    else
+        ng "G-W9b web/index.html が名乗る arena ${HTML_ARENA:-（取れない）} B != $(( KJ_ARENA_EXPR )) B"
     fi
 else
     ng "SAAN_ARENA_BYTES / SAAN_MAX_IDS を esp32/main/main.c から取れない"

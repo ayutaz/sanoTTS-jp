@@ -160,8 +160,11 @@ static int32_t g_ids[SAAN_WEB_IDS_CAP];
  * ⚠️ wasm は境界例外を出さない（線形メモリの中ならただ読める）。**手元では動いてしまう。** */
 static char g_text[SAAN_WEB_TEXT_MAX + 1];
 
-/* pull 1 回ぶんの受け皿。`main.c` の `g_chunk` と同じ理由でスタックに置かない
- * （`saan_irfft_1024` が自動変数だけで 4 KB 使う）。 */
+/* pull 1 回ぶんの受け皿。スタックに置かない（`saan_irfft_1024` が自動変数だけで 4 KB 使う）。
+ * ⚠️ **`esp32/main/main.c` の同名の配列は消えた**（MEM-8。[M-145](../docs/measurements.md#m-145)）—
+ *    あちらは `saan_stream_pull_ptr` で `obuf` の中を直接読む。
+ *    **web はコピー版 `saan_stream_pull` のまま**にしてある（ブラウザの RAM は制約でなく、
+ *    `g_pcm` に積み上げる形なので得が無い = [D-068](../docs/decisions.md#d-068)）。 */
 static float g_chunk[SAAN_CHUNK * SAAN_HOP];
 
 static saan_weights g_w;

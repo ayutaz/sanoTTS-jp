@@ -178,7 +178,7 @@ code { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; fo
   <li><strong>経路（かな / 辞書 / 拒否）は wasm の中が決めています。</strong>
       JavaScript は打たれた文字列をそのまま渡すだけで、「ひらがなだから」のような判定を一切持ちません
       （ホストと端末で同じ列が出ることを、リポジトリのゲートが守っています）。</li>
-  <li>合成の作業領域は <strong>ESP32 と同じ 180,224 B の arena</strong> に固定してあります。
+  <li>合成の作業領域は <strong>ESP32 と同じ 139,264 B の arena</strong> に固定してあります。
       ブラウザなら緩められますが、同じ枠で動くこと自体が「MCU に載る」の証拠になるので緩めていません。</li>
   <li>成果物は今も ESP32 の 567 K パラメータのモデルです。<strong>Web は触れる入口でしかありません。</strong></li>
 </ul>
