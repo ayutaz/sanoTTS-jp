@@ -86,6 +86,21 @@ saan_status saan_stream_init(saan_stream *st, const saan_weights *w,
  * `pcm` は少なくとも SAAN_CHUNK * SAAN_HOP サンプルぶん必要 */
 saan_status saan_stream_pull(saan_stream *st, float *pcm, int32_t *n_out);
 
+/* MEM-8: **コピーせず出力リングの中を指して返す。**
+ *
+ * **なぜ在るか。** 呼び出し側の `float [SAAN_CHUNK * SAAN_HOP]`（**8,192 B**）は
+ * `obuf` からの `memcpy` 先にしか使っていなかった（`step_chunk` は引数を
+ * 受け取るだけで一度も触っていなかった）。ポインタで返せば**その 8,192 B が丸ごと要らない**。
+ * ESP32 の雛形では `.bss` の `g_chunk` がこれで消える（[M-145](../docs/measurements.md#m-145)）。
+ *
+ * ⚠️ **返ったポインタは次に `pull` / `pull_ptr` を呼ぶまでだけ有効**（そこで詰め直す）。
+ *    端末の消費者は 2 つとも即座に int16 へ変換してコピーするので問題ない。
+ *    **保持したい呼び出し側はコピー版を使うこと。**
+ * ⚠️ **`st->emitted` は返した分をまだ含まない**（次の呼び出しの先頭で進む）。
+ *    n=0 が返る最後の呼び出しで退けるので、ループを抜けた後の値は正しい。
+ * ⚠️ **サンプル列はコピー版と bit 一致する**（`make -C csrc pullptr` の G-PP1〜3）。 */
+saan_status saan_stream_pull_ptr(saan_stream *st, const float **pcm, int32_t *n_out);
+
 /* この発話で必要な arena のバイト数（**発話長に依存しない部分**と
  * ids に比例する部分の合計）。G3 の確認に使う */
 size_t saan_stream_arena_needed(int32_t n_ids);
@@ -102,5 +117,23 @@ size_t saan_stream_arena_needed(int32_t n_ids);
  * ⚠️ **確保の一覧を 2 回書いている**（stream_init_body とこの関数）。片方だけ変えると
  *    `make -C csrc arena` の §5（実測 a.used との bit 一致、陽性対照つき）が落ちる。 */
 size_t saan_stream_arena_used(int32_t n_ids);
+
+/* init の途中も含めた**本当のピーク**
+ * = max(duration フェーズ, `saan_stream_arena_used()` + conv の act 作業領域)。
+ *
+ * ⚠️ **arena を詰めるときに見るのはこちら**（[C-100](../docs/decisions.md#c-100)）。
+ *    `saan_stream_arena_used()` は init 後の値で、**2 つを含まない**:
+ *      (1) init の途中で duration net が取って返す一時領域
+ *          （⚠️ **MEM-7 の前は 350 ids で 134,400 B。いまは窓分割したので `SAAN_DUR_K` で
+ *          決まる定数に近い** = K=128 で最大 63,840 B。[M-144](../docs/measurements.md#m-144)）
+ *      (2) **conv が arena の上に取ってすぐ返す activation 作業領域**（W8A8 で 2,464 B）
+ *          — ⚠️ **これは `arena_peak` にも入っていなかった**（[C-102](../docs/decisions.md#c-102)）。
+ *          MEM-7 の前は (1) が大きくて偶然に安全側だったので出なかった。
+ * ⚠️ **実機のログで確かめるなら「結果」ブロックの「arena 高水位（発話後）」を見る。**
+ *    init 直後に出る `peak` は **pull を 1 度も通っていない**ので (2) を含まない。
+ * ⚠️ **`make -C csrc dur` の G-DUR4 が 6 点 × 2 レーンで実測の `a.peak` と突き合わせる。**
+ *    ⚠️ **1 点だけで突き合わせないこと** — 長さで支配項が入れ替わると、
+ *    支配していない方の誤りが隠れる（C-102 がまさにそれ）。 */
+size_t saan_stream_arena_peak(int32_t n_ids);
 
 #endif /* SAANOTTS_STREAM_H */

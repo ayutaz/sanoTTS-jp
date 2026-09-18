@@ -23,7 +23,9 @@
 #include "label_ids.h" /* LABEL_IDS_SCRATCH_BYTES（T10(a) で arena へ移した分） */
 
 /* 作業領域の寸法。⚠️ **saan_kanji_workbytes() と 1:1**（関数はこの式をそのまま返す）。
- * マクロで持つのは、雛形（esp32/main/main.c）が `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + 14,464`
+ * マクロで持つのは、雛形（esp32/main/main.c）が `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES`
+ * （⚠️ **「+ 14,464」と書いてあったのは T10(a) の前の形。** その 14,464 B は
+ *  WORKBYTES の中に入ったので、足すと二重計上になる = `SAAN_KANJI_T10_BSS_BYTES` は `0u`）
  * をコンパイル時に検査し、scripts/check_esp32_template.sh がホストで同じ式を評価するため（計画 T4）。
  *
  * ⚠️ **Viterbi の作業領域は 32 KB あれば held-out 298 文すべてで足りる**
@@ -97,14 +99,46 @@
 #define SAAN_KANJI_K7_SCRATCH ((size_t)0)
 #endif
 
+/* 素性文字列を並べる本数。⚠️ **`SAAN_KANJI_MAX_TOK`(96) ではなく
+ * `SAAN_KANJI_MAX_INPUT_TOK`(44)。** `saan_kanji_to_ids` は
+ * `nt > SAAN_KANJI_MAX_INPUT_TOK` を**素性を作る前に**弾くので、
+ * `nf ≤ nt ≤ 44` がコードで保証されている（96 本目は 1 度も書かれない）。
+ * 96 × 320 = 30,720 B → 44 × 320 = **14,080 B**（−16,640。M-140）。
+ * ⚠️ **NJD 段の `s_k4` は 96 のまま** — `njd_set_digit` がノードを増やすので、
+ *    そちらは入力の形態素数では縛れない（[M-98](measurements.md#m-98) の注記と同じ理由）。 */
+#define SAAN_KANJI_FEAT_TOK   SAAN_KANJI_MAX_INPUT_TOK
+
 #define SAAN_KANJI_WORKBYTES \
-    (SAAN_KANJI_A16((size_t)SAAN_KANJI_MAX_TOK * SAAN_KANJI_FEAT_MAX) \
+    (SAAN_KANJI_A16((size_t)SAAN_KANJI_FEAT_TOK * SAAN_KANJI_FEAT_MAX) \
      + SAAN_KANJI_A16(sizeof(accent_node_t) * SAAN_KANJI_MAX_TOK) \
      + SAAN_KANJI_A16((size_t)SAAN_KANJI_KEY_MAX) \
      + SAAN_KANJI_A16(sizeof(jdict_token_t) * SAAN_KANJI_MAX_TOK) \
      + SAAN_KANJI_A16(sizeof(const char *) * SAAN_KANJI_MAX_LABEL) \
      + SAAN_KANJI_A16(SAAN_KANJI_K7_SCRATCH) \
      + SAAN_KANJI_VITERBI_N)
+
+/* --- 高水位（M-141 の材料）------------------------------------------------
+ *
+ * `s_k4`（`accent_node_t` 524 B × 96 = **50,304 B**）は漢字経路の最大項だが、
+ * **実際にいくつ使われるかを誰も測っていなかった**。寸法を決めているのは
+ *   - ノード数 `SAAN_KANJI_MAX_TOK` 96（`njd_set_digit` がノードを増やすので
+ *     入力の形態素数では縛れない = [M-98](measurements.md#m-98)）
+ *   - 文字列幅 `ACCENT_STR_MAX` 64 / `ACCENT_PRON_MAX` 128
+ * の 2 つで、**どちらも根拠が「余裕を見た値」**である。
+ *
+ * ⚠️ **これは測定用であって上限の代わりにはならない。** 見た入力での最大に
+ *    すぎないので、寸法を下げる判断には「何文見たか」を必ず添えること。 */
+typedef struct {
+    int n_utt;          /* 見た発話数 */
+    int nt;             /* 形態素（Viterbi の出力） */
+    int nf;             /* 素性（≤ nt ≤ SAAN_KANJI_MAX_INPUT_TOK） */
+    int nk;             /* **NJD ノード**（s_k4 の本数） */
+    int nl;             /* ラベル（s_lab の本数） */
+    int pos, ctype, cform, orig, pron, read;   /* 各フィールドの最長（バイト・NUL 除く） */
+} saan_kanji_hwm_t;
+
+/* 累積の高水位。起動から今までの最大。NULL は返さない。 */
+const saan_kanji_hwm_t *saan_kanji_hwm(void);
 
 typedef enum {
     SAAN_KANJI_OK = 0,

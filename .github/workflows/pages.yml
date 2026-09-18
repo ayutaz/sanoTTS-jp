@@ -60,7 +60,7 @@ env:
 
 jobs:
   build:
-    name: ビルドとゲート（wasm ゲート 8 本）
+    name: ビルドとゲート（wasm ゲート 10 本）
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -170,7 +170,7 @@ jobs:
           test "$(wc -c < csrc/student_i8.bin)" -eq 654032
           test "$(wc -c < csrc/golden_i8.bin)"  -eq 794240
 
-      - name: wasm ゲート 8 本（帰属ブロック・golden 一致・ストリーミング経路・SIMD の bit 一致・経路判定・fp32 拒否・出荷バイナリの実行）
+      - name: wasm ゲート 10 本（帰属ブロック・arena の突き合わせ 2 本・golden 一致・ストリーミング経路・SIMD の bit 一致・経路判定・fp32 拒否・出荷バイナリの実行）
         env:
           PYTHON: uv run --no-project --python 3.12 python
         run: |

@@ -23,7 +23,7 @@
 **アクセントのミニマルペア**（`reports/d4_accent/`）です。
 
 **2 の手順は [`esp32/TESTING.md`](esp32/TESTING.md)。所要 15〜30 分・DAC は不要です。**
-速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.448**。v4 の実機 = M-130）が、
+速度の要件（RTF ≤ 0.5）は M5Stack CoreS3 で満たしました（満チャンク xRT **0.474**。M-142。⚠️ v1.1.0 は 0.448。⚠️ **MEM-7 / MEM-8 の後は実機未測定** = M-144 / M-145）が、
 **測ったのは 1 枚の板だけ**です。別の ESP32-S3（AtomS3 / DevKit / Core2 …）での実測を歓迎します。
 ✅ **`v1.0.0` の配布イメージは高速化後のコード**なので、焼くだけで測れます。
 native USB だけの板（CoreS3 / AtomS3）は **`-usbjtag` の版**を選んでください。
@@ -44,7 +44,7 @@ n が小さいときは **n と信頼区間を数値の隣に**書いてくだ�
 
 ### 2. 訂正履歴を消さない
 
-[`docs/decisions.md`](docs/decisions.md) の C-001〜C-097 は
+[`docs/decisions.md`](docs/decisions.md) の C-001〜C-108 は
 **「1 コマンド打てば分かることを、打たずに推論した」種類の誤り**の記録です。
 古い記述を直すときは、**上書きではなく C-番号として残して**ください。
 
@@ -97,6 +97,8 @@ uv run python scripts/check_lock_vs_pyproject.py    # pyproject の制約を uv.
 uv run python scripts/check_lock_vs_pyproject.py --self-test   #   ↑ の陽性対照 6 / 陰性対照 2
 make -C csrc line && make -C csrc fft && make -C csrc erf   # C コアの軽いゲート（erf = GELU の近似）
 make -C csrc range                                  # 出力範囲つきカーネル（S9）が全域版と bit 一致
+make -C csrc dur                                    # MEM-7 duration net の窓分割（K 不変 / 陽性対照 3 本）
+make -C csrc pullptr                                # MEM-8 pull_ptr がコピー版と同じ列を出すか（陽性対照つき）
 uv run python scripts/build_arduino_lib.py --self-test   # Arduino ライブラリの生成器（陽性対照 7 件）
 uv run python scripts/build_arduino_lib.py --check       # G-AR1 生成物が csrc の逐語か
 ```
@@ -160,7 +162,7 @@ Still entirely unlistened: the **12 pairs in `reports/k8_listen/`** (where dicti
 changes a reading) and the **accent minimal pairs** in `reports/d4_accent/`.
 
 Instructions for 2: [`esp32/TESTING.md`](esp32/TESTING.md) — 15–30 minutes, no DAC required.
-The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.448** on v4
+The RTF ≤ 0.5 requirement is met on an M5Stack CoreS3 (full-chunk xRT **0.474**; it was 0.448 on v4
 hardware, M-130), but **that is one board**; measurements on any other ESP32-S3 are welcome.
 ✅ **The `v1.0.0` images carry the reworked code**, so flashing is enough to measure it; pick
 the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
@@ -171,7 +173,7 @@ the **`-usbjtag`** variant on a native-USB-only board (CoreS3 / AtomS3).
 1. **Never write a guess as a number.** If it was not measured, say "not measured".
    Every entry in [`docs/measurements.md`](docs/measurements.md) carries a reproduction
    command; add yours the same way, and report n with a confidence interval when n is small.
-2. **Never delete the correction log.** C-001–C-097 in
+2. **Never delete the correction log.** C-001–C-108 in
    [`docs/decisions.md`](docs/decisions.md) record errors of the form "one command would
    have answered this". Correct by appending a new C entry, not by overwriting.
 3. **Do not write a gate you cannot break on purpose.** Twenty-two defects hid behind green tests
@@ -198,6 +200,8 @@ uv run python scripts/test_blob_to_header.py        # blob → .rodata header (p
 uv run python scripts/check_lock_vs_pyproject.py    # uv.lock satisfies the constraints in pyproject.toml
 make -C csrc line && make -C csrc fft && make -C csrc erf   # cheap C-core gates (erf = GELU approximation)
 make -C csrc range                                  # range-limited kernels (S9) match the full-range ones bit for bit
+make -C csrc dur                                    # MEM-7 windowed duration net (K-invariant; 3 positive controls)
+make -C csrc pullptr                                # MEM-8 pull_ptr emits the same stream as the copying version
 ```
 
 Two families of gates are **not** in `make -C csrc all-test` because they need external

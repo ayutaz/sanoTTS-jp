@@ -446,7 +446,7 @@ USB Serial/JTAG ドライバの RX リング（既定 256 B）が溢れて**途�
 **[Issue](https://github.com/ayutaz/sanoTTS-jp/issues/new) に
 `idf.py monitor` のログを丸ごと**貼ってもらえれば十分です
 （ボード名と ESP-IDF のバージョンも書いてもらえると助かります）。
-特に見たいのはこの 5 行:
+特に見たいのはこの 6 行:
 
 ```
 I (xxx) saanotts: 定常 xRT = ?.???（満チャンク pull の中央値 / 92.88 ms）
@@ -454,7 +454,24 @@ I (xxx) saanotts: 合成合計 ???.?? ms ... / 音声 ?.??? s → 合成/音声 
 I (xxx) saanotts: アンダーラン N / M チャンク
 I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 I (xxx) saanotts: 起動直後: 内部 DRAM free ????? B / 最大ブロック ????? B
+I (xxx) saanotts: arena 高水位（発話後）????? B / arena_peak(??) の予測 ????? B / 確保 ????? B（余り ????? B）
 ```
+
+⚠️ **6 行めは 2026-09-18 に足した**（[C-102](../docs/decisions.md#c-102)）。**init 直後に出る `peak` を見てはいけない** —
+あれは **pull を 1 度も通っていない**ので、conv が arena の上に取る activation 作業領域
+（W8A8 で 2,464 B）を含まず、**下限を 2,464 B 小さく見せる**。
+
+⚠️⚠️ **MEM-7 / MEM-8（[M-144](../docs/measurements.md#m-144) / [M-145](../docs/measurements.md#m-145)）は
+まだ実機で 1 行も測れていない**（残タスク #20）。**この 6 行がまさにそれを埋める。**
+見るべき比較対象:
+
+| ログ | 直近の実測（arena 151,552 B のとき = M-142） |
+|---|---|
+| PCM FNV-1a | **`0x760cad1c8429dd5e`**（`reports/m142_ram/dev_readme.log`）。**変わったら PCM が動いた = 重大** |
+| 定常 xRT | 0.474（要件 ≤ 0.5） |
+| アンダーラン | 0 |
+| 鳴らし始めまで | 364〜374 ms（要件 ≤ 0.8 s） |
+| 内部 DRAM free | 160,639 B / 最大ブロック 114,688 B（**arena を詰めたぶん増える見込み**） |
 
 ### 期待値と、それぞれが何を意味するか
 
@@ -590,7 +607,7 @@ I (xxx) saanotts: 出力 PCM: 27136 sample / FNV-1a 0x????????????????
 
 - `model` パーティションの mmap と 16 バイト境界 ✅（実機も）
 - 端末側 G2P が 53 ids を出し、ホストの答えと**完全一致** ✅（実機で 0.102 ms）
-- `saan_stream_init` / arena 180,224 B / 合成 106 frames = 27,136 sample ✅（実機の used 157,360 B）
+- `saan_stream_init` / arena 139,264 B（漢字構成。かな構成は 118,784 B）/ 合成 106 frames = 27,136 sample ✅（実機の used 110,592 B。M-142。⚠️ **arena は M-144 で変わったが実機では未測定**）
 - **PIE カーネルがスカラ実装と bit 完全一致**（同一ターゲット・全 27,136 sample） ✅
 - **シリアルからの自由入力** ✅ QEMU の UART0（M-63）と**実機の USB Serial/JTAG**（M-83 以降）
 - **漢字経路**（辞書 13.7 MB の mmap → 形態素解析 → 合成）✅ QEMU（M-76）と**実機**（M-83 / M-86 / M-90）

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# W トラック（ブラウザデモ）の受け入れゲート G-W1 〜 G-W7
+# W トラック（ブラウザデモ）の受け入れゲート G-W1 〜 G-W9b
 #
 #   bash scripts/check_web_gates.sh
 #
@@ -16,7 +16,12 @@
 #
 # ゲートの中身:
 #   G-W7  帰属ブロックが LICENSE-MODEL.md §3.1 と一字一句一致
+#   G-W9  **出荷する `web/saan_web.c` の arena が `esp32/main/main.c` と同じ値**
+#         （M-142。README の「wasm も実機と同じ arena」を守る。それまで誰も見ていなかった）
 #                                                          陽性対照: 1 行消すと落ちる
+#   G-W9b **配るページ本文（`web/index.html`）が名乗る arena も同じ値**
+#         （M-145。⚠️ G-W9 が .c しか見ていなかったので、html の 180,224 B が
+#          **3 回の arena 変更を生き延びていた**）
 #   G-W1  wasm(fp32)         が golden.bin    と一致        陽性対照: 重みを壊すと落ちる
 #   G-W2  wasm(int8 / W8A32) が golden_i8.bin と一致        陽性対照: 同上
 #   G-W2b **ブラウザが通るストリーミング経路**が一括版と bit 一致
@@ -188,6 +193,34 @@ if [ -n "$ARENA_EXPR" ] && [ -n "$MAXIDS_EXPR" ]; then
     ARENA_B="$(( ARENA_EXPR ))"
     MAXIDS_N="$(( MAXIDS_EXPR ))"
     ok "esp32/main/main.c から arena $ARENA_B B / SAAN_MAX_IDS $MAXIDS_N"
+    # --- G-W9: 出荷する wasm の arena が main.c と同じか（M-142）-------------
+    # ⚠️ **それまで誰も見ていなかった。** 上の ARENA_B は**棒（probe）に渡す値**で、
+    #    実際に配る `web/saan_web.c` は**自分の #define を持っている**。176 KB どうしで
+    #    偶然一致していただけなので、main.c を詰めた瞬間に食い違う
+    #    （README の「wasm も実機と同じ arena」が嘘になる）。C-099 と同じ形。
+    # ⚠️ **突き合わせる相手は `-DSAAN_KANJI=1` 側**（M-144 で main.c の既定が構成で
+    #    分かれた: かな 116 KB / 漢字 136 KB）。web は漢字経路を持つので漢字側が正。
+    #    上の $ARENA_B は棒に渡す値（かな側）なので、ここでは別に取り直す。
+    KJ_ARENA_EXPR="$(cc -E -dM -I esp32/host_stub -I esp32/main -I csrc -DSAAN_KANJI=1 \
+                     esp32/main/main.c 2>/dev/null | sed -n 's/^#define SAAN_ARENA_BYTES //p')"
+    WEB_ARENA_EXPR="$(sed -n 's/^#define SAAN_ARENA_BYTES //p' web/saan_web.c)"
+    if [ -n "$WEB_ARENA_EXPR" ] && [ -n "$KJ_ARENA_EXPR" ] \
+       && [ "$(( WEB_ARENA_EXPR ))" -eq "$(( KJ_ARENA_EXPR ))" ]; then
+        ok "G-W9 web/saan_web.c の arena $(( WEB_ARENA_EXPR )) B == esp32/main/main.c（-DSAAN_KANJI=1）"
+    else
+        ng "G-W9 web/saan_web.c の arena $(( WEB_ARENA_EXPR )) B != esp32/main/main.c（-DSAAN_KANJI=1）の $(( KJ_ARENA_EXPR )) B"
+    fi
+    # --- G-W9b: 配るページ本文が名乗る arena も同じ値か（M-145）-------------
+    # ⚠️ **ここが穴だった。** G-W9 は `web/saan_web.c` しか見ていなかったので、
+    #    `web/index.html` の「ESP32 と同じ 180,224 B の arena」が
+    #    **M-140 / M-142 / M-144 の 3 回の変更を生き延びていた**（= 読者が最初に読む文が嘘）。
+    #    数値を 1 か所でも手で書くなら、それを見るゲートが要る（C-091 と同じ形）。
+    HTML_ARENA="$(sed -n "s/.*ESP32 と同じ \([0-9,]*\) B の arena.*/\1/p" web/index.html | tr -d ,)"
+    if [ -n "$HTML_ARENA" ] && [ "$HTML_ARENA" -eq "$(( KJ_ARENA_EXPR ))" ]; then
+        ok "G-W9b web/index.html が名乗る arena $HTML_ARENA B == esp32/main/main.c（-DSAAN_KANJI=1）"
+    else
+        ng "G-W9b web/index.html が名乗る arena ${HTML_ARENA:-（取れない）} B != $(( KJ_ARENA_EXPR )) B"
+    fi
 else
     ng "SAAN_ARENA_BYTES / SAAN_MAX_IDS を esp32/main/main.c から取れない"
     printf '\033[1mNG: 前提が揃っていない。\033[0m\n'
@@ -276,7 +309,7 @@ hdr "3b. G-W2b ブラウザが通るストリーミング経路が一括版と b
 #    「同じカーネルを 2 回書かない」と同じ理由で**同じ判定を 2 か所に書かない**ため。
 # ⚠️ **`--g1-kb 176` は W8A8 だけ**（`csrc/Makefile` の `stream` と同じ渡し方）。
 #    M-55 の activation 作業領域で 200 KB を超えるのが分かっているレーンなので、
-#    実機の静的 arena（`esp32/main/main.c` の 176 KB）を上限にする。
+#    実機の静的 arena（`esp32/main/main.c` の漢字側 = 136 KB）を上限にする。
 #    ⚠️ 既定の 200 KB を全レーンで緩めない（fp32 / W8A32 を黙って甘くしないため）。
 if $EMCC $EMFLAGS -o "$TMP/stream_test.js" csrc/stream_test.c $CORE -lm 2> "$TMP/b2b" \
    && $EMCC $EMFLAGS -DSAAN_INT8_ACT=1 -o "$TMP/stream_test_a8.js" csrc/stream_test.c $CORE -lm 2>> "$TMP/b2b"; then

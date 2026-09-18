@@ -92,6 +92,20 @@ if(SAAN_KANJI)
     # ⚠️ **saan_kanji.c が label_ids_set_scratch() を必ず呼ぶ前提**。呼ばずに
     #    label_ids_convert() を叩くと LABEL_IDS_ERR_ARG で**止まる**（黙って動かない）。
     target_compile_definitions(${COMPONENT_LIB} PUBLIC LABEL_IDS_EXTERNAL_SCRATCH=1)
+
+    # トークン表の本数。⚠️ **既定 640 は端末には過大**（M-79 の 3.6 倍の余裕）。
+    # 入力が 44 形態素に縛られた今（SAAN_KANJI_MAX_INPUT_TOK。M-98）、
+    # 実際に要るのは 200 前後で、M-79 は 256 でも held-out 298/298 一致・
+    # **128 で 273/298 に落ちる**ことを陽性対照として測ってある。
+    # 256 = 4,096 B（640 の 10,240 B から −6,144。M-140）。
+    # ⚠️ **溢れても黙って切り詰めない**（M-79 で K7_ERR_OVERFLOW を返すようにした）。
+    if(NOT DEFINED SAAN_LABEL_IDS_MAX_TOKENS)
+        set(SAAN_LABEL_IDS_MAX_TOKENS 256)
+    endif()
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC
+                               LABEL_IDS_MAX_TOKENS=${SAAN_LABEL_IDS_MAX_TOKENS})
+    message(STATUS "sanoTTS: K-7 トークン表 ${SAAN_LABEL_IDS_MAX_TOKENS} 本"
+                   "（× 16 B。既定 640 から詰めてある）")
 endif()
 
 # ℹ️ **かつて「-std=c99 を足すな」と書いていたが、もう地雷ではない。**
@@ -132,6 +146,29 @@ target_compile_definitions(${COMPONENT_LIB} PRIVATE "SAAN_PORT_HEADER=\"saan_por
 if(SAAN_PROFILE)
     target_compile_definitions(${COMPONENT_LIB} PRIVATE SAAN_PROFILE=1)
     message(STATUS "sanoTTS: 段別プロファイラ **有効**（速度の報告には使わない）")
+endif()
+
+# --- MEM-5: hout の計算粒度（既定 4 = csrc/saanotts_stream.c）-----------------
+#
+#     idf.py -DSAAN_MEM_HEAD_PF=0 build   # 元に戻す（arena も 180224 に戻すこと）
+#
+# ⚠️ **PUBLIC で定義する。** `saan_stream_arena_used()` の値が変わるので、
+#    雛形（main.c）の二重防御がコアと同じ値を見る必要がある。
+#    PRIVATE にすると main 側だけ旧い値を期待して「a.used が足りない」で止まる。
+# 速度の代償は実機で測ってある（M-139 §6。粒度 4 が折衷点）。
+# ⚠️ **値をそのまま渡すこと。** `=1` と書き潰すと `-DSAAN_MEM_HEAD_PF=2` が
+#    黙って 1 として効き、**arena も速度も 1 列版のまま**になる（実際に踏んだ。
+#    起動ログの `arena used` が粒度で変わらないので気づけた）。
+# ⚠️ **既定はここに持たない。** 既定 4 は `csrc/saanotts_stream.c` の `#ifndef` にある。
+#    ESP-IDF / wasm / Arduino の 3 経路が全部その 1 行を見るので、**ここに既定を置くと
+#    wasm と Arduino だけ別の値になる**（C-099 と同じ形）。ここは `-D` の中継だけ。
+#    0 を渡すと元の「CH 列まとめて」に戻る（`-DSAAN_ARENA_BYTES=180224` も一緒に戻すこと。
+#    main.c が起動時に検査して足りなければ止める）。
+if(DEFINED SAAN_MEM_HEAD_PF)
+    target_compile_definitions(${COMPONENT_LIB} PUBLIC SAAN_MEM_HEAD_PF=${SAAN_MEM_HEAD_PF})
+    message(STATUS "sanoTTS: MEM-5 — hout を ${SAAN_MEM_HEAD_PF} 列ずつ（arena を詰める）")
+else()
+    message(STATUS "sanoTTS: MEM-5 は csrc の既定（4 列）。変えるなら -DSAAN_MEM_HEAD_PF=<列数>")
 endif()
 
 # --- PIE（ESP32-S3 の整数 SIMD）-------------------------------------------

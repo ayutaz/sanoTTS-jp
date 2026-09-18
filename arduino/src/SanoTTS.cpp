@@ -5,8 +5,9 @@
  *
  *   1. 経路は `saan_g2p_classify()` の 3 値で決める。**拒否はそのまま拒否する**
  *      （読めない文字を黙って落とすのがこの入力仕様の一番危ない壊れ方）
- *   2. arena は 176 KB の静的確保。`saan_stream_arena_needed()` の戻り値を使わない
- *      （あれは緩い上限で n_ids=350 に 296 KB を返す）
+ *   2. arena は 136 KB の静的確保。`saan_stream_arena_needed()` の戻り値を使わない
+ *      （あれは緩い上限で n_ids=350 に 250.7 KB を返す）。見るのは
+ *      `saan_stream_arena_peak(350)` = 116,592 B（W8A8・ホスト。C-100 / C-102。⚠️ MEM-7 の前は 149,824 B）
  *   3. `saan_stream_init` が OK でも `a.used` を期待値と突き合わせる
  *      （黙った確保失敗の二重防御。外すと pull の中で NULL 書き込み → ログ無しで再起動）
  *   4. `n_ids > 350` は喋らずに拒否する（分布外の音を黙って出さない）
@@ -34,10 +35,16 @@ extern "C" {
 
 /* --- arena ----------------------------------------------------------------
  *
- * 176 KB (180,224 B)。⚠️ **この値の根拠は実測**（`make -C csrc arena` / `stream`）:
- * n_ids=350 の最小 arena 160,768 B（W8A32）/ W8A8 の高水位 ≈ 158.9 KB。
+ * 136 KB (139,264 B)。⚠️ **この値の根拠は実測**（`make -C csrc arena` の 2 レーン）:
+ * MEM-7（duration net の窓分割。M-143 / M-144）で n_ids=350 の
+ * `saan_stream_arena_peak` は W8A32 **114,128 B** / W8A8 **116,592 B** まで下がった
+ * （どちらもホストの sizeof）。⚠️ **`arena_used()` を下限だと思わないこと** —
+ * conv が上に取る activation 作業領域 2,464 B を含まない（C-100 / C-102）。
+ * ⚠️ **合成だけなら 116 KB で足りる。136 KB は漢字経路の Viterbi のため**
+ * （`SAAN_KANJI_KEY_MAX` の鍵を受けるのに prefix + 64·(KEY_MAX+1) = 138,304 B。C-101）。
+ * **このライブラリは漢字を有効にできる**ので、どちらの構成でも安全な方を既定にしてある。
  * ⚠️ **漢字経路（Viterbi と NJD）はこの同じ arena を借りる。** 別に確保しない。 */
-#define SANOTTS_ARENA_BYTES (176 * 1024)
+#define SANOTTS_ARENA_BYTES (136 * 1024)   /* ⚠️ 下限は漢字 138,304 B（C-101）/ 合成 116,592 B */
 
 #if SANOTTS_ARENA_HEAP
 /* ⚠️ **16 バイト境界が要る**（PIE の SOC_SIMD_PREFERRED_DATA_ALIGNMENT）。
@@ -56,8 +63,13 @@ static_assert(SANOTTS_ARENA_BYTES >= SAAN_KANJI_WORKBYTES,
               "SANOTTS_ENABLE_KANJI=0 にすること");
 #endif
 
-/* ⚠️ **スタックに置かない。** `saan_irfft_1024` は自動変数だけで 4 KB 使う。 */
-static float   g_chunk[SAAN_CHUNK * SAAN_HOP];
+/* ⚠️ **スタックに置かない。** `saan_irfft_1024` は自動変数だけで 4 KB 使う。
+ *
+ * ⚠️ **`g_chunk`（float・8,192 B）は消えた**（MEM-8。[M-145](../../docs/measurements.md#m-145)）。
+ *    `saan_stream_pull_ptr` が出力リングの中を指して返すので、写し先が要らない。
+ *    ⚠️ **返ったポインタは次に pull を呼ぶまでだけ有効。** 下の 3 か所はどれも
+ *    **その場で `g_i16` へ変換**してから次に進むので問題ない。
+ *    **保持するコードを足すならコピー版 `saan_stream_pull` に戻すこと。** */
 static int16_t g_i16[SAAN_CHUNK * SAAN_HOP];
 
 /* ids の容量は `saan_g2p_capacity()` と同じ式（2 * バイト数 + 3）。 */
@@ -75,7 +87,7 @@ bool SanoTTS::begin() {
 
 #if SANOTTS_ARENA_HEAP
     if (!g_arena) {
-        /* ⚠️ **PSRAM を先に試す。** 内部 DRAM に 176 KB 取れる板ばかりではない。
+        /* ⚠️ **PSRAM を先に試す。** 内部 DRAM に 136 KB 取れる板ばかりではない。
          *    ⚠️ ただし PSRAM の arena は遅い（未測定）ので、速度を測るなら
          *    SANOTTS_ARENA_HEAP=0（静的）にすること。 */
         g_arena = (uint8_t*)heap_caps_aligned_alloc(
@@ -84,7 +96,7 @@ bool SanoTTS::begin() {
             g_arena = (uint8_t*)heap_caps_aligned_alloc(
                 16, SANOTTS_ARENA_BYTES, MALLOC_CAP_INTERNAL | MALLOC_CAP_8BIT);
         if (!g_arena) {
-            m_err = "arena 180,224 B を確保できない（PSRAM も内部 DRAM も）";
+            m_err = "arena 139,264 B を確保できない（PSRAM も内部 DRAM も）";
             return false;
         }
     }
@@ -209,13 +221,14 @@ bool SanoTTS::synthesize(const char* text, size_t nbytes, PcmCallback cb, void* 
 
     for (;;) {
         int32_t n = 0;
-        if (saan_stream_pull(&g_st, g_chunk, &n) != SAAN_OK) {
-            m_err = "saan_stream_pull が失敗した";
+        const float* chunk = NULL;
+        if (saan_stream_pull_ptr(&g_st, &chunk, &n) != SAAN_OK) {
+            m_err = "saan_stream_pull_ptr が失敗した";
             return false;
         }
         if (n <= 0) break;
         const size_t ns = (size_t)n * SAAN_HOP;
-        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(g_chunk[i]);
+        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
         if (cb) cb(g_i16, ns, user);
     }
     return true;
@@ -247,12 +260,13 @@ bool SanoTTS::say(const char* text, size_t nbytes) {
     size_t filled = 0;
     while (!eos && filled + (size_t)SAAN_CHUNK * SAAN_HOP <= preroll) {
         int32_t n = 0;
-        if (saan_stream_pull(&g_st, g_chunk, &n) != SAAN_OK) {
-            m_err = "saan_stream_pull が失敗した"; m_spk->stop(); return false;
+        const float* chunk = NULL;
+        if (saan_stream_pull_ptr(&g_st, &chunk, &n) != SAAN_OK) {
+            m_err = "saan_stream_pull_ptr が失敗した"; m_spk->stop(); return false;
         }
         if (n <= 0) { eos = true; break; }
         const size_t ns = (size_t)n * SAAN_HOP;
-        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(g_chunk[i]);
+        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
         if (!m_spk->prerollPush(g_i16, ns)) {
             m_err = "プリロールの容量が足りない（prerollSamples() を見直すこと）";
             m_spk->stop(); return false;
@@ -265,12 +279,13 @@ bool SanoTTS::say(const char* text, size_t nbytes) {
     /* --- 定常 ------------------------------------------------------------- */
     while (!eos) {
         int32_t n = 0;
-        if (saan_stream_pull(&g_st, g_chunk, &n) != SAAN_OK) {
-            m_err = "saan_stream_pull が失敗した"; break;
+        const float* chunk = NULL;
+        if (saan_stream_pull_ptr(&g_st, &chunk, &n) != SAAN_OK) {
+            m_err = "saan_stream_pull_ptr が失敗した"; break;
         }
         if (n <= 0) break;
         const size_t ns = (size_t)n * SAAN_HOP;
-        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(g_chunk[i]);
+        for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
         if (!m_spk->write(g_i16, ns)) { m_err = "スピーカーの write() が失敗した"; break; }
     }
 

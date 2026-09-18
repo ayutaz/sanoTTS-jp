@@ -163,6 +163,17 @@ jobs:
         run: make -C csrc int8
       - name: arena ストレス（黙った確保失敗の検出）
         run: make -C csrc arena
+      # ⚠️ **MEM-7 のゲート**（M-144 / D-067）。duration net の窓分割が log_d で bit 一致するか。
+      #    **PCM の checksum では守れない** — log_d は exp → round → clip[1,80] を通るので
+      #    窓の取り方を間違えても d_hat が変わらない文が多い（ハロー 11 で max|Δ| 0.005）。
+      #    ⚠️ K を 8 / 128 / 1024 でビルドして 2 レーン = 6 回走らせる（K はコンパイル時の値）。
+      - name: MEM-7 duration 窓分割（K 不変 / ハロー必要十分 / 陽性対照 3 本 / arena_peak の照合）
+        run: make -C csrc dur
+      # ⚠️ **MEM-8 のゲート**（M-145 / D-068）。pull_ptr が obuf の中を指して返すので、
+      #    詰め直しを次の呼び出しまで遅らせている。遅らせ方を間違えると
+      #    **同じフレームを 2 回出す / 1 回飛ばす** — どちらも「音は出る」形で壊れる。
+      - name: MEM-8 pull_ptr（列がコピー版と bit 一致 / ポインタの寿命の陽性対照）
+        run: make -C csrc pullptr
       # ⚠️ **陽性対照。** 重みを壊した blob でゲートが**落ちる**ことを見る。
       #    これが無いと「通った」が何も測っていないことを意味しうる（C-056 で実際に踏んだ:
       #    NaN が Pearson 1.0 / SNR inf に化けて PASS していた）。
@@ -279,7 +290,7 @@ jobs:
         run: uv run --no-project --python 3.12 python scripts/check_release_assets.py
 
   # ------------------------------------------------------------ wasm（W トラック）
-  # ブラウザデモ（`web/`）の受け入れゲート G-W1〜G-W7 を `scripts/check_web_gates.sh` で回す。
+  # ブラウザデモ（`web/`）の受け入れゲート G-W1〜G-W9b を `scripts/check_web_gates.sh` で回す。
   #
   # ⚠️ **訂正（審査 2026-09-04）。** この job は長らく `web/build.sh` を回しておらず、
   #    `pages.yml` は **push to main でしか走らない**ので、**PR では `web/` が 1 行も
@@ -372,7 +383,7 @@ jobs:
           set -u
           bash web/build.sh
 
-      - name: wasm ゲート G-W1〜G-W7（陽性対照つき）
+      - name: wasm ゲート G-W1〜G-W9b（陽性対照つき）
         env:
           # `csrc` job の `make g2p` と同じ渡し方。⚠️ Python は stdlib しか使わない
           PYTHON: uv run --no-project --python 3.12 python

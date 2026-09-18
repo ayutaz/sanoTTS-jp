@@ -14,7 +14,7 @@
 
 Nothing to install. **Type Japanese text with kanji and it speaks.**
 ⚠️ It is the **same C99 code that runs on the microcontroller**, compiled to WebAssembly
-(the arena is the same 180,224 B). It is not a replacement for piper-plus's WASM build —
+(the arena is the same 139,264 B). It is not a replacement for piper-plus's WASM build —
 it is a way to touch the code that runs on hardware ([D-050](docs/decisions.md#d-050)).
 Measured in Chrome at **0.008–0.019 ×RT** ([M-95](docs/measurements.md#m-95)).
 It has been listened to on **both lanes** — reported fine, no dropouts
@@ -33,26 +33,28 @@ run on the device.
 ```
 かな> 今日は良い天気ですね。
 saanotts: 経路: 辞書
-saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.77 ms
-saanotts: init 21.60 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
-saanotts: プリロール 4 チャンク完了（初回 pull 245.76 ms / 鳴らし始めまで 385 ms）
+saanotts: 漢字 G2P: 33 B -> 形態素 7 個 / ids 53 個 / 25.82 ms
+saanotts: init 21.50 ms / 53 ids / 106 frames / 27136 sample / 音声 1.231 s
+saanotts: プリロール 4 チャンク完了（初回 pull 222.87 ms / 鳴らし始めまで 364 ms）
   ...
-saanotts: 定常 xRT = 0.448（満チャンク pull の中央値 / 92.88 ms）
+saanotts: 定常 xRT = 0.474（満チャンク pull の中央値 / 92.88 ms）
 saanotts: アンダーラン 0 / 14 チャンク
 saanotts: 出力 PCM: 27136 sample / FNV-1a 0x390bf4b2aef8f2ec
 ```
 
 *Excerpted from the raw device log
-[`reports/m130_cores3/device_v4_kanji.log`](reports/m130_cores3/device_v4_kanji.log), with timestamps
+[`reports/m142_ram/dev_readme.log`](reports/m142_ram/dev_readme.log), with timestamps
 and caveat lines removed; `...` stands for 14 pulls.
-⚠️ The **v3** log is [`reports/m90_cores3/device_m5_kanji.log`](reports/m90_cores3/device_m5_kanji.log)
-— the checksum changes with the weights, so the two logs never agree.*
+⚠️ Up to **v1.1.0** the speed was xRT 0.448
+([`reports/m130_cores3/device_v4_kanji.log`](reports/m130_cores3/device_v4_kanji.log)) — it is slower now
+by exactly the amount of RAM that was reclaimed ([M-142](docs/measurements.md#m-142)).
+The checksum changes with the weights, so logs from different versions never agree.*
 
 | | |
 |---|---:|
 | Model | **559 K params**, **654,032 B** as int8 (flash) |
-| Runtime RAM | **157 KB** — 34% of the ESP32-S3's 512 KB SRAM |
-| Speed | **xRT 0.448** steady-state, one full-chunk pull (⚠️ **0.618–0.793** over a whole utterance). ⚠️ The requirement is the **steady-state** denominator ([D-049](docs/decisions.md#d-049)) |
+| Runtime RAM | **211,535 B of static DIRAM**, measured **on hardware** (M5 CoreS3, kanji build) — **61.9%** of the 341,760 B DIRAM pool; ⚠️ v1.1.0 was 232,015 B, so **−20,480**. **181,119 B** free at boot, largest block **131,072 B**. The measured per-utterance peak runs **113,072 B** (53 ids) to **115,056 B** (303 ids) and matches `saan_stream_arena_peak(n)` **exactly at all six lengths** ([M-147](docs/measurements.md#m-147)) |
+| Speed | **xRT 0.474** steady-state, one full-chunk pull (0.471–0.475 over 7 utterances; ⚠️ **0.522–0.741** over a whole utterance). ⚠️ The requirement is the **steady-state** denominator ([D-049](docs/decisions.md#d-049)) |
 | Quality | **64%** of the teacher (SCOREQ ratio **0.636** for v4; v3 scored 0.644 and **the difference is not detectable**). ⚠️ **A predictor's score, not a human ear** |
 | On-device G2P | **13.7 MB dictionary** with kanji, or an **877 B table** for kana only |
 

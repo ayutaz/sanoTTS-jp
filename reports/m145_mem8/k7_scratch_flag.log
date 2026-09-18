@@ -1,0 +1,17 @@
+C-107 の証拠: label_ids_test_ext が本当に別の経路をコンパイルしているか
+
+⚠️ **バイト一致では判定しない** — 出力パスなどビルドのメタ情報で差が出るので、
+   見るのは **どちらの分岐のシンボルが在るか**（label_ids.c の #if で切り替わる）:
+     .bss 分岐        -> s_tok_storage
+     呼び出し側の領域  -> label_ids_set_scratch
+
+label_ids_test         （通常版・.bss を期待）
+  -> _s_tok_storage 
+OLD                    （旧フラグ -DK7_EXTERNAL_SCRATCH=1。効かないので .bss になるはず）
+  -> _s_tok_storage 
+label_ids_test_ext     （新フラグ -DLABEL_IDS_EXTERNAL_SCRATCH=1）
+  -> _label_ids_set_scratch 
+
+結論: 旧フラグ版は **通常版と同じ .bss 分岐**をコンパイルしていた。
+      → G25b/G25c は「.bss 版を .bss 版と比べていた」= 空虚。
+      新フラグにすると label_ids_set_scratch 側になり、端末と同じ経路が走る。

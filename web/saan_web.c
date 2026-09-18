@@ -48,15 +48,22 @@
 
 /* --- 動作点（ESP32 と同じ値にそろえる）------------------------------------
  *
- * ⚠️ **arena はブラウザなら緩められるが、緩めない。** 同じ 176 KB で動くことが
+ * ⚠️ **arena はブラウザなら緩められるが、緩めない。** 同じ 136 KB で動くことが
  *    そのまま「MCU に載る」の証拠になる（計画 §1）。`esp32/main/main.c:129` と同値。
  *
  * ⚠️ **これは写し。** `main.c` は ESP-IDF のヘッダを include するので、この .c から
  *    そのまま `#include` できない（`saan_console.h` だけは IDF を引かないので上で include している）。
- * ⚠️ **ずれると何が起きるか**: web を大きくすると「176 KB で動く = MCU に載る」の証拠が
+ * ⚠️ **ずれると何が起きるか**: web を大きくすると「136 KB で動く = MCU に載る」の証拠が
  *    黙って崩れる（数字は出るし音も出るので気づけない）。小さくすると `SAAN_KANJI_WORKBYTES`
  *    を割った時点で**下の typedef がコンパイルを止める**（こちら側は静かには壊れない）。 */
-#define SAAN_ARENA_BYTES (176 * 1024)
+/* ⚠️ **`esp32/main/main.c` の `SAAN_ARENA_BYTES` と同じ値にすること。**
+ * README が「wasm も実機と同じ arena」と書いているので、ここが食い違うと
+ * その主張が嘘になる。`check_web_gates.sh` の G-W9 が 2 つを突き合わせる
+ * （それまで誰も見ていなかった = 176 KB どうしで偶然一致していただけ。M-142）。
+ * ⚠️ **main.c の既定は構成で分かれた**（M-144）— かな 116 KB / **漢字 136 KB**。
+ *    ここは漢字経路を持つので **136 KB（= `-DSAAN_KANJI=1` 側）**。G-W9 も
+ *    `-DSAAN_KANJI=1` で展開した値と突き合わせる。 */
+#define SAAN_ARENA_BYTES (136 * 1024)
 
 /* 受け付ける ids の上限。**arena の限界ではなく学習分布の上限**（`main.c:169` の同名 #define の写し）。
  * ⚠️ **`saan_kanji_to_ids()` は これを強制しない** — 109 文字で 582 ids を OK で返した
@@ -83,10 +90,13 @@
  *    arena へ移り、`SAAN_KANJI_WORKBYTES` の中に入ったので、足すと二重計上になるため 0 にされた）。
  *    **だから「main.c には + 14,464 B が付く」は誤り。** 式は web と 1 文字も違わない。
  *
- * ⚠️ **違うのは式ではなく `SAAN_KANJI_WORKBYTES` の値の方**（実測。下の再現コマンド）:
- *      web   （`LABEL_IDS_EXTERNAL_SCRATCH` 未定義）136,448 B → 176 KB の余り 43,776 B
- *      ESP32 （component の CMakeLists が =1 を PUBLIC）146,688 B → 　　　余り 33,536 B
- *    差 **10,240 B = `LABEL_IDS_SCRATCH_BYTES`**（K-7 のトークン表 640 × 16）。web はこれを
+ * ⚠️ **違うのは式ではなく `SAAN_KANJI_WORKBYTES` の値の方**（実測。下の再現コマンド。
+ *    ⚠️ **2026-09-18 に測り直した** — 漢字の素性表が 96 → 44 本 / K-7 の表が 640 → 256 本
+ *    になっているので、以前ここに書いてあった 136,448 / 146,688 B は古い）:
+ *      web   （`LABEL_IDS_EXTERNAL_SCRATCH` 未定義）119,808 B → 136 KB の余り 19,456 B
+ *      ESP32 （component の CMakeLists が =1 を PUBLIC / 表 256 本）123,904 B → 余り 15,360 B
+ *      ESP32 （=1 / 表は csrc の既定 640 本 = **ゲートが使う悲観側**）130,048 B → 余り 9,216 B
+ *    差 **4,096 B = `LABEL_IDS_SCRATCH_BYTES`**（K-7 のトークン表 256 × 16）。web はこれを
  *    arena へ移さないので `csrc/label_ids.c` の .bss に残る。**arena 側に足すと二重計上。**
  *    ⚠️ 残り 4,224 B（`s_key` / `s_tok` / `s_lab`）は**どちらの構成でも arena**で、
  *       `SAAN_KANJI_WORKBYTES` に既に入っている。14,464 = 10,240 + 4,224 を丸ごと
@@ -94,8 +104,11 @@
  *
  *    再現（この worktree で実測）:
  *      printf '#include <stdio.h>\n#include "saan_kanji.h"\nint main(void){printf("%%zu\\n",(size_t)SAAN_KANJI_WORKBYTES);}\n' > /tmp/wb.c
- *      cc -I csrc -I esp32/main /tmp/wb.c -o /tmp/wb && /tmp/wb                        # → 136448（web）
- *      cc -I csrc -I esp32/main -DLABEL_IDS_EXTERNAL_SCRATCH=1 /tmp/wb.c -o /tmp/wb && /tmp/wb   # → 146688（ESP32） */
+ *      cc -I csrc -I esp32/main /tmp/wb.c -o /tmp/wb && /tmp/wb                        # → 119808（web）
+ *      cc -I csrc -I esp32/main -DLABEL_IDS_EXTERNAL_SCRATCH=1 -DLABEL_IDS_MAX_TOKENS=256 \
+ *         /tmp/wb.c -o /tmp/wb && /tmp/wb                                                  # → 123904（ESP32）
+ *    ⚠️ **マクロ名は `LABEL_IDS_EXTERNAL_SCRATCH`。** `K7_EXTERNAL_SCRATCH` は効かない
+ *       （[C-104](../docs/decisions.md#c-104) で §10 が 2 年ぶん甘い側を測っていた）。 */
 typedef char saan_web_arena_holds_kanji[(SAAN_ARENA_BYTES >= SAAN_KANJI_WORKBYTES) ? 1 : -1];
 #if defined(LABEL_IDS_EXTERNAL_SCRATCH) && LABEL_IDS_EXTERNAL_SCRATCH
 #error "web ビルドは LABEL_IDS_EXTERNAL_SCRATCH を定義しない前提（arena の勘定が上の typedef とずれる）"
@@ -147,8 +160,11 @@ static int32_t g_ids[SAAN_WEB_IDS_CAP];
  * ⚠️ wasm は境界例外を出さない（線形メモリの中ならただ読める）。**手元では動いてしまう。** */
 static char g_text[SAAN_WEB_TEXT_MAX + 1];
 
-/* pull 1 回ぶんの受け皿。`main.c` の `g_chunk` と同じ理由でスタックに置かない
- * （`saan_irfft_1024` が自動変数だけで 4 KB 使う）。 */
+/* pull 1 回ぶんの受け皿。スタックに置かない（`saan_irfft_1024` が自動変数だけで 4 KB 使う）。
+ * ⚠️ **`esp32/main/main.c` の同名の配列は消えた**（MEM-8。[M-145](../docs/measurements.md#m-145)）—
+ *    あちらは `saan_stream_pull_ptr` で `obuf` の中を直接読む。
+ *    **web はコピー版 `saan_stream_pull` のまま**にしてある（ブラウザの RAM は制約でなく、
+ *    `g_pcm` に積み上げる形なので得が無い = [D-068](../docs/decisions.md#d-068)）。 */
 static float g_chunk[SAAN_CHUNK * SAAN_HOP];
 
 static saan_weights g_w;

@@ -208,10 +208,19 @@ static int g2_multi(const saan_weights *W, const char *path) {
 }
 
 int main(int argc, char **argv) {
-    /* --g1-kb N: G1 の上限（既定 200 = D-029）。⚠️ **W8A8（-DSAAN_INT8_ACT=1）は 200 KB を
-     * 超えることが分かっている**（M-55: conv 1 本ぶんの activation 作業領域）。その
-     * レーンは Makefile が実機の静的 arena（esp32/main/main.c の SAAN_ARENA_BYTES = 176 KB。T4）
-     * を渡す。既定値を動かさないのは、W8A32 / fp32 の 200 KB を黙って緩めないため */
+    /* --g1-kb N: G1 の上限（既定 200 = D-029）。
+     *
+     * ⚠️ **Makefile はもう上書きしない**（[C-106](../docs/decisions.md#c-106)）。
+     *    かつて W8A8 レーンが 200 KB を超えていたので（M-55: conv 1 本ぶんの activation
+     *    作業領域）Makefile が「実機の静的 arena」を渡していたが、**それは単位が違う** —
+     *    G1 が比べるのは `peak_used + FFT stack 4,224 B` で、arena サイズではない。
+     *    **148 KB（M-142）も 116 KB（M-144）も、渡した時点で落ちる値だった。**
+     *    このゲートは `ids_heldout.bin` が要って手元も CI も回らないので**2 回とも
+     *    誰も踏まなかった。**
+     * ⚠️ **いまは既定の 200 KB で 3 レーンとも通る**（MEM-7 後の実測。M-145）:
+     *      fp32 / W8A32  peak_used 114,128 + 4,224 = 118,352 B
+     *      W8A8          peak_used 116,592 + 4,224 = 120,816 B
+     *    ⚠️ **オプションは残す**（将来また超えたときに、既定を黙って緩めないため）。 */
     int g1_kb = 200;
     for (int i = 1; i + 1 < argc; ++i) {
         if (strcmp(argv[i], "--g1-kb") == 0) {

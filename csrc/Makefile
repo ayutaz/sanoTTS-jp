@@ -107,6 +107,30 @@ arena_stress: arena_stress.c $(CORE) $(HDRS)
 	#    `arena_stress.c` が自前で `_POSIX_C_SOURCE` を立てるようにした。
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ arena_stress.c $(CORE) $(LDLIBS)
 
+# ⚠️ **W8A8 レーン**（実機と同じ構成）。C-100 の再発防止: init のピークは W8A8 の
+#    act scratch が n_ids に比例して乗るので W8A32 より 12,608 B 大きい（350 ids）。
+arena_stress_a8: arena_stress.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o $@ arena_stress.c $(CORE) $(LDLIBS)
+
+# --- MEM-7 のゲート（duration net の窓分割が log_d で bit 一致するか）--------
+# ⚠️ **K を振って 3 回走らせる。** `SAAN_DUR_K` はコンパイル時の値なので、
+#    「K を変えても同じ」を 1 本のバイナリでは示せない。
+#    K=8（窓 32 列・最小メモリ）/ K=128（既定）/ K=1024（1 窓 = 一括版に近い形）。
+# ⚠️ **W8A8 レーンで走らせる**（活性化の量子化が per-frame であることに依存しているので、
+#    そこが壊れたら W8A32 では出ない）。両レーン回す。
+dur_test_k%: dur_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_DUR_K=$* -o $@ dur_test.c $(CORE) $(LDLIBS)
+
+dur_test_a8_k%: dur_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -DSAAN_DUR_K=$* -o $@ dur_test.c $(CORE) $(LDLIBS)
+
+# --- MEM-8 のゲート（pull_ptr がコピー版と同じ列を出すか）--------------------
+pullptr_test: pullptr_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ pullptr_test.c $(CORE) $(LDLIBS)
+
+pullptr_test_a8: pullptr_test.c $(CORE) $(HDRS)
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -o $@ pullptr_test.c $(CORE) $(LDLIBS)
+
 bench: bench.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ bench.c $(CORE) $(LDLIBS)
 
@@ -181,7 +205,14 @@ test: golden_test
 stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
 	./stream_test    student.bin    golden.bin ids_heldout.bin
 	./stream_test    student_i8.bin golden.bin ids_heldout.bin
-	./stream_test_a8 --g1-kb 176 student_i8.bin golden.bin ids_heldout.bin
+# ⚠️ **`--g1-kb` の上書きをやめた**（[C-106](../docs/decisions.md#c-106)）。
+# W8A8 レーンが D-029 の 200 KB を超えていたのは arena が ~195 KB だった頃の話で、
+# MEM-7 まで詰めた今は **peak_used 116,592 + FFT stack 4,224 = 120,816 B（118.0 KB）**。
+# ⚠️ **上書きの値は 2 回続けて間違っていた** — 148 KB（M-142）も 116 KB（M-144）も
+#    「実機の静的 arena」を渡していたが、G1 が比べるのは **peak + stack** なので落ちる。
+#    このゲートは `ids_heldout.bin`（第三者コーパス）が要って**手元も CI も回らない**ため、
+#    **2 回とも誰も踏まなかった。** 予算の検査は `make -C csrc dur` の G-DUR6 に移した。
+	./stream_test_a8 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test
@@ -201,8 +232,14 @@ int8-e2e: int8_e2e_test student_i8.bin ids_heldout.bin
 # T2: §5 で「init 後の a.used == saan_stream_arena_used(n_ids)」を複数の n_ids で検査する。
 # 雛形（esp32/main/main.c）はこの関数で init 後の a.used を検査するので、確保を変えて関数を
 # 直し忘れると実機は 1 発話も喋らない（T2 で a.used が −16,512 B 動き、旧定数 192,960 では拒否された）
-arena: arena_stress
+arena: arena_stress arena_stress_a8
 	./arena_stress student.bin golden.bin
+	@echo ""
+	@echo "== W8A8 レーン（実機と同じ構成）=="
+	@echo "⚠️ **W8A32 だけでは足りない**（C-100）。W8A8 は act scratch が n_ids に比例して"
+	@echo "   乗る。⚠️ **MEM-7 の前は** init のピークが 137,216 -> 149,824 B に増え、136 KB は W8A32 では"
+	@echo "   通るが W8A8 では 350 ids で落ちる = **このレーンが無かったから見逃した**。"
+	./arena_stress_a8 student_i8.bin golden_i8.bin
 
 range: range_test
 	./range_test
@@ -339,10 +376,36 @@ g2p-corpus: g2p_test g2p_vectors_corpus.bin
 # 「init が SAAN_OK を返した後に落ちる」欠陥で必ず落ちていたが、
 # saan_arena に粘着フラグ failed を足して解消した（111 点中 0 点が silent-fail）。
 # `g2p` も入れてある（自己完結ベクタ 2,819 件のみ。コーパス版は本文 TSV が要るので別）。
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard qeos
+# --- MEM-7 -------------------------------------------------------------------
+.PHONY: pullptr
+pullptr: pullptr_test pullptr_test_a8
+	./pullptr_test    student.bin golden.bin
+	@echo ""
+	@echo "== W8A8 レーン（実機と同じ構成）=="
+	./pullptr_test_a8 student_i8.bin golden_i8.bin
+
+.PHONY: dur
+dur: dur_test_k8 dur_test_k128 dur_test_k1024 dur_test_a8_k8 dur_test_a8_k128 dur_test_a8_k1024
+	@echo "== W8A32 レーン =="
+	./dur_test_k8    student.bin golden.bin
+	@echo ""
+	./dur_test_k128  student.bin golden.bin
+	@echo ""
+	./dur_test_k1024 student.bin golden.bin
+	@echo ""
+	@echo "== W8A8 レーン（実機と同じ構成。活性化の量子化が per-frame であることに依存する）=="
+	./dur_test_a8_k8    student_i8.bin golden_i8.bin
+	@echo ""
+	./dur_test_a8_k128  student_i8.bin golden_i8.bin
+	@echo ""
+	./dur_test_a8_k1024 student_i8.bin golden_i8.bin
+
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard qeos dur pullptr
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress jdict_test accent_test \
+	      dur_test_k8 dur_test_k128 dur_test_k1024 dur_test_a8_k8 dur_test_a8_k128 dur_test_a8_k1024 \
+	      pullptr_test pullptr_test_a8 \
 	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
 	      jdict_hard_test jdict_hard_test_weak jdict_hard_test_asan jdict_hard_test_asan_weak jdict_asan*.log \
 	      g2p_test line_test route_tool njd_rules_test njd_rules_stderr.log oj_heap_test oj_heap_stderr.log kanji_e2e_test kanji_e2e_stderr.log label_ids_test label_ids_stderr.log \
@@ -598,8 +661,13 @@ label_ids_test: label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c token_
 # T10(a): トークン表を **.bss ではなく呼び出し側の領域**に置いた構成
 # （ESP32 は合成 arena から切り出す）。**同じ列が出ること**を示すためだけの版。
 # ⚠️ これが無いと「端末では置き場が違う」経路がホストで一度も走らない。
+# ⚠️⚠️ **2026-09-18 まで `-DK7_EXTERNAL_SCRATCH=1` を渡していた**（[C-107](../docs/decisions.md#c-107)）。
+#    そんなマクロは無い（正しくは `LABEL_IDS_EXTERNAL_SCRATCH`）ので、
+#    **この版は通常版と同一バイナリで、G25b/G25c は「.bss 版を .bss 版と比べていた」**
+#    = 空虚に通っていた。**フラグを変えたら nm で中身が変わったことを確かめること**
+#    （下記: `label_ids_set_scratch` が `_ext` にだけ在り、`s_tok_storage` が通常版にだけ在る）。
 label_ids_test_ext: label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c token_table.h $(OJT_SRC)
-	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -DK7_EXTERNAL_SCRATCH=1 -Iopenjtalk \
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -DLABEL_IDS_EXTERNAL_SCRATCH=1 -Iopenjtalk \
 	    -o $@ label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c \
 	    $(OJT_SRC) $(LDLIBS)
 

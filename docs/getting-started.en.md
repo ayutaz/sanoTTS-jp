@@ -152,7 +152,7 @@ and it speaks. It takes **kanji, katakana and hiragana** directly — no marker 
 needed, because the C side decides the route (`saan_g2p_classify()`).
 
 - **It runs the same code as the ESP32.** `csrc/` and `esp32/main/saan_kanji.c` are compiled
-  to wasm unchanged, and **the arena is the same 180,224 B as on hardware**
+  to wasm unchanged, and **the arena is the same 139,264 B as the kanji build on hardware**
   (→ [D-050](decisions.md#d-050))
 - The first load pulls the **13,702,320 B dictionary (5,476,122 B with `gzip -9`)**.
   ⚠️ Expect a wait on a slow link

@@ -2494,7 +2494,7 @@ wheels = [
 [[package]]
 name = "piper-plus-g2p"
 version = "0.2.0"
-source = { editable = "../../Documents/piper-plus/src/python/g2p" }
+source = { editable = "../piper-plus/src/python/g2p" }
 
 [package.optional-dependencies]
 all = [
@@ -2516,7 +2516,7 @@ requires-dist = [
     { name = "pyopenjtalk-plus", marker = "extra == 'ja'", specifier = ">=0.3,<1" },
     { name = "pypinyin", marker = "extra == 'all'", specifier = ">=0.55.0,<1" },
     { name = "pypinyin", marker = "extra == 'zh'", specifier = ">=0.55.0,<1" },
-    { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.4" },
+    { name = "pytest", marker = "extra == 'dev'", specifier = ">=9.1.1" },
     { name = "pytest-asyncio", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=4.1" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.8.0" },
@@ -2526,7 +2526,7 @@ provides-extras = ["ja", "en", "zh", "ko", "es", "fr", "pt", "sv", "all", "dev"]
 [[package]]
 name = "piper-train"
 version = "2.0.0"
-source = { editable = "../../Documents/piper-plus/src/python" }
+source = { editable = "../piper-plus/src/python" }
 dependencies = [
     { name = "numpy" },
     { name = "piper-plus-g2p" },
@@ -2581,10 +2581,10 @@ requires-dist = [
     { name = "onnxruntime-gpu", marker = "extra == 'inference-gpu'", specifier = ">=1.20.1,<1.26" },
     { name = "onnxscript", marker = "extra == 'train'", specifier = ">=0.7.0" },
     { name = "onnxsim-prebuilt", marker = "extra == 'train'" },
-    { name = "piper-plus-g2p", editable = "../../Documents/piper-plus/src/python/g2p" },
-    { name = "piper-plus-g2p", extras = ["all"], marker = "extra == 'inference'", editable = "../../Documents/piper-plus/src/python/g2p" },
-    { name = "piper-plus-g2p", extras = ["all"], marker = "extra == 'inference-gpu'", editable = "../../Documents/piper-plus/src/python/g2p" },
-    { name = "piper-plus-g2p", extras = ["all"], marker = "extra == 'train'", editable = "../../Documents/piper-plus/src/python/g2p" },
+    { name = "piper-plus-g2p", editable = "../piper-plus/src/python/g2p" },
+    { name = "piper-plus-g2p", extras = ["all"], marker = "extra == 'inference'", editable = "../piper-plus/src/python/g2p" },
+    { name = "piper-plus-g2p", extras = ["all"], marker = "extra == 'inference-gpu'", editable = "../piper-plus/src/python/g2p" },
+    { name = "piper-plus-g2p", extras = ["all"], marker = "extra == 'train'", editable = "../piper-plus/src/python/g2p" },
     { name = "psutil", marker = "extra == 'test'", specifier = ">=5.9" },
     { name = "pyopenjtalk-plus", marker = "extra == 'train'" },
     { name = "pytest", marker = "extra == 'test'", specifier = ">=9.0.3,<10" },
@@ -2604,7 +2604,7 @@ requires-dist = [
     { name = "soundfile", marker = "extra == 'train'", specifier = ">=0.12" },
     { name = "soxr", marker = "extra == 'train'", specifier = ">=0.5.0" },
     { name = "super-monotonic-align", marker = "extra == 'super-mas'", git = "https://github.com/supertone-inc/super-monotonic-align.git?rev=9bb1cb3a6fbab27bbe6e566827b9548010c5dd51" },
-    { name = "tensorboard", marker = "extra == 'train'", specifier = ">=2.20.0" },
+    { name = "tensorboard", marker = "extra == 'train'", specifier = ">=2.21.0" },
     { name = "torchmetrics", marker = "extra == 'train'", specifier = ">=1.9.0" },
     { name = "tqdm", marker = "extra == 'train'", specifier = ">=4.66" },
     { name = "transformers", marker = "extra == 'train'", specifier = ">=4.50.0" },
@@ -3344,7 +3344,7 @@ requires-dist = [
     { name = "matplotlib", marker = "extra == 'eval'", specifier = ">=3.9" },
     { name = "numpy", specifier = "<2.5" },
     { name = "onnxruntime", marker = "extra == 'eval'", specifier = ">=1.29.0" },
-    { name = "piper-train", extras = ["train"], editable = "../../Documents/piper-plus/src/python" },
+    { name = "piper-train", extras = ["train"], editable = "../piper-plus/src/python" },
     { name = "platformio", marker = "extra == 'arduino'", specifier = ">=6.2.0" },
     { name = "pyworld", marker = "extra == 'eval'", specifier = ">=0.3.4" },
     { name = "requests", marker = "extra == 'eval'", specifier = ">=2.34.2" },

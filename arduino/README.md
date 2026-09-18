@@ -157,7 +157,7 @@ Arduino IDE なら**このファイルを直接編集する**。
 | `SANOTTS_ENABLE_KANJI` | `1` | `0` にすると辞書リーダと Open JTalk が消え、app が約 230 KB 小さくなる |
 | `SANOTTS_ENABLE_PIE` | S3 なら `1` | 整数 SIMD。⚠️ **これ無しでは実時間に間に合わない**。S3 以外では自動で 0 |
 | `SANOTTS_MODEL_FROM_PARTITION` | `0` | `1` で重みを `model` パーティションから読む（app が 654 KB 小さくなる） |
-| `SANOTTS_ARENA_HEAP` | `0` | `1` で arena 176 KB をヒープから取る。**非 S3 板では必須** |
+| `SANOTTS_ARENA_HEAP` | `0` | `1` で arena 136 KB をヒープから取る。**非 S3 板では必須** |
 | `SANOTTS_DICT_SHA256` | 未定義 | 辞書の SHA-256 を照合する。⚠️ 未定義なら起動時に「照合していない」と警告が出る |
 | `SANOTTS_MAX_INPUT_BYTES` | `512` | 受け付ける 1 行の最大バイト数 |
 
@@ -177,7 +177,7 @@ Arduino IDE なら**このファイルを直接編集する**。
 | 漢字 + M5Unified（重み抜き） | 228,356 | 541,231 |
 | **漢字 + M5Unified + 重み**（実際に配る形） | 224,216 | **1,067,844** |
 
-RAM の大半は合成用の arena 180,224 B（`.bss` に静的確保）。
+RAM の大半は合成用の arena 139,264 B（`.bss` に静的確保。⚠️ **v1.1.0 までは 180,224 B** = [M-142](../docs/measurements.md#m-142) で 28,672 B / [M-144](../docs/measurements.md#m-144) でさらに 12,288 B 詰めた）。⚠️ **136 KB は漢字経路の Viterbi のための値**で、合成だけなら 116 KB で足りる（[C-101](../docs/decisions.md#c-101)）。
 ⚠️ **PSRAM の無い板**では、漢字の一時ヒープが内部 DRAM から来る（最大 80 KB）。
 
 ---
@@ -197,7 +197,7 @@ RAM の大半は合成用の arena 180,224 B（`.bss` に静的確保）。
 ⚠️ **確かめていないこと**:
 
 - **実時間に間に合うか**（`xRT` / アンダーラン / 鳴らし始めまでの時間）。
-  ESP-IDF 版は同じ CoreS3 で **xRT 0.448 / アンダーラン 0 / 407〜433 ms** だが、
+  ESP-IDF 版は同じ CoreS3 で **xRT 0.474 / アンダーラン 0 / 364〜374 ms** だが、
   **同じ PCM が出ることと、間に合って出ることは別**
 - **Arduino IDE の GUI**（検証は arduino-cli 1.5.1）
 - **Arduino ビルドで漢字を実際に喋らせること**（コンパイルは通っている）

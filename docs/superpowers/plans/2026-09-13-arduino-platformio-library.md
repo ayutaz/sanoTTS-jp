@@ -1,5 +1,12 @@
 # Arduino / PlatformIO ライブラリ 実装計画
 
+> ⚠️ **この文書は当時の記録である**（日付のとおり）。**中の数値は古い。**
+> arena は `180,224 B`（176 KB）ではなく、いまは **かな 118,784 B / 漢字 139,264 B**
+> （[M-140](../../measurements.md#m-140) → [M-142](../../measurements.md#m-142) →
+> [M-144](../../measurements.md#m-144) → [M-145](../../measurements.md#m-145)）。
+> ⚠️ **書き換えない** — 計画は「そのとき何を前提にしたか」の記録なので、
+> 数値を今の値に直すと**当時の判断が読めなくなる**。現在の値は一次ソースを見ること。
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** `v1.0.0` の C99 コアを、Arduino IDE と PlatformIO の両方から `lib_deps` 1 行で使えるライブラリとして配る。

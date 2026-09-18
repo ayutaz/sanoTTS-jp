@@ -32,6 +32,7 @@
 #define KJ_MAX_LABEL  SAAN_KANJI_MAX_LABEL
 #define KJ_KEY_MAX    SAAN_KANJI_KEY_MAX
 #define KJ_FEAT_MAX   SAAN_KANJI_FEAT_MAX
+#define KJ_FEAT_TOK   SAAN_KANJI_FEAT_TOK   /* ⚠️ 96 ではなく 44。saan_kanji.h の導出を読むこと */
 #define KJ_VITERBI_N  SAAN_KANJI_VITERBI_N
 
 /* M-98: 入力トークンの上限が Open JTalk の一時ヒープの予算に収まっているか。
@@ -46,10 +47,12 @@ _Static_assert(SAAN_KANJI_OJ_MAX_BYTES <= SAAN_KANJI_OJ_BUDGET_BYTES,
 #define STR(x)  STR_(x)
 
 /* .bss に残すのはポインタ表 1 本だけ（96 × sizeof(char*) = 384 B）。
- * ⚠️ **s_key / s_tok / s_lab と K-7 のトークン表（合計 14,464 B）は
- *    2026-09-03 に arena へ移した**（T10(a)）。M5 の内部 DRAM は 341,760 B しか
- *    無く、arena 204 KB + M5Unified + M5GFX で埋まる。 */
-static char *s_feat[KJ_MAX_TOK];
+ * ⚠️ **s_key / s_tok / s_lab と K-7 のトークン表は 2026-09-03 に arena へ移した**（T10(a)）。
+ *    当時は合計 14,464 B（K-7 の表が 640 本）だったが、**いまは 8,320 B**
+ *    （表を 256 本に落とした = M-140。s_key 1,024 + s_tok 1,152 + s_lab 2,048 + 表 4,096）。
+ *    M5 の内部 DRAM は 341,760 B しか無く、当時は arena 204 KB + M5Unified + M5GFX で埋まっていた
+ *    （いまは arena 136 KB / 静的 DIRAM 211,535 B = [M-147](../../docs/measurements.md#m-147) の実機実測）。 */
+static char *s_feat[KJ_FEAT_TOK];
 
 /* arena から切り出す */
 static char *s_feat_flat;
@@ -67,7 +70,7 @@ static const char **s_lab;
 /* arena の先頭に並べる分（Viterbi を除く）。**layout() と 1 行ずつ対応させること。** */
 static size_t kj_prefix_bytes(void) {
     size_t n = 0;
-    n  = KJ_ALIGN16((size_t)KJ_MAX_TOK * KJ_FEAT_MAX);
+    n  = KJ_ALIGN16((size_t)KJ_FEAT_TOK * KJ_FEAT_MAX);
     n += KJ_ALIGN16(sizeof(accent_node_t) * KJ_MAX_TOK);
     n += KJ_ALIGN16((size_t)KJ_KEY_MAX);
     n += KJ_ALIGN16(sizeof(jdict_token_t) * KJ_MAX_TOK);
@@ -85,6 +88,27 @@ size_t saan_kanji_vitbytes(size_t arena_n) {
     return (arena_n > pre) ? (arena_n - pre) : 0u;
 }
 
+static saan_kanji_hwm_t s_hwm;
+const saan_kanji_hwm_t *saan_kanji_hwm(void) { return &s_hwm; }
+
+/* 高水位を更新する（測定用。M-141）。⚠️ **1 発話 1 回だけ呼ぶ。** */
+static void hwm_update(int nt, int nf, int nk, int nl) {
+    if (nt > s_hwm.nt) s_hwm.nt = nt;
+    if (nf > s_hwm.nf) s_hwm.nf = nf;
+    if (nk > s_hwm.nk) s_hwm.nk = nk;
+    if (nl > s_hwm.nl) s_hwm.nl = nl;
+    for (int i = 0; i < nk; ++i) {
+        int v;
+        v = (int)strlen(s_k4[i].pos);   if (v > s_hwm.pos)   s_hwm.pos   = v;
+        v = (int)strlen(s_k4[i].ctype); if (v > s_hwm.ctype) s_hwm.ctype = v;
+        v = (int)strlen(s_k4[i].cform); if (v > s_hwm.cform) s_hwm.cform = v;
+        v = (int)strlen(s_k4[i].orig);  if (v > s_hwm.orig)  s_hwm.orig  = v;
+        v = (int)strlen(s_k4[i].pron);  if (v > s_hwm.pron)  s_hwm.pron  = v;
+        v = (int)strlen(s_k4[i].read);  if (v > s_hwm.read)  s_hwm.read  = v;
+    }
+    ++s_hwm.n_utt;
+}
+
 int saan_kanji_init(void) { return 1; }   /* 確保はしない。arena を借りる */
 
 /* arena の先頭に固定長の配列を並べ、残りを Viterbi に回す。
@@ -95,7 +119,7 @@ int saan_kanji_init(void) { return 1; }   /* 確保はしない。arena を借�
 static void *layout(void *arena, size_t arena_n, size_t *vit_n) {
     unsigned char *p = (unsigned char *)arena;
     if (arena_n < saan_kanji_workbytes()) { *vit_n = 0; return NULL; }
-    s_feat_flat = (char *)p;       p += KJ_ALIGN16((size_t)KJ_MAX_TOK * KJ_FEAT_MAX);
+    s_feat_flat = (char *)p;       p += KJ_ALIGN16((size_t)KJ_FEAT_TOK * KJ_FEAT_MAX);
     s_k4 = (accent_node_t *)(void *)p; p += KJ_ALIGN16(sizeof(accent_node_t) * KJ_MAX_TOK);
     s_key = (char *)p;             p += KJ_ALIGN16((size_t)KJ_KEY_MAX);
     s_tok = (jdict_token_t *)(void *)p;
@@ -107,7 +131,7 @@ static void *layout(void *arena, size_t arena_n, size_t *vit_n) {
     label_ids_set_scratch(p, LABEL_IDS_SCRATCH_BYTES);
 #endif
                                    p += KJ_ALIGN16(KJ_K7_SCRATCH);
-    for (int i = 0; i < KJ_MAX_TOK; i++) s_feat[i] = s_feat_flat + (size_t)i * KJ_FEAT_MAX;
+    for (int i = 0; i < KJ_FEAT_TOK; i++) s_feat[i] = s_feat_flat + (size_t)i * KJ_FEAT_MAX;
     *vit_n = arena_n - (size_t)(p - (unsigned char *)arena);
     return p;
 }
@@ -153,7 +177,9 @@ saan_kanji_status saan_kanji_to_ids(const jdict_t *d,
     if (nt > SAAN_KANJI_MAX_INPUT_TOK) return SAAN_KANJI_ERR_TOO_LONG;
 
     int nf = 0;
-    for (int i = 0; i < nt && nf < KJ_MAX_TOK; i++) {
+    /* nt <= SAAN_KANJI_MAX_INPUT_TOK は上で弾いてあるので nf < KJ_FEAT_TOK は必ず成り立つ。
+     * ⚠️ それでも条件を残すのは、上の検査を消したときに**黙って隣を壊さない**ため。 */
+    for (int i = 0; i < nt && nf < KJ_FEAT_TOK; i++) {
         char surf[128];
         if (jdict_key_to_utf8(d, (const uint8_t *)s_key, s_tok[i].begin,
                            s_tok[i].end, surf, sizeof surf) < 0)
@@ -215,6 +241,8 @@ saan_kanji_status saan_kanji_to_ids(const jdict_t *d,
     char **ls = JPCommon_get_label_feature(&jp);
     if (nl > KJ_MAX_LABEL) nl = KJ_MAX_LABEL;
     for (int i = 0; i < nl; i++) s_lab[i] = ls[i];
+
+    hwm_update(nt, nf, nk, nl);   /* 測定用。s_k4 が生きているうちに */
 
     label_ids_status ks = label_ids_convert(s_lab, nl, text, ids, ids_cap, n_ids);
 

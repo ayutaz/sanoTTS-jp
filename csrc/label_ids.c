@@ -153,7 +153,7 @@ static int label_prosody(const char *lab, int *a1, int *a2, int *a3) {
 
 /* --- トークン表の置き場（T10(a)）--------------------------------------------
  *
- * 既定は .bss（ホストのゲートはこれ）。ESP32 は `-DK7_EXTERNAL_SCRATCH=1` で
+ * 既定は .bss（ホストのゲートはこれ）。ESP32 は `-DLABEL_IDS_EXTERNAL_SCRATCH=1` で
  * 呼び出し側（esp32/main/saan_kanji.c）が合成 arena の一部を渡す。
  * ⚠️ **どちらでも配列の形と上限は同じ**。変わるのは置き場だけなので、
  *    ホストで測った一致（G25）はそのまま端末にも当てはまる。 */

@@ -86,6 +86,7 @@ __pycache__/
 /csrc/stream_test
 /csrc/stream_test_a8
 /csrc/arena_stress
+/csrc/arena_stress_a8
 /csrc/g2p_test
 /csrc/line_test
 /csrc/route_tool
@@ -103,6 +104,15 @@ __pycache__/
 /csrc/k7_ids_bss.txt
 /csrc/k7_ids_ext.txt
 /csrc/range_test
+# MEM-7 のゲート（`make -C csrc dur`）。K をコンパイル時に振るので 3 × 2 レーン = 6 本できる
+/csrc/dur_test_k8
+/csrc/dur_test_k128
+/csrc/dur_test_k1024
+/csrc/dur_test_a8_k8
+/csrc/dur_test_a8_k128
+/csrc/dur_test_a8_k1024
+/csrc/pullptr_test
+/csrc/pullptr_test_a8
 
 # レーン比較の生成物（`make -C csrc lanes` で再生成できる）。
 # ⚠️ wav は *.wav で既に除外されるが、**ディレクトリごと**明示しておく。

@@ -12,19 +12,22 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 | | |
 |---|---|
 | 出荷物 | **資産 30 本**（`v1.1.0`。うち 28 本は `v1.0.0` と SHA-256 が一致）。重みは **v4** = 蒸留テキストが CC0 / PD のみ |
-| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.448** / アンダーラン **0** / 漢字==かな bit 一致 |
+| 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.473**（53 ids）/ アンダーラン **0** / 漢字==かな bit 一致。**静的 DIRAM 211,535 B**（v1.1.0 の 232,015 から −20,480）= [M-147](docs/measurements.md#m-147)。⚠️⚠️ **250 ids あたりで xRT の中央値が要件 0.5 を超える（変更前からそう。平均は越えない・アンダーラン 0）** |
 | デモ | https://ayutaz.github.io/sanoTTS-jp/ （**実機と同じ C99 コア**の wasm） |
 | CI | **7 job**。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |
 
-**⚠️ 残っているのは 3 件で、どれも人が要る**（私にはできない）:
+**⚠️ 残っているのは 4 件**（⭐ 1 件は実機が USB に戻れば私にできる = MEM-7 の実機確認）:
 
 1. **対照つきの聴取**（G32）— ✅ **2026-09-12 に初めて対照つきで聴いた**（[M-135](docs/measurements.md#m-135)。held-out **18/24 文**を生徒 → 教師の順で。「問題なし」）。⚠️ **盲検でない / n=1 / 摩擦音とアクセントは個別に未確認**なので **G32 は閉じていない。**
    ボードは要らない（`saanotts-jp-v4-samples.zip` を再生するだけ）
 2. **4 MB / 2 MB の実機の数字** — 板が無い（第三者は鳴らしたが checksum / xRT / UR の報告が無い）
 3. **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065) / [M-137](docs/measurements.md#m-137)）— 板が無い。
    ✅ **PCM は ESP-IDF ビルドと bit 一致**（QEMU）だが、⚠️ **xRT もアンダーランも未測定**
+4. ⚠️⚠️ **定常 xRT の要件（≤ 0.5）が 250 ids あたりで破れている**（[M-147](docs/measurements.md#m-147)。253 ids で中央値 0.522）。⚠️ **v1.1.0 も同じ**なので新しい退行ではない。⚠️ **平均は越えず、アンダーランは 0**。
+   ✅ **PCM はホストで変更前と bit 一致**（両レーン × 4 つの長さ）。⚠️ 見るのは xRT / アンダーラン / 鳴らし始め / PCM checksum の 4 つ（詳細は下の残タスク表 #20）
 
-**新しく書く実装は無い。** このファイルの残りは**直しに入るときの地図**である。
+**新しく書く実装は無い**（MEM-7 は書いて手元のゲートまで通した。残るのは実機で測ること）。
+このファイルの残りは**直しに入るときの地図**である。
 ⚠️ **下の「⚠️」は全部、実際に踏んだ事故から来ている。** 消さないこと。
 
 ---
@@ -85,7 +88,7 @@ Phase 0 / A / B / C / D-1 / D-2 / D-3a-d 完了、
 | 1 step | 18,378,513 cyc | **11,659,500 cyc**（M-89。−36.6%。S5b 前の値） |
 | 鳴らし始めまで | 719 ms | **384 ms**（M-90 = 出荷構成。⚠️ かな構成は M-89 で 432 ms / M-88 で 434 ms） |
 | アンダーラン | 1/14 | **0**（全文。M-87 以降） |
-| arena（静的確保 / 実測 used） | 212,992 / 195,808 B | **180,224 / 157,360 B**（M-89） |
+| arena（静的確保 / 実機のピーク） | 212,992 / 195,808 B | **かな 118,784 / 漢字 139,264 B**。**実機のピークは 113,072（53 ids）〜115,056 B（303 ids）で `arena_peak(n)` と 6 点一致**。静的 DIRAM 211,535 B（[M-147](docs/measurements.md#m-147)） |
 | 内部 DRAM の空き（起動直後） | 99,987 B | **132,039 B**（M-90。辞書 + 漢字込み。最大ブロック 86,016） |
 
 **PCM の checksum は M-82 から 1 bit も変わっていない**（W8A8+PIE `0xa69a7ebbb5ccb05f` /
@@ -323,7 +326,9 @@ make -C csrc njd-rules                                   # K-4b NJD チェーン
 make -C csrc oj-heap                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
 make -C csrc kanji-e2e                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
 make -C csrc label-ids                                    # K-7 ラベル → 生徒インデックス（G25〜G27 +
-                                                   #   **G25b/G25c**: 表を arena に置いても同じ列か）
+                                                   #   **G25b/G25c**: 表を arena に置いても同じ列か。
+                                                   #   ⚠️ **2026-09-18 まで空虚だった** = C-107。
+                                                   #   効かないフラグで .bss 版どうしを比べていた）
 make -C csrc kb-parity                             # **K-B 経路判定**が端末とホストで一致するか
                                                    #   （⚠️ pyopenjtalk が要るので all-test の外）
 make -C csrc prof                                  # 段別プロファイラ（回数・要素数）。ゲートは
@@ -331,11 +336,15 @@ make -C csrc prof                                  # 段別プロファイラ（
                                                    #   --expect-gelu 12544 / --expect-dw 21280 /
                                                    #   --expect-mac-le 4200628 / --expect-token 4**（S1 / T1〜T3）
 make -C csrc erf                                   # GELU の erf 近似 vs libm erff（線形補間の陽性対照つき。S3）
+make -C csrc dur                                   # **MEM-7** duration net の窓分割（G-DUR1〜5。陽性対照 3 本）
+make -C csrc pullptr                               # **MEM-8** pull_ptr がコピー版と同じ列を出すか（G-PP1〜3）
 make -C csrc range                                 # **S9（T2）の範囲版カーネル**が [0,T) 版と bit 一致か
                                                    #   （陽性対照つき。all-test に入っている）
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
 bash scripts/check_esp32_template.sh               # esp32/ 雛形をホストで検査（12 節。**§10 = arena ≥ 漢字経路
-                                                   #   の作業領域 + 14,464 B。陽性対照つき**）
+                                                   #   の作業領域（SAAN_KANJI_WORKBYTES）。陽性対照つき**。
+                                                   #   ⚠️ **「+ 14,464 B」は誤り** — T10(a) でその分は
+                                                   #   WORKBYTES の中に入り、T10_BSS_BYTES は 0u になった）
 # --- A トラック（Arduino / PlatformIO ライブラリ。D-065 / M-137）---------------
 uv run --no-project python scripts/build_arduino_lib.py            # arduino/src/core/ を生成（git 管理外）
 uv run --no-project python scripts/build_arduino_lib.py --check    # G-AR1 csrc の逐語か（陽性対照 7 件）
@@ -346,7 +355,7 @@ bash scripts/check_arduino_qemu.sh                 # ⭐ G-AR4 PCM が ESP-IDF �
 
 make -C csrc all-test                              # C99 コア全ゲート（golden / stream / fft /
                                                    #   int8 / int8-golden / int8-e2e / arena /
-                                                   #   g2p / pad / line / erf / **range** / **qeos**）
+                                                   #   g2p / pad / line / erf / **range** / **qeos** / **dur** / **pullptr**）
                                                    #   ⚠️ stream は **held-out 24 文 × 3 レーン**を見る
 ```
 
@@ -622,12 +631,14 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc qeos` | **疑問 EOS の 4 種と U+301C の正規化**（G33。D-062 / M-127）。⚠️ **辞書もコーパスも pyopenjtalk も要らない** — `label_ids_convert()` は**合成した最小ラベル 3 本**で足りるので `all-test` と CI で回る。**陽性対照**: `-DQEOS_TEST_NO_NORMALIZE=1` で**正規化を外すと 3 ケースが落ちる**。⚠️ **既定の `label-ids`（n=298）は修正前も緑だった** — 該当 2 文をサンプルしないため |
 | テスト | `make -C csrc erf` | **GELU の erf 近似が libm と 2e-7 で一致**（S3）。線形補間に落とした**陽性対照**が落ちることで、しきい値が効いていると言える。`all-test` と CI に入っている |
 | テスト | `make -C csrc prof` | 段別プロファイラ（回数・要素数）。ゲートは **`--expect-no-lookup`**（pull 中のテンソル検索 0 回。S1）と **`--expect-steps 54` / `--expect-gelu 12544` / `--expect-dw 21280` / `--expect-mac-le 4200628` / `--expect-token 4`**（T1〜T3 で減った量を実測値そのままで固定してある。増える変更はここで止まる）。⚠️ **ホストの時間は実機の内訳ではない**（C-055） |
+| テスト | `make -C csrc dur` | ⭐ **MEM-7 = duration net の窓分割**（[M-144](docs/measurements.md#m-144) / [D-067](docs/decisions.md#d-067)）。**G-DUR1** `K` を 1〜4096 と振って `log_d` が bit 一致（**K ≥ n_ids なら 1 窓 = 一括版と同じ形**）/ **G-DUR2** 陽性対照 3 本が落ちる（ハロー 11 / c1 のゼロクリア無し / 残差後のゼロクリア無し）/ **G-DUR3** 本番が `_ex` の既定引数と一致 / **G-DUR4** `saan_stream_arena_peak(n)` が**実測の `a.peak`** と一致（6 点 × 2 レーン = [C-102](docs/decisions.md#c-102)）/ **G-DUR5** ハローを 13 / 24 に**増やしても変わらない** = 12 が必要十分 / **G-DUR6** D-029 の予算（`peak_used` + FFT stack 4,224 B < 200 KB）。⚠️ **`stream_test` の G1 から移した** — あちらは held-out コーパスが要って**手元も CI も回らず、`--g1-kb` の上書きが 2 回続けて落ちる値だったのに誰も踏まなかった**（[C-106](docs/decisions.md#c-106)）。⚠️ **PCM の checksum では守れない** — `log_d` は exp → round → clip[1,80] を通るので、窓の取り方を間違えても `d_hat` が変わらない文が多い（ハロー 11 で max\|Δ\| 0.005）。⚠️ **テストの中に一括版の写しを置いてはいけない**（[C-103](docs/decisions.md#c-103)。FMA 契約が翻訳単位で違って 1 ulp ずれ、「窓分割で値が変わった」と読める）。⚠️ **K を 8 / 128 / 1024 でビルドして 2 レーン = 6 回**走らせる。CI で回る |
+| テスト | `make -C csrc pullptr` | ⭐ **MEM-8 = `saan_stream_pull_ptr`**（[M-145](docs/measurements.md#m-145) / [D-068](docs/decisions.md#d-068)）。出力チャンクの写し先 **8,192 B**（`g_chunk`）を消すために、`obuf` の中を指して返す形を足した。詰め直しを**次の呼び出しまで遅らせる**ので、間違えると**同じフレームを 2 回出す / 1 回飛ばす** — ⚠️ **どちらも「音は出る」形**。**G-PP1** 全サンプル列がコピー版と bit 一致（n_ids 6 点 × 2 レーン）/ **G-PP2** `emitted` と pull 回数も一致 / **G-PP3 陽性対照** 「返ったポインタは次の呼び出しまで有効」という警告が**空虚でないこと**（次の呼び出しで中身が動くこと）を確かめる。⚠️ **保持する呼び出し側はコピー版を使う**（wasm とホストのゲートはそちら）。CI で回る |
 | テスト | `make -C csrc range` | **S9（T2）の範囲版カーネル**が `[0,T)` 版とランダム形状で bit 一致するか（**陽性対照つき**: 1 列ずらすと必ず落ちる）。`all-test` に入っている |
 | テスト | `make -C csrc matrixc` | **`matrixc`（行・列クラスタ + 代表行列）**の C リーダが生 int16 と**全 1,896,129 要素**で一致するか（M-106 §10）。⚠️ **陽性対照が 2 本要る** — 代表行列（`lo`）を壊す G-C4 だけでは**写像（`rmap`）を読み違えていても通る**。⚠️ 辞書と scikit-learn が要るので `all-test` の外 |
 | テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
 | テスト | `uv run python scripts/test_rec5.py` | `rec5` の**往復と畳み込み**（合成エントリだけなので**辞書が要らない = CI で回る**）。⚠️ **合成データが畳み込みを踏んでいるか**も検査する（周期が互いに素でないと cid と 1:1 になり、**往復が通っても畳み込みを 1 度も試していない**。M-108） |
 | テスト | `make -C csrc charr` | **`charr`（文字カテゴリの run 表）**が `char` と**全 65,535 符号位置**で一致するか（M-106 §10）。262,496 → 832 B で**完全に無損失**。⚠️ 陽性対照は**いちばん長い run** を選ぶ（短い run だと数件しか動かず弱い） |
-| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
+| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES`** を両方ソースから取って比べる（⚠️ **第 2 項は `0u`** — T10(a) で 14,464 B が `.bss` から arena へ移り `WORKBYTES` の中に入ったので、足すと二重計上になる。**「+ 14,464 B」と書いてあったのは古い**）。⚠️ **§10 は 2026-09-18 まで存在しないマクロ `K7_EXTERNAL_SCRATCH` を渡していて、甘い側を測っていた**（[C-104](docs/decisions.md#c-104)）。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で **7 job**（docs / golden / csrc / python / release-assets / **web** / **arduino**）。⚠️ **かつて「4 job」「6 job」と書いてあったが、数えるたびに違った**（job は増える）。**新規 clone + 公開リリースの資産だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |
@@ -764,7 +775,7 @@ piper-plus の Python 環境は `uv` workspace（`.venv/`, Python 3.13, torch 2.
 `csrc/` の C99 コアと `esp32/main/saan_kanji.c` を**書き換えずに** wasm にして、
 GitHub Pages で「漢字文を打つと喋る」デモを配る（[D-050](docs/decisions.md#d-050)）。
 **成果物は今も ESP32 の 567 K で、Web は触れる入口**でしかない
-（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 180,224 B）。
+（piper-plus の代わりを作るのではなく、**実機に載っているそのコード**を動かす。arena も同じ 139,264 B = `check_web_gates.sh` の **G-W9**（`web/saan_web.c` の `#define`）と **G-W9b**（`web/index.html` の本文）が**漢字構成の値と**突き合わせる。⚠️ **G-W9b が無かった間、ページ本文の 180,224 B が 3 回の変更を生き延びていた** = [C-105](docs/decisions.md#c-105)）。
 実測は M-94（node）/ **M-95（Chrome 152）** / **M-96（聴取）**。**ブラウザで PCM が node と bit 一致**し、短文が **0.008〜0.019 ×RT** で合成でき、**両レーンとも聴いてもらって「問題なかった」/ 途切れ無し**。⚠️ **1 名・対照なし・盲検なし / モバイルと Safari は未測定**。
 ⚠️ 上流も WASM デモを配っているが、**D-032（GPL ソースを読まない）は維持**する。
 
@@ -980,13 +991,16 @@ blob / golden / **firmware 10 本**も作り、**実機（M5 CoreS3）で漢字�
 ⚠️ **本モデルを製品に組み込む側は、その 4 項目を自社の利用規約に書く義務がある**
 （`LICENSE-MODEL.md` §3.2。⚠️ 「商用利用可」だけを見て組み込むと義務を落とす）。
 
-### いま止まっているもの（**3 件**。⚠️ **どれも人が要る** — 私にはできない）
+### いま止まっているもの（**4 件**。⚠️ **どれも実機か人が要る**）
 
 | 誰が | # | 何 | 止まっている理由 |
 |---|---|---|---|
+| **人 or 私** | **21** | ⚠️⚠️ **定常 xRT の要件（≤ 0.5）が 250 ids あたりで破れている**（[M-147](docs/measurements.md#m-147)） | **253 ids で中央値 0.522 / 303 ids で 0.523**。⚠️ **v1.1.0 も同じ**（0.526）なので新しい退行ではないが、[D-049](docs/decisions.md#d-049) の要件を文字どおりには満たしていない。⚠️ **平均は 0.499 で越えず、アンダーランは全長で 0**（音は途切れていない）。満チャンク pull が **43.8 / 48.6 ms の二峰**で、長いほど高モード比が上がり（33→53%）**50% で中央値だけ跳ぶ**。⚠️ **二峰の原因は未特定**（候補は token パイプの進行。`-DSAAN_PROFILE=1` で焼き直せば分かる）。打つ手: (a) 高モードを速くする / (b) 要件の統計を中央値→平均に改める（**人が決める**）/ (c) 長文は分割を案内する |
 | **人** | **1** | **対照つきの聴取**（G32） | ⚠️ **私は音を聞けない。** ボードは要らない（`saanotts-jp-v4-samples.zip` を再生するだけ）。✅ **held-out 18/24 文は対照つきで聴いた**（[M-135](docs/measurements.md#m-135)。「問題なし」）。⚠️ **残るのは** 盲検 / 2 人目 / `reports/d4_accent_v4/`（アクセントの過剰強調）/ `reports/k8_listen/`（**素材が手元に無い**） |
 | **人** | **18** | **Arduino ライブラリの実機確認**（[D-065](docs/decisions.md#d-065)） | ✅ **PCM は ESP-IDF ビルドと bit 一致した**（[M-137](docs/measurements.md#m-137) §7。QEMU / 2 構成）。⚠️ **xRT もアンダーランも鳴らし始めまでの時間も未測定** — **同じ PCM が出ることと、間に合って出ることは別**。⚠️ **Arduino ビルドで漢字を喋らせてもいない** |
 | **人** | 11 | 4 MB / 2 MB の**実機の数字** | 板が無い。第三者の報告（M-109）に checksum / xRT / UR が無い。⚠️ **私は 1 つも再現していない**。⚠️ **『どうやって打ち込んだか』も未解決**（小容量版 3 本は UART0 のはずで、native USB の ATOMS3 には届かないはず） |
+
+⚠️ **20 は私にもできる**（実機が USB に戻れば）。1 / 18 / 11 は人か板が要る。
 
 ✅ **12（リリース）/ 16（CI・Pages）/ 17（辞書の SHA-256 検査）は 2026-09-12 に済んだ**
 （[M-133](docs/measurements.md#m-133) / [M-134](docs/measurements.md#m-134)）。
