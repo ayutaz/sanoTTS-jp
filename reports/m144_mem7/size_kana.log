@@ -1,13 +1,70 @@
 Executing action: size
 Running ninja in directory /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana
 Executing "ninja all"...
-[1/4] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/esp-idf/esptool_py && /Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python /Users/s19447/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/partition_table/partition-table.bin /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/saanotts_m5.bin
-saanotts_m5.bin binary size 0x14cea0 bytes. Smallest app partition is 0x2c0000 bytes. 0x173160 bytes (53%) free.
-[2/4] Performing build step for 'bootloader'
+[0/1] Re-running CMake...
+-- sanoTTS: model blob /Users/s19447/Documents/sanoTTS-jp/csrc/student_i8.bin (654032 B) → .rodata
+-- Minimal build - OFF
+-- Building ESP-IDF components for target esp32s3
+NOTICE: Processing 3 dependencies:
+NOTICE: [1/3] m5stack/m5gfx (0.2.29)
+NOTICE: [2/3] m5stack/m5unified (0.2.22)
+NOTICE: [3/3] idf (5.5.0)
+-- M5GFX use components = nvs_flash;efuse;driver;esp_timer;esp_lcd;esp_mm
+-- M5Unified use component = m5gfx;esp_adc;driver
+-- Project sdkconfig file /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/sdkconfig
+Loading defaults file /Users/s19447/Documents/sanoTTS-jp/esp32/boards/m5unified/sdkconfig.defaults...
+Loading defaults file /Users/s19447/Documents/sanoTTS-jp/esp32/boards/m5unified/sdkconfig.cores3...
+-- Compiler supported targets: xtensa-esp-elf
+-- USING O3
+-- App "saanotts_m5" version: v1.1.0-10-g400f72e-dirty
+-- Adding linker script /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/esp-idf/esp_system/ld/memory.ld
+-- Adding linker script /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/esp-idf/esp_system/ld/sections.ld.in
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.api.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.bt_funcs.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libgcc.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.wdt.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.version.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_master.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_50.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_smp.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_dtm.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_test.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.ble_scan.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.libc.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/esp_rom/esp32s3/ld/esp32s3.rom.newlib.ld
+-- Adding linker script /Users/s19447/esp/esp-idf/components/soc/esp32s3/ld/esp32s3.peripherals.ld
+-- sanoTTS: MEM-5 は csrc の既定（4 列）。変えるなら -DSAAN_MEM_HEAD_PF=<列数>
+-- sanoTTS: ESP32-S3 なので W8A8 + PIE を**既定で有効**にする（D-048） — W8A32 で測るなら -DSAAN_ENABLE_PIE=0
+-- sanoTTS: W8A8 + PIE **有効**（SNR 低下と arena +4.2 KB を許容する構成）
+-- M5GFX use components = nvs_flash;efuse;driver;esp_timer;esp_lcd;esp_mm
+-- M5Unified use component = m5gfx;esp_adc;driver
+-- sanoTTS: 重みは **.rodata 埋め込み**（/Users/s19447/Documents/sanoTTS-jp/csrc/student_i8.bin）。model パーティションは焼かない
+-- sanoTTS: 起動時に 1 文喋る（画面に出す文と同じ。突き合わせ用）
+-- Components: app_update bootloader bootloader_support cxx driver efuse esp_adc esp_app_format esp_bootloader_format esp_common esp_driver_ana_cmpr esp_driver_bitscrambler esp_driver_dac esp_driver_gpio esp_driver_gptimer esp_driver_i2c esp_driver_i2s esp_driver_ledc esp_driver_mcpwm esp_driver_parlio esp_driver_pcnt esp_driver_rmt esp_driver_sdio esp_driver_sdm esp_driver_sdmmc esp_driver_sdspi esp_driver_spi esp_driver_tsens esp_driver_twai esp_driver_uart esp_driver_usb_serial_jtag esp_hw_support esp_lcd esp_mm esp_partition esp_pm esp_psram esp_ringbuf esp_rom esp_security esp_system esp_timer esptool_py freertos hal heap log m5stack__m5gfx m5stack__m5unified main mbedtls newlib nvs_flash partition_table pthread saanotts_core sdmmc soc spi_flash xtensa
+-- Component paths: /Users/s19447/esp/esp-idf/components/app_update /Users/s19447/esp/esp-idf/components/bootloader /Users/s19447/esp/esp-idf/components/bootloader_support /Users/s19447/esp/esp-idf/components/cxx /Users/s19447/esp/esp-idf/components/driver /Users/s19447/esp/esp-idf/components/efuse /Users/s19447/esp/esp-idf/components/esp_adc /Users/s19447/esp/esp-idf/components/esp_app_format /Users/s19447/esp/esp-idf/components/esp_bootloader_format /Users/s19447/esp/esp-idf/components/esp_common /Users/s19447/esp/esp-idf/components/esp_driver_ana_cmpr /Users/s19447/esp/esp-idf/components/esp_driver_bitscrambler /Users/s19447/esp/esp-idf/components/esp_driver_dac /Users/s19447/esp/esp-idf/components/esp_driver_gpio /Users/s19447/esp/esp-idf/components/esp_driver_gptimer /Users/s19447/esp/esp-idf/components/esp_driver_i2c /Users/s19447/esp/esp-idf/components/esp_driver_i2s /Users/s19447/esp/esp-idf/components/esp_driver_ledc /Users/s19447/esp/esp-idf/components/esp_driver_mcpwm /Users/s19447/esp/esp-idf/components/esp_driver_parlio /Users/s19447/esp/esp-idf/components/esp_driver_pcnt /Users/s19447/esp/esp-idf/components/esp_driver_rmt /Users/s19447/esp/esp-idf/components/esp_driver_sdio /Users/s19447/esp/esp-idf/components/esp_driver_sdm /Users/s19447/esp/esp-idf/components/esp_driver_sdmmc /Users/s19447/esp/esp-idf/components/esp_driver_sdspi /Users/s19447/esp/esp-idf/components/esp_driver_spi /Users/s19447/esp/esp-idf/components/esp_driver_tsens /Users/s19447/esp/esp-idf/components/esp_driver_twai /Users/s19447/esp/esp-idf/components/esp_driver_uart /Users/s19447/esp/esp-idf/components/esp_driver_usb_serial_jtag /Users/s19447/esp/esp-idf/components/esp_hw_support /Users/s19447/esp/esp-idf/components/esp_lcd /Users/s19447/esp/esp-idf/components/esp_mm /Users/s19447/esp/esp-idf/components/esp_partition /Users/s19447/esp/esp-idf/components/esp_pm /Users/s19447/esp/esp-idf/components/esp_psram /Users/s19447/esp/esp-idf/components/esp_ringbuf /Users/s19447/esp/esp-idf/components/esp_rom /Users/s19447/esp/esp-idf/components/esp_security /Users/s19447/esp/esp-idf/components/esp_system /Users/s19447/esp/esp-idf/components/esp_timer /Users/s19447/esp/esp-idf/components/esptool_py /Users/s19447/esp/esp-idf/components/freertos /Users/s19447/esp/esp-idf/components/hal /Users/s19447/esp/esp-idf/components/heap /Users/s19447/esp/esp-idf/components/log /Users/s19447/Documents/sanoTTS-jp/esp32/boards/m5unified/managed_components/m5stack__m5gfx /Users/s19447/Documents/sanoTTS-jp/esp32/boards/m5unified/managed_components/m5stack__m5unified /Users/s19447/Documents/sanoTTS-jp/esp32/boards/m5unified/main /Users/s19447/esp/esp-idf/components/mbedtls /Users/s19447/esp/esp-idf/components/newlib /Users/s19447/esp/esp-idf/components/nvs_flash /Users/s19447/esp/esp-idf/components/partition_table /Users/s19447/esp/esp-idf/components/pthread /Users/s19447/Documents/sanoTTS-jp/esp32/components/saanotts_core /Users/s19447/esp/esp-idf/components/sdmmc /Users/s19447/esp/esp-idf/components/soc /Users/s19447/esp/esp-idf/components/spi_flash /Users/s19447/esp/esp-idf/components/xtensa
+-- Configuring done (3.3s)
+-- Generating done (0.2s)
+-- Build files have been written to: /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana
+[1/12] Building C object esp-idf/esp_app_format/CMakeFiles/__idf_esp_app_format.dir/esp_app_desc.c.obj
+[2/12] Performing build step for 'bootloader'
 [1/1] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/bootloader/esp-idf/esptool_py && /Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python /Users/s19447/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/bootloader/bootloader.bin
 Bootloader binary size 0x5760 bytes. 0x28a0 bytes (32%) free.
-[3/4] No install step for 'bootloader'
-[4/4] Completed 'bootloader'
+[3/12] No install step for 'bootloader'
+[4/12] Linking C static library esp-idf/esp_app_format/libesp_app_format.a
+[5/12] Completed 'bootloader'
+[6/12] Building C object esp-idf/main/CMakeFiles/__idf_main.dir/Users/s19447/Documents/sanoTTS-jp/esp32/main/main.c.obj
+[7/12] Linking C static library esp-idf/main/libmain.a
+[8/12] Generating esp-idf/esp_system/ld/sections.ld
+[9/12] Linking CXX executable saanotts_m5.elf
+[10/12] Generating binary image from built executable
+esptool.py v4.12.0
+Creating esp32s3 image...
+Merged 2 ELF sections
+Successfully created esp32s3 image.
+Generated /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/saanotts_m5.bin
+[11/12] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/esp-idf/esptool_py && /Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python /Users/s19447/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/partition_table/partition-table.bin /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/saanotts_m5.bin
+saanotts_m5.bin binary size 0x14cea0 bytes. Smallest app partition is 0x2c0000 bytes. 0x173160 bytes (53%) free.
 Running ninja in directory /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana
 Executing "ninja size"...
 [0/1] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana && /opt/homebrew/bin/cmake -D "IDF_SIZE_TOOL=/Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python;-m;esp_idf_size" -D MAP_FILE=/private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/saanotts_m5.map -D OUTPUT_JSON= -P /Users/s19447/esp/esp-idf/tools/cmake/run_size_tool.cmake

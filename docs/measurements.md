@@ -14246,8 +14246,24 @@ done
 | init も pull も通る最小 arena（1 KB 刻み・実測） | **114,688** | **116,736** |
 | MEM-7 の前の `arena_peak(350)` | 137,216 | **149,824** |
 
-**ターゲット（32 bit）の値は `struct saan_stream_impl` のポインタ幅ぶん 1,168 B 小さい**:
-`saan_stream_arena_used(350)` = **112,960** / **`arena_peak(350)` = 115,424 B**。
+**ターゲット（32 bit）の値は `struct saan_stream_impl` のポインタ幅ぶん 1,168 B 小さい。**
+⚠️ **この 1,168 B は前から引き継いでいた数字だったので、直接測り直した** —
+xtensa のコードは手元で走らせられないが、**コンパイラのエラーに `sizeof` が出る**:
+
+```bash
+export PATH="$HOME/.espressif/tools/xtensa-esp-elf/esp-14.2.0_20241119/xtensa-esp-elf/bin:$PATH"
+printf '#include "saanotts_stream.c"\nchar (*p)[sizeof(struct saan_stream_impl)] = 1;\n' > /tmp/sz.c
+xtensa-esp32s3-elf-gcc -mlongcalls -O2 -std=c99 -Icsrc -c -o /dev/null /tmp/sz.c 2>&1 \
+  | grep -oE "char \(\*\)\[[0-9]+\]"
+```
+
+```
+char (*)[1296]
+```
+
+**xtensa 1,296 B / ホスト 2,464 B（align16 後）→ 差 1,168 B**（W8A32 / W8A8 のどちらでも同じ）。
+したがってターゲットの値は:
+`saan_stream_arena_used(350)` = **112,960** / **`arena_peak(350)` = 115,424 B（W8A8）**。
 
 ### 4. 既定値は構成で分かれた
 
@@ -14288,6 +14304,29 @@ cd esp32/boards/m5unified && idf.py -B <build> \
 
 **差は arena の 32,768 B ちょうど**（`g_arena` は `.bss` なので 1:1）。
 
+**DevKit 構成（`esp32/` の既定 = M5GFX 無し）も通した**:
+
+```bash
+cd esp32 && idf.py -B <build> set-target esp32s3 && idf.py -B <build> build size
+```
+
+| | **M-144** |
+|---|---:|
+| DIRAM | **228,335（66.81%）** |
+| `.bss` | 155,568 |
+| 空き | **113,425** |
+
+⚠️ **DevKit の方が DIRAM が多い**（M5 構成の 194,875 B に対し 228,335 B）。
+差 33,460 B は arena ではない — **`g_arena` は両ビルドで 118,784 B ちょうど**で一致する:
+
+```bash
+xtensa-esp32s3-elf-nm --print-size --radix=d <build>/*.elf | grep " g_arena$"
+# → 00118784 （bdev / bkana のどちらも）
+```
+
+⚠️ **差の中身は追っていない**（M5 構成は PSRAM を有効にするので IDF のバッファが
+PSRAM に落ちる、が **測っていない推測**）。
+
 ### 6. 新しいゲート `make -C csrc dur`
 
 | | 何を見るか |
@@ -14309,8 +14348,12 @@ cd esp32/boards/m5unified && idf.py -B <build> \
   ⚠️ **安全側の設計にはなっている** — `tts_task` の先頭が
   `saan_stream_arena_peak(SAAN_MAX_IDS)` をターゲットの sizeof で計算して突き合わせ、
   足りなければ**ログを出して起動を止める**（黙って壊れない）。**が、それは「測った」ではない。**
-- ⚠️ **漢字構成は 1 度もビルドしていない**（辞書 blob が作れない）。
-  したがって (a') も `saan_kanji_vitbytes` の起動時チェックも**コンパイルすら通していない**。
+- ⚠️ **漢字構成のファームは 1 度もビルドしていない**（辞書 blob が作れない）。
+  ⚠️ ただし **`saan_kanji_vitbytes` の起動時チェックはホストで構文検査してある** —
+  `check_esp32_template.sh` §10(b) が `cc -fsyntax-only -DSAAN_KANJI=1 esp32/main/main.c`
+  を回す。**陽性対照つきで確かめた**: 関数名を 1 文字変えると
+  `error: call to undeclared function 'saan_kanji_vitbytes_TYPO'` で落ちる
+  = **§10(b) はこの新しいコードを実際に見ている**。⚠️ **構文だけで、値は見ていない。**
   ⚠️ `make -C csrc jdict` / `kanji-e2e` / `label-ids` / `njd-rules` / `accent` も回せない
   （`accent` は held-out コーパスが要る）。**`csrc/accent.h` と `saan_kanji.c` は触っていない。**
 - ⚠️ **wasm と Arduino のビルドは手元で回していない**（emcc / PlatformIO とも CI 側）

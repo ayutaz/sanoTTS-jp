@@ -1,0 +1,6 @@
+Project build complete. To flash, run:
+┃ Memory Type/Section ┃ Used [bytes] ┃ Used [%] ┃ Remain [bytes] ┃ Total [bytes] ┃
+│ DIRAM               │       228335 │    66.81 │         113425 │        341760 │
+│    .bss             │       155568 │    45.52 │                │               │
+
+[exited with code 0]
