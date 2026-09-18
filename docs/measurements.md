@@ -14961,3 +14961,58 @@ comm -12 <(sort /tmp/rel/SHA256SUMS.txt) <(sort SHA256SUMS.txt) | wc -l   # → 
 - ⚠️ **音は対照つきで聴かれていない**
 - ⚠️ **`NOTICE.txt` / `NOTICE-openjtalk.txt` / `NOTICE-dictionary.txt` はリポジトリに原本が無い**
   （`v1.0.0` で手作りされ、資産としてしか存在しない）。**引き継いだだけで中身を検証していない**
+
+### 7. 公開して落とし直した（2026-09-19）
+
+```bash
+gh release create v1.2.0 --draft --target b98a08e --title "…" --notes-file RELEASE_NOTES.md stage/*
+gh release edit v1.2.0 --draft=false --latest
+gh release download v1.2.0 -R ayutaz/sanoTTS-jp -D /tmp/dl
+cd /tmp/dl && shasum -a 256 -c SHA256SUMS.txt          # → 29 OK / 0 NG
+for f in stage/*; do cmp -s "$f" "/tmp/dl/$(basename "$f")" || echo "差分: $f"; done   # → 0 件 / 30 本
+```
+
+| 項目 | 値 |
+|---|---|
+| タグ | `v1.2.0` → **`b98a08e`**（main 上）。`latest` = `v1.2.0` |
+| 資産 | **30 本**（draft で全部上げてから公開した。途中の欠けた状態を見せないため） |
+| `SHA256SUMS.txt` の照合 | **29 OK / 0 NG** |
+| **落としたもの vs 上げたもの** | **30 本すべて bit 一致**（`SHA256SUMS.txt` 自身も含む） |
+| `check_release_assets.py` | `v1.0.0` 28 本/要求 12 OK・`v1.2.0` 30 本/要求 12 OK・`latest` 30 本/要求 24 OK |
+
+⚠️ **リリース資産ゲートは、リリース PR では必ず落ちる。** ドキュメントの表が
+**まだ存在しないタグ**を名指すので `HTTP 404` になる（CI と手元で同じ出力を確認）。
+**順序は「コードのマージ → タグ → 資産表の PR」**で、これは `v1.1.0` と同じ形である
+（`v1.1.0` のタグは `6a59fc6`、表を向け直した PR #31 はその後）。
+
+⚠️ **タグは資産表の更新より 1 コミット前を指す**（`b98a08e` / main は `53e2b12`）。
+差分は **docs 5 本 + `scripts/build_release_firmware.sh` + `reports/m149_release/` だけ**で、
+**`csrc` / `esp32` / `arduino` / `web` は 0 ファイル**（`git diff --name-only v1.2.0 main -- csrc esp32 arduino web`）。
+**出荷コードはタグと main で同一。**
+
+### 8. ⚠️ **公開後 30 分で `MODEL_CARD.md` を差し替えた**（[C-109](decisions.md#c-109)）
+
+配った `MODEL_CARD.md` に、**同じ文書の 2 行上で報告している測定を「測っていない」と書いた行**が
+残っていた:
+
+| 行 | 配った版 | 直した版 |
+|---|---|---|
+| 起動直後の内部 DRAM の空き | **160,639 B**（M-142 = arena 148 KB のとき） | **181,119 B**（[M-147](#m-147) の実機実測。⚠️ すぐ上の行が既に「空き 181,119 B」と書いていた） |
+| 実機の要約 | xRT **0.474** / ⚠️ **MEM-7 / MEM-8 の後は実機で測っていない** | xRT **0.473** / ✅ **測り直した**（[M-147](#m-147)）+ ⚠️ **253 ids から中央値 0.522** |
+
+```bash
+gh release upload v1.2.0 MODEL_CARD.md SHA256SUMS.txt --clobber
+gh release download v1.2.0 -D /tmp/dl2 && cd /tmp/dl2 && shasum -a 256 -c SHA256SUMS.txt   # → 29 OK
+cmp /tmp/dl2/MODEL_CARD.md MODEL_CARD.md     # → 差分なし
+```
+
+| 項目 | 値 |
+|---|---|
+| 差し替えた資産 | **2 本**（`MODEL_CARD.md` と `SHA256SUMS.txt`）。⚠️ `SHA256SUMS.txt` の差分は **20 行目の 1 行だけ** |
+| `MODEL_CARD.md` の SHA-256 | `d0f18773…` → **`f0b6bc17…`** |
+| 落とし直して照合 | **29 OK / 0 NG**、30 本すべて上げたものと bit 一致、資産とリポジトリが bit 一致 |
+
+⚠️ **同じ形の見落としを 5 ファイルで踏んでいた** — `CONTRIBUTING.md` / `esp32/README.md`（2 か所）/
+`esp32/TESTING.md` / `esp32/boards/m5unified/README.md` / `docs/support-matrix.md` が
+**「MEM-7 / MEM-8 は実機未測定」と書いたまま**だった（[M-147](#m-147) で測ってある）。
+**リリース PR は資産の表しか直していなかった。**

@@ -12,6 +12,8 @@ Numbers come from [`measurements.md`](measurements.md) (Japanese; every entry ha
 **0** underruns, **bit-identical PCM whether the sentence is written in kanji or in kana**).
 ⚠️ **Only that one image was flashed with v4**; the 8 MB / 4 MB / 2 MB images were only
 **checked by content** (no boards). ⚠️ **Nobody has heard v4 for even a second.**
+⚠️ **The current release is `v1.2.0`** (2026-09-19; [M-149](measurements.md#m-149)) — 20,480 B less
+static DIRAM, **bit-identical audio**, and the weights and dictionary unchanged since `v1.0.0`.
 ⚠️ **The board rows and the dictionary table below were measured with v3** — the dictionary and
 the C code are identical across v3 and v4, so reading accuracy is unchanged.
 

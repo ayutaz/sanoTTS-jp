@@ -1,7 +1,10 @@
 # Downloads
 
-> ✅ **v1.1.0 is the current release** (2026-09-13; **30 assets**). It carries the 28 assets of
-> **v1.0.0** (2026-09-11) byte-for-byte and adds the two Arduino / PlatformIO .zip files.
+> ✅ **v1.2.0 is the current release** (2026-09-19; **30 assets**). It replaces 14 of them —
+> the 10 firmware images, both Arduino .zip files, `MODEL_CARD.md` and `LICENSE-MODEL.md` —
+> with a build whose static DIRAM is **20,480 B smaller**, measured on hardware
+> ([M-149](measurements.md#m-149)). **The audio, the weights and the dictionary did not change by
+> a single byte**, and the remaining 15 assets still carry the SHA-256 they had in **v1.0.0**.
 > The weights are **v4** —
 > retrained on distillation text with JSUT removed, leaving CC0 / public-domain only. See
 > the [release notes](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) and
