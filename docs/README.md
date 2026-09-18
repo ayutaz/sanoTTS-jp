@@ -9,7 +9,7 @@ arXiv:2608.21378 "sanoTTS" の蒸留レシピを日本語に適用し、**ESP32 
 
 **現在地（2026-09-18 更新）**: **`v1.1.0` を配っており**、**スタックチャン（M5 CoreS3）で
 漢字・カタカナ・ひらがなを喋る**（満チャンク 1 pull の xRT **0.474** / アンダーラン **0**。
-[M-142](measurements.md#m-142)）。その後 **RAM を詰めた** — 静的 DIRAM **227,643 → 183,979 B（−19.2%）**
+[M-142](measurements.md#m-142)）。その後 **RAM を詰めた** — 静的 DIRAM **232,015 → 211,535 B（−8.8%。実機実測）**
 （MEM-7 / MEM-8 = [M-144](measurements.md#m-144) / [M-145](measurements.md#m-145)。**PCM はホストで bit 一致**）。
 **残っているのは 4 件**（下の表）で、**うち 1 件は実機が USB に見えれば私にできる**（#20）。
 ⚠️ **MEM-7 / MEM-8 は実機で 1 行も測れていない。**
@@ -513,7 +513,7 @@ matrixa / matrixc / charr / rec5 は `all-test` に入れていない**
 | 平坦度プローブ | `n_fft=1024 / guard=0 / power=1` | M-27 |
 | ストリーミング | ステート保持 / CHUNK=8。**196.9 KB で一括版と bit 一致**（当時 fp32） | D-029 / M-42 |
 | アクセント | 記号 `[ ] #` のみ。A1/A2/A3 は**足さない**（v2 35/36 → **v3 37/37**） | **D-030** / M-44 / M-59 |
-| ESP32 の配置 | 重みは flash の `model` パーティション（M5 構成は app の `.rodata`）、arena は **かな 116 KB / 漢字 136 KB を静的確保**（208 → 176 → 148 → 116/136。T4 / MEM-5 / MEM-6 / **MEM-7**）。**静的 DIRAM 全体は 183,979 B**（かな構成。MEM-8 で `g_chunk` 8,192 B と `g_ids` の過剰分 2,704 B も消えた）。⚠️ 実測 used 110,592 B は arena 148 KB のときの値 | **D-031** / M-46 / M-89 / [M-142](measurements.md#m-142) / [M-144](measurements.md#m-144) / **[M-145](measurements.md#m-145)** |
+| ESP32 の配置 | 重みは flash の `model` パーティション（M5 構成は app の `.rodata`）、arena は **かな 116 KB / 漢字 136 KB を静的確保**（208 → 176 → 148 → 116/136。T4 / MEM-5 / MEM-6 / **MEM-7**）。**静的 DIRAM は 漢字 211,535 B（実機実測）/ かな 186,683 B（ビルド）**（MEM-8 で `g_chunk` 8,192 B が消えた。⚠️ `g_ids` の 2,704 B は [C-108](decisions.md#c-108) で戻した）。実機のピークは 113,072〜115,056 B で `arena_peak(n)` と 6 点一致 | **D-031** / M-46 / M-89 / [M-142](measurements.md#m-142) / [M-144](measurements.md#m-144) / **[M-147](measurements.md#m-147)** |
 | ESP32-S3 の既定 | **W8A8 + PIE**（フラグ無しで有効）+ **QIO** + **D-cache 64 B 行** | **D-048** / M-84 / M-86 |
 | 逆 FFT | radix-2 自前 / float。naive の 1,435 倍 / SNR 138.7 dB | M-43 |
 | int8 | **W8A8 + PIE**（ESP32-S3 の既定。D-048）。W8A32 は `-DSAAN_ENABLE_PIE=0` | M-43 / M-55 / **D-048** |

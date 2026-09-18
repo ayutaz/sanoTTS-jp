@@ -1,0 +1,33 @@
+Executing action: size
+Running ninja in directory /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana
+Executing "ninja all"...
+[1/4] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/esp-idf/esptool_py && /Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python /Users/s19447/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/partition_table/partition-table.bin /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/saanotts_m5.bin
+saanotts_m5.bin binary size 0x14cef0 bytes. Smallest app partition is 0x2c0000 bytes. 0x173110 bytes (53%) free.
+[2/4] Performing build step for 'bootloader'
+[1/1] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/bootloader/esp-idf/esptool_py && /Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python /Users/s19447/esp/esp-idf/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x0 /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/bootloader/bootloader.bin
+Bootloader binary size 0x5760 bytes. 0x28a0 bytes (32%) free.
+[3/4] No install step for 'bootloader'
+[4/4] Completed 'bootloader'
+Running ninja in directory /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana
+Executing "ninja size"...
+[0/1] cd /private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana && /opt/homebrew/bin/cmake -D "IDF_SIZE_TOOL=/Users/s19447/.espressif/python_env/idf5.5_py3.13_env/bin/python;-m;esp_idf_size" -D MAP_FILE=/private/tmp/claude-1518468357/-Users-s19447-Documents-sanoTTS-jp/79f4e56d-92b2-4c40-88bf-6d5a0f4c4cd3/scratchpad/bkana/saanotts_m5.map -D OUTPUT_JSON= -P /Users/s19447/esp/esp-idf/tools/cmake/run_size_tool.cmake
+                            Memory Type Usage Summary                             
+┏━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┳━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┓
+┃ Memory Type/Section ┃ Used [bytes] ┃ Used [%] ┃ Remain [bytes] ┃ Total [bytes] ┃
+┡━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━╇━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━┩
+│ Flash Data          │       970264 │          │                │               │
+│    .rodata          │       970008 │          │                │               │
+│    .appdesc         │          256 │          │                │               │
+│ Flash Code          │       336884 │          │                │               │
+│    .text            │       336884 │          │                │               │
+│ DIRAM               │       186683 │    54.62 │         155077 │        341760 │
+│    .bss             │       130280 │    38.12 │                │               │
+│    .text            │        43327 │    12.68 │                │               │
+│    .data            │        12048 │     3.53 │                │               │
+│    .vectors         │         1028 │      0.3 │                │               │
+│ RTC FAST            │           56 │     0.68 │           8136 │          8192 │
+│    .force_fast      │           32 │     0.39 │                │               │
+│    .rtc_reserved    │           24 │     0.29 │                │               │
+└─────────────────────┴──────────────┴──────────┴────────────────┴───────────────┘
+Total image size: 1363583 bytes (.bin may be padded larger)
+Note: The reported total sizes may be smaller than those in the technical reference manual due to reserved memory and application configuration. The total flash size available for the application is not included by default, as it cannot be reliably determined due to the presence of other data like the bootloader, partition table, and application partition size.
