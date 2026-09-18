@@ -14359,3 +14359,8 @@ PSRAM に落ちる、が **測っていない推測**）。
 - ⚠️ **wasm と Arduino のビルドは手元で回していない**（emcc / PlatformIO とも CI 側）
 - ⚠️ **音は聴いていない**（PCM が bit 一致なので v1.1.0 と同じ音である、が聴取は別）
 - **`SAAN_DUR_K` の実機での最適値**（ホストの再計算比 1.21× しか知らない）
+- ⚠️ **`make -C csrc prof` は MEM-7 を見ていない。** `csrc/saan_prof.h` の段は
+  `SAAN_PROF_STEP`（= `step_chunk` 1 チャンク）から始まり、**duration net の段が無い**。
+  `--expect-mac-le 4200628` などは **step あたり**の期待値で、duration は init の中で
+  走るので数に入らない。**`prof` が通ったことは MEM-7 の時間代償について何も言っていない**
+  （逆に、通ったのは MEM-7 が streaming の経路を 1 行も触っていない証拠にはなる）
