@@ -118,9 +118,22 @@ size_t saan_stream_arena_needed(int32_t n_ids);
  *    `make -C csrc arena` の §5（実測 a.used との bit 一致、陽性対照つき）が落ちる。 */
 size_t saan_stream_arena_used(int32_t n_ids);
 
-/* init の途中も含めた**本当のピーク** = max(duration フェーズ, streaming フェーズ)。
- * ⚠️ **arena を詰めるときに見るのはこちら**（C-100）。`saan_stream_arena_used()` は
- *    init 後の値で、duration の一時領域 3×[32][n_ids]（350 ids で 134,400 B）を含まない。 */
+/* init の途中も含めた**本当のピーク**
+ * = max(duration フェーズ, `saan_stream_arena_used()` + conv の act 作業領域)。
+ *
+ * ⚠️ **arena を詰めるときに見るのはこちら**（[C-100](../docs/decisions.md#c-100)）。
+ *    `saan_stream_arena_used()` は init 後の値で、**2 つを含まない**:
+ *      (1) init の途中で duration net が取って返す一時領域
+ *          （⚠️ **MEM-7 の前は 350 ids で 134,400 B。いまは窓分割したので `SAAN_DUR_K` で
+ *          決まる定数に近い** = K=128 で最大 63,840 B。[M-144](../docs/measurements.md#m-144)）
+ *      (2) **conv が arena の上に取ってすぐ返す activation 作業領域**（W8A8 で 2,464 B）
+ *          — ⚠️ **これは `arena_peak` にも入っていなかった**（[C-102](../docs/decisions.md#c-102)）。
+ *          MEM-7 の前は (1) が大きくて偶然に安全側だったので出なかった。
+ * ⚠️ **実機のログで確かめるなら「結果」ブロックの「arena 高水位（発話後）」を見る。**
+ *    init 直後に出る `peak` は **pull を 1 度も通っていない**ので (2) を含まない。
+ * ⚠️ **`make -C csrc dur` の G-DUR4 が 6 点 × 2 レーンで実測の `a.peak` と突き合わせる。**
+ *    ⚠️ **1 点だけで突き合わせないこと** — 長さで支配項が入れ替わると、
+ *    支配していない方の誤りが隠れる（C-102 がまさにそれ）。 */
 size_t saan_stream_arena_peak(int32_t n_ids);
 
 #endif /* SAANOTTS_STREAM_H */

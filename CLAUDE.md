@@ -326,7 +326,9 @@ make -C csrc njd-rules                                   # K-4b NJD チェーン
 make -C csrc oj-heap                                    # K-5 1 文ピーク RAM（G22〜G24。陽性対照つき）
 make -C csrc kanji-e2e                                    # K-6 端末の全段 vs ホスト（G17/G17b〜d）
 make -C csrc label-ids                                    # K-7 ラベル → 生徒インデックス（G25〜G27 +
-                                                   #   **G25b/G25c**: 表を arena に置いても同じ列か）
+                                                   #   **G25b/G25c**: 表を arena に置いても同じ列か。
+                                                   #   ⚠️ **2026-09-18 まで空虚だった** = C-107。
+                                                   #   効かないフラグで .bss 版どうしを比べていた）
 make -C csrc kb-parity                             # **K-B 経路判定**が端末とホストで一致するか
                                                    #   （⚠️ pyopenjtalk が要るので all-test の外）
 make -C csrc prof                                  # 段別プロファイラ（回数・要素数）。ゲートは

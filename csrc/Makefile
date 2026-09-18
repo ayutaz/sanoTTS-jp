@@ -661,8 +661,13 @@ label_ids_test: label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c token_
 # T10(a): トークン表を **.bss ではなく呼び出し側の領域**に置いた構成
 # （ESP32 は合成 arena から切り出す）。**同じ列が出ること**を示すためだけの版。
 # ⚠️ これが無いと「端末では置き場が違う」経路がホストで一度も走らない。
+# ⚠️⚠️ **2026-09-18 まで `-DK7_EXTERNAL_SCRATCH=1` を渡していた**（[C-107](../docs/decisions.md#c-107)）。
+#    そんなマクロは無い（正しくは `LABEL_IDS_EXTERNAL_SCRATCH`）ので、
+#    **この版は通常版と同一バイナリで、G25b/G25c は「.bss 版を .bss 版と比べていた」**
+#    = 空虚に通っていた。**フラグを変えたら nm で中身が変わったことを確かめること**
+#    （下記: `label_ids_set_scratch` が `_ext` にだけ在り、`s_tok_storage` が通常版にだけ在る）。
 label_ids_test_ext: label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c token_table.h $(OJT_SRC)
-	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -DK7_EXTERNAL_SCRATCH=1 -Iopenjtalk \
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DCHARSET_UTF_8 -DLABEL_IDS_EXTERNAL_SCRATCH=1 -Iopenjtalk \
 	    -o $@ label_ids_test.c jdict.c accent.c njd_rules.c label_ids.c \
 	    $(OJT_SRC) $(LDLIBS)
 
