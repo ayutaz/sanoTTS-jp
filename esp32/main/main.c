@@ -262,16 +262,18 @@ static __attribute__((aligned(16))) uint8_t g_arena[SAAN_ARENA_BYTES];
  * ⚠️ **`saan_g2p_capacity()` と同じ式を使う。** 上限は `2 * バイト数 + 3`。
  *    足りないと SAAN_G2P_ERR_OVERFLOW で**きれいに失敗する**（黙って切り詰めない）。
  * ⚠️ **デモ文ではなく入力バッファの最大長から決める。** 対話入力の方が長い。 */
-/* ⚠️ **`SAAN_MAX_IDS + 1` で足りる**（MEM-8。[M-145](../../docs/measurements.md#m-145)）。
+/* ⚠️ **`saan_g2p_capacity()` と同じ式にすること**（上限は `2 * バイト数 + 3`）。
+ *    足りないと SAAN_G2P_ERR_OVERFLOW で**きれいに失敗する**（黙って切り詰めない）。
+ * ⚠️ **デモ文ではなく入力バッファの最大長から決める。** 対話入力の方が長い。
  *
- * かつて `2 * SAAN_CONSOLE_LINE_MAX + 3` = 1,027 本（**4,108 B**）取っていた。
- * これは `saan_g2p_capacity()` の式（入力バイト数から出る上限）だが、
- * **`SAAN_MAX_IDS`（350）を超える列はどうせ拒否する**ので、351 本で足りる。
- * ⚠️ **失敗の種類は変わる** — 350 ids を超える入力は
- *   旧: `saan_g2p` が全部書いてから「%d ids は上限 %d を超える」
- *   新: `saan_g2p` が `SAAN_G2P_ERR_OVERFLOW` を返す（「列が長すぎる」）
- * **どちらもきれいに拒否する**（黙って切り詰めない）。 */
-#define SAAN_G2P_IDS_CAP (SAAN_MAX_IDS + 1)
+ * ⚠️⚠️ **`SAAN_MAX_IDS + 1`（351 本 = 1,404 B）に詰めたが、実機で戻した**
+ *    （[C-108](../../docs/decisions.md#c-108)）。2,704 B 減るが、**受け付ける入力が狭まる**:
+ *    `speak_line` の事前検査は `saan_g2p_capacity(nbytes) > SAAN_G2P_IDS_CAP` で、
+ *    **G2P を走らせる前**に入力バイト数だけで弾く。上限が 351 だと
+ *    `2·nbytes + 3 > 351` → **174 B を超える行が全部拒否**される。
+ *    実機で 264 B の行（**実 ids は 318 で上限 350 の内側**）が
+ *    「入力 264 B は長すぎる」で落ちた。**「失敗の種類が変わるだけ」ではなかった。** */
+#define SAAN_G2P_IDS_CAP (2 * SAAN_CONSOLE_LINE_MAX + 3)
 static int32_t g_ids[SAAN_G2P_IDS_CAP];
 
 /* C99 には _Static_assert が無いので配列サイズで潰す（IDF は gnu17 だが csrc に合わせる） */

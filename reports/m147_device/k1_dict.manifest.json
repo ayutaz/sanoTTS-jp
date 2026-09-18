@@ -1,0 +1,97 @@
+{
+ "_comment": "辞書 blob の同一性。scripts/check_dict_blob.py が照合する。⚠️ manifest と blob は同時に作られるので、両方を作り直せば一致する。「D-042 の辞書から作られた」証明ではない。",
+ "schema": "saanotts-jp/dict-blob-manifest/1",
+ "generator": "scripts/k1/k1_build_dict.py",
+ "provenance": "emitted-from-existing-blob",
+ "created_utc": "2026-09-18T13:55:33Z",
+ "blob": {
+  "name": "k1_dict.bin",
+  "bytes": 13702320,
+  "sha256": "f162c922074d76817298b34d8a8fd35f7d195f38540303485a76c956b5d84877"
+ },
+ "format": {
+  "magic": "K1D1",
+  "version": 2,
+  "n_sections": 15
+ },
+ "content": {
+  "surfaces": 355768,
+  "entries": 438750,
+  "matrix": {
+   "lsize": 1377,
+   "rsize": 1377
+  },
+  "trie_nodes": 671077,
+  "trie_bitlen": 1342155
+ },
+ "sections": {
+  "keytab": {
+   "offset": 256,
+   "length": 1016
+  },
+  "keyesc": {
+   "offset": 1280,
+   "length": 20880
+  },
+  "moratab": {
+   "offset": 22160,
+   "length": 1415
+  },
+  "louds": {
+   "offset": 23584,
+   "length": 969940
+  },
+  "counts": {
+   "offset": 993536,
+   "length": 355768
+  },
+  "classes": {
+   "offset": 1349312,
+   "length": 42392
+  },
+  "chains": {
+   "offset": 1391712,
+   "length": 3323
+  },
+  "records": {
+   "offset": 1395040,
+   "length": 3948750
+  },
+  "pool": {
+   "offset": 5343792,
+   "length": 4197339
+  },
+  "matrix": {
+   "offset": 9541136,
+   "length": 3792262
+  },
+  "surfck": {
+   "offset": 13333408,
+   "length": 44472
+  },
+  "poolck": {
+   "offset": 13377888,
+   "length": 54844
+  },
+  "termck": {
+   "offset": 13432736,
+   "length": 5244
+  },
+  "char": {
+   "offset": 13437984,
+   "length": 262496
+  },
+  "unk": {
+   "offset": 13700480,
+   "length": 1840
+  }
+ },
+ "source_dict": {
+  "manifest_path": "scripts/k1/dict_manifest.json",
+  "manifest_sha256": "79ed1d0380533bb8f2b39840c77afb8fdb60e6d8dba1c3fb4bf09454c980a2d9",
+  "decision": "D-042",
+  "lexsize": 789388,
+  "sys_dic_sha256": "0328ca62355100aba6df13af56912ad88cf10246e2a286005b89cb8ce2cef652",
+  "asserted": false
+ }
+}
