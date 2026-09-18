@@ -34,22 +34,22 @@ version, the same way v0.3.x shipped `-v3-` assets.
 | `saanotts-jp-v4-fp32.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | fp32 blob for reference and debugging |
 | `golden-v4-int8.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | Reference output for `make -C csrc int8-golden` |
 | `golden-v4-fp32.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | Reference output for `make -C csrc test` |
-| `m5-cores3-firmware-kanji-16mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **M5Stack CoreS3 / Stack-chan** (16 MB required) |
-| `esp32s3-firmware-kanji-16mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **Kanji input**, UART0 (16 MB required) |
-| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | Same, **USB Serial/JTAG** (for native-USB boards) |
-| `esp32s3-firmware-w8a8-pie.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **Kana input**, UART0 (8 MB+) |
-| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | Same, **USB Serial/JTAG** |
-| `esp32s3-firmware-w8a32.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | Kana input, unoptimized (**the PIE control**) |
+| `m5-cores3-firmware-kanji-16mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **M5Stack CoreS3 / Stack-chan** (16 MB required) |
+| `esp32s3-firmware-kanji-16mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **Kanji input**, UART0 (16 MB required) |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | Same, **USB Serial/JTAG** (for native-USB boards) |
+| `esp32s3-firmware-w8a8-pie.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **Kana input**, UART0 (8 MB+) |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | Same, **USB Serial/JTAG** |
+| `esp32s3-firmware-w8a32.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | Kana input, unoptimized (**the PIE control**) |
 | `k1-dict-438750.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The dictionary blob alone (13,702,320 B) |
 
 **For small flash** (shipped in [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0). ⚠️ **reading accuracy drops** — the 16 MB baseline above is 0.63% phoneme error):
 
 | Asset | Where | What |
 |---|---|---|
-| `esp32s3-firmware-kanji-8mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB **DevKit** (228,000 entries / 1.01%) |
-| `m5-cores3-firmware-kanji-8mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB **M5Stack boards** (213,000 / 1.09%). ⚠️ **Use this one if the board has M5Unified** |
-| `esp32s3-firmware-kanji-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **4 MB** (135,000 / 1.94%). ✅ **Ran on an ATOMS3 with no PSRAM** (M-109) |
-| `esp32s3-firmware-kanji-2mb-budget.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **A 2 MB budget** (44,000 / 3.86%). ⚠️ **Flash it as a 4 MB image** |
+| `esp32s3-firmware-kanji-8mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 8 MB **DevKit** (228,000 entries / 1.01%) |
+| `m5-cores3-firmware-kanji-8mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 8 MB **M5Stack boards** (213,000 / 1.09%). ⚠️ **Use this one if the board has M5Unified** |
+| `esp32s3-firmware-kanji-4mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **4 MB** (135,000 / 1.94%). ✅ **Ran on an ATOMS3 with no PSRAM** (M-109) |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **A 2 MB budget** (44,000 / 3.86%). ⚠️ **Flash it as a 4 MB image** |
 | `k1-dict-228000-8mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The 8 MB / DevKit dictionary alone |
 | `k1-dict-213000-8mb-m5.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The 8 MB / M5Stack dictionary alone |
 | `k1-dict-135000-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | The 4 MB dictionary alone |
@@ -70,8 +70,8 @@ Two lines in `lib_deps` ([`arduino/README.md`](../arduino/README.md) / [D-065](d
 
 | File | Where | What | License |
 |---|---|---|---|
-| `sanoTTS-jp-arduino.zip` | [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0) | The Arduino / PlatformIO library (C99 core, on-device G2P, dictionary reader, Open JTalk, C++ wrapper, 3 examples, partition tables). 293,652 B / 91 files | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0) | The 654,032-byte weights as an `aligned(16)` C array. 959,620 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
+| `sanoTTS-jp-arduino.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | The Arduino / PlatformIO library (C99 core, on-device G2P, dictionary reader, Open JTalk, C++ wrapper, 3 examples, partition tables). 307,950 B / 92 files | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | The 654,032-byte weights as an `aligned(16)` C array. 959,943 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`** (not MIT) |
 
 ⚠️ **The asset names carry no version.** `releases/latest/download/<name>` requires an exact
 match ([C-097](decisions.md#c-097) — we actually hit this); the version lives inside

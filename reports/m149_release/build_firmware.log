@@ -1,0 +1,44 @@
+
+=== esp32s3-firmware-kanji-16mb.bin ===
+  OK  ビルドと結合（app 378528 B / イメージ 16777216 B）
+  OK  model パーティション が saanotts-jp-v4-int8.bin と一致（0x210000 / 654032 B）
+  OK  dict パーティション が k1-dict-438750.bin と一致（0x2d0000 / 13702320 B）
+
+=== esp32s3-firmware-kanji-16mb-usbjtag.bin ===
+  OK  ビルドと結合（app 364144 B / イメージ 16777216 B）
+  OK  model パーティション が saanotts-jp-v4-int8.bin と一致（0x210000 / 654032 B）
+  OK  dict パーティション が k1-dict-438750.bin と一致（0x2d0000 / 13702320 B）
+
+=== esp32s3-firmware-kanji-8mb.bin ===
+  OK  ビルドと結合（app 1032256 B / イメージ 8388608 B）
+  OK  dict パーティション が k1-dict-228000-8mb.bin と一致（0x130000 / 7123088 B）
+
+=== esp32s3-firmware-kanji-4mb.bin ===
+  OK  ビルドと結合（app 1032256 B / イメージ 4194304 B）
+  OK  dict パーティション が k1-dict-135000-4mb.bin と一致（0x120000 / 3006656 B）
+
+=== esp32s3-firmware-kanji-2mb-budget.bin ===
+  OK  ビルドと結合（app 1032256 B / イメージ 4194304 B）
+  OK  dict パーティション が k1-dict-44000-2mb.bin と一致（0x110000 / 977456 B）
+
+=== esp32s3-firmware-w8a8-pie.bin ===
+  OK  ビルドと結合（app 292880 B / イメージ 8388608 B）
+  OK  model パーティション が saanotts-jp-v4-int8.bin と一致（0x210000 / 654032 B）
+
+=== esp32s3-firmware-w8a8-pie-usbjtag.bin ===
+  OK  ビルドと結合（app 278496 B / イメージ 8388608 B）
+  OK  model パーティション が saanotts-jp-v4-int8.bin と一致（0x210000 / 654032 B）
+
+=== esp32s3-firmware-w8a32.bin ===
+  OK  ビルドと結合（app 291392 B / イメージ 8388608 B）
+  OK  model パーティション が saanotts-jp-v4-int8.bin と一致（0x210000 / 654032 B）
+
+=== m5-cores3-firmware-kanji-16mb.bin ===
+  OK  ビルドと結合（app 1451296 B / イメージ 16777216 B）
+  OK  dict パーティション が k1-dict-438750.bin と一致（0x2d0000 / 13702320 B）
+
+=== m5-cores3-firmware-kanji-8mb.bin ===
+  OK  ビルドと結合（app 1451296 B / イメージ 8388608 B）
+  OK  dict パーティション が k1-dict-213000-8mb-m5.bin と一致（0x180000 / 6797056 B）
+
+firmware 10 本: OK 22 件 / NG 0 件

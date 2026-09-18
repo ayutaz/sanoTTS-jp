@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（148 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（149 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -189,6 +189,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-146](#m-146) | `make -C csrc stream` の G1 が 2 回の arena 変更のあいだ 1 度も走っていなかった |
 | [M-147](#m-147) | ⭐ MEM-7 / MEM-8 を実機で測った |
 | [M-148](#m-148) | #21 の原因を確定した |
+| [M-149](#m-149) | `v1.2.0` を出した |
 
 </details>
 
@@ -14855,3 +14856,108 @@ n_ids 303: step_chunk 72 回 / TOKEN 0.56 回/step  → advance 合計 40 回（
   外すには pipe の粒度から変える必要がある
 - ⚠️ **プロファイラ入りの値は絶対値として使えない**（初回 pull 222.8 → 229.1 ms / 中央値 45.61 ms）。
   使えるのは**回数**と**段どうしの比**だけ（[C-055](decisions.md#c-055)）
+
+---
+
+## M-149. **`v1.2.0` を出した** — firmware 10 本を焼き直し、**イメージから重みと辞書を抜いて 22 件すべて照合**。⚠️ **作り方をスクリプトにした**（それまで測定記録に散っていた）。⚠️ **`LICENSE-MODEL.md` が 2 版ぶん古いまま配られていた**（自己実測 / M4 Max + M5 CoreS3）
+
+[D-067](decisions.md#d-067) / [D-068](decisions.md#d-068) の RAM 削減を配る。
+
+### 1. ⚠️ **作り方がどこにも無かった**
+
+`v1.1.0` は `v1.0.0` の 28 本を**引き継いだだけ**で、**firmware は `v1.0.0` 以来焼き直されていない**。
+その `v1.0.0` の手順は [M-124](#m-124) に **3 本ぶんだけ**あり、**残り 7 本は推測**になる。
+⚠️ **推測でビルドすると「通るが中身が違う」イメージを配る** — M-124 §1 が実際に踏んだ
+（QEMU 用のビルドは DIO / 起動時発話あり / UART0 の 3 点で出荷構成と違っていた）。
+
+**構成をイメージから実測して決めた。** 公開済み 10 本の 0x8000 からパーティション表を抜き、
+リポジトリの CSV と突き合わせた:
+
+```bash
+for f in *firmware*.bin; do dd if=$f bs=1 skip=32768 count=3072 of=/tmp/pt.bin
+  gen_esp32part.py /tmp/pt.bin; done
+```
+
+| イメージ | factory | model | dict | 対応する CSV |
+|---|---|---|---|---|
+| `esp32s3-firmware-kanji-16mb(-usbjtag)` | 2M | 768K @0x210000 | 13504K @0x2d0000 | `partitions_16mb.csv` |
+| `esp32s3-firmware-kanji-8mb` | 1152K | — | 6976K @0x130000 | `partitions_8mb_kanji.csv` |
+| `esp32s3-firmware-kanji-4mb` | 1088K | — | 2944K @0x120000 | `partitions_4mb_kanji.csv` |
+| `esp32s3-firmware-kanji-2mb-budget` | 1M | — | 960K @0x110000 | `partitions_2mb_kanji.csv` |
+| `esp32s3-firmware-w8a8-pie(-usbjtag)` / `w8a32` | 2M | 3M @0x210000 | — | `partitions.csv` |
+| `m5-cores3-firmware-kanji-16mb` | 2816K | — | 13504K @0x2d0000 | `boards/m5unified/partitions.csv` |
+| `m5-cores3-firmware-kanji-8mb` | 1472K | — | 6656K @0x180000 | `boards/m5unified/partitions_8mb.csv` |
+
+**全部 CSV と一致**（= 構成が特定できた）。`model` パーティションが無い 5 本は
+`-DSAAN_MODEL_RODATA=1`（重みを app の `.rodata` に埋める）である。
+
+✅ **`scripts/build_release_firmware.sh` にした。** 次に焼き直す人は推測しなくてよい。
+
+### 2. ⭐ 10 本すべてビルドし、**中身を抜いて照合した**（22 件）
+
+```bash
+. ~/esp/esp-idf/export.sh
+gh release download v1.1.0 -D /tmp/rel        # 辞書と重みを前のリリースから
+bash scripts/build_release_firmware.sh /tmp/rel /tmp/fw
+```
+
+**「ビルドが通った」を中身の証拠にしない**（M-124 §3）。各イメージから
+`model` と `dict` のパーティションを `dd` で抜いて SHA-256 を照合する:
+
+```
+firmware 10 本: OK 22 件 / NG 0 件
+```
+
+（内訳 = ビルドと結合 10 + model 5 + dict 7。`reports/m149_release/build_firmware.log`）
+
+| app のサイズ | |
+|---|---|
+| `esp32s3-firmware-kanji-16mb` | 378,528 B（usbjtag 版 364,144） |
+| `esp32s3-firmware-w8a8-pie` | 292,880 B（usbjtag 278,496 / w8a32 291,392） |
+| 小容量 3 本（重みを `.rodata` に埋める） | 1,032,256 B |
+| M5 2 本 | 1,451,296 B |
+
+### 3. ⭐ **実機で測った当のバイナリが入っていることを示した**
+
+⚠️ **ビルドは再現しない**（app descriptor にビルド日時と版が入る）。
+[M-147](#m-147) で実機に焼いた app と、リリース用イメージから抜いた app を
+**バイト単位で比べて差の場所を特定した**:
+
+| 範囲 | 違うバイト |
+|---|---:|
+| app descriptor（1〜288 = header 32 + `esp_app_desc_t` 256） | 56 |
+| **本体（289〜1,451,263）** | **0** |
+| 末尾のイメージ SHA-256（1,451,265〜1,451,296） | 33 |
+
+**本体は完全に同一。** ⚠️ **「サイズが同じ」でも「SHA が違う」でもなく、
+`cmp -l` で全違いを列挙して範囲を示すこと** — 最初 SHA だけ見て「違う」と誤読しかけた。
+
+### 4. 差し替えた資産は 14 本 / 据え置き 15 本
+
+```bash
+comm -12 <(sort /tmp/rel/SHA256SUMS.txt) <(sort SHA256SUMS.txt) | wc -l   # → 15
+```
+
+| 差し替え（14） | firmware 10 / `sanoTTS-jp-arduino.zip`（293,652 → **307,950 B** / 91 → **92 files**。⚠️ PR #34 の example が 1 本増えた）/ `sanoTTS-jp-voice-tsukuyomi-v4.zip`（959,620 → **959,943 B**。版の文字列だけ）/ `MODEL_CARD.md` / `LICENSE-MODEL.md` |
+|---|---|
+| **据え置き（15）** | 重み 2 / golden 2 / 辞書 5 / サンプル / `.pt` / ライセンス・NOTICE 4 |
+
+### 5. ⚠️ **`LICENSE-MODEL.md` が 2 版ぶん古いまま配られていた**
+
+リポジトリの `LICENSE-MODEL.md` は **PR #25 で許諾者（`Copyright (c) 2026 ayutaz`）を明記**し、
+**PR #32 で v3/v4 の名指しを直した**が、**その 2 つがリリース資産に入っていなかった**
+（`v1.0.0` / `v1.1.0` の資産は PR #25 より前の版）。
+
+⚠️ **資産とリポジトリのどちらが正かを見るゲートが無い。** `check_attribution.py` は
+**リポジトリ内の 4 か所**の一致しか見ず、**リリース資産の中身は見ない**（その旨は
+[C-081](decisions.md#c-081) に書いてあるが、**2 リリース見逃した**）。
+`v1.2.0` ではリポジトリの版を入れた。
+
+### 6. ⚠️ 測っていないもの
+
+- ⚠️⚠️ **焼いて鳴らしたのは `m5-cores3-firmware-kanji-16mb.bin` の 1 本だけ**
+  （[M-147](#m-147)）。**残る 9 本は抜き出して照合しただけで焼いていない。**
+  `v1.0.0` / `v1.1.0` と同じ検証水準である
+- ⚠️ **音は対照つきで聴かれていない**
+- ⚠️ **`NOTICE.txt` / `NOTICE-openjtalk.txt` / `NOTICE-dictionary.txt` はリポジトリに原本が無い**
+  （`v1.0.0` で手作りされ、資産としてしか存在しない）。**引き継いだだけで中身を検証していない**

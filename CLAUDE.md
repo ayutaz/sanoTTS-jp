@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ---
 
-## ✅ 開発は終了した（2026-09-12。⚠️ **2026-09-13 に A トラック = Arduino ライブラリを足して `v1.1.0` を出した** = [D-065](docs/decisions.md#d-065)）
+## ✅ 開発は終了した（2026-09-12。⚠️ **2026-09-19 に RAM を詰めた `v1.2.0` を出した** = [D-067](docs/decisions.md#d-067) / [D-068](docs/decisions.md#d-068)）
 
-**`v1.1.0` を配っている。** https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0
+**`v1.2.0` を配っている。** https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0
 （`v1.0.0` の 28 本は**1 バイトも変えずに**引き継ぎ、Arduino の .zip 2 本を足した = [M-138](docs/measurements.md#m-138)）
 
 | | |
 |---|---|
-| 出荷物 | **資産 30 本**（`v1.1.0`。うち 28 本は `v1.0.0` と SHA-256 が一致）。重みは **v4** = 蒸留テキストが CC0 / PD のみ |
+| 出荷物 | **資産 30 本**（`v1.2.0`。⚠️ **firmware 10 本 + Arduino zip 2 本 + `MODEL_CARD.md` + `LICENSE-MODEL.md` の 14 本を差し替え**、残る 15 本は `v1.1.0` と SHA-256 が一致）。重みは **v4** = 蒸留テキストが CC0 / PD のみ |
 | 実機 | **M5Stack CoreS3** で漢字を喋る。定常 xRT **0.473**（53 ids）/ アンダーラン **0** / 漢字==かな bit 一致。**静的 DIRAM 211,535 B**（v1.1.0 の 232,015 から −20,480）= [M-147](docs/measurements.md#m-147)。⚠️⚠️ **250 ids あたりで xRT の中央値が要件 0.5 を超える（変更前からそう。平均は越えない・アンダーラン 0）** |
 | デモ | https://ayutaz.github.io/sanoTTS-jp/ （**実機と同じ C99 コア**の wasm） |
 | CI | **7 job**。⚠️ **出荷物（v1.0.0 の v4 資産）をそのまま通している** |

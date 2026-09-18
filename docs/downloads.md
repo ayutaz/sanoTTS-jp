@@ -17,8 +17,10 @@
 ⚠️ **ここに名前を書いた資産は「実在すること」を CI が検査する**
 （`scripts/check_release_assets.py`。C-052 の再発防止）。**消えたリンクを放置できない。**
 
-**最新は [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0)（資産 30 本）で、ここに全部入っている。**
-⚠️ **`v1.1.0` は `v1.0.0` の 28 本を 1 バイトも変えずに引き継いでいる**（SHA-256 で確認 = [M-138](measurements.md#m-138)）。
+**最新は [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0)（資産 30 本）で、ここに全部入っている。**
+⚠️ **`v1.2.0` は firmware 10 本 + Arduino zip 2 本 + `MODEL_CARD.md` + `LICENSE-MODEL.md` の 14 本を差し替えた**
+（RAM を 20,480 B 減らした版。**音・重み・辞書は 1 バイトも変わっていない** = [M-149](measurements.md#m-149)）。
+**残る 15 本は `v1.1.0` から SHA-256 が変わっていない。**
 足したのは **Arduino / PlatformIO ライブラリの .zip 2 本だけ**（下記）。下の表の `v1.0.0` のリンクも今も有効。
 ⚠️ **タグの `v1.0.0` と資産名の `v4` は別の軸**（`v4` は**モデルの版**で、v0.3.x が `-v3-` を配っていたのと同じ関係）。
 ⚠️ **重みは v1.0.0 で変わった** — v0.1.0 〜 v0.3.1 は `-v3-` で bit 同一だったが、
@@ -33,22 +35,22 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 | `saanotts-jp-v4-fp32.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 参照・デバッグ用の fp32 blob |
 | `golden-v4-int8.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | `make -C csrc int8-golden` 用の参照出力 |
 | `golden-v4-fp32.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | `make -C csrc test` 用の参照出力 |
-| `m5-cores3-firmware-kanji-16mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **M5Stack CoreS3 / スタックチャン**（16 MB 必須） |
-| `esp32s3-firmware-kanji-16mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **漢字入力**・UART0（16 MB 必須） |
-| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 同・**USB Serial/JTAG**（native USB の板はこちら） |
-| `esp32s3-firmware-w8a8-pie.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **かな入力**・UART0（8 MB 以上） |
-| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 同・**USB Serial/JTAG** |
-| `esp32s3-firmware-w8a32.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | かな入力・最適化なし（**PIE の比較対照**） |
+| `m5-cores3-firmware-kanji-16mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **M5Stack CoreS3 / スタックチャン**（16 MB 必須） |
+| `esp32s3-firmware-kanji-16mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **漢字入力**・UART0（16 MB 必須） |
+| `esp32s3-firmware-kanji-16mb-usbjtag.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 同・**USB Serial/JTAG**（native USB の板はこちら） |
+| `esp32s3-firmware-w8a8-pie.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **かな入力**・UART0（8 MB 以上） |
+| `esp32s3-firmware-w8a8-pie-usbjtag.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 同・**USB Serial/JTAG** |
+| `esp32s3-firmware-w8a32.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | かな入力・最適化なし（**PIE の比較対照**） |
 | `k1-dict-438750.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 辞書 blob 単体（13,702,320 B） |
 
 **小さい flash 向け**（[v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) で正式に配布。⚠️ **読みの精度が落ちる** — 出荷の基準は上の 16 MB で音素の誤り 0.63%）:
 
 | ファイル | どこに | 何 |
 |---|---|---|
-| `esp32s3-firmware-kanji-8mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB の **DevKit**（228,000 entries / 1.01%） |
-| `m5-cores3-firmware-kanji-8mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB の **M5Stack 系**（213,000 / 1.09%）。⚠️ **M5Unified を積む板はこちら** |
-| `esp32s3-firmware-kanji-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **4 MB**（135,000 / 1.94%）。✅ **PSRAM 無しの ATOMS3 で鳴った**（M-109） |
-| `esp32s3-firmware-kanji-2mb-budget.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | **2 MB の枠**（44,000 / 3.86%）。⚠️ **4 MB のイメージとして焼く** |
+| `esp32s3-firmware-kanji-8mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 8 MB の **DevKit**（228,000 entries / 1.01%） |
+| `m5-cores3-firmware-kanji-8mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 8 MB の **M5Stack 系**（213,000 / 1.09%）。⚠️ **M5Unified を積む板はこちら** |
+| `esp32s3-firmware-kanji-4mb.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **4 MB**（135,000 / 1.94%）。✅ **PSRAM 無しの ATOMS3 で鳴った**（M-109） |
+| `esp32s3-firmware-kanji-2mb-budget.bin` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | **2 MB の枠**（44,000 / 3.86%）。⚠️ **4 MB のイメージとして焼く** |
 | `k1-dict-228000-8mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB / DevKit の辞書単体 |
 | `k1-dict-213000-8mb-m5.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 8 MB / M5Stack 系の辞書単体 |
 | `k1-dict-135000-4mb.bin` | [v1.0.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.0.0) | 4 MB の辞書単体 |
@@ -68,8 +70,8 @@ v1.0.0 は蒸留テキストから JSUT を外して学習し直した **v4**（
 
 | ファイル | どこに | 何 | ライセンス |
 |---|---|---|---|
-| `sanoTTS-jp-arduino.zip` | [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0) | Arduino / PlatformIO ライブラリ（C99 コア + 端末側 G2P + 辞書リーダ + Open JTalk + C++ ラッパー + 例 3 本 + パーティション表）。293,652 B / 91 files | **MIT** |
-| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.1.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.1.0) | 重み 654,032 B を `aligned(16)` の C 配列にしたもの。959,620 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
+| `sanoTTS-jp-arduino.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | Arduino / PlatformIO ライブラリ（C99 コア + 端末側 G2P + 辞書リーダ + Open JTalk + C++ ラッパー + 例 3 本 + パーティション表）。307,950 B / 92 files | **MIT** |
+| `sanoTTS-jp-voice-tsukuyomi-v4.zip` | [v1.2.0](https://github.com/ayutaz/sanoTTS-jp/releases/tag/v1.2.0) | 重み 654,032 B を `aligned(16)` の C 配列にしたもの。959,943 B | ⚠️ **`LicenseRef-sanoTTS-jp-Model-1.0`**（MIT ではない） |
 
 ⚠️ **資産名に版が入っていません。** `releases/latest/download/<名前>` は**完全一致**を要求するためで
 （[C-097](decisions.md#c-097) で実際に踏みました）、版は `library.properties` の中（`version=1.1.0`）です。
