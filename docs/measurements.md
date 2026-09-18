@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（145 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（146 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -186,6 +186,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-143](#m-143) | もっと RAM を減らせるか |
 | [M-144](#m-144) | MEM-7 を入れた |
 | [M-145](#m-145) | MEM-8 |
+| [M-146](#m-146) | `make -C csrc stream` の G1 が 2 回の arena 変更のあいだ 1 度も走っていなかった |
 
 </details>
 
@@ -14505,3 +14506,74 @@ per-frame 量子化にも影響しない（bit 一致）。B=128 なら 6,144 B 
 - ⚠️ **wasm / Arduino は `saan_stream_pull`（コピー版）を使い続ける**ので RAM は減らない。
   手元でビルドしていない（CI 側）
 - **`g_ids` を 351 本にしたことで長文の失敗メッセージが変わる**が、**実機で出させていない**
+
+---
+
+## M-146. **`make -C csrc stream` の G1 が 2 回の arena 変更のあいだ 1 度も走っていなかった** — `--g1-kb` の値は**どちらも渡した時点で落ちる**値だった（[C-106](decisions.md#c-106)）（自己実測 / ホスト）
+
+「ドキュメントを全部最新にする」ついでに `--g1-kb` の値を確かめたら、**ゲートが壊れていた。**
+
+### 1. G1 が比べているもの
+
+`csrc/stream_test.c`:
+
+```c
+const size_t FFT_STACK = 4224;          /* 逆実 FFT が自動変数（stack）に取る分 */
+const size_t total = s3.peak_used + FFT_STACK;
+const int g1 = total < (size_t)g1_kb * 1024u;
+```
+
+= **`peak_used` + stack**（D-029 の「ピーク RAM < 200 KB」）。**arena のサイズではない。**
+
+### 2. 渡していた値
+
+再現:
+
+```bash
+cc -std=c99 -O2 -Icsrc -DSAAN_INT8_ACT=1 -o /tmp/g1 \
+    reports/m145_mem8/g1_probe.c csrc/saanotts.c csrc/saanotts_stream.c \
+    csrc/saanotts_int8.c csrc/fft.c -lm
+/tmp/g1 csrc/student_i8.bin csrc/golden_i8.bin      # reports/m145_mem8/g1_budget.log
+```
+
+| コード | レーン | `peak_used` | + stack | `--g1-kb 148`（151,552） | `--g1-kb 116`（118,784） | 既定 200（204,800） |
+|---|---|---:|---:|---|---|---|
+| MEM-7 の前（`79dd7f2`） | W8A32 | 137,216 | 141,440 | OK | ❌ | OK |
+| MEM-7 の前 | **W8A8** | 149,824 | **154,048** | ❌ **落ちる** | ❌ | OK |
+| **いま**（MEM-7 + MEM-8） | W8A32 | 114,128 | 118,352 | OK | OK | OK |
+| **いま** | **W8A8** | 116,592 | **120,816** | OK | ❌ **落ちる** | OK |
+
+**`--g1-kb` を渡すのは W8A8 レーンだけ**なので、**M-142 の 148 も M-144 の 116 も
+「渡した時点で落ちる値」**だった。
+
+### 3. なぜ 2 回とも踏まなかったか
+
+`make -C csrc stream` は **`ids_heldout.bin`**（第三者コーパスから作る）を要求する。
+**手元にも CI にも無い。** したがって**このゲートは 2 回の arena 変更のあいだ 1 度も
+走っていない。** ⚠️ **「回せないゲート」は「無いゲート」より悪い** — 在ることになっているので
+誰も見ない（[C-075](decisions.md#c-075) の `sanitize_reports.py` と同じ形）。
+
+### 4. 直したもの
+
+1. **`--g1-kb` の上書きをやめた。** いま W8A8 は **120,816 B（118.0 KB）**で
+   **既定の 200 KB に収まる**（上書きが必要だった M-55 の頃は arena が ~195 KB だった）。
+   ⚠️ **オプションは残す**（将来また超えたときに既定を黙って緩めないため）。
+2. **予算の検査を `make -C csrc dur` の G-DUR6 に移した。** G1 は 350 ids を
+   **巡回させるだけ**なので**コーパスは要らない** — 移せば CI で回る。
+
+```
+== G-DUR6: D-029 の予算（ピーク RAM < 200 KB）==
+  OK  n_ids 350: peak_used 114128 + FFT stack 4224 = 118352 B（115.6 KB）< 204800 B
+```
+
+⚠️ **`dur` は K を 3 通り × 2 レーン = 6 回走る**ので、G-DUR6 も 6 通りで見る
+（K=1024 の 1 窓構成は 146,432 + 4,224 = 150,656 B。**それでも 200 KB の内側**）。
+
+### 5. ⚠️ 測っていないもの
+
+- ⚠️ **`make -C csrc stream` 自体は依然として回せない**（G2〜G4 は held-out の 24 文が要る）。
+  **移したのは G1 だけ。** 残りは「コーパスを持っている人が回す」ままである
+- ⚠️ **`peak_used` はホストの値**（`sizeof(struct saan_stream_impl)` がポインタ幅で変わる）。
+  ターゲットは 1,168 B 小さい（[M-145](#m-145) §6）
+- ⚠️ **FFT stack 4,224 B は arm64 clang の実測**（`otool -tv`）。**Xtensa では別の値**
+  （`csrc/stream_test.c` の注記のとおり。**測っていない**）

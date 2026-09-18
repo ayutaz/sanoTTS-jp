@@ -24,6 +24,11 @@
  *   G-DUR4  `saan_stream_arena_peak(n)` が実測の `a.peak` と一致（C-100 / C-102）
  *   G-DUR5  ⚠️ **ハローが受容野そのものであること**を、`halo` を 12 より**増やしても**
  *           値が変わらないことで確かめる（12 が足りているなら 13 も同じ値になる）
+ *   G-DUR6  **D-029 の予算**（ピーク RAM < 200 KB）。`peak_used + FFT stack 4,224 B`。
+ *           ⚠️ **`stream_test` の G1 から移した**（[C-106](../docs/decisions.md#c-106)）。
+ *           あちらは `ids_heldout.bin`（第三者コーパス）が要って**手元も CI も回らない**ので、
+ *           **`--g1-kb` の上書きが 2 回続けて間違っていても誰も踏まなかった。**
+ *           G1 自身は 350 ids を巡回させるだけなのでコーパスは要らない = ここで回せる。
  */
 #include "saanotts.h"
 #include "saanotts_internal.h"
@@ -182,7 +187,37 @@ int main(int argc, char **argv) {
         free(ids);
     }
 
+    printf("\n== G-DUR6: D-029 の予算（ピーク RAM < 200 KB）==\n");
+    {
+        /* ⚠️ **arena だけでは足りない。** 逆実 FFT は 512 complex を**自動変数（stack）**に
+         *    取る。実測 4,224 B で arena の外にあり、ESP32 では SRAM を共有する
+         *    （`stream_test.c` の G1 と同じ式。D-3a の照合で指摘された）。 */
+        const size_t FFT_STACK = 4224, BUDGET = 200u * 1024u;
+        const int n = 350;          /* D-017 の実用最大（max_spec_length=700 相当） */
+        int32_t *ids = (int32_t *)malloc(sizeof(int32_t) * (size_t)n);
+        for (int i = 0; i < n; ++i) ids[i] = (int32_t)idf[i % base_n];
+        saan_arena a; saan_arena_init(&a, g_buf, sizeof g_buf);
+        saan_stream st;
+        if (saan_stream_init(&st, &g_W, &a, ids, n, SAAN_S_V) != SAAN_OK) {
+            printf("  NG! init が失敗\n"); ++bad;
+        } else {
+            static float ch[8 * SAAN_HOP];
+            int32_t nh = 0;
+            for (;;) { if (saan_stream_pull(&st, ch, &nh) != SAAN_OK || nh == 0) break; }
+            const size_t total = st.peak_used + FFT_STACK;
+            const int ok = total < BUDGET;
+            if (!ok) ++bad;
+            printf("  %s n_ids %d: peak_used %zu + FFT stack %zu = %zu B（%.1f KB）< %zu B\n",
+                   ok ? "OK " : "NG!", n, st.peak_used, FFT_STACK, total,
+                   (double)total / 1024.0, BUDGET);
+            printf("      ⚠️ **arena サイズと比べてはいけない** — これは SRAM の予算で、\n"
+                   "         stack を含む。`--g1-kb` に arena を渡す誤りが C-106 の中身。\n");
+        }
+        free(ids);
+    }
+
     printf("\n%s\n", bad ? "NG: MEM-7 のゲートに落ちた"
-                         : "MEM-7: K に依らず同じ値 / ハローは 12 で必要十分 / 陽性対照は全部落ちた");
+                         : "MEM-7: K に依らず同じ値 / ハローは 12 で必要十分 / 陽性対照は全部落ちた"
+                           " / D-029 の予算も満たす");
     return bad ? 1 : 0;
 }

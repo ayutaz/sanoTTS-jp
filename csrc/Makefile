@@ -124,7 +124,7 @@ dur_test_k%: dur_test.c $(CORE) $(HDRS)
 dur_test_a8_k%: dur_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -DSAAN_INT8_ACT=1 -DSAAN_DUR_K=$* -o $@ dur_test.c $(CORE) $(LDLIBS)
 
- # --- MEM-8 のゲート（pull_ptr がコピー版と同じ列を出すか）--------------------
+# --- MEM-8 のゲート（pull_ptr がコピー版と同じ列を出すか）--------------------
 pullptr_test: pullptr_test.c $(CORE) $(HDRS)
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ pullptr_test.c $(CORE) $(LDLIBS)
 
@@ -205,7 +205,14 @@ test: golden_test
 stream: stream_test stream_test_a8 student_i8.bin ids_heldout.bin
 	./stream_test    student.bin    golden.bin ids_heldout.bin
 	./stream_test    student_i8.bin golden.bin ids_heldout.bin
-	./stream_test_a8 --g1-kb 116 student_i8.bin golden.bin ids_heldout.bin
+# ⚠️ **`--g1-kb` の上書きをやめた**（[C-106](../docs/decisions.md#c-106)）。
+# W8A8 レーンが D-029 の 200 KB を超えていたのは arena が ~195 KB だった頃の話で、
+# MEM-7 まで詰めた今は **peak_used 116,592 + FFT stack 4,224 = 120,816 B（118.0 KB）**。
+# ⚠️ **上書きの値は 2 回続けて間違っていた** — 148 KB（M-142）も 116 KB（M-144）も
+#    「実機の静的 arena」を渡していたが、G1 が比べるのは **peak + stack** なので落ちる。
+#    このゲートは `ids_heldout.bin`（第三者コーパス）が要って**手元も CI も回らない**ため、
+#    **2 回とも誰も踏まなかった。** 予算の検査は `make -C csrc dur` の G-DUR6 に移した。
+	./stream_test_a8 student_i8.bin golden.bin ids_heldout.bin
 
 fft: fft_test
 	./fft_test
