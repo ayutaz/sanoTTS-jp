@@ -184,7 +184,10 @@ static bool g_dict_ok;
 
 #if SAAN_KANJI
 /* T10 が arena へ移す予定の .bss（label_ids.c の tok[640][16] 10,240 B + saan_kanji.c の
- * s_lab / s_tok / s_key 4,224 B）。計画 T4 のゲート `SAAN_ARENA_BYTES ≥ saan_kanji_workbytes() + 14,464`。
+ * s_lab / s_tok / s_key 4,224 B）。計画 T4 のゲートは
+ * `SAAN_ARENA_BYTES ≥ saan_kanji_workbytes() + SAAN_KANJI_T10_BSS_BYTES`。
+ * ⚠️ **第 2 項は下で `0u`** なので、実質 `≥ saan_kanji_workbytes()` である
+ * （「+ 14,464」と書いてあったのは T10(a) の前の形。足すと二重計上になる）。
  * C99 には _Static_assert が無いので配列の typedef で検査する（落ちると「負のサイズの配列」でコンパイルが止まる） */
 /* ⚠️ **0 になった**（K-A / T10(a)）。k7 のトークン表 10,240 B と s_key / s_tok / s_lab 4,224 B は
  *    .bss から arena へ移り、SAAN_KANJI_WORKBYTES の中に入った。ここを 0 以外にすると二重計上になる。 */

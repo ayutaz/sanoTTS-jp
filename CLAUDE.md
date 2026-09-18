@@ -340,7 +340,9 @@ make -C csrc range                                 # **S9（T2）の範囲版カ
                                                    #   （陽性対照つき。all-test に入っている）
 uv run --no-project python scripts/test_blob_to_header.py   # blob → .rodata ヘッダ（fp32 拒否の陽性対照。A-2）
 bash scripts/check_esp32_template.sh               # esp32/ 雛形をホストで検査（12 節。**§10 = arena ≥ 漢字経路
-                                                   #   の作業領域 + 14,464 B。陽性対照つき**）
+                                                   #   の作業領域（SAAN_KANJI_WORKBYTES）。陽性対照つき**。
+                                                   #   ⚠️ **「+ 14,464 B」は誤り** — T10(a) でその分は
+                                                   #   WORKBYTES の中に入り、T10_BSS_BYTES は 0u になった）
 # --- A トラック（Arduino / PlatformIO ライブラリ。D-065 / M-137）---------------
 uv run --no-project python scripts/build_arduino_lib.py            # arduino/src/core/ を生成（git 管理外）
 uv run --no-project python scripts/build_arduino_lib.py --check    # G-AR1 csrc の逐語か（陽性対照 7 件）
@@ -634,7 +636,7 @@ VoiceMOS Challenge 2022 の main track = BVCC（英語）/ OOD track = BC2019（
 | テスト | `make -C csrc rec5` | **`rec5`（5 B レコード）**の C リーダが 9 B 版と**全エントリで一致**するか（M-108）。`jdict_entry_conn` と `jdict_entry_feature`（**`pool_offset` も覆う**）を突き合わせる。⚠️ **陽性対照に class2 の幅を使わない** — 動作点によって 1,348〜2,097 と幅があり、**11 bit に狭めても 2,048 を超えない動作点では 1 bit も変わらない**。⚠️ 辞書が要るので `all-test` の外（**ホスト側の `scripts/test_rec5.py` は CI で回る**） |
 | テスト | `uv run python scripts/test_rec5.py` | `rec5` の**往復と畳み込み**（合成エントリだけなので**辞書が要らない = CI で回る**）。⚠️ **合成データが畳み込みを踏んでいるか**も検査する（周期が互いに素でないと cid と 1:1 になり、**往復が通っても畳み込みを 1 度も試していない**。M-108） |
 | テスト | `make -C csrc charr` | **`charr`（文字カテゴリの run 表）**が `char` と**全 65,535 符号位置**で一致するか（M-106 §10）。262,496 → 832 B で**完全に無損失**。⚠️ 陽性対照は**いちばん長い run** を選ぶ（短い run だと数件しか動かず弱い） |
-| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ 漢字経路の作業領域 + 14,464 B`** を両方ソースから取って比べる。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
+| テスト | `scripts/check_esp32_template.sh` | `esp32/` 雛形をホストで検査（**12 節**）。**§10 は `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + SAAN_KANJI_T10_BSS_BYTES`** を両方ソースから取って比べる（⚠️ **第 2 項は `0u`** — T10(a) で 14,464 B が `.bss` から arena へ移り `WORKBYTES` の中に入ったので、足すと二重計上になる。**「+ 14,464 B」と書いてあったのは古い**）。⚠️ **§10 は 2026-09-18 まで存在しないマクロ `K7_EXTERNAL_SCRATCH` を渡していて、甘い側を測っていた**（[C-104](docs/decisions.md#c-104)）。**§11 は Open JTalk の一時ヒープが予算に収まるか**（陽性対照: 上限を 45 に上げると `_Static_assert` で止まる。M-98）。**§12 はパーティション表を差し替える `sdkconfig.*` が `CONFIG_ESPTOOLPY_FLASHSIZE` を宣言しているか**（書き忘れるとブートループする。M-106 §13）。⚠️ **§8 はレーンごとに golden を選ぶ**（[C-079](docs/decisions.md#c-079)。かつて int8 の出力を **fp32 の golden** と比べていて、v3 は両レーンのフレーム数が偶然一致していたので通っていた）。⚠️ **§8 は CI で回らない** — `csrc/*.bin` が `.gitignore` なので for ループが丸ごと飛ぶ |
 | テスト | `scripts/test_blob_to_header.py` | blob → `.rodata` ヘッダ変換（SHA-256 一致 / **fp32 拒否の陽性対照**）。CI の docs job |
 | テスト | `scripts/check_partitions.py --rodata` | `model` 行の無い表（`esp32/boards/*`）。app が 1.5 MB + blob ぶんあるか |
 | CI | `.github/workflows/ci.yml` | push / PR で **7 job**（docs / golden / csrc / python / release-assets / **web** / **arduino**）。⚠️ **かつて「4 job」「6 job」と書いてあったが、数えるたびに違った**（job は増える）。**新規 clone + 公開リリースの資産だけで通るゲートに限ってある**。範囲は [`.github/workflows/README.md`](.github/workflows/README.md) |

@@ -47,9 +47,11 @@ _Static_assert(SAAN_KANJI_OJ_MAX_BYTES <= SAAN_KANJI_OJ_BUDGET_BYTES,
 #define STR(x)  STR_(x)
 
 /* .bss に残すのはポインタ表 1 本だけ（96 × sizeof(char*) = 384 B）。
- * ⚠️ **s_key / s_tok / s_lab と K-7 のトークン表（合計 14,464 B）は
- *    2026-09-03 に arena へ移した**（T10(a)）。M5 の内部 DRAM は 341,760 B しか
- *    無く、arena 204 KB + M5Unified + M5GFX で埋まる。 */
+ * ⚠️ **s_key / s_tok / s_lab と K-7 のトークン表は 2026-09-03 に arena へ移した**（T10(a)）。
+ *    当時は合計 14,464 B（K-7 の表が 640 本）だったが、**いまは 8,320 B**
+ *    （表を 256 本に落とした = M-140。s_key 1,024 + s_tok 1,152 + s_lab 2,048 + 表 4,096）。
+ *    M5 の内部 DRAM は 341,760 B しか無く、当時は arena 204 KB + M5Unified + M5GFX で埋まっていた
+ *    （いまは arena 136 KB / 静的 DIRAM 183,979 B = [M-145](../../docs/measurements.md#m-145)）。 */
 static char *s_feat[KJ_FEAT_TOK];
 
 /* arena から切り出す */

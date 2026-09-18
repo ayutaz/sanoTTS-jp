@@ -23,7 +23,9 @@
 #include "label_ids.h" /* LABEL_IDS_SCRATCH_BYTES（T10(a) で arena へ移した分） */
 
 /* 作業領域の寸法。⚠️ **saan_kanji_workbytes() と 1:1**（関数はこの式をそのまま返す）。
- * マクロで持つのは、雛形（esp32/main/main.c）が `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES + 14,464`
+ * マクロで持つのは、雛形（esp32/main/main.c）が `SAAN_ARENA_BYTES ≥ SAAN_KANJI_WORKBYTES`
+ * （⚠️ **「+ 14,464」と書いてあったのは T10(a) の前の形。** その 14,464 B は
+ *  WORKBYTES の中に入ったので、足すと二重計上になる = `SAAN_KANJI_T10_BSS_BYTES` は `0u`）
  * をコンパイル時に検査し、scripts/check_esp32_template.sh がホストで同じ式を評価するため（計画 T4）。
  *
  * ⚠️ **Viterbi の作業領域は 32 KB あれば held-out 298 文すべてで足りる**
