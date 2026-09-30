@@ -1,4 +1,4 @@
-import struct, collections, re, sys
+import os, struct, collections, re, sys
 sys.path.insert(0,"~/Documents/piper-plus/src/python")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import pyopenjtalk

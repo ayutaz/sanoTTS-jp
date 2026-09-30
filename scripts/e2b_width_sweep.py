@@ -331,8 +331,11 @@ def main() -> int:
         print(f"  {'OK ' if x['ok'] else 'NG!'} {x['id']:<26} {x['detail']}")
     print()
     print(f"  教師 (L0) SCOREQ {ref.mean():.4f}   n={len(uids)}")
+    # f-string の式の中にバックスラッシュ（Δ のエスケープ）を書くと Python 3.11 では
+    # SyntaxError になる（3.12 から許される。requires-python は >=3.11）。式の外で組み立てる。
+    dgap_hdr = "\u0394gap vs " + base
     print(f"  {'run':<9}{'W':>5}{'steps':>8}{'params':>10}{'SCOREQ':>9}{'gap':>9}"
-          f"{'gap CI95':>20}{'\u0394gap vs '+base:>16}")
+          f"{'gap CI95':>20}{dgap_hdr:>16}")
     for r in runs:
         d = per_run[r["name"]]
         gg, ci = d["gap_vs_teacher"]["diff"], d["gap_vs_teacher"]["ci95"]

@@ -1,6 +1,6 @@
 # sanoTTS-jp — Arduino / PlatformIO ライブラリ
 
-ESP32-S3 で**実時間に間に合う日本語ニューラル TTS**（567 K params / 22.05 kHz）。
+ESP32-S3 で**実時間に間に合う日本語ニューラル TTS**（559 K params / 22.05 kHz）。
 **漢字かな交じり文をそのまま**喋らせられる（端末側 G2P。ネットワーク不要）。
 
 ```cpp

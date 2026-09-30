@@ -1,4 +1,4 @@
-/* sanoTTS-jp — ESP32-S3 で実時間に間に合う日本語ニューラル TTS（567 K params）。
+/* sanoTTS-jp — ESP32-S3 で実時間に間に合う日本語ニューラル TTS（559 K params）。
  *
  *   #include <SanoTTS.h>
  *   #include <SanoTTSSpeakerM5.h>
