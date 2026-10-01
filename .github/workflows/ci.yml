@@ -416,14 +416,14 @@ jobs:
       # ⚠️ **key に platform の版を入れる。** 入れないと platform を上げたときに
       #    古い toolchain が当たって「上げたつもりで上がっていない」形になる。
       - name: PlatformIO のキャッシュ
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.platformio
           key: pio-55.03.311-${{ runner.os }}
 
       # arduino-esp32 のコア（約 1 GB）も残す。⚠️ **版を key に入れる。**
       - name: arduino-cli のキャッシュ
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.arduino15
           key: acli-esp32-3.3.11-${{ runner.os }}
