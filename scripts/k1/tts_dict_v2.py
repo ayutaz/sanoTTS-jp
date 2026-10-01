@@ -319,7 +319,7 @@ rfull_lossy, _, _, _, _, _ = encode_level(parsed, lossy=True)
 print(f"  [TTS最小] 辞書本体 {rfull_lossy['lexicon_bytes']:,d} B / "
       f"ランタイム {rfull_lossy['runtime_bytes']:,d} B "
       f"({rfull_lossy['runtime_bytes']/1048576:.2f} MiB)", flush=True)
-if "--full-only" in sys.argv:
+if "--full-only" in _sys.argv:
     raise SystemExit(0)
 
 bad = bytearray(rec); bad[9 * 4321 + 1] ^= 0xFF
