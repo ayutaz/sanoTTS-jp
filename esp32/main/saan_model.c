@@ -5,6 +5,15 @@
 
 #include "esp_log.h"
 #include "esp_partition.h"
+#include "esp_idf_version.h"
+
+/* ESP-IDF 4.4（arduino-esp32 2.x）は mmap の型・定数・解除関数の名前が違うだけ。
+ * ⚠️ **5.x では 1 トークンも変わらない**（saan_dict.c と同じ寄せ方）。 */
+#if ESP_IDF_VERSION_MAJOR < 5
+#  define esp_partition_mmap_handle_t spi_flash_mmap_handle_t
+#  define ESP_PARTITION_MMAP_DATA     SPI_FLASH_MMAP_DATA
+#  define esp_partition_munmap        spi_flash_munmap
+#endif
 
 static const char *TAG = "saan_model";
 

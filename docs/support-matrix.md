@@ -44,8 +44,9 @@
 | ARM Cortex-M / RP2040 など | — | — | — | ❌ **移植していない**。⚠️ **C99 コアはクロスコンパイルが通る**（Xtensa / rv32imac / rv32imafc で 5/5）が、**bare-metal の libc と HAL が無い** |
 
 ⚠️ **Arduino ライブラリ（[D-065](decisions.md#d-065)）も同じ板の制約に従う。** さらに:
-**PlatformIO では公式の `espressif32` が使えない**（arduino-esp32 2.0.17 / ESP-IDF 4.4 に
-`ESP_PARTITION_MMAP_DATA` も `driver/i2s_std.h` も無い）。**pioarduino（3.x）が要る。**
+PlatformIO の推奨は **pioarduino（3.x）**。**公式の `espressif32` 6.x（arduino-esp32 2.0.17 / ESP-IDF 4.4）でもビルドできる**
+（[M-150](measurements.md#m-150) の G-AR9）が、**`SanoTTSSpeakerI2S` は使えない**（4.4 に `driver/i2s_std.h` が無い）。
+⚠️ **v1.2.0 までの .zip は 2.x ではビルドできない**（2.x 対応はその後に入った）。
 非 S3 の板では `SANOTTS_ARENA_HEAP=1` が要る（静的 136 KB が `dram0_0_seg` に入らない）。
 
 ⚠️ **必要な下限**（[M-106](measurements.md#m-106) §1）: **flash 約 1 MB（かな）/ 4 MB（漢字）**・**ハードウェア浮動小数点**・**200 MHz 以上**。RAM は**漢字経路で合計 342,308 B**（静的 260,896 + Open JTalk の一時ヒープ 81,412）。⚠️ **静的 260,896 は M-106 の 289,568 から arena の差分 28,672 B を引いた算術**で、その構成で測り直してはいない（[M-142](measurements.md#m-142) は M5 CoreS3 の構成）。⚠️ **かな経路だけの RAM は測っていない。**

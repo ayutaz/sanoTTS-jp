@@ -75,7 +75,7 @@ esptool.py --chip esp32s3 -p <ポート> write_flash 0x0 esp32s3-firmware-kanji-
 
 ```ini
 [env:m5stack-cores3]
-; ⚠️ 公式の espressif32 は arduino-esp32 2.0.17 で止まっており動かない。3.x が要る
+; 推奨は pioarduino（arduino-esp32 3.x）。公式の espressif32 6.x（2.0.x）でもビルドできるが制約がある
 platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
 board = m5stack-cores3
 framework = arduino

@@ -9,6 +9,20 @@
 #include "esp_log.h"
 #include "esp_partition.h"
 #include "esp_timer.h"
+#include "esp_idf_version.h"
+
+/* --- ESP-IDF 4.4（arduino-esp32 2.x）でも読めるようにする -----------------------
+ *
+ * ⚠️ **ESP-IDF 5.x では 1 トークンも変わらない**（下の `#if` は 4.x でしか真にならない）。
+ *    4.4 は mmap の型・定数・解除関数の名前が違うだけで、`esp_partition_mmap` の意味は同じ。
+ *    ⚠️ **4.4 には `esp_mmu_map` が無い**ので、`SAAN_DICT_MMU=1` は下で止める。
+ *    ⚠️ **解除関数を寄せ忘れても C は警告しか出さない**（暗黙の宣言。関数が使われなければ
+ *       リンクも通る）。`scripts/ci_arduino_build.sh` の G-AR9 がその警告を落とす。 */
+#if ESP_IDF_VERSION_MAJOR < 5
+#  define esp_partition_mmap_handle_t spi_flash_mmap_handle_t
+#  define ESP_PARTITION_MMAP_DATA     SPI_FLASH_MMAP_DATA
+#  define esp_partition_munmap        spi_flash_munmap
+#endif
 
 /* --- 貼り方の選択 -----------------------------------------------------------
  *
@@ -46,6 +60,10 @@
 #  endif
 #endif
 
+#if SAAN_DICT_MMU && ESP_IDF_VERSION_MAJOR < 5
+#  error "SAAN_DICT_MMU=1 は ESP-IDF 5.x の esp_mmu_map が要る（4.4 = arduino-esp32 2.x には無い）。CONFIG_SPI_FLASH_ROM_IMPL を n にするか、ESP-IDF 5.x / arduino-esp32 3.x を使うこと"
+#endif
+
 #if SAAN_DICT_INTEGRITY_PROBE
 /* ⚠️ **測定専用**（M-131 の材料）。既定ビルドには 1 バイトも入らない。
  * ⚠️ **かつてこの 2 行は `#if SAAN_DICT_MMU` の中にあった** = DevKit 構成では
@@ -72,6 +90,15 @@
  *    片方だけの条件にすると「プローブは有効だが辞書を渡していない」構成で落ちる。 */
 #if defined(SAAN_DICT_SHA256) || SAAN_DICT_INTEGRITY_PROBE
 #include "mbedtls/sha256.h"
+#include "mbedtls/version.h"
+/* ⚠️ **mbedtls 2.x（ESP-IDF 4.4）では `mbedtls_sha256_starts` が void を返す**
+ *    （int を返すのは `_ret` 付き。3.x でそちらが元の名前に戻った）。
+ *    `== 0` と比べている下の 2 か所が 2.x ではコンパイルできないので寄せる。 */
+#  if MBEDTLS_VERSION_MAJOR < 3
+#    define mbedtls_sha256_starts mbedtls_sha256_starts_ret
+#    define mbedtls_sha256_update mbedtls_sha256_update_ret
+#    define mbedtls_sha256_finish mbedtls_sha256_finish_ret
+#  endif
 #endif
 
 #if SAAN_DICT_MMU

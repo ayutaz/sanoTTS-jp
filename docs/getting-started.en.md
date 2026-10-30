@@ -206,8 +206,8 @@ Decision: [D-065](decisions.md#d-065). Measurements: [M-137](measurements.md#m-1
 
 ```ini
 [env:m5stack-cores3]
-; The official espressif32 platform will NOT build this: it is stuck on arduino-esp32 2.0.17
-; (ESP-IDF 4.4), which has neither ESP_PARTITION_MMAP_DATA nor driver/i2s_std.h. 3.x is required.
+; pioarduino (arduino-esp32 3.x) is recommended. The official espressif32 6.x (arduino-esp32 2.0.x)
+; also builds, with limits (no SanoTTSSpeakerI2S) -- see arduino/README.md "arduino-esp32 2.x で使う".
 platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
 board = m5stack-cores3
 framework = arduino

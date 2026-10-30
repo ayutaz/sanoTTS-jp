@@ -87,7 +87,7 @@ esptool.py --chip esp32s3 -p <PORT> write_flash 0x0 esp32s3-firmware-kanji-16mb.
 
 ```ini
 [env:m5stack-cores3]
-; The official espressif32 platform is stuck on arduino-esp32 2.0.17 and will not build. 3.x is required.
+; pioarduino (arduino-esp32 3.x) is recommended. The official espressif32 6.x (2.0.x) also builds, with limits.
 platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
 board = m5stack-cores3
 framework = arduino
