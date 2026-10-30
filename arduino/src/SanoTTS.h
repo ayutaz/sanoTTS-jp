@@ -91,10 +91,20 @@ public:
 
     void setSpeaker(SanoTTSSpeaker* s) { m_spk = s; }
 
-    /* 発話の速さ。⚠️ **既定 1.2187 は D-019 の実測値**（言語ごとに較正されている）。
-     *    1.0 にすると教師と違う長さになる。変えるのは意図があるときだけ。 */
-    void  setLengthScale(float s) { m_sv = s; }
+    /* 話す速さ。**1.0 が既定**で、大きいほど速い（0.8 = ゆっくり / 1.25 = 速い）。
+     * 中身は `setLengthScale(kDefaultLengthScale / rate)` で、**1.0 なら既定と bit 一致**する。
+     * 正の有限値以外（0・負・NaN・INF）は **false を返して何も変えない**。
+     * ⚠️ **音素ごとの長さは 1〜80 フレームで切られる**ので、極端な値では 1/rate に比例しない。
+     * ⚠️ **既定以外の速さで品質も実機の速度も測っていない**（README「話す速さを変える」）。 */
+    bool  setSpeechRate(float rate);
+
+    /* 長さの倍率 s_v（大きいほど遅い）。⚠️ **既定 1.2187 は D-019 の実測値**（言語ごとに
+     *    較正されている）。1.0 にすると教師と違う長さになる。ふつうは `setSpeechRate()` を使う。
+     *    正の有限値以外は **false を返して何も変えない**。 */
+    bool  setLengthScale(float s);
     float lengthScale() const { return m_sv; }
+
+    static constexpr float kDefaultLengthScale = 1.2187f;   /* SAAN_S_V（D-019） */
 
     /* 直前の発話で出た int16 サンプル全部の FNV-1a 64。**移植の検証用**。
      * ⚠️ 同じターゲット上の 2 構成を比べるときだけ意味がある
@@ -117,7 +127,7 @@ private:
     SanoTTSSpeaker* m_spk = nullptr;
     bool  m_ready = false;
     bool  m_kanjiReady = false;
-    float m_sv = 1.2187f;            /* SAAN_S_V（D-019） */
+    float m_sv = kDefaultLengthScale;
     const char* m_err = "";
 };
 

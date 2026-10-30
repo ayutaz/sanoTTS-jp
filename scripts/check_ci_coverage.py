@@ -105,7 +105,7 @@ EXCLUDED_SCRIPTS: dict[str, str] = {
     "scripts/check_arduino_qemu.sh":
         "ESP-IDF + QEMU（xtensa の qemu と esp-idf の export.sh）と重み blob。"
         "⚠️ **Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するかを見る唯一のゲート**。"
-        "G-AR10（scripts/arduino_qemu_tests/*.cpp = 貯めて鳴らすスピーカーの積み方）もここで回る",
+        "G-AR10 / G-AR11（scripts/arduino_qemu_tests/*.cpp = 貯めて鳴らすスピーカーの積み方 / 話速）もここで回る",
     "scripts/check_partitions.py": "重み blob と辞書 blob（大きさを突き合わせる）",
     "scripts/test_discriminator.py": "ラベルパック data/pack_sibdense（git 管理外）",
     "scripts/check_corpus_license.py": "ラベルパック（data/pack_cc0）とコーパス本文（data/splits/*.tsv。どちらも git 管理外）。⚠️ 表だけの検査は scripts/test_corpus_license.py が CI で回している",

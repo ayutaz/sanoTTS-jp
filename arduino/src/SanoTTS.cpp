@@ -31,6 +31,7 @@ extern "C" {
 #endif
 }
 
+#include <math.h>
 #include <string.h>
 
 /* --- arena ----------------------------------------------------------------
@@ -182,6 +183,43 @@ bool SanoTTS::toIds(const char* text, size_t nbytes, int32_t* nIds) {
         ? "不正な UTF-8。端末は UTF-8 しか受けない"
         : "かな中間表現として読めないのに中間表現の記号（[ ] # ° _ ^ $ ?）が混じっている";
     return false;
+}
+
+/* --- 話す速さ --------------------------------------------------------------- */
+static_assert(SanoTTS::kDefaultLengthScale == SAAN_S_V,
+              "SanoTTS の既定の長さ倍率がコアの SAAN_S_V（D-019）と食い違っている");
+#if __cplusplus < 201703L
+constexpr float SanoTTS::kDefaultLengthScale;   /* C++11/14 では定義が要る（arduino-esp32 2.x） */
+#endif
+
+/* ⚠️ **NaN を通さない。** コアは `(int32_t)roundf(s_v · exp(log_d))` を clip してから整数にするが、
+ *    NaN は clip の比較を全部すり抜けるので、整数への変換が未定義動作になる。 */
+static bool lengthScaleOk(float s) { return s > 0.0f && isfinite(s); }
+
+bool SanoTTS::setLengthScale(float s) {
+    if (!lengthScaleOk(s)) {
+        m_err = "長さの倍率は正の有限値でなければならない";
+        return false;
+    }
+    m_sv = s;
+    return true;
+}
+
+bool SanoTTS::setSpeechRate(float rate) {
+#if SANOTTS_SPEECH_RATE_TEST_NO_CHECK      /* ⚠️ 陽性対照専用（G-AR11）。値の検査を外す */
+    m_sv = kDefaultLengthScale / rate;
+    return true;
+#else
+    if (!(rate > 0.0f) || !isfinite(rate)) {
+        m_err = "話す速さは正の有限値でなければならない";
+        return false;
+    }
+#if SANOTTS_SPEECH_RATE_TEST_INVERT        /* ⚠️ 陽性対照専用（G-AR11）。向きを逆にする */
+    return setLengthScale(kDefaultLengthScale * rate);
+#else
+    return setLengthScale(kDefaultLengthScale / rate);   /* 1e-45 のような値は INF になって弾かれる */
+#endif
+#endif
 }
 
 /* --- 1 発話ぶんの stream を開く（arena の二重防御つき）--------------------- */
