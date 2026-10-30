@@ -36,7 +36,9 @@ public:
      * `SAAN_AUDIO_PREROLL_SAMPLES` と同じ値（実機でアンダーラン 0）。 */
     virtual size_t prerollSamples() const { return 8192; }
 
-    /* 発話の頭。`nSamples` ぶんのプリロール用バッファを用意する。 */
+    /* 発話の頭。`nSamples` ぶんのプリロール用バッファを用意する。
+     * `nSamples` = min(`prerollSamples()`, その発話の総サンプル数)。プリロールに積まれるのは
+     * 必ずこの数以下（短い発話ではプリロールより小さい値が来る）。 */
     virtual bool beginUtterance(size_t nSamples) = 0;
 
     /* プリロールに積む。`start()` の前にだけ呼ばれる。 */
