@@ -462,8 +462,17 @@ jobs:
           uv run --no-project --python 3.12 python scripts/build_arduino_lib.py
           uv run --no-project --python 3.12 python scripts/build_arduino_lib.py --check
 
+      # ⚠️ **G-AR9（arduino-esp32 2.x）は別の置き場 `~/.platformio-2x` で組む。**
+      #    2 つの platform が同じ名前のパッケージを取り合うため（ci_arduino_build.sh の注記）。
+      - name: PlatformIO のキャッシュ（2.x = 公式 espressif32 6.12.0）
+        uses: actions/cache@v4
+        with:
+          path: ~/.platformio-2x
+          key: pio-espressif32-6.12.0-${{ runner.os }}
+
       # G-AR2（3 構成でビルド）+ G-AR6（PIE の命令数。陰性対照つき）
-      - name: G-AR2 / G-AR6
+      # + G-AR9（arduino-esp32 2.x の 4 構成 + 暗黙の関数宣言が 0 件）
+      - name: G-AR2 / G-AR6 / G-AR9
         run: PIO=pio bash scripts/ci_arduino_build.sh
 
       # ⚠️ **.zip も実際に組んで、そこから引いてビルドする。** ソースツリーから

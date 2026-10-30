@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（149 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（150 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -190,6 +190,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-147](#m-147) | ⭐ MEM-7 / MEM-8 を実機で測った |
 | [M-148](#m-148) | #21 の原因を確定した |
 | [M-149](#m-149) | `v1.2.0` を出した |
+| [M-150](#m-150) | Arduino ライブラリが arduino-esp32 2.x |
 
 </details>
 
@@ -12936,6 +12937,8 @@ OK  G-AR1 生成物 72 件が csrc/ と esp32/ の逐語（前置き + 本文 + 
 
 ### 2. ⚠️ 公式の `espressif32` プラットフォームではビルドが通らない
 
+⚠️ **[M-150](#m-150) で通るようにした**（2026-10-30。[D-069](decisions.md#d-069)）。以下は v1.2.0 までのコードの記録。
+
 素の `platform = espressif32` は **arduino-esp32 2.0.17（ESP-IDF 4.4.7）**を引く。
 実際に出たエラー（`pio pkg list` は `framework-arduinoespressif32 @ 4.20017.260907`）:
 
@@ -15068,3 +15071,155 @@ gh release download v1.2.0 -D /tmp/dl3 && cd /tmp/dl3 && shasum -a 256 -c SHA256
 
 ⚠️ **1 回のリリースで資産を 2 度差し替えた。** どちらも**公開してから人が読み直して**見つけたもので、
 **ゲートは 1 件も捕まえていない。**
+
+## M-150. **Arduino ライブラリが arduino-esp32 2.x（公式 espressif32 6.12.0 / ESP-IDF 4.4）でもビルドできるようにした** — 4 構成がリンクまで通り、PIE 命令は 3.x と同じ 74。⚠️ **2.x の PCM の bit 一致は QEMU で確かめられない**（何もしないスケッチでも `setup()` の前に落ちる）。⚠️ **Windows では 3.x でも G-AR4 の基準値が出ない**（丸めの差。変更前のツリーとは bit 一致）（自己実測 / Windows 11 + PlatformIO 6.2.0）
+
+[D-069](decisions.md#d-069) の根拠。[M-137](#m-137) §2 の「公式の `espressif32` ではビルドが通らない」を改める。
+
+### 1. 何が足りなかったか
+
+ESP-IDF 4.4 と 5.x で**名前だけ違う** API が 5 つあった（`saan_dict.c` / `saan_model.c`）:
+
+| 5.x | 4.4 |
+|---|---|
+| `esp_partition_mmap_handle_t` | `spi_flash_mmap_handle_t` |
+| `ESP_PARTITION_MMAP_DATA` | `SPI_FLASH_MMAP_DATA` |
+| `esp_partition_munmap` | `spi_flash_munmap` |
+| `mbedtls_sha256_starts` / `_update` / `_finish`（mbedtls 3.x） | `…_ret`（mbedtls 2.x） |
+
+`ESP_IDF_VERSION_MAJOR < 5` / `MBEDTLS_VERSION_MAJOR < 3` のときだけ `#define` で寄せる。
+**5.x では 1 トークンも変わらない**（§4 で 3.x の G-AR4 を回し直した）。
+`esp_mmu_map`（`SAAN_DICT_MMU`）は 4.4 に無いので `#error` で止める。
+
+### 2. ⭐ RED — **暗黙の関数宣言は「ビルドが通った」の中に隠れる**
+
+最初に型名と `ESP_PARTITION_MMAP_DATA` だけ寄せたら、**4 構成とも「ビルドできた」**。
+だが `esp_partition_munmap` は 4.4 に無く、C では**警告で済み**、
+使われなければリンクも通る。`ci_arduino_build.sh` に
+「`arduino/src/` の中で `implicit declaration of function` が 1 件でも出たら NG」を足した:
+
+```
+  OK  kanji-m5-2x はビルドできた
+      .../arduino/src/core/saan_dict.c:342:5: warning: implicit declaration of function 'esp_partition_munmap'; did you mean 'esp_partition_mmap'? [-Wimplicit-function-declaration]
+  NG  kanji-m5-2x: このライブラリに暗黙の関数宣言がある（その版の ESP-IDF に無い API を呼んでいる）
+  OK  part-2x はビルドできた
+      .../arduino/src/core/saan_model.c:76:9: warning: implicit declaration of function 'esp_partition_munmap'; ...
+  NG  part-2x: このライブラリに暗黙の関数宣言がある（その版の ESP-IDF に無い API を呼んでいる）
+  OK  non-s3-2x はビルドできた
+      .../arduino/src/core/saan_dict.c:342:5: warning: implicit declaration of function 'esp_partition_munmap'; ...
+  NG  non-s3-2x: このライブラリに暗黙の関数宣言がある（その版の ESP-IDF に無い API を呼んでいる）
+NG! 上の NG を見ること
+```
+
+= **この検査が陽性対照つき**（修正前の 3 構成で実際に落ちた）。
+⚠️ **kana-2x は落ちなかった** — かな専用では辞書の mmap 経路がコンパイルされない（正しい）。
+⚠️ **辞書の SHA-256 照合は `-DSANOTTS_DICT_SHA256=…` を渡さないと 1 行もコンパイルされない**ので、
+kanji-m5-2x にはダミーの 64 桁を渡してある（mbedtls 2.x の `_ret` 経路を通すため）。
+`nm` で `saan_dict.c.o` が `mbedtls_sha256_*_ret` を参照していることを確かめた。
+
+### 3. GREEN — 7 構成
+
+```bash
+uv sync --extra arduino      # または PATH に pio
+bash scripts/ci_arduino_build.sh
+```
+
+| 構成 | platform | RAM (B) | Flash (B) | PIE 命令 |
+|---|---|---:|---:|---:|
+| kana | pioarduino 55.03.311（3.x） | 170,232 | 309,133 | 74 |
+| kanji-m5 | 〃 | 179,092 | 544,495 | 74 |
+| non-s3（陰性対照） | 〃 | 35,332 | 381,404 | **0** |
+| kana-2x | **espressif32@6.12.0**（arduino-esp32 2.0.17） | 167,076 | 293,313 | 74 |
+| kanji-m5-2x（SHA-256 照合つき） | 〃 | 174,280 | 535,089 | 74 |
+| part-2x（重みを model パーティションから） | 〃 | 167,084 | 294,545 | — |
+| non-s3-2x（陰性対照） | 〃 | 34,676 | 374,177 | **0** |
+
+```
+OK  G-AR1 / G-AR2 / G-AR6 / G-AR9 すべて通った
+```
+
+⚠️ **RAM / Flash は PlatformIO の表示値**（`.bss` + `.data` / app の大きさ）。実行時の空きではない。
+⚠️ **2.x は `~/.platformio-2x` で組む。** 同じ `~/.platformio` で 2 つの platform を交互に回すと、
+`tool-esptoolpy` を取り合って `No module named 'intelhex'` で落ちた（実際に踏んだ）。
+
+### 4. 3.x の G-AR4 — ⚠️ **この Windows 環境では基準と一致しない。ただし変更の前後では bit 一致した**
+
+```bash
+bash scripts/check_arduino_qemu.sh     # QEMU / BLOB / PIO / WORK は環境変数で上書きできる
+```
+
+| ツリー | W8A8 + PIE | W8A32 |
+|---|---|---|
+| **この変更** | `0x71e1fb48a814270b` / 27,136 | `0x4e0b9ac43aadaa12` / 27,648 |
+| 変更前の HEAD（`3eb73a9`。`git archive` で書き出した） | **同じ** | **同じ** |
+| [M-137](#m-137) の時点（`6a59fc6`。Mac で基準と一致した版） | **同じ** | **同じ** |
+| ESP-IDF の基準（[M-124](#m-124) / [M-137](#m-137)） | `0x390bf4b2aef8f2ec` | `0x9cbe622a4a53af7e` |
+
+⚠️ 3 つのツリーの `check_arduino_qemu.sh` はこの変更の版に差し替えて回した（Windows のパス変換と
+`QEMU=` の上書きが無いと動かない。**ライブラリ本体は各ツリーのまま**）。
+
+**= この変更は、この環境の PCM を 1 bit も動かしていない**（5.x では寄せの `#define` が 1 つも効かないので当然だが、測った）。
+**基準と違うのは環境の方**で、M-137 の版でも同じ値が出る。
+
+切り分け（W8A8 + PIE。診断用スケッチで出させた）:
+
+| | この環境 | 基準（[M-132](#m-132) の表 = QEMU） |
+|---|---|---|
+| G2P の ids | 53 個・`demo_ids.h` の錨と**完全一致** | 同じ |
+| 実行時に読んだ重みの FNV-1a 64 | `0x0a218eebfb7a4644`（**ホストで計算した blob の値と一致**） | — |
+| sample | 27,136 | 27,136 |
+| `\|max\|` | **7,583** | **7,583** |
+| `Σx²` | 84,292,782,259 | 84,292,798,374（相対差 **1.9e-7**） |
+
+**丸めの差である**（入力も重みも同じで、`|max|` が一致し `Σx²` が 1e-7 台でずれる =
+CLAUDE.md の「ホストとターゲットは bit 一致しない」と同じ形）。
+⚠️ **どこで丸めが変わったかは切り分けていない。** 環境の違いは **ホストが Windows**（toolchain は
+platform が固定する `toolchain-xtensa-esp-elf 14.2.0+20260121`、QEMU は `esp-develop-9.0.0-20240606` の
+Windows 版）であること。
+⚠️ 「Windows の QEMU が `madd.s` を FMA にしていない」は**否定した** — `(1+2⁻²³)² − (1+2⁻²²)` を
+`madd.s` で計算すると `0x28800000`（= 2⁻⁴⁶。FMA の答え）、積と和を分けると `0x00000000`。
+
+⚠️ **したがって G-AR4 の基準値は Windows では使えない。** Windows で回すなら
+**変更前のツリーと同じ環境で並べて比べる**こと（`check_arduino_qemu.sh` の冒頭に書いた）。
+
+### 5. ⚠️ **2.x の G-AR4 は QEMU で回せない**
+
+```bash
+SANOTTS_PIO_PLATFORM=espressif32@6.12.0 PLATFORMIO_CORE_DIR=$HOME/.platformio-2x \
+  bash scripts/check_arduino_qemu.sh
+```
+
+w8a8 / w8a32 とも checksum が出ず、起動時の assert でリブートを繰り返した。
+⚠️ **このライブラリのせいではない。** 次の**何もしないスケッチ**でも同じ所で落ちる:
+
+```ini
+[env:qemu]
+platform = espressif32@6.12.0
+board = esp32-s3-devkitc-1
+framework = arduino
+board_build.partitions = huge_app.csv
+board_build.flash_mode = dio
+```
+
+```cpp
+#include <Arduino.h>
+void setup(){Serial.begin(115200);delay(100);Serial.println("BARE_HELLO");}
+void loop(){}
+```
+
+```
+entry 0x403c98b8
+assert failed: 0x403756f6 <cached disabled>:244 (<cached disabled>)
+...
+E (332) esp_core_dump_flash: Core dump flash config is corrupted! CRC=0x7bd5c66f instead of 0x0
+Rebooting...
+```
+
+`BARE_HELLO` は 1 度も出ない。addr2line で辿ると
+`spi_flash_mmap_pages`（`flash_mmap.c:244`）← `spi_flash_mmap` ← `load_partitions` ←
+`esp_partition_find_first` ← `esp_core_dump_flash_init` で、**`setup()` より前**。
+QEMU は Espressif の `esp-develop-9.0.0-20240606`（Windows 版）。`-m 8M` / `-m 4M` のどちらでも同じ。
+
+⚠️ **したがって 2.x で言えるのは「ビルドできる」「PIE 命令が 74」までで、同じ PCM が出るかは未確認。**
+⚠️ **2.x の実機では鳴らしていない**（3.x も同じ。板が無い）。
+⚠️ **v1.2.0 までの .zip は 2.x ではビルドできない**（この変更はまだリリースしていない）。

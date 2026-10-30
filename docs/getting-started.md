@@ -193,8 +193,8 @@ uv run --no-project python -m http.server -d /tmp/saan-site 8000
 
 ```ini
 [env:m5stack-cores3]
-; ⚠️ **公式の espressif32 では動かない。** arduino-esp32 2.0.17（ESP-IDF 4.4）で止まっており、
-;    ESP_PARTITION_MMAP_DATA も driver/i2s_std.h も無い。3.x が要る。
+; 推奨は pioarduino（arduino-esp32 3.x）。公式の espressif32 6.x（2.0.x）でもビルドできるが
+; 制約がある（SanoTTSSpeakerI2S が使えない）。arduino/README.md の「arduino-esp32 2.x で使う」
 platform = https://github.com/pioarduino/platform-espressif32/releases/download/55.03.311/platform-espressif32.zip
 board = m5stack-cores3
 framework = arduino

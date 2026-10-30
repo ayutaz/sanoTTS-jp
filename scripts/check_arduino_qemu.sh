@@ -25,6 +25,13 @@
 # ⚠️ **ホストと比べてはいけない。** float の丸めが違うので必ずずれる。
 #    bit 一致を主張してよいのは**同じターゲット上の 2 構成**だけ。
 #
+# ⚠️ **Windows（MSYS の bash）では上の基準値が出ない**（docs/measurements.md M-150 §4）。
+#    W8A8+PIE `0x71e1fb48a814270b` / W8A32 `0x4e0b9ac43aadaa12` になる。入力の ids も重みも同じで
+#    `|max|` も一致し、`Σx²` が 1.9e-7 ずれる = **丸めの差**（どこで変わるかは切り分けていない）。
+#    **M-137 の版（Mac で基準と一致した版）でも同じ値が出る**ので、ライブラリの退行ではない。
+#    Windows で回すなら、**変更前のツリーを `git archive` で書き出して同じ環境で並べ**、
+#    その 2 つが bit 一致することを見ること（この NG は無視しない — 並べて初めて意味がある）。
+#
 # ## 要るもの（CI では回らない理由）
 #
 #   - ESP-IDF の QEMU（`~/.espressif/tools/qemu-xtensa/.../qemu-system-xtensa`）
@@ -52,7 +59,11 @@ fail=0
 ng() { echo "  NG  $*"; fail=1; }
 ok() { echo "  OK  $*"; }
 
-QEMU="$(find "$HOME/.espressif/tools/qemu-xtensa" -name 'qemu-system-xtensa' 2>/dev/null | head -1)"
+# ⚠️ **arduino-esp32 2.x（公式 espressif32 6.x）でも回す**なら
+#    `SANOTTS_PIO_PLATFORM=espressif32@6.12.0 PLATFORMIO_CORE_DIR=$HOME/.platformio-2x`。
+#    基準値は同じ（ESP-IDF 5.5 版の値）で、**一致すれば GCC 8.4 / ESP-IDF 4.4 でも同じ PCM が出る**
+#    と言える。⚠️ **置き場を分けること**（`ci_arduino_build.sh` の PIO_CORE_2X の注記）。
+QEMU="${QEMU:-$(find "$HOME/.espressif/tools/qemu-xtensa" -name 'qemu-system-xtensa' 2>/dev/null | head -1)}"
 [ -n "$QEMU" ] || { echo "NG! qemu-system-xtensa が無い（ESP-IDF の QEMU を入れること）"; exit 1; }
 [ -f "$BLOB" ] || { echo "NG! 重み blob が無い: $BLOB"; exit 1; }
 
@@ -62,6 +73,10 @@ uv run --no-project --python 3.12 python "$ROOT/scripts/build_arduino_lib.py" \
     --zip "$WORK/dist" --version qemu --blob "$BLOB" >/dev/null
 CODE_ZIP="$WORK/dist/sanoTTS-jp-arduino.zip"
 VOICE_ZIP="$WORK/dist/sanoTTS-jp-voice-tsukuyomi-v4.zip"
+# ⚠️ Windows（MSYS の bash）では PlatformIO が `/c/...` を読めないので `C:/...` に直す。
+if command -v cygpath >/dev/null 2>&1; then
+    CODE_ZIP="$(cygpath -m "$CODE_ZIP")"; VOICE_ZIP="$(cygpath -m "$VOICE_ZIP")"
+fi
 
 run_one() {   # $1 = 名前  $2 = 追加 build_flags  $3 = 期待する checksum  $4 = 期待する sample 数
     local name="$1" flags="$2" want="$3" want_n="$4"
@@ -113,17 +128,34 @@ EOF
     #    （esptool.py の shebang は `env python` で、この環境には `python` が無い。
     #      `uv run` を通さない python は hook も止める）
     local merged="$d/flash.bin"
-    local factory="$d/.pio/build/qemu/firmware.factory.bin"
-    [ -f "$factory" ] || { ng "$name: firmware.factory.bin が無い"; return; }
+    local b="$d/.pio/build/qemu"
+    local factory="$b/firmware.factory.bin"
     # 8 MB ぶんの 0xFF を作ってから先頭に factory を上書きする。
     #   ⚠️ `tr` で 0xFF を作る（`dd if=/dev/zero` だと 0x00 になり、
     #      消去済み flash と違う値になる。今回は読むだけなので害は無いが、揃えておく）
     ( head -c 8388608 /dev/zero | LC_ALL=C tr '\000' '\377' ) > "$merged"
-    dd if="$factory" of="$merged" bs=1 conv=notrunc status=none
+    if [ -f "$factory" ]; then
+        dd if="$factory" of="$merged" bs=1 conv=notrunc status=none
+    else
+        # ⚠️ **公式 espressif32 6.x は factory.bin を作らない。** 4 本を
+        #    ESP32-S3 の既定 offset（0x0 / 0x8000 / 0xe000 / 0x10000）へ自分で置く。
+        local app0
+        app0="$(find "${PLATFORMIO_CORE_DIR:-$HOME/.platformio}/packages/framework-arduinoespressif32/tools/partitions" \
+                     -name 'boot_app0.bin' 2>/dev/null | head -1)"
+        for f in "$b/bootloader.bin" "$b/partitions.bin" "$app0" "$b/firmware.bin"; do
+            [ -n "$f" ] && [ -f "$f" ] || { ng "$name: 焼き込み用の部品が無い（$f）"; return; }
+        done
+        dd if="$b/bootloader.bin" of="$merged" bs=4096 seek=0  conv=notrunc status=none
+        dd if="$b/partitions.bin" of="$merged" bs=4096 seek=8  conv=notrunc status=none
+        dd if="$app0"             of="$merged" bs=4096 seek=14 conv=notrunc status=none
+        dd if="$b/firmware.bin"   of="$merged" bs=4096 seek=16 conv=notrunc status=none
+    fi
 
     # ⚠️ **タイムアウトを付ける。** 合成が落ちると QEMU は戻ってこない。
+    local drive="$merged"
+    command -v cygpath >/dev/null 2>&1 && drive="$(cygpath -m "$merged")"
     ( "$QEMU" -nographic -machine esp32s3 -m 8M \
-        -drive file="$merged",if=mtd,format=raw >"$d/qemu.log" 2>&1 & echo $! > "$d/pid" ) || true
+        -drive file="$drive",if=mtd,format=raw >"$d/qemu.log" 2>&1 & echo $! > "$d/pid" ) || true
     local pid; pid="$(cat "$d/pid")"
     local i=0
     while [ $i -lt 180 ]; do
