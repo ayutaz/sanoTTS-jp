@@ -416,14 +416,14 @@ jobs:
       # ⚠️ **key に platform の版を入れる。** 入れないと platform を上げたときに
       #    古い toolchain が当たって「上げたつもりで上がっていない」形になる。
       - name: PlatformIO のキャッシュ
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.platformio
           key: pio-55.03.311-${{ runner.os }}
 
       # arduino-esp32 のコア（約 1 GB）も残す。⚠️ **版を key に入れる。**
       - name: arduino-cli のキャッシュ
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.arduino15
           key: acli-esp32-3.3.11-${{ runner.os }}
@@ -465,7 +465,7 @@ jobs:
       # ⚠️ **G-AR9（arduino-esp32 2.x）は別の置き場 `~/.platformio-2x` で組む。**
       #    2 つの platform が同じ名前のパッケージを取り合うため（ci_arduino_build.sh の注記）。
       - name: PlatformIO のキャッシュ（2.x = 公式 espressif32 6.12.0）
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.platformio-2x
           key: pio-espressif32-6.12.0-${{ runner.os }}
