@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # G-AR4 — **Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するか**（QEMU）。
-# G-AR10 — `scripts/arduino_qemu_tests/*.cpp`（ライブラリの振る舞いのテスト。重み入りで QEMU で走らせ、
+# G-AR10 / G-AR11 — `scripts/arduino_qemu_tests/*.cpp`（ライブラリの振る舞いのテスト。重み入りで QEMU で走らせ、
 #          `SAAN_TEST PASS` を要求する）と、その**陽性対照**（壊したビルドで名指しの検査が落ちること）。
 #
-# 一部だけ回す: `ONLY=w8a8,buffered bash scripts/check_arduino_qemu.sh`
+# 一部だけ回す（名前は下の各行）: `ONLY=w8a8,buffered,speech-rate bash scripts/check_arduino_qemu.sh`
 #
 # ⚠️ **これが唯一「同じ音が出る」を証明するゲート。** G-AR1/2/3/6/7 は全部
 #    「ビルドが通るか」「PIE 命令が在るか」しか言っていない。フラグが 1 つ違えば
@@ -253,11 +253,20 @@ run_ctl  buffered-ctl "$T/buffered.cpp" '-DSANOTTS_BUFFERED_TEST_ONE_SLOT=1' \
          'T3 キューに居るバッファを上書きしていない'
 
 echo
+echo "=== G-AR11 話速（SanoTTS::setSpeechRate）==="
+run_test speech-rate     "$T/speech_rate.cpp" ''
+# ⚠️ **陽性対照 2 本。** 向きを逆にすると R2 が、値の検査を外すと R3 が落ちる。
+run_ctl  speech-rate-inv "$T/speech_rate.cpp" '-DSANOTTS_SPEECH_RATE_TEST_INVERT=1' \
+         'R2 setSpeechRate(0.8) で長くなる'
+run_ctl  speech-rate-nochk "$T/speech_rate.cpp" '-DSANOTTS_SPEECH_RATE_TEST_NO_CHECK=1' \
+         'R3 setSpeechRate(NaN) は false で何も変えない'
+
+echo
 if [ "$fail" = 0 ] && [ -n "${ONLY:-}" ]; then
     # ⚠️ **一部だけ回したときに「すべて通った」と書かない。**
     echo "OK  ONLY=$ONLY の分だけ通った（⚠️ 他は回していない）"
 elif [ "$fail" = 0 ]; then
-    echo "OK  G-AR4（ESP-IDF の基準と bit 一致）/ G-AR10（貯めて鳴らす）すべて通った"
+    echo "OK  G-AR4（ESP-IDF の基準と bit 一致）/ G-AR10（貯めて鳴らす）/ G-AR11（話速）すべて通った"
 else
     echo "NG! 上の NG を見ること。**一致しないうちはマージしない。**"
 fi

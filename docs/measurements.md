@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（151 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（152 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -192,6 +192,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-149](#m-149) | `v1.2.0` を出した |
 | [M-150](#m-150) | Arduino ライブラリが arduino-esp32 2.x |
 | [M-151](#m-151) | Arduino ライブラリに「発話を丸ごと貯めてから鳴らす」スピーカー `SanoTTSSpeakerBuffered` を足した |
+| [M-152](#m-152) | Arduino ライブラリに話速 `SanoTTS::setSpeechRate()` を足した |
 
 </details>
 
@@ -15322,3 +15323,81 @@ GREEN の出力（W8A8 + PIE、`saanotts-jp-v4-int8.bin`）:
 - ⚠️ **途切れが本当に消えるかは測っていない**（Wi-Fi 併用 / PSRAM arena の構成を実機で回していない）
 - ⚠️ **鳴り出しまでの時間**は合成時間ぶん延びるはずだが、測っていない
 - ⚠️ **PSRAM のある板で長い文を貯められるか**は QEMU では測れない（QEMU に PSRAM が無い）
+
+## M-152. **Arduino ライブラリに話速 `SanoTTS::setSpeechRate()` を足した** — 1.0 なら既定と PCM が bit 一致し、0.8 で 1.2264 倍・1.25 で 0.8113 倍の長さになる。正の有限値以外は拒否する（陽性対照 2 本）。⚠️ **既定以外の速さで品質も実機の速度も測っていない**（自己実測 / Windows 11 + PlatformIO 6.2.0 + QEMU）
+
+| 足したもの | 中身 |
+|---|---|
+| `bool setSpeechRate(float rate)` | `setLengthScale(kDefaultLengthScale / rate)`。**大きいほど速い**。正の有限値以外は false を返して何も変えない |
+| `bool setLengthScale(float s)` | 戻り値を `void` → `bool` にし、同じ検査を足した（**今まで NaN を通していた**） |
+| `kDefaultLengthScale` | 1.2187f。`SanoTTS.cpp` の `static_assert` でコアの `SAAN_S_V`（[D-019](decisions.md#d-019)）と一致させる |
+
+**NaN を通すと未定義動作になる。** コアは `(int32_t)roundf(s_v · exp(log_d))` を clip[1,80] してから整数にするが
+（`csrc/saanotts_stream.c` の `stream_init_body`）、NaN は clip の比較を両方すり抜けるので、整数への変換が未定義動作になる。
+⚠️ **s_v = +INF / 0 はふつう未定義動作にはならない**（全音素が 80 / 1 フレームに張り付く。ただし +INF は
+`exp(log_d)` が 0 に潰れると INF × 0 = NaN になる）が、どちらも意図した値ではないので同じく拒否する。
+**arena は発話の長さに依らない**（`saan_stream_arena_used(n_ids)` は ids の数だけで決まる）ので、話速を変えてもメモリは増えない。
+
+### 1. ゲート G-AR11
+
+```bash
+ONLY=speech-rate,speech-rate-inv,speech-rate-nochk bash scripts/check_arduino_qemu.sh   # ⚠️ ESP-IDF + QEMU が要る。CI では回らない
+```
+
+RED（実装前）: `'kDefaultLengthScale' is not a member of 'SanoTTS'` / `'class SanoTTS' has no member named 'setSpeechRate'` でコンパイルが落ちた。
+
+GREEN（W8A8 + PIE、`saanotts-jp-v4-int8.bin`、文は「きょ][おわよ][いて][んきです°ね」= 53 ids）:
+
+```
+      SAAN_TEST OK   R0 既定の lengthScale() が 1.2187 と bit 一致（1.2187）
+      SAAN_TEST OK   R0 既定で合成できる（0x71e1fb48a814270b / 27136 sample）
+      SAAN_TEST OK   R1 setSpeechRate(1.0) は値を変えない（1.2187）
+      SAAN_TEST OK   R1 setSpeechRate(1.0) の PCM が既定と bit 一致（0x71e1fb48a814270b / 27136 sample）
+      SAAN_TEST OK   R2 setSpeechRate(0.8) で長くなる（27136 → 33280 sample）
+      SAAN_TEST OK   R2 0.8 の長さの比が 1/0.8 = 1.25 の ±0.1（1.2264）
+      SAAN_TEST OK   R2 setSpeechRate(1.25) で短くなる（27136 → 22016 sample）
+      SAAN_TEST OK   R2 1.25 の長さの比が 1/1.25 = 0.8 の ±0.1（0.8113）
+      SAAN_TEST OK   R3 setSpeechRate(0) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R3 setSpeechRate(-0) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R3 setSpeechRate(-1) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R3 setSpeechRate(NaN) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R3 setSpeechRate(+INF) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R3 setSpeechRate(-INF) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R3 setSpeechRate(1e-45（割ると INF）) は false で何も変えない（false / 0.97496）
+      SAAN_TEST OK   R4 setLengthScale(0) は false で何も変えない（false）
+      SAAN_TEST OK   R4 setLengthScale(-1) は false で何も変えない（false）
+      SAAN_TEST OK   R4 setLengthScale(NaN) は false で何も変えない（false）
+      SAAN_TEST OK   R4 setLengthScale(+INF) は false で何も変えない（false）
+      SAAN_TEST OK   R4 setLengthScale(既定) は true
+      SAAN_TEST OK   R5 1.0 に戻すと PCM が既定と bit 一致（0x71e1fb48a814270b）
+  OK  speech-rate: SAAN_TEST PASS
+  OK  speech-rate: SAAN_TEST PASS
+```
+
+| rate | s_v | sample | 既定との比 | 1/rate |
+|---:|---:|---:|---:|---:|
+| 1.0 | 1.2187 | 27,136 | 1 | 1 |
+| 0.8 | 1.523375 | 33,280 | **1.2264** | 1.25 |
+| 1.25 | 0.97496 | 22,016 | **0.8113** | 0.8 |
+
+⚠️ **n=1（1 文）。** 比が 1/rate ちょうどにならないのは、音素ごとに round と clip[1,80] を通るため。
+⚠️ **±0.1 の幅は回帰検出用で、合格基準ではない**（この 1 文の実測を見て決めた幅ではないが、根拠のある幅でもない）。
+`0x71e1fb48a814270b` は [M-150](#m-150) §4 の「この Windows 環境での W8A8 + PIE の値」と同じ（基準の `0x390b…` ではない）。
+
+### 2. 陽性対照
+
+| 壊し方 | 落ちるべき検査 | 結果 |
+|---|---|---|
+| `-DSANOTTS_SPEECH_RATE_TEST_INVERT=1`（s_v = 既定 × rate） | R2「0.8 で長くなる」 | **R2 の 4 項目**が落ちた（0.8 で 22,016 / 1.25 で 33,280 sample = 逆向き）。⚠️ R3 の `1e-45` も落ちる — 掛け算だと s_v = 1.4e-45（正の有限値）になり、正しく受け付けられるため（対照の副作用で、検査の欠陥ではない） |
+| `-DSANOTTS_SPEECH_RATE_TEST_NO_CHECK=1`（値の検査を外す） | R3「NaN は false」 | **R3 の 7 項目だけ**が落ちた（0 → INF / -1 → -1.2187 / NaN → NaN / +INF → 0 などを true で受けた）。R4 は落ちない（`setLengthScale` の検査は外していない） |
+
+⚠️ **1 回目の対照では R4（`setLengthScale` の検査）まで落ちていた。** R4 が R3 の前に取った値と比べていたので、
+R3 が値を変えると巻き添えになっていた。**R4 は直前の値を取り直す**形に直して回し直した（上の表はその結果）。
+⚠️ 検査を外した版では `setSpeechRate(+INF)` が **s_v = 0 を true で受けた** — 未定義動作ではないが、全音素が 1 フレームになる。
+
+### 3. 見ていないもの
+
+- ⚠️ **既定以外の速さの品質**（生徒は既定の長さで学習している。聴いてもいない）
+- ⚠️ **実機の速度。** 既定でも長い文では定常 xRT の中央値が 0.5 を超える（[M-147](#m-147)）。重い回は
+  1 トークンあたりのフレーム数が少ないほど増える（[M-148](#m-148)）ので、**速くするほど余裕が減る向きのはず**（未測定）
+- ⚠️ **ESP-IDF 版には足していない**（`main.c` は `SAAN_S_V` を直接渡す）
