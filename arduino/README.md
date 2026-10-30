@@ -97,6 +97,7 @@ tts.say("きょ][おわよ][いて][んきです°ね");   // かな中間表現
 | `HelloKana` | かな中間表現を I2S DAC で喋る | なし（辞書不要） |
 | `HelloKanji` | 漢字かな交じり文を M5.Speaker で喋る | M5Unified / 16 MB の辞書 |
 | `PcmCallback` | PCM をコールバックで受ける（スピーカー無し） | なし |
+| `BufferedPlayback` | 長い文章を**文ごとに貯めて**鳴らす（前の文を鳴らしている間に次を合成。下の「途切れるなら、貯めてから鳴らす」） | M5Unified / 16 MB の辞書 |
 | `M5Stack-Avatar-Talk` | **スタックチャンの顔を出し、喋る音量で口を動かす**（タッチで次の文） | M5Unified 0.2.22 / M5GFX 0.2.29 / **`meganetaaan/M5Stack-Avatar@0.10.0`**（Arduino IDE では `M5Stack_Avatar`）  |
 
 ### PCM を自分で扱う
@@ -225,8 +226,46 @@ AI スタックチャン Ex では、arena 176 KiB と合成タスクのスタ�
 ⚠️ **PSRAM の arena は遅く、ストリーミング再生（`say()`）が途切れうる。** 同じ報告で、
 PSRAM の arena では合成が再生に間に合わず音が途切れ、**区間ごとに PCM を PSRAM に貯めてから鳴らし、
 鳴らしている間に次の区間を合成する**形にしたら途切れなくなったとある。
-このライブラリでは `synthesize()` で PCM を受けて貯め、まとめて鳴らせば同じ形になる。
+このライブラリでは `SanoTTSSpeakerM5Buffered` がその形（下の「途切れるなら、貯めてから鳴らす」）。
 ⚠️ **PSRAM の arena の速度は測っていない**（このライブラリでも ESP-IDF 版でも）。
+
+### 途切れるなら、貯めてから鳴らす
+
+```cpp
+#include <M5Unified.h>
+#include <SanoTTS.h>
+#include <SanoTTSSpeakerM5Buffered.h>
+
+SanoTTS tts;
+SanoTTSSpeakerM5Buffered spk;      // SanoTTSSpeakerM5 の代わり
+
+void setup() {
+  M5.begin();
+  tts.setSpeaker(&spk);
+  tts.begin();
+  tts.say("今日は良い天気ですね。");   // 合成し終わったら、鳴り終わる前に戻る
+  tts.say("明日も晴れるでしょう。");   // ↑ を鳴らしている間に合成する
+  spk.wait();                          // 鳴り終わりを待つ
+}
+```
+
+- `say()` は**発話を丸ごと PCM にしてから**鳴らし、**鳴り終わりを待たずに戻る**。
+  次の `say()` は前の発話を鳴らしている間に合成する（バッファは 2 枚を交互に使う）
+- **途切れない**かわりに、**発話の頭で鳴り出すまでに合成の時間がかかる**。長い文章は**文に区切って**
+  `say()` を続ける（`examples/BufferedPlayback`）
+- PCM は PSRAM に置く（無ければ内部 DRAM）。**1 秒 = 44,100 B**、2 枚ぶん要る
+- ⚠️ **PSRAM の無い板では長い文を続けて貯められない。** QEMU（PSRAM 無し）では、1 発話目
+  （27,136 sample）を積んだ後の内部 RAM の空きが 139,584 B で、**1.5 秒級の発話を続けて 3 つ**
+  `say()` すると 3 つ目の枠が確保できなかった（`say()` が false を返す。[M-151](../docs/measurements.md#m-151)）。
+  文を短く区切るか、PSRAM のある板で使う
+- ⚠️ **破棄する前に `wait()` すること**（鳴っている最中のバッファを解放すると、解放済みメモリを鳴らす）
+- 自分の出口で使うなら `SanoTTSSpeakerBuffered` を継承して 3 つ（`beginOutput` / `enqueue` / `queued`）を埋める
+  （`src/SanoTTSSpeakerBuffered.h`）
+- ESP-IDF 版にも、発話を丸ごと貯めてから鳴らす方式がある（`idf.py -DSAAN_BUFFERED=1`。`esp32/main/main.c`）
+
+⚠️ **M5 の実機では鳴らしていない。** 積み方（鳴っているバッファを上書きしない・1 発話 1 回積む・
+貯めた PCM がストリーミングと bit 一致する）は QEMU で偽の出口を使って確かめた
+（G-AR10。`scripts/arduino_qemu_tests/buffered.cpp`）が、**M5.Speaker の上で途切れないか・雑音が無いかは見ていない**。
 
 ---
 
@@ -268,6 +307,7 @@ RAM の大半は合成用の arena 139,264 B（`.bss` に静的確保。⚠️ *
 - 3 構成（かな / 漢字 / 非 S3）でビルドが通る
 - **整数 SIMD が実際に効いている**（`saanotts_int8.c.o` に 74 命令。非 S3 では 0）
 - **PlatformIO と arduino-cli の両方**で、.zip から引いて重みがリンクされる
+- **`SanoTTSSpeakerBuffered` の積み方**（QEMU・偽の出口。G-AR10）
 
 ⚠️ **確かめていないこと**:
 

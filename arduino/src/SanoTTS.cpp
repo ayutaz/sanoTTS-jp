@@ -248,7 +248,14 @@ bool SanoTTS::say(const char* text, size_t nbytes) {
     if (!openStream(n_ids)) return false;
 
     const size_t preroll = m_spk->prerollSamples();
-    if (!m_spk->beginUtterance(preroll)) {
+    /* 発話の総サンプル数は init の時点で決まる（esp32/main/main.c の SAAN_BUFFERED と同じ）。
+     * ⚠️ **beginUtterance() にはプリロールに実際に積む上限を渡す** = min(プリロール, 総数)。
+     *    発話を丸ごと貯めるスピーカー（`SanoTTSSpeakerBuffered`）は、これで**ちょうどの量を
+     *    1 回で確保できる**（倍々に伸ばすと PSRAM の無い板で 2 発話目が取れなかった。M-151）。
+     *    下のループの条件は `preroll` のままにする（総数で切ると最後の端数チャンクが
+     *    プリロールから外れて write() に回る）。 */
+    const size_t total = (size_t)g_st.n_frames * SAAN_HOP;
+    if (!m_spk->beginUtterance(preroll < total ? preroll : total)) {
         m_err = "スピーカーの beginUtterance() が失敗した";
         return false;
     }

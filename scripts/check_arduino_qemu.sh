@@ -1,5 +1,9 @@
 #!/usr/bin/env bash
 # G-AR4 — **Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するか**（QEMU）。
+# G-AR10 — `scripts/arduino_qemu_tests/*.cpp`（ライブラリの振る舞いのテスト。重み入りで QEMU で走らせ、
+#          `SAAN_TEST PASS` を要求する）と、その**陽性対照**（壊したビルドで名指しの検査が落ちること）。
+#
+# 一部だけ回す: `ONLY=w8a8,buffered bash scripts/check_arduino_qemu.sh`
 #
 # ⚠️ **これが唯一「同じ音が出る」を証明するゲート。** G-AR1/2/3/6/7 は全部
 #    「ビルドが通るか」「PIE 命令が在るか」しか言っていない。フラグが 1 つ違えば
@@ -78,29 +82,15 @@ if command -v cygpath >/dev/null 2>&1; then
     CODE_ZIP="$(cygpath -m "$CODE_ZIP")"; VOICE_ZIP="$(cygpath -m "$VOICE_ZIP")"
 fi
 
-run_one() {   # $1 = 名前  $2 = 追加 build_flags  $3 = 期待する checksum  $4 = 期待する sample 数
-    local name="$1" flags="$2" want="$3" want_n="$4"
+# 一部だけ回す: `ONLY=buffered,buffered-ctl bash scripts/check_arduino_qemu.sh`（名前は下の各行）
+want_run() { [ -z "${ONLY:-}" ] || [[ ",$ONLY," == *",$1,"* ]]; }
+
+# ビルドして QEMU で起動し、`$4`（拡張正規表現）が出るまで待つ。ログは `$WORK/$1/qemu.log`。
+boot() {   # $1 = 名前  $2 = 追加 build_flags  $3 = main.cpp の元  $4 = 止める行  $5 = 待つ秒数
+    local name="$1" flags="$2" src="$3" until_re="$4" secs="$5"
     local d="$WORK/$name"
     mkdir -p "$d/src"
-    # ⚠️ **かな中間表現を使う**（辞書を焼かずに済む。ESP-IDF 側の基準値も
-    #    同じ 1 行から出ている = CLAUDE.md の「基準の 1 行」）。
-    cat > "$d/src/main.cpp" <<'INO'
-#include <Arduino.h>
-#include <SanoTTS.h>
-SanoTTS tts;
-static void sink(const int16_t* p, size_t n, void* u) { (void)p; (void)n; (void)u; }
-void setup() {
-  Serial.begin(115200);
-  delay(200);
-  if (!tts.begin()) { Serial.printf("SAAN_ERR %s\n", tts.lastError()); return; }
-  if (!tts.synthesize("きょ][おわよ][いて][んきです°ね", sink)) {
-    Serial.printf("SAAN_ERR %s\n", tts.lastError()); return;
-  }
-  Serial.printf("SAAN_CHECKSUM 0x%016llx %u\n",
-                (unsigned long long)tts.checksum(), (unsigned)tts.samples());
-}
-void loop() {}
-INO
+    cp "$src" "$d/src/main.cpp"
     cat > "$d/platformio.ini" <<EOF
 [env:qemu]
 platform = $PLATFORM
@@ -116,8 +106,8 @@ EOF
     echo "--- $name (${flags:-フラグ無し}) ---"
     if ! "$PIO" run -d "$d" >"$d/build.log" 2>&1; then
         tail -20 "$d/build.log" | sed 's/^/      /'
-        ng "$name のビルドが失敗した"
-        return
+        ng "$name のビルドが失敗した（$d/build.log）"
+        return 1
     fi
 
     # ⚠️ **QEMU の flash モデルは QIO を受け付けない**（M-85 / M-86）。
@@ -143,7 +133,7 @@ EOF
         app0="$(find "${PLATFORMIO_CORE_DIR:-$HOME/.platformio}/packages/framework-arduinoespressif32/tools/partitions" \
                      -name 'boot_app0.bin' 2>/dev/null | head -1)"
         for f in "$b/bootloader.bin" "$b/partitions.bin" "$app0" "$b/firmware.bin"; do
-            [ -n "$f" ] && [ -f "$f" ] || { ng "$name: 焼き込み用の部品が無い（$f）"; return; }
+            [ -n "$f" ] && [ -f "$f" ] || { ng "$name: 焼き込み用の部品が無い（$f）"; return 1; }
         done
         dd if="$b/bootloader.bin" of="$merged" bs=4096 seek=0  conv=notrunc status=none
         dd if="$b/partitions.bin" of="$merged" bs=4096 seek=8  conv=notrunc status=none
@@ -158,11 +148,40 @@ EOF
         -drive file="$drive",if=mtd,format=raw >"$d/qemu.log" 2>&1 & echo $! > "$d/pid" ) || true
     local pid; pid="$(cat "$d/pid")"
     local i=0
-    while [ $i -lt 180 ]; do
-        grep -q "SAAN_CHECKSUM\|SAAN_ERR" "$d/qemu.log" 2>/dev/null && break
+    while [ "$i" -lt "$secs" ]; do
+        grep -qE "$until_re" "$d/qemu.log" 2>/dev/null && break
         sleep 1; i=$((i+1))
     done
     kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true
+    return 0
+}
+
+# ⚠️ **かな中間表現を使う**（辞書を焼かずに済む。ESP-IDF 側の基準値も
+#    同じ 1 行から出ている = CLAUDE.md の「基準の 1 行」）。
+GAR4_MAIN="$WORK/gar4_main.cpp"
+cat > "$GAR4_MAIN" <<'INO'
+#include <Arduino.h>
+#include <SanoTTS.h>
+SanoTTS tts;
+static void sink(const int16_t* p, size_t n, void* u) { (void)p; (void)n; (void)u; }
+void setup() {
+  Serial.begin(115200);
+  delay(200);
+  if (!tts.begin()) { Serial.printf("SAAN_ERR %s\n", tts.lastError()); return; }
+  if (!tts.synthesize("きょ][おわよ][いて][んきです°ね", sink)) {
+    Serial.printf("SAAN_ERR %s\n", tts.lastError()); return;
+  }
+  Serial.printf("SAAN_CHECKSUM 0x%016llx %u\n",
+                (unsigned long long)tts.checksum(), (unsigned)tts.samples());
+}
+void loop() {}
+INO
+
+run_one() {   # $1 = 名前  $2 = 追加 build_flags  $3 = 期待する checksum  $4 = 期待する sample 数
+    local name="$1" flags="$2" want="$3" want_n="$4"
+    want_run "$name" || return 0
+    boot "$name" "$flags" "$GAR4_MAIN" "SAAN_CHECKSUM|SAAN_ERR" 180 || return 0
+    local d="$WORK/$name"
 
     local got
     got="$(grep -o 'SAAN_CHECKSUM 0x[0-9a-f]\{16\} [0-9]*' "$d/qemu.log" | head -1 || true)"
@@ -188,14 +207,57 @@ EOF
         || ng "$name: ${samples} sample（期待 ${want_n}）"
 }
 
+# `scripts/arduino_qemu_tests/*.cpp` を 1 本走らせ、`SAAN_TEST PASS` を要求する。
+# ⚠️ **PASS の行を探す。** FAIL が無いことを見るのではない（落ちて何も出ないときに緑になる）。
+TEST_DONE_RE='SAAN_TEST PASS|SAAN_TEST FAILED|SAAN_ERR|Guru Meditation|abort\(\)|assert failed'
+run_test() {   # $1 = 名前  $2 = テストの .cpp  $3 = 追加 build_flags
+    local name="$1" src="$2" flags="$3"
+    want_run "$name" || return 0
+    boot "$name" "$flags" "$src" "$TEST_DONE_RE" 600 || return 0
+    local log="$WORK/$name/qemu.log"
+    grep -E 'SAAN_TEST (OK|FAIL)' "$log" | sed 's/^/      /' || true
+    if grep -q 'SAAN_TEST PASS' "$log"; then
+        ok "$name: SAAN_TEST PASS"
+    else
+        echo "      （QEMU のログ末尾）"; tail -12 "$log" | sed 's/^/      /'
+        ng "$name: SAAN_TEST PASS が出なかった（$log）"
+    fi
+}
+
+# 陽性対照: わざと壊したビルドで、**名指しした検査が** FAIL すること。
+# ⚠️ **「どれかが落ちた」では足りない。** 壊し方と無関係な検査が落ちても通ってしまう。
+run_ctl() {    # $1 = 名前  $2 = テストの .cpp  $3 = 壊す build_flags  $4 = 落ちるべき FAIL 行（固定文字列）
+    local name="$1" src="$2" flags="$3" must="$4"
+    want_run "$name" || return 0
+    boot "$name" "$flags" "$src" "$TEST_DONE_RE" 600 || return 0
+    local log="$WORK/$name/qemu.log"
+    grep -E 'SAAN_TEST (OK|FAIL)' "$log" | sed 's/^/      /' || true
+    if grep -qF "SAAN_TEST FAIL $must" "$log"; then
+        ok "$name（陽性対照）: 「$must」が落ちた"
+    else
+        ng "$name（陽性対照）: 「$must」が落ちなかった = **その検査は空虚**（$log）"
+    fi
+}
+
 echo "=== G-AR4 Arduino ビルドの PCM が ESP-IDF ビルドと bit 一致するか ==="
 run_one w8a8  ''                        "$EXPECT_W8A8"  "$EXPECT_W8A8_N"
 # ⚠️ **陽性対照。** これが W8A8 と同じ値を出したら、フラグが効いていない。
 run_one w8a32 '-DSANOTTS_ENABLE_PIE=0'  "$EXPECT_W8A32" "$EXPECT_W8A32_N"
 
 echo
-if [ "$fail" = 0 ]; then
-    echo "OK  G-AR4 2 構成とも ESP-IDF の基準と bit 一致"
+echo "=== G-AR10 区間ごとに貯めて鳴らす（SanoTTSSpeakerBuffered）==="
+T="$ROOT/scripts/arduino_qemu_tests"
+run_test buffered     "$T/buffered.cpp" ''
+# ⚠️ **陽性対照。** 枠を 1 枚に潰すと、2 発話目が鳴っている 1 発話目のバッファに書く。
+run_ctl  buffered-ctl "$T/buffered.cpp" '-DSANOTTS_BUFFERED_TEST_ONE_SLOT=1' \
+         'T3 キューに居るバッファを上書きしていない'
+
+echo
+if [ "$fail" = 0 ] && [ -n "${ONLY:-}" ]; then
+    # ⚠️ **一部だけ回したときに「すべて通った」と書かない。**
+    echo "OK  ONLY=$ONLY の分だけ通った（⚠️ 他は回していない）"
+elif [ "$fail" = 0 ]; then
+    echo "OK  G-AR4（ESP-IDF の基準と bit 一致）/ G-AR10（貯めて鳴らす）すべて通った"
 else
     echo "NG! 上の NG を見ること。**一致しないうちはマージしない。**"
 fi
