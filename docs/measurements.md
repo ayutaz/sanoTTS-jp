@@ -37,7 +37,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 <a id="m-1"></a>
 <!-- ⚠️ この索引は scripts/build_measurements_index.py が見出しから作る。手で書かない -->
 <details>
-<summary><b>索引（150 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
+<summary><b>索引（151 件）</b> — ⚠️ <b>新しいものほど下</b>。食い違ったら<b>下</b>が正</summary>
 
 | # | 何を測ったか |
 |---|---|
@@ -191,6 +191,7 @@ export SNAP=~/.cache/huggingface/hub/models--ayousanz--piper-plus-zero-shot-tsuk
 | [M-148](#m-148) | #21 の原因を確定した |
 | [M-149](#m-149) | `v1.2.0` を出した |
 | [M-150](#m-150) | Arduino ライブラリが arduino-esp32 2.x |
+| [M-151](#m-151) | Arduino ライブラリに「発話を丸ごと貯めてから鳴らす」スピーカー `SanoTTSSpeakerBuffered` を足した |
 
 </details>
 
@@ -15223,3 +15224,101 @@ QEMU は Espressif の `esp-develop-9.0.0-20240606`（Windows 版）。`-m 8M` /
 ⚠️ **したがって 2.x で言えるのは「ビルドできる」「PIE 命令が 74」までで、同じ PCM が出るかは未確認。**
 ⚠️ **2.x の実機では鳴らしていない**（3.x も同じ。板が無い）。
 ⚠️ **v1.2.0 までの .zip は 2.x ではビルドできない**（この変更はまだリリースしていない）。
+
+## M-151. **Arduino ライブラリに「発話を丸ごと貯めてから鳴らす」スピーカー `SanoTTSSpeakerBuffered` を足した** — 貯めた PCM が `synthesize()` と bit 一致し、鳴っているバッファを上書きしない（陽性対照つき）。⚠️ **M5 の実機では鳴らしていない**（音の出口は QEMU 上の偽物）。⚠️ **PSRAM の無い構成では長い文を 2 つ抱えられない**（自己実測 / Windows 11 + PlatformIO 6.2.0 + QEMU）
+
+**何のためか**: 合成が実時間に間に合わない構成（Wi-Fi と併用して arena を PSRAM に置いた
+`SANOTTS_ARENA_HEAP=1` など）では、ストリーミング再生（`SanoTTSSpeakerM5`）が途切れる。
+**発話を全部合成してから鳴らせば途切れない**（鳴り出しは遅くなる）。第三者の派生（AI スタックチャン Ex）が
+この形で途切れを解消したと報告している（⚠️ **私は再現していない**。そのコードも読んでいない）。
+
+| 足したもの | 中身 |
+|---|---|
+| `arduino/src/SanoTTSSpeakerBuffered.{h,cpp}` | 基底クラス。枠 2 枚を交互に使い、`say()` は**鳴り終わりを待たずに戻る**（次の発話を鳴らしている間に合成する）。音の出口は `beginOutput` / `enqueue` / `queued` の 3 つを埋める |
+| `arduino/src/SanoTTSSpeakerM5Buffered.{h,cpp}` | M5.Speaker 版（`playRaw(…, 22050, false, 1, ch, false)` / `isPlaying(ch)`）。`__has_include(<M5Unified.h>)` で囲む |
+| `arduino/src/SanoTTS.cpp` の `say()` | `beginUtterance()` に **min(プリロール, 発話の総サンプル数)** を渡す（従来はプリロール固定） |
+| `arduino/examples/BufferedPlayback/` | 文に区切って `say()` を続け、最後に `wait()` |
+| `scripts/arduino_qemu_tests/buffered.cpp` | **G-AR10**（下記） |
+
+### 1. ゲート G-AR10
+
+```bash
+ONLY=buffered,buffered-ctl bash scripts/check_arduino_qemu.sh     # ⚠️ ESP-IDF + QEMU が要る。CI では回らない
+```
+
+| 項目 | 何を見るか |
+|---|---|
+| T0 | `synthesize()` のコールバックで受けた PCM の FNV-1a 64 が `checksum()` と一致 |
+| T1 | `say()` が積んだバッファが **`synthesize()` と bit 一致**。1 発話で積むのは 1 回 |
+| T2 | `say()` は鳴り終わる前に戻る |
+| T3 | 3 発話続けると 3 つ目で空きを待つ（`idle()` が呼ばれる）/ **鳴り終わった時点の中身が積んだ時点と同じ**（= 上書きしていない） |
+| T4 | `start()` の前に `stop()` が来たら積まない / その後の発話も bit 一致 |
+| T5 | `wait()` でキューが空になる |
+
+⚠️ **ESP-IDF の基準値とは比べない**（それは G-AR4 の仕事で、Windows では基準値が出ない = [M-150](#m-150) §4）。
+**同じビルドの 2 経路**を比べるので環境に依らない。
+⚠️ **音の出口は `FakeOut`**（`idle()` のたびに先頭を 1 つ「鳴り終わった」ことにする）。
+**M5.Speaker の DMA が FIFO で鳴り終わるかは見ていない。**
+
+### 2. RED → GREEN の経過
+
+| 回 | 状態 | 結果 |
+|---|---|---|
+| RED | テストだけ置き、実装の `.cpp` が無い | リンクで落ちた（`undefined reference to 'SanoTTSSpeakerBuffered::beginUtterance(unsigned int)'` ほか） |
+| 2 | 枠を**倍々に伸ばす**実装 | T3 が落ちた。`say(B)` が「発話を貯めるバッファを伸ばせない（PSRAM も内部 DRAM も足りない）」。`say(A)` の後の内部 RAM の空き **110,764 B** |
+| 3 | `say()` が総サンプル数を渡し、**ちょうどの量を 1 回で確保**する形に直した | 空きは **139,584 B**（同じ時点で **+28,820 B**）。B は通ったが、1.5 秒級の C が確保できず T3 が落ちた |
+| **GREEN** | B / C を短い文（`あ]め` / `あ[め`）に替えた | **全項目 OK**（下記） |
+
+⚠️ **3 回目は実装ではなくテストを替えて通した。** 落ちた理由は**枠 2 枚ぶんの PCM が PSRAM の無い QEMU の内部 RAM に入らない**ことで、
+T3 が見ている「積み方」は長さに依らない。**ただし「PSRAM の無い板では長い文を続けて貯められない」は本物の制約**として README に書いた。
+
+GREEN の出力（W8A8 + PIE、`saanotts-jp-v4-int8.bin`）:
+
+```
+      SAAN_TEST OK   T0 synthesize() の PCM が checksum() と一致（0x71e1fb48a814270b / 27136 sample）
+      SAAN_TEST OK   T1 say(A) が成功する（）
+      SAAN_TEST OK   T1 1 発話でキューに積むのは 1 回（1 回）
+      SAAN_TEST OK   T1 貯めた PCM が synthesize() と bit 一致（0x71e1fb48a814270b / 27136 sample）
+      SAAN_TEST OK   T2 say() は鳴り終わる前に戻る（キュー 1）
+      SAAN_TEST OK   T3 say(B) / say(C) が成功する
+      SAAN_TEST OK   T3 3 発話目では空きを待つ（idle 1 回）
+      SAAN_TEST OK   T3 キューに居るバッファを上書きしていない（上書き 0 件）
+      SAAN_TEST OK   T4 start() 前の stop() は積まない（0 件増えた）
+      SAAN_TEST OK   T4 その後の発話も synthesize() と bit 一致
+      SAAN_TEST OK   T5 wait() でキューが空になる（積んだ 4 / 鳴った 4）
+  OK  buffered: SAAN_TEST PASS
+```
+
+`0x71e1fb48a814270b` は [M-150](#m-150) §4 の「この Windows 環境での W8A8 + PIE の値」と同じ（**基準の `0x390b…` ではない**）。
+
+### 3. 陽性対照 — 枠を 1 枚に潰すと T3 が落ちる
+
+`-DSANOTTS_BUFFERED_TEST_ONE_SLOT=1` は**回す枠の数だけ**を 1 にする（まだ鳴っている枠に次の発話を書く）:
+
+```
+      SAAN_TEST FAIL T3 キューに居るバッファを上書きしていない（上書き 2 件）
+      SAAN_TEST FAILED 1
+  OK  buffered-ctl（陽性対照）: 「T3 キューに居るバッファを上書きしていない」が落ちた
+```
+
+**落ちたのは T3 の上書き検査だけ**（他の 10 項目は OK）= 対照が狙った所に効いている。
+⚠️ **3 文の中身が違うことが前提**（同じ文だと上書きされても hash が変わらない）。
+
+### 4. ⚠️ QEMU ではヒープを走査する関数が落ちる
+
+`heap_caps_get_largest_free_block()` などヒープを走査する関数を呼ぶと、起動直後でも tlsf の走査で `LoadProhibited` になった
+（⚠️ **そのときのログは残していない**）。`heap_caps_get_free_size()` は落ちないので、テストは空きの合計だけを出す。
+**最大ブロックは測っていない。**
+
+### 5. 見ていないもの
+
+- ⚠️ **M5 の実機で鳴らしていない**（`SanoTTSSpeakerM5Buffered` は**コンパイルが通ることだけ**を見た = `ci_arduino_build.sh` の 7 構成がすべて通った）。
+  `__has_include` が効いているかは `nm -C` で数えた: `SanoTTSSpeakerM5Buffered::` のシンボルが **kanji-m5 で 7 / kanji-m5-2x で 7 / kana で 0**
+  （かな構成は M5Unified を引かないので空の翻訳単位になる = 正しい）。
+  `examples/BufferedPlayback` は kanji-m5（pioarduino 55.03.311）と kanji-m5-2x（espressif32@6.12.0）の
+  `platformio.ini` で**手で 1 回ずつビルドした**（⚠️ **CI がビルドする例は `PcmCallback` だけ**なので、この例は CI では見ていない）
+- G-AR4 は回し直して W8A8 `0x71e1fb48a814270b` / W8A32 `0x4e0b9ac43aadaa12` = [M-150](#m-150) §4 と同じ値
+  （**`say()` の変更は `synthesize()` の PCM を動かしていない**。⚠️ Windows なので基準値そのものは出ない）
+- ⚠️ **途切れが本当に消えるかは測っていない**（Wi-Fi 併用 / PSRAM arena の構成を実機で回していない）
+- ⚠️ **鳴り出しまでの時間**は合成時間ぶん延びるはずだが、測っていない
+- ⚠️ **PSRAM のある板で長い文を貯められるか**は QEMU では測れない（QEMU に PSRAM が無い）
