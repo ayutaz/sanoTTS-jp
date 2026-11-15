@@ -287,6 +287,12 @@ typedef char saan_max_ids_check[(SAAN_MAX_IDS <= SAAN_G2P_IDS_CAP) ? 1 : -1];
  *    前の個数のまま再生すると**それらしい音**が出てしまう（未知語が無音で消えるのと同じ壊れ方）。 */
 static int32_t g_last_n_ids;
 static char    g_last_text[SAAN_CONSOLE_LINE_MAX];
+/* D-070: 区切って喋るときの「つなぎ目」（前の区間の音が止まってから、次の区間が鳴り始めるまで）。
+ * kanji_speak_cb が前の区間の synth_once の直後に時刻を入れ、synth_once が saan_audio_start で測る。
+ * 0 なら測らない（上限内の入力・最後の区間の後）。
+ * ⚠️ **ログは done: の後に出す**（定常ループの手前で UART を使うと最初のチャンクが遅れる）。
+ * ⚠️ 実機の判定は ≤ 800 ms（D-049 の「鳴らし始めまで ≤ 0.8 s」と同じ基準）。QEMU の値は使えない */
+static int64_t g_gap_from_us;
 
 /* 合成タスクのスタック。saan_irfft_1024 の 4 KB + 呼び出し段 + ログで、
  * IDF の小さい既定スタックでは足りない。**16 KB を明示する**。
@@ -437,6 +443,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     int underruns = 0, short_pulls = 0;
     bool eos = false;
     bool ok = true;
+    double gap_ms = -1.0;   /* D-070 のつなぎ目。⚠️ goto done より前に宣言する（初期化を飛び越えない） */
     /* T1: pull ごとの dt と n を控え、done: の後で行を出す + 満チャンク pull（n == SAAN_CHUNK、
      * 初回を除く）の中央値 / 平均を出す。「定常 xRT」の定義はその中央値。
      * ⚠️ 末尾の端数 pull（n < SAAN_CHUNK）と初回 pull（warmup で step_chunk が複数回走る）は混ぜない。
@@ -480,6 +487,9 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
 #endif
 
     if (!saan_audio_start()) { ok = false; goto done; }
+    gap_ms = g_gap_from_us != 0
+        ? (double)(esp_timer_get_time() - g_gap_from_us) / 1000.0 : -1.0;
+    g_gap_from_us = 0;
 
     /* --- 定常ループ（ストリーミングのみ。貯める方式では eos 済みで入らない）------ */
     while (!eos) {
@@ -508,6 +518,8 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
 
 done:
     saan_audio_stop();
+    if (gap_ms >= 0.0)
+        ESP_LOGI(TAG, "つなぎ目: 前の区間の終わりから %.0f ms で鳴らし始めた（D-070。目安 ≤ 800 ms）", gap_ms);
     {
         double total_audio = (double)total_frames * SAAN_HOP / SAAN_SR;
         double mean_rest = chunks > 1 ? (double)t_rest / (chunks - 1) / 1000.0 : 0.0;
@@ -686,7 +698,10 @@ static int kanji_speak_cb(void *ctx, int32_t index, int32_t n_spans) {
     saan_ui_show(NULL, g_last_text);
     if (n_spans > 1)
         ESP_LOGI(TAG, "区間 %d/%d を喋る（ids %d 個）", (int)index + 1, (int)n_spans, (int)c->n_ids);
-    return synth_once(c->w, g_ids, c->n_ids) ? 0 : -1;
+    const bool ok = synth_once(c->w, g_ids, c->n_ids);
+    /* 次の区間があれば、ここから「つなぎ目」を測る */
+    g_gap_from_us = (ok && index + 1 < n_spans) ? esp_timer_get_time() : 0;
+    return ok ? 0 : -1;
 }
 
 /* UTF-8 の文字境界で max バイト以下に切った長さ */
@@ -706,6 +721,7 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
         ESP_LOGE(TAG, "辞書が開けていない。漢字モードは使えない");
         return false;
     }
+    g_gap_from_us = 0;   /* 前の発話の失敗で残った計測を持ち越さない */
     kanji_split_ctx c = {w, text, nbytes, 0};
     saan_split_result r;
     const saan_split_status s = saan_split_say(text, nbytes, SAAN_MAX_IDS,
