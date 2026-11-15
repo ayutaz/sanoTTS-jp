@@ -113,3 +113,78 @@ saan_split_next_status saan_split_next(const char *text, size_t nbytes, size_t *
     *pos = end;
     return SAAN_SPLIT_OK;
 }
+
+saan_split_status saan_split_say(const char *text, size_t nbytes, int32_t max_ids,
+                                 saan_split_to_ids_fn to_ids, saan_split_speak_fn speak,
+                                 void *ctx, saan_split_result *res) {
+    res->n_spans = 0;
+    res->bad_index = -1;
+    res->bad_code = 0;
+    res->bad_span.off = -1;
+    res->bad_span.len = 0;
+
+    /* 1. 全体。上限内ならここで終わる（今と同じ経路） */
+    int32_t n = 0;
+    const int r = to_ids(ctx, text, nbytes, &n);
+    if (r == 0 && n <= max_ids) {
+        res->n_spans = 1;
+        const int sr = speak(ctx, 0, 1);
+        if (sr != 0) {
+            res->bad_index = 0; res->bad_code = sr;
+            res->bad_span.off = 0; res->bad_span.len = (int32_t)nbytes;
+            return SAAN_SPLIT_ERR_SPEAK;
+        }
+        return SAAN_SPLIT_SAID;
+    }
+    /* 2. 長さ以外の失敗では区切らない */
+    if (r != 0 && r != SAAN_SPLIT_CB_TOO_LONG) { res->bad_code = r; return SAAN_SPLIT_ERR_TO_IDS; }
+
+    /* 3. 区間を全部数える */
+    saan_span sp[SAAN_SPLIT_MAX_SPANS];
+    int32_t ns = 0;
+    size_t pos = 0;
+    for (;;) {
+        saan_span s;
+        int32_t eb = -1;
+        const saan_split_next_status st = saan_split_next(text, nbytes, &pos, &s, &eb);
+        if (st == SAAN_SPLIT_END) break;
+        if (st != SAAN_SPLIT_OK) { res->bad_code = (int)eb; return SAAN_SPLIT_ERR_UTF8; }
+        if (ns >= SAAN_SPLIT_MAX_SPANS) return SAAN_SPLIT_ERR_SPANS;
+        sp[ns++] = s;
+    }
+    res->n_spans = ns;
+    /* ... 全区間を検査する（1 区間でも駄目なら何も喋らない） */
+    for (int32_t k = 0; k < ns; ++k) {
+        int32_t nk = 0;
+        const int rk = to_ids(ctx, text + sp[k].off, (size_t)sp[k].len, &nk);
+        if (rk != 0 || nk > max_ids) {
+            res->bad_index = k;
+            res->bad_code = (rk != 0) ? rk : SAAN_SPLIT_CB_TOO_MANY_IDS;
+            res->bad_span = sp[k];
+            return SAAN_SPLIT_ERR_SEGMENT;
+        }
+    }
+    /* 4. 喋る */
+    for (int32_t k = 0; k < ns; ++k) {
+        int32_t nk = 0;
+        const int rk = to_ids(ctx, text + sp[k].off, (size_t)sp[k].len, &nk);
+        const int sk = (rk != 0) ? rk : speak(ctx, k, ns);
+        if (sk != 0) {
+            res->bad_index = k; res->bad_code = sk; res->bad_span = sp[k];
+            return SAAN_SPLIT_ERR_SPEAK;
+        }
+    }
+    return SAAN_SPLIT_SAID;
+}
+
+const char *saan_split_strerror(saan_split_status s) {
+    switch (s) {
+    case SAAN_SPLIT_SAID:        return "喋った";
+    case SAAN_SPLIT_ERR_UTF8:    return "不正な UTF-8";
+    case SAAN_SPLIT_ERR_TO_IDS:  return "読みに変換できない";
+    case SAAN_SPLIT_ERR_SEGMENT: return "区切ったうちの 1 区間が長すぎるか読めない（何も喋っていない）";
+    case SAAN_SPLIT_ERR_SPANS:   return "区間が多すぎる（何も喋っていない）";
+    case SAAN_SPLIT_ERR_SPEAK:   return "合成か再生が途中で失敗した";
+    }
+    return "不明";
+}

@@ -213,11 +213,134 @@ static void g_sp2(void) {
     printf("%s  G-SP2 n=%d で %d/%d\n", pass == N ? "OK " : "NG!", N, pass, N);
 }
 
+/* --- G-SP3: 手順（saan_split_say）---------------------------------------------
+ *
+ * 偽の to_ids: len バイトなら n_ids = 2·len + 3。len > too_long_bytes（0 なら無効）なら
+ * SAAN_SPLIT_CB_TOO_LONG。fail_text と一致したら fail_code。
+ * 偽の speak: speak_fail_at 番目で失敗する（-1 なら失敗しない）。
+ * **呼ばれた順に記録し、記録列を完全一致で比べる**（順序・回数・区間の文字列まで）。 */
+typedef struct {
+    size_t too_long_bytes;
+    const char *fail_text;
+    int fail_code;
+    int speak_fail_at;
+    char log[160][512];
+    int nlog;
+} fake;
+
+static int fake_to_ids(void *c, const char *seg, size_t len, int32_t *n_ids) {
+    fake *f = (fake *)c;
+    if (f->nlog < 160) snprintf(f->log[f->nlog++], 512, "ids:%.*s", (int)len, seg);
+    if (f->fail_text && strlen(f->fail_text) == len && memcmp(f->fail_text, seg, len) == 0)
+        return f->fail_code;
+    if (f->too_long_bytes && len > f->too_long_bytes) return SAAN_SPLIT_CB_TOO_LONG;
+    *n_ids = (int32_t)(2 * len + 3);
+    return 0;
+}
+static int fake_speak(void *c, int32_t k, int32_t n) {
+    fake *f = (fake *)c;
+    if (f->nlog < 160) snprintf(f->log[f->nlog++], 512, "speak:%d/%d", (int)k, (int)n);
+    return (f->speak_fail_at == (int)k) ? -9 : 0;
+}
+
+typedef struct {
+    const char *name, *text;
+    int32_t max_ids;
+    size_t too_long_bytes;
+    const char *fail_text; int fail_code;
+    int speak_fail_at;
+    saan_split_status want;
+    int32_t want_n_spans, want_bad_index; int want_bad_code;
+    const char *want_bad_span;   /* NULL なら見ない */
+    const char *want_log[40];    /* NULL 終端 */
+} case3;
+
+#define W3 "あ。い。う。"
+#define M65 "あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。" \
+            "あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。" \
+            "あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。あ。" \
+            "あ。あ。あ。あ。あ。"
+static const case3 C3[] = {
+    {"whole_fits", "あ。い。", 350, 0, NULL, 0, -1, SAAN_SPLIT_SAID, 1, -1, 0, NULL,
+     {"ids:あ。い。", "speak:0/1", NULL}},
+    /* 12 B → 27 ids = max ちょうど。区切らない */
+    {"whole_at_limit", "あ。い。", 27, 0, NULL, 0, -1, SAAN_SPLIT_SAID, 1, -1, 0, NULL,
+     {"ids:あ。い。", "speak:0/1", NULL}},
+    /* 18 B → 39 ids > 38。区間 6 B → 15 ids */
+    {"split_by_ids", W3, 38, 0, NULL, 0, -1, SAAN_SPLIT_SAID, 3, -1, 0, NULL,
+     {"ids:" W3, "ids:あ。", "ids:い。", "ids:う。",
+      "ids:あ。", "speak:0/3", "ids:い。", "speak:1/3", "ids:う。", "speak:2/3", NULL}},
+    {"split_by_cb", W3, 350, 17, NULL, 0, -1, SAAN_SPLIT_SAID, 3, -1, 0, NULL,
+     {"ids:" W3, "ids:あ。", "ids:い。", "ids:う。",
+      "ids:あ。", "speak:0/3", "ids:い。", "speak:1/3", "ids:う。", "speak:2/3", NULL}},
+    {"segment_bad", W3, 350, 17, "い。", -7, -1, SAAN_SPLIT_ERR_SEGMENT, 3, 1, -7, "い。",
+     {"ids:" W3, "ids:あ。", "ids:い。", NULL}},
+    /* いいいいいい。= 21 B → 45 ids > 20 */
+    {"segment_over", "あ。いいいいいい。う。", 20, 0, NULL, 0, -1, SAAN_SPLIT_ERR_SEGMENT, 3, 1,
+     SAAN_SPLIT_CB_TOO_MANY_IDS, "いいいいいい。",
+     {"ids:あ。いいいいいい。う。", "ids:あ。", "ids:いいいいいい。", NULL}},
+    {"single_span_too_long", "あ、い、う、え", 350, 5, NULL, 0, -1, SAAN_SPLIT_ERR_SEGMENT, 1, 0,
+     SAAN_SPLIT_CB_TOO_LONG, "あ、い、う、え",
+     {"ids:あ、い、う、え", "ids:あ、い、う、え", NULL}},
+    {"other_error", W3, 350, 0, W3, -7, -1, SAAN_SPLIT_ERR_TO_IDS, 0, -1, -7, NULL,
+     {"ids:" W3, NULL}},
+    {"speak_fails", W3, 350, 17, NULL, 0, 1, SAAN_SPLIT_ERR_SPEAK, 3, 1, -9, "い。",
+     {"ids:" W3, "ids:あ。", "ids:い。", "ids:う。",
+      "ids:あ。", "speak:0/3", "ids:い。", "speak:1/3", NULL}},
+    {"too_many_spans", M65, 350, 10, NULL, 0, -1, SAAN_SPLIT_ERR_SPANS, 0, -1, 0, NULL,
+     {"ids:" M65, NULL}},
+    {"bad_utf8", "あ。\xffい。", 350, 3, NULL, 0, -1, SAAN_SPLIT_ERR_UTF8, 0, -1, 0, NULL,
+     {"ids:あ。\xffい。", NULL}},
+};
+#define N3 ((int)(sizeof C3 / sizeof C3[0]))
+
+static int case3_ok(const case3 *c) {
+    static fake f;
+    memset(&f, 0, sizeof f);
+    f.too_long_bytes = c->too_long_bytes;
+    f.fail_text = c->fail_text; f.fail_code = c->fail_code;
+    f.speak_fail_at = c->speak_fail_at;
+    saan_split_result r;
+    memset(&r, 0x5a, sizeof r);
+    const saan_split_status s = saan_split_say(c->text, strlen(c->text), c->max_ids,
+                                               fake_to_ids, fake_speak, &f, &r);
+    int ok = 1;
+    if (s != c->want) { printf("    戻り値 %d（期待 %d）\n", (int)s, (int)c->want); ok = 0; }
+    if (r.n_spans != c->want_n_spans) { printf("    n_spans %d（期待 %d）\n", (int)r.n_spans, (int)c->want_n_spans); ok = 0; }
+    if (r.bad_index != c->want_bad_index) { printf("    bad_index %d（期待 %d）\n", (int)r.bad_index, (int)c->want_bad_index); ok = 0; }
+    if (c->want_bad_index >= 0 && r.bad_code != c->want_bad_code) { printf("    bad_code %d（期待 %d）\n", r.bad_code, c->want_bad_code); ok = 0; }
+    if (c->want == SAAN_SPLIT_ERR_TO_IDS && r.bad_code != c->want_bad_code) { printf("    bad_code %d（期待 %d）\n", r.bad_code, c->want_bad_code); ok = 0; }
+    if (c->want_bad_span) {
+        const size_t L = strlen(c->want_bad_span);
+        if (r.bad_span.off < 0 || (size_t)r.bad_span.len != L ||
+            memcmp(c->text + r.bad_span.off, c->want_bad_span, L) != 0) { printf("    bad_span が違う\n"); ok = 0; }
+    }
+    int nw = 0; while (c->want_log[nw]) ++nw;
+    int same = (nw == f.nlog);
+    for (int i = 0; same && i < nw; ++i) same = strcmp(c->want_log[i], f.log[i]) == 0;
+    if (!same) {
+        ok = 0;
+        printf("    記録列が違う（%d 件。期待 %d 件）:\n", f.nlog, nw);
+        for (int i = 0; i < f.nlog && i < 12; ++i) printf("      %s\n", f.log[i]);
+    }
+    return ok;
+}
+
+static void g_sp3(void) {
+    int pass = 0;
+    for (int i = 0; i < N3; ++i) {
+        if (case3_ok(&C3[i])) ++pass;
+        else NG("G-SP3 %s", C3[i].name);
+    }
+    printf("%s  G-SP3 n=%d で %d/%d\n", pass == N3 ? "OK " : "NG!", N3, pass, N3);
+}
+
 int main(void) {
     setvbuf(stdout, NULL, _IONBF, 0);
     g_sp1();
     control();
     g_sp2();
+    g_sp3();
     if (g_ng) { printf("NG! %d 件\n", g_ng); return 1; }
     printf("OK  全部通った\n");
     return 0;
