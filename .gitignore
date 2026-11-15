@@ -266,3 +266,6 @@ esp32/boards/m5unified/build_m58/
 #    csrc との一致は同 `--check`（G-AR1・陽性対照 7 件）が証明する。
 arduino/src/core/
 arduino/dist/
+
+# 長文分割の QEMU ゲート（scripts/check_split_qemu.sh）の出力。16 MB の flash イメージを含む
+/reports/split_qemu/
