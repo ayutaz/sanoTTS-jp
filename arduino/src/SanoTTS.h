@@ -107,18 +107,32 @@ public:
 
     static const uint32_t kSampleRate = 22050;
     /* ⚠️ **arena の限界ではなく学習分布の上限**（D-017 の max_spec_length=700 相当）。
-     *    超える入力は**喋らずに拒否する** — 分布外の音を黙って出すより良い。 */
+     *    超える入力は**文末記号（。！？!?）で区切って区間ごとに**この上限を守る（D-070）。
+     *    区切っても 1 区間でも超えるなら**何も喋らない** — 分布外の音を黙って出すより良い。 */
     static const int32_t  kMaxIds = 350;
 
 private:
-    bool toIds(const char* text, size_t nbytes, int32_t* nIds);
+    /* 0 / SAAN_SPLIT_CB_TOO_LONG / 負値（csrc/split.h のコールバックの約束） */
+    int  toIdsCode(const char* text, size_t nbytes, int32_t* nIds);
     bool openStream(int32_t nIds);
+    bool synthOne(int32_t nIds);   /* 1 区間ぶん合成して m_cb に流す */
+    bool sayOne(int32_t nIds);     /* 1 区間ぶん合成して m_spk で鳴らす */
+
+    /* 長文の区切り（D-070）。saan_split_say に渡すコールバック */
+    typedef int (*SplitSpeakFn)(void* ctx, int32_t index, int32_t nSpans);
+    bool runSplit(const char* text, size_t nbytes, SplitSpeakFn speak);
+    static int splitToIds(void* ctx, const char* seg, size_t len, int32_t* nIds);
+    static int splitSynth(void* ctx, int32_t index, int32_t nSpans);
+    static int splitSay(void* ctx, int32_t index, int32_t nSpans);
 
     SanoTTSSpeaker* m_spk = nullptr;
     bool  m_ready = false;
     bool  m_kanjiReady = false;
     float m_sv = 1.2187f;            /* SAAN_S_V（D-019） */
     const char* m_err = "";
+    int32_t     m_nIds = 0;          /* 直前に toIdsCode した区間の ids 数 */
+    PcmCallback m_cb = nullptr;      /* synthesize() の呼び出し側 */
+    void*       m_user = nullptr;
 };
 
 #endif /* SANOTTS_H */

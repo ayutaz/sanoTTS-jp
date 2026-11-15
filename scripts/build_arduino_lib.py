@@ -115,7 +115,7 @@ def manifest() -> list[Entry]:
     e: list[Entry] = []
 
     # --- 常に入る .c -------------------------------------------------------
-    for name in ("saanotts.c", "saanotts_stream.c", "fft.c", "saanotts_int8.c", "g2p.c"):
+    for name in ("saanotts.c", "saanotts_stream.c", "fft.c", "saanotts_int8.c", "g2p.c", "split.c"):
         e.append(Entry(name, CSRC / name, True, None))
     e.append(Entry("saan_pcm.c", MAIN / "saan_pcm.c", True, None))
 
@@ -136,7 +136,7 @@ def manifest() -> list[Entry]:
     #    多重 include のたびに config を読むことになる。害は無いが差分検証が複雑になるので
     #    入れない。フラグは .c 側の前置きで既に立っている。
     for name in ("saanotts.h", "saanotts_internal.h", "saanotts_int8.h", "saanotts_stream.h",
-                 "fft.h", "g2p.h", "g2p_table.h", "erf_table.h", "token_table.h", "saan_prof.h",
+                 "fft.h", "g2p.h", "g2p_table.h", "erf_table.h", "token_table.h", "saan_prof.h", "split.h",
                  "jdict.h", "accent.h", "njd_rules.h", "label_ids.h", "dan_table.h",
                  "oj_heap_psram.h"):
         e.append(Entry(name, CSRC / name, False, None))

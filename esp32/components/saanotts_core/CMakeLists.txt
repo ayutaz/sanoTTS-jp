@@ -23,6 +23,7 @@ endif()
 #    入れない（golden_test 等はリンクしないため）。**非対称なのは意図的。**
 #      g2p.c  … main.c が saan_g2p() を呼ぶ
 #      line.c … saan_console.c が saan_line_feed() を呼ぶ（行編集ステートマシン）
+#      split.c … main.c が saan_split_say() を呼ぶ（長文を文末記号で区切る。D-070）
 # --- K トラック（端末で漢字を扱う）------------------------------------------
 #
 # ⚠️ **既定では入れない。** 辞書リーダ + 取り込んだ Open JTalk で app が
@@ -67,6 +68,7 @@ idf_component_register(
          "${SAAN_CSRC}/saanotts_int8.c"
          "${SAAN_CSRC}/g2p.c"
          "${SAAN_CSRC}/line.c"
+         "${SAAN_CSRC}/split.c"
          ${SAAN_K_SRCS}
     INCLUDE_DIRS "${SAAN_CSRC}" "${SAAN_CSRC}/openjtalk"
     REQUIRES ""

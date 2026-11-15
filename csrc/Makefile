@@ -159,6 +159,12 @@ g2p_test: g2p_test.c g2p.c g2p.h g2p_table.h
 line_test: line_test.c line.c line.h g2p.c g2p.h g2p_table.h
 	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ line_test.c line.c g2p.c
 
+# --- 長文の区切り（D-070）------------------------------------------------------
+# ⚠️ **文字列だけを見る**（辞書もコーパスも要らない）ので all-test と CI で回る。
+#    ベクタが空虚でないことは split_test.c 自身が陽性対照（naive_next）で検査する。
+split_test: split_test.c split.c split.h
+	$(CC) $(CFLAGS) $(CFLAGS_EXTRA) -o $@ split_test.c split.c
+
 # 経路判定（K-B）をホストから駆動する棒。**受け入れゲートではない** —
 # ゲートは `make line` の G11。これは kb_route_parity.py がホスト判定と
 # 突き合わせるための入出力で、端末が実際に走らせるコードをそのまま動かす。
@@ -185,7 +191,7 @@ g2p_vectors_corpus.bin:
 	    --out csrc/g2p_vectors_corpus.bin --manifest csrc/g2p_vectors_corpus.json
 
 .PHONY: test golden stream fft int8 int8-golden int8-e2e int8-e2e-a8 lanes pad arena run-bench g2p g2p-corpus jdict-hard \
-        line range qeos all-test clean
+        line split range qeos all-test clean
 # ⚠️ **`golden` は `test` の別名。** README / リリースノート v0.2.0 / .github/workflows/README.md が
 #    `make -C csrc golden` と書いているのに、そのターゲットが**存在しなかった**
 #    （配布済みの手順書にも入っている）。名前としても `golden`（ゴールデンテスト）の方が
@@ -367,6 +373,10 @@ g2p: g2p_test g2p_vectors.bin
 line: line_test
 	./line_test
 
+# 長文の区切り（D-070）。**入力ファイルを要らないので all-test に入れる**
+split: split_test
+	./split_test
+
 # コーパス全行。`data/splits/corpus_*.tsv` を要求するので **all-test には入れない**
 # （クリーン clone では走らない。`test`/`stream`/`arena` が student.bin を要るのと同じ理由）。
 g2p-corpus: g2p_test g2p_vectors_corpus.bin
@@ -400,7 +410,7 @@ dur: dur_test_k8 dur_test_k128 dur_test_k1024 dur_test_a8_k8 dur_test_a8_k128 du
 	@echo ""
 	./dur_test_a8_k1024 student_i8.bin golden_i8.bin
 
-all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line erf range jdict-hard qeos dur pullptr
+all-test: test stream fft int8 int8-golden int8-e2e arena g2p pad line split erf range jdict-hard qeos dur pullptr
 
 clean:
 	rm -f golden_test stream_test stream_test_a8 fft_test int8_test int8_e2e_test bench arena_stress jdict_test accent_test \
@@ -408,7 +418,7 @@ clean:
 	      pullptr_test pullptr_test_a8 \
 	      erf_test erf_test_linear erf_test_clamp prof_test range_test \
 	      jdict_hard_test jdict_hard_test_weak jdict_hard_test_asan jdict_hard_test_asan_weak jdict_asan*.log \
-	      g2p_test line_test route_tool njd_rules_test njd_rules_stderr.log oj_heap_test oj_heap_stderr.log kanji_e2e_test kanji_e2e_stderr.log label_ids_test label_ids_stderr.log \
+	      g2p_test line_test split_test route_tool njd_rules_test njd_rules_stderr.log oj_heap_test oj_heap_stderr.log kanji_e2e_test kanji_e2e_stderr.log label_ids_test label_ids_stderr.log \
 	      oj_labels*.txt oj_heap_ctrl oj_worst.bin oj_worst_texts.txt *.o openjtalk/*.o
 	rm -f *vectors*.bin
 	rm -rf oj_heap_ctrl_src *.dSYM

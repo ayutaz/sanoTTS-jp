@@ -57,6 +57,7 @@ static const char *TAG = "saanotts";
 #if SAAN_KANJI
 #include "saan_dict.h"
 #include "saan_kanji.h"
+#include "split.h"
 /* ⚠️ **辞書は flash に mmap したまま使う。** RAM には読まない（12 MB ある）。 */
 static jdict_t g_dict;
 static bool g_dict_ok;
@@ -286,6 +287,12 @@ typedef char saan_max_ids_check[(SAAN_MAX_IDS <= SAAN_G2P_IDS_CAP) ? 1 : -1];
  *    前の個数のまま再生すると**それらしい音**が出てしまう（未知語が無音で消えるのと同じ壊れ方）。 */
 static int32_t g_last_n_ids;
 static char    g_last_text[SAAN_CONSOLE_LINE_MAX];
+/* D-070: 区切って喋るときの「つなぎ目」（前の区間の音が止まってから、次の区間が鳴り始めるまで）。
+ * kanji_speak_cb が前の区間の synth_once の直後に時刻を入れ、synth_once が saan_audio_start で測る。
+ * 0 なら測らない（上限内の入力・最後の区間の後）。
+ * ⚠️ **ログは done: の後に出す**（定常ループの手前で UART を使うと最初のチャンクが遅れる）。
+ * ⚠️ 実機の判定は ≤ 800 ms（D-049 の「鳴らし始めまで ≤ 0.8 s」と同じ基準）。QEMU の値は使えない */
+static int64_t g_gap_from_us;
 
 /* 合成タスクのスタック。saan_irfft_1024 の 4 KB + 呼び出し段 + ログで、
  * IDF の小さい既定スタックでは足りない。**16 KB を明示する**。
@@ -436,6 +443,7 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
     int underruns = 0, short_pulls = 0;
     bool eos = false;
     bool ok = true;
+    double gap_ms = -1.0;   /* D-070 のつなぎ目。⚠️ goto done より前に宣言する（初期化を飛び越えない） */
     /* T1: pull ごとの dt と n を控え、done: の後で行を出す + 満チャンク pull（n == SAAN_CHUNK、
      * 初回を除く）の中央値 / 平均を出す。「定常 xRT」の定義はその中央値。
      * ⚠️ 末尾の端数 pull（n < SAAN_CHUNK）と初回 pull（warmup で step_chunk が複数回走る）は混ぜない。
@@ -479,6 +487,9 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
 #endif
 
     if (!saan_audio_start()) { ok = false; goto done; }
+    gap_ms = g_gap_from_us != 0
+        ? (double)(esp_timer_get_time() - g_gap_from_us) / 1000.0 : -1.0;
+    g_gap_from_us = 0;
 
     /* --- 定常ループ（ストリーミングのみ。貯める方式では eos 済みで入らない）------ */
     while (!eos) {
@@ -507,6 +518,8 @@ static bool synth_once(const saan_weights *w, const int32_t *ids, int32_t n_ids)
 
 done:
     saan_audio_stop();
+    if (gap_ms >= 0.0)
+        ESP_LOGI(TAG, "つなぎ目: 前の区間の終わりから %.0f ms で鳴らし始めた（D-070。目安 ≤ 800 ms）", gap_ms);
     {
         double total_audio = (double)total_frames * SAAN_HOP / SAAN_SR;
         double mean_rest = chunks > 1 ? (double)t_rest / (chunks - 1) / 1000.0 : 0.0;
@@ -618,31 +631,45 @@ done:
  *
  * ⚠️ **ホスト（フル辞書）とは一致しない。** 枝刈りの分だけ食い違う
  *    （実測 17.79% の文。M-74 / C-050）。**既知の代償**であって欠陥ではない。
- * ⚠️ **音は一度も聞いていない。** */
-static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) {
-    if (nbytes == 0) {
-        ESP_LOGW(TAG, "空行。漢字かな交じり文を入力すること（例: 今日は良い天気ですね。）");
-        return false;
-    }
-    if (!g_dict_ok) {
-        ESP_LOGE(TAG, "辞書が開けていない。漢字モードは使えない");
-        return false;
-    }
-    int32_t n_ids = 0;
+ * ⚠️ **音は一度も聞いていない。**
+ *
+ * D-070: 上限（形態素 44 個 / 350 ids）を超える文は、`csrc/split.h` の
+ * `saan_split_say` が文末記号で区切って**区間ごとに**今と同じ経路で喋る。
+ * ⚠️ **上限内の入力は区切らない**（to_ids → synth_once を 1 回ずつ = 今と同じ）。
+ * ⚠️ **全か無か。** 1 区間でも読めない・上限を超えるなら 1 区間も喋らない。 */
+typedef struct {
+    const saan_weights *w;
+    const char *seg;      /* 直前に to_ids した区間（UI の表示用） */
+    size_t seg_len;
+    int32_t n_ids;        /* 直前に to_ids した区間の ids 数（g_ids に入っている） */
+} kanji_split_ctx;
+
+#define KJ_STR_(x) #x
+#define KJ_STR(x)  KJ_STR_(x)
+
+/* saan_split_say の to_ids。
+ * ⚠️ **`SAAN_KANJI_ERR_ANALYZE` も「長すぎる」として返す。** `jdict_analyze` は
+ *    格子の容量超え・形態素数の上限（SAAN_KANJI_MAX_TOK）超え・経路なしを**すべて -1** で返す。
+ *    経路なしは未知語ノードがあるので起きず（K-3: 0 件）、長い入力の ANALYZE は実質容量超え
+ *    （実測: 423 B の 3 文がこれで落ちた。M-151）。区切った各区間は改めて検査され、
+ *    本当に読めない区間があれば何も喋らないので、**区切って読めない文字をごまかすことにはならない**。 */
+static int kanji_to_ids_cb(void *ctx, const char *seg, size_t len, int32_t *n_ids) {
+    kanji_split_ctx *c = (kanji_split_ctx *)ctx;
     int n_tok = 0;
     /* G28（K-8）: 漢字文 1 行の G2P レイテンシを実測で出す（Viterbi + NJD 4 段 + ラベル → ids） */
     const int64_t t_kg2p = esp_timer_get_time();
-    saan_kanji_status ks = saan_kanji_to_ids(&g_dict, text, nbytes,
-                                            g_arena, SAAN_ARENA_BYTES,
-                                            g_ids, SAAN_G2P_IDS_CAP,
-                                            &n_ids, &n_tok);
+    const saan_kanji_status ks = saan_kanji_to_ids(&g_dict, seg, len,
+                                                  g_arena, SAAN_ARENA_BYTES,
+                                                  g_ids, SAAN_G2P_IDS_CAP,
+                                                  n_ids, &n_tok);
     const double kg2p_ms = (double)(esp_timer_get_time() - t_kg2p) / 1000.0;
     if (ks != SAAN_KANJI_OK) {
-        ESP_LOGE(TAG, "漢字 G2P 失敗: %s", saan_kanji_strerror(ks));
-        return false;
+        ESP_LOGI(TAG, "漢字 G2P: %u B -> %s", (unsigned)len, saan_kanji_strerror(ks));
+        if (ks == SAAN_KANJI_ERR_TOO_LONG || ks == SAAN_KANJI_ERR_ANALYZE) return SAAN_SPLIT_CB_TOO_LONG;
+        return (int)ks;
     }
-    ESP_LOGI(TAG, "漢字 G2P: %u B -> 形態素 %d 個 / ids %d 個 / %.2f ms", (unsigned)nbytes, n_tok,
-             (int)n_ids, kg2p_ms);
+    ESP_LOGI(TAG, "漢字 G2P: %u B -> 形態素 %d 個 / ids %d 個 / %.2f ms", (unsigned)len, n_tok,
+             (int)*n_ids, kg2p_ms);
     /* ⚠️ **合成の前に見る。** ここで見ないと Open JTalk の一時ヒープのピークが
      *    arena の使用と混ざる。PSRAM 無しの板ではこれが内部 DRAM に来る（Lane D）。 */
     log_heap("漢字 G2P 直後");
@@ -656,15 +683,87 @@ static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) 
                  h->pos, h->ctype, h->cform, h->orig, h->pron, h->read,
                  (int)ACCENT_STR_MAX, (int)ACCENT_PRON_MAX);
     }
-    if (n_ids > SAAN_MAX_IDS) {
-        ESP_LOGE(TAG, "ids が %d 個で上限 %d を超えた。**喋らない**（短く区切ること）",
-                 (int)n_ids, (int)SAAN_MAX_IDS);
+    c->seg = seg;
+    c->seg_len = len;
+    c->n_ids = *n_ids;
+    return 0;
+}
+
+/* saan_split_say の speak。直前の to_ids が g_ids に作った列を鳴らす */
+static int kanji_speak_cb(void *ctx, int32_t index, int32_t n_spans) {
+    kanji_split_ctx *c = (kanji_split_ctx *)ctx;
+    /* ⚠️ **区切ったときは「もう一度」を無効にする**（最後の区間だけが鳴るのを防ぐ） */
+    g_last_n_ids = (n_spans == 1) ? c->n_ids : 0;
+    snprintf(g_last_text, sizeof g_last_text, "!%.*s", (int)c->seg_len, c->seg);
+    saan_ui_show(NULL, g_last_text);
+    if (n_spans > 1)
+        ESP_LOGI(TAG, "区間 %d/%d を喋る（ids %d 個）", (int)index + 1, (int)n_spans, (int)c->n_ids);
+    const bool ok = synth_once(c->w, g_ids, c->n_ids);
+    /* 次の区間があれば、ここから「つなぎ目」を測る */
+    g_gap_from_us = (ok && index + 1 < n_spans) ? esp_timer_get_time() : 0;
+    return ok ? 0 : -1;
+}
+
+/* UTF-8 の文字境界で max バイト以下に切った長さ */
+static int utf8_head(const char *s, int len, int max) {
+    if (len <= max) return len;
+    int n = max;
+    while (n > 0 && (((unsigned char)s[n]) & 0xC0u) == 0x80u) --n;
+    return n;
+}
+
+static bool speak_kanji(const saan_weights *w, const char *text, size_t nbytes) {
+    if (nbytes == 0) {
+        ESP_LOGW(TAG, "空行。漢字かな交じり文を入力すること（例: 今日は良い天気ですね。）");
         return false;
     }
-    g_last_n_ids = n_ids;
-    snprintf(g_last_text, sizeof g_last_text, "!%.*s", (int)nbytes, text);
-    saan_ui_show(NULL, g_last_text);
-    return synth_once(w, g_ids, n_ids);
+    if (!g_dict_ok) {
+        ESP_LOGE(TAG, "辞書が開けていない。漢字モードは使えない");
+        return false;
+    }
+    g_gap_from_us = 0;   /* 前の発話の失敗で残った計測を持ち越さない */
+    kanji_split_ctx c = {w, text, nbytes, 0};
+    saan_split_result r;
+    const saan_split_status s = saan_split_say(text, nbytes, SAAN_MAX_IDS,
+                                               kanji_to_ids_cb, kanji_speak_cb, &c, &r);
+    if (s == SAAN_SPLIT_SAID) {
+        if (r.n_spans > 1) ESP_LOGI(TAG, "%d 区間に分けて喋った（D-070）", (int)r.n_spans);
+        return true;
+    }
+    g_last_n_ids = 0;
+    switch (s) {
+    case SAAN_SPLIT_ERR_TO_IDS:
+        ESP_LOGE(TAG, "漢字 G2P 失敗: %s", saan_kanji_strerror((saan_kanji_status)r.bad_code));
+        break;
+    case SAAN_SPLIT_ERR_SEGMENT: {
+        const char *why = (r.bad_code == SAAN_SPLIT_CB_TOO_MANY_IDS)
+            ? "ids が上限 " KJ_STR(SAAN_MAX_IDS) " を超える"
+            : (r.bad_code == SAAN_SPLIT_CB_TOO_LONG)
+            ? "長すぎる（形態素 " KJ_STR(SAAN_KANJI_MAX_INPUT_TOK) " 個まで）"
+            : saan_kanji_strerror((saan_kanji_status)r.bad_code);
+        if (r.n_spans <= 1) {
+            ESP_LOGE(TAG, "長すぎるが、文末記号（。！？!?）が無いので区切れない: %s。"
+                          "**喋らない**（。で区切ること）", why);
+        } else {
+            const int head = utf8_head(text + r.bad_span.off, (int)r.bad_span.len, 30);
+            ESP_LOGE(TAG, "区間 %d/%d が喋れない: %s。**1 区間も喋っていない**（全か無か）",
+                     (int)r.bad_index + 1, (int)r.n_spans, why);
+            ESP_LOGE(TAG, "  その区間: \"%.*s%s\"", head, text + r.bad_span.off,
+                     head < (int)r.bad_span.len ? "…" : "");
+        }
+        break;
+    }
+    case SAAN_SPLIT_ERR_SPANS:
+        ESP_LOGE(TAG, "区間が %d を超える。**喋らない**（入力を分けること）", (int)SAAN_SPLIT_MAX_SPANS);
+        break;
+    case SAAN_SPLIT_ERR_SPEAK:
+        ESP_LOGE(TAG, "区間 %d/%d の合成が失敗した", (int)r.bad_index + 1, (int)r.n_spans);
+        break;
+    default:
+        ESP_LOGE(TAG, "区切れない: %s", saan_split_strerror(s));
+        break;
+    }
+    return false;
 }
 #endif
 
