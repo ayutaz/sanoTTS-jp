@@ -10,7 +10,7 @@
  *      `saan_stream_arena_peak(350)` = 116,592 B（W8A8・ホスト。C-100 / C-102。⚠️ MEM-7 の前は 149,824 B）
  *   3. `saan_stream_init` が OK でも `a.used` を期待値と突き合わせる
  *      （黙った確保失敗の二重防御。外すと pull の中で NULL 書き込み → ログ無しで再起動）
- *   4. `n_ids > 350` は喋らずに拒否する（分布外の音を黙って出さない）
+ *   4. `n_ids > 350` は文末記号で区切って区間ごとに守る。1 区間でも超えるなら喋らない（D-070）
  *   5. 発話ごとに `saan_pcm_reset()`（忘れると 2 発話目の checksum が「1 + 2 発話目」になる）
  *   6. 作業バッファはスタックに置かない（`saan_irfft_1024` だけで 4 KB 使う）
  *   7. float → int16 は `saan_f32_to_i16()` **だけ**を通す（checksum の唯一の実装）
@@ -24,6 +24,7 @@ extern "C" {
 #include "core/g2p.h"
 #include "core/saan_pcm.h"
 #include "core/saan_model.h"
+#include "core/split.h"
 #if SANOTTS_ENABLE_KANJI
 #include "core/jdict.h"
 #include "core/saan_dict.h"
@@ -126,15 +127,18 @@ bool SanoTTS::begin() {
 }
 
 /* --- 文 → 生徒インデックス列 ---------------------------------------------- */
-bool SanoTTS::toIds(const char* text, size_t nbytes, int32_t* nIds) {
+/* ⚠️ **返り値は saan_split_say のコールバックの約束**（csrc/split.h）:
+ *    0 = OK / SAAN_SPLIT_CB_TOO_LONG = 長すぎる（区切れば読めるかもしれない）/ それ以外の負値 = 読めない。
+ *    m_err はどの場合も理由を持つ。 */
+int SanoTTS::toIdsCode(const char* text, size_t nbytes, int32_t* nIds) {
     *nIds = 0;
     if (nbytes == 0) {
         m_err = "空行。漢字かな交じり文かかな中間表現を入れること";
-        return false;
+        return -1;
     }
     if (nbytes > SANOTTS_MAX_INPUT_BYTES) {
         m_err = "入力が長すぎる（SANOTTS_MAX_INPUT_BYTES を超えた）。短く区切ること";
-        return false;
+        return SAAN_SPLIT_CB_TOO_LONG;
     }
 
     saan_g2p_status why = SAAN_G2P_OK;
@@ -149,9 +153,9 @@ bool SanoTTS::toIds(const char* text, size_t nbytes, int32_t* nIds) {
             /* ⚠️ **ここには来ないはず** — classify が同じトークナイザで KANA と
              *    判定している。来たら 2 つがずれた印。 */
             m_err = saan_g2p_strerror(gs);
-            return false;
+            return -2;
         }
-        return true;
+        return 0;
     }
 
     if (route == SAAN_G2P_ROUTE_DICT) {
@@ -159,7 +163,7 @@ bool SanoTTS::toIds(const char* text, size_t nbytes, int32_t* nIds) {
         if (!m_kanjiReady) {
             m_err = "辞書が開けていないので漢字・カタカナ・句読点は読めない"
                     "（dict パーティションを焼くか、かな中間表現で入れること）";
-            return false;
+            return -3;
         }
         int n_tok = 0;
         const saan_kanji_status ks =
@@ -167,21 +171,26 @@ bool SanoTTS::toIds(const char* text, size_t nbytes, int32_t* nIds) {
                               g_ids, kIdsCap, nIds, &n_tok);
         if (ks != SAAN_KANJI_OK) {
             m_err = saan_kanji_strerror(ks);
-            return false;
+            /* ⚠️ **ANALYZE も「長すぎる」として返す**（ESP-IDF の main.c と同じ判断。D-070）。
+             *    jdict_analyze は格子の容量超え・形態素数超え・経路なしを全部 -1 で返し、
+             *    長い入力の ANALYZE は実質容量超え。区切った各区間は改めて検査される */
+            if (ks == SAAN_KANJI_ERR_TOO_LONG || ks == SAAN_KANJI_ERR_ANALYZE)
+                return SAAN_SPLIT_CB_TOO_LONG;
+            return -4;
         }
-        return true;
+        return 0;
 #else
         /* ⚠️ **喋らずに理由を出す。** かな経路に無理やり通すと読めない文字が黙って落ちる。 */
         m_err = "この構成は辞書を持たないので漢字・カタカナ・句読点は扱えない"
                 "（SANOTTS_ENABLE_KANJI=1 でビルドすること）";
-        return false;
+        return -5;
 #endif
     }
 
     m_err = (why == SAAN_G2P_ERR_UTF8)
         ? "不正な UTF-8。端末は UTF-8 しか受けない"
         : "かな中間表現として読めないのに中間表現の記号（[ ] # ° _ ^ $ ?）が混じっている";
-    return false;
+    return -6;
 }
 
 /* --- 1 発話ぶんの stream を開く（arena の二重防御つき）--------------------- */
@@ -208,6 +217,47 @@ bool SanoTTS::openStream(int32_t nIds) {
     return true;
 }
 
+/* --- 長文を区切って 1 区間ずつ（D-070）----------------------------------------
+ *
+ * ⚠️ **上限内の入力は区切らない**（toIdsCode → 1 区間ぶんの合成を 1 回 = 今と同じ経路）。
+ * ⚠️ **全か無か。** 1 区間でも読めない・350 ids を超えるなら 1 区間も鳴らさない。
+ * ⚠️ `checksum()` / `samples()` は**最後の区間ぶん**になる（区間ごとに saan_pcm_reset するため）。 */
+int SanoTTS::splitToIds(void* ctx, const char* seg, size_t len, int32_t* nIds) {
+    SanoTTS* self = static_cast<SanoTTS*>(ctx);
+    const int r = self->toIdsCode(seg, len, nIds);
+    if (r == 0) self->m_nIds = *nIds;
+    return r;
+}
+int SanoTTS::splitSynth(void* ctx, int32_t, int32_t) {
+    SanoTTS* self = static_cast<SanoTTS*>(ctx);
+    return self->synthOne(self->m_nIds) ? 0 : -1;
+}
+int SanoTTS::splitSay(void* ctx, int32_t, int32_t) {
+    SanoTTS* self = static_cast<SanoTTS*>(ctx);
+    return self->sayOne(self->m_nIds) ? 0 : -1;
+}
+
+bool SanoTTS::runSplit(const char* text, size_t nbytes, SplitSpeakFn speak) {
+    saan_split_result r;
+    const saan_split_status s =
+        saan_split_say(text, nbytes, kMaxIds, &SanoTTS::splitToIds, speak, this, &r);
+    switch (s) {
+    case SAAN_SPLIT_SAID:
+        return true;
+    case SAAN_SPLIT_ERR_TO_IDS:   /* m_err は toIdsCode が書いた */
+    case SAAN_SPLIT_ERR_SPEAK:    /* m_err は synthOne / sayOne が書いた */
+        return false;
+    case SAAN_SPLIT_ERR_SEGMENT:
+        m_err = (r.n_spans <= 1)
+            ? "長すぎるが、文末記号（。！？!?）が無いので区切れない。**喋らない**（。で区切ること）"
+            : saan_split_strerror(s);
+        return false;
+    default:
+        m_err = saan_split_strerror(s);
+        return false;
+    }
+}
+
 /* --- PCM を返すだけ -------------------------------------------------------- */
 bool SanoTTS::synthesize(const char* text, PcmCallback cb, void* user) {
     return synthesize(text, text ? strlen(text) : 0, cb, user);
@@ -215,8 +265,12 @@ bool SanoTTS::synthesize(const char* text, PcmCallback cb, void* user) {
 
 bool SanoTTS::synthesize(const char* text, size_t nbytes, PcmCallback cb, void* user) {
     if (!m_ready) { m_err = "begin() を呼んでいない"; return false; }
-    int32_t n_ids = 0;
-    if (!toIds(text, nbytes, &n_ids)) return false;
+    m_cb = cb;
+    m_user = user;
+    return runSplit(text, nbytes, &SanoTTS::splitSynth);
+}
+
+bool SanoTTS::synthOne(int32_t n_ids) {
     if (!openStream(n_ids)) return false;
 
     for (;;) {
@@ -229,7 +283,7 @@ bool SanoTTS::synthesize(const char* text, size_t nbytes, PcmCallback cb, void* 
         if (n <= 0) break;
         const size_t ns = (size_t)n * SAAN_HOP;
         for (size_t i = 0; i < ns; ++i) g_i16[i] = saan_f32_to_i16(chunk[i]);
-        if (cb) cb(g_i16, ns, user);
+        if (m_cb) m_cb(g_i16, ns, m_user);
     }
     return true;
 }
@@ -242,9 +296,10 @@ bool SanoTTS::say(const char* text) {
 bool SanoTTS::say(const char* text, size_t nbytes) {
     if (!m_ready) { m_err = "begin() を呼んでいない"; return false; }
     if (!m_spk)   { m_err = "setSpeaker() を呼んでいない"; return false; }
+    return runSplit(text, nbytes, &SanoTTS::splitSay);
+}
 
-    int32_t n_ids = 0;
-    if (!toIds(text, nbytes, &n_ids)) return false;
+bool SanoTTS::sayOne(int32_t n_ids) {
     if (!openStream(n_ids)) return false;
 
     const size_t preroll = m_spk->prerollSamples();
