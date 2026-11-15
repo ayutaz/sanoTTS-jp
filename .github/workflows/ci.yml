@@ -219,6 +219,9 @@ jobs:
       - name: 端末の行編集（G9/G10・陽性対照つき）
         run: make -C csrc line
 
+      - name: 長文の区切り（G-SP1/G-SP2・陽性対照 naive。D-070）
+        run: make -C csrc split
+
       - name: 逆 FFT（naive DFT との突き合わせ）
         run: make -C csrc fft
 

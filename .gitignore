@@ -89,6 +89,7 @@ __pycache__/
 /csrc/arena_stress_a8
 /csrc/g2p_test
 /csrc/line_test
+/csrc/split_test
 /csrc/route_tool
 /csrc/dump_pcm_a32
 /csrc/dump_pcm_a8
